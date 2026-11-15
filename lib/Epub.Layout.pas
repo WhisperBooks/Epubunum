@@ -175,6 +175,31 @@ type
   { Ids in document order. }
   TEpubLayoutIdArray = array of TEpubLayoutId;
 
+  { Where a word is in the parsed document (layouts made with sources):
+    for a writer that wraps words in elements. Positions are 1-based
+    character indexes into the text nodes' @link(TEpubXmlNode.Text); map
+    them to the source with EpubXmlRawIndex. The nodes belong to the
+    document the layout was made from: valid while it lives. }
+  TEpubWordSource = record
+    { The text node the word starts in. }
+    FirstNode: TEpubXmlNode;
+    { Its first character there. }
+    FirstStart: Integer;
+    { Its last character in FirstNode (the whole word when FirstNode =
+      LastNode). }
+    FirstEnd: Integer;
+    { The text node the word ends in (another one when markup splits the
+      word: '<i>Moby</i>-Dick'). }
+    LastNode: TEpubXmlNode;
+    { Its last character there. }
+    LastEnd: Integer;
+    { The innermost block element around the word (p, li, h1, ... or the
+      body), as the walker saw it (CSS display included). }
+    Block: TEpubXmlNode;
+  end;
+  { Word sources, one per word. }
+  TEpubWordSourceArray = array of TEpubWordSource;
+
   { The layout of one content document. }
   TEpubDocLayout = class
   private
@@ -184,6 +209,12 @@ type
     FWordCount: Integer;
     { Backing field of @link(Ids). }
     FIds: TEpubLayoutIdArray;
+    { Ids in use in FIds (it grows by doubling while walking). }
+    FIdCount: Integer;
+    { Backing field of @link(Sources). }
+    FSources: TEpubWordSourceArray;
+    { Record the sources. }
+    FWithSources: Boolean;
     { Backing field of @link(Blocks). }
     FBlocks: TEpubBlockArray;
     { Blocks in use. }
@@ -197,9 +228,11 @@ type
       @param(ABody  The document's body element (or root).)
       @param(ADocPath  Its archive path (for pictures' paths).)
       @param(AStyles  Its style sheets; nil = element defaults only.)
-      @param(AWithBlocks  Also build the blocks (else only the words).) }
+      @param(AWithBlocks  Also build the blocks (else only the words).)
+      @param(AWithSources  Also record where each word is in the parsed
+        document (@link(Sources)).) }
     constructor Create(ABody: TEpubXmlNode; const ADocPath: string; AStyles: TEpubStyleSheet;
-      AWithBlocks: Boolean);
+      AWithBlocks: Boolean; AWithSources: Boolean = False);
     { Index of id AId in Ids, -1 when absent. }
     function IndexOfId(const AId: string): Integer;
     { The words. }
@@ -212,6 +245,8 @@ type
     property Blocks: TEpubBlockArray read GetBlocks;
     { Number of blocks. }
     property BlockCount: Integer read FBlockCount;
+    { Where each word is (made with AWithSources; else empty). }
+    property Sources: TEpubWordSourceArray read FSources;
   end;
 
 { Name of a word role ('body', 'heading', ...). }
@@ -224,6 +259,12 @@ function EpubPlainSpaces(const AText: string): string;
 { Full archive path of AHref as written in document ABase (relative paths
   resolved, '%20' decoded, any fragment dropped). }
 function EpubResolvePath(const ABase, AHref: string): string;
+{ True when word AWord (as the walker gives it, punctuation included) ends
+  a sentence: its last character before closing quotes and brackets is
+  '.', '!' or '?' - unless it is a common abbreviation ('Mr.', 'Dr.',
+  'St.', ...) or an initial ('J.'). A heuristic for stepping through a
+  book; a paragraph's end ends a sentence too, which the caller knows. }
+function EpubEndsSentence(const AWord: string): Boolean;
 
 implementation
 
@@ -311,6 +352,64 @@ begin
     end;
 end;
 {$endif}
+
+function EpubEndsSentence(const AWord: string): Boolean;
+const
+  { Abbreviations that end with a full stop inside a sentence. }
+  ABBREVIATIONS: array[0..13] of string = ('mr.', 'mrs.', 'ms.', 'dr.', 'st.', 'jr.', 'sr.', 'mt.',
+    'vs.', 'prof.', 'rev.', 'capt.', 'col.', 'gen.');
+var
+  N, I: Integer;
+  W: string;
+  Stripped: Boolean;
+begin
+  Result := False;
+  N := Length(AWord);
+  // closing quotes and brackets after the stop: '."', '?)', a curly quote
+  repeat
+    Stripped := False;
+    if (N > 0) and CharInSet(AWord[N], ['"', '''', ')', ']', '}', '*']) then
+    begin
+      Dec(N);
+      Stripped := True;
+    end;
+    {$ifdef FPC}
+    // UTF-8: U+2019 / U+201D (E2 80 99 / 9D), U+00BB (C2 BB)
+    if (N >= 3) and (AWord[N - 2] = #$E2) and (AWord[N - 1] = #$80) and
+      CharInSet(AWord[N], [#$99, #$9D]) then
+    begin
+      Dec(N, 3);
+      Stripped := True;
+    end
+    else if (N >= 2) and (AWord[N - 1] = #$C2) and (AWord[N] = #$BB) then
+    begin
+      Dec(N, 2);
+      Stripped := True;
+    end;
+    {$else}
+    if (N > 0) and ((Ord(AWord[N]) = $2019) or (Ord(AWord[N]) = $201D) or (Ord(AWord[N]) = $BB)) then
+    begin
+      Dec(N);
+      Stripped := True;
+    end;
+    {$endif}
+  until not Stripped;
+  if (N = 0) or not CharInSet(AWord[N], ['.', '!', '?']) then
+    Exit;
+  if AWord[N] = '.' then
+  begin
+    W := LowerCase(Copy(AWord, 1, N));
+    // an opening quote before an abbreviation: '"Mr.'
+    while (W <> '') and CharInSet(W[1], ['"', '''', '(', '[']) do
+      Delete(W, 1, 1);
+    for I := 0 to High(ABBREVIATIONS) do
+      if W = ABBREVIATIONS[I] then
+        Exit;
+    if (Length(W) = 2) and CharInSet(W[1], ['a'..'z']) then
+      Exit;   // an initial: 'J.'
+  end;
+  Result := True;
+end;
 
 { AText with %XX escapes decoded (as UTF-8 bytes). }
 function PercentDecode(const AText: string): string;
@@ -453,14 +552,19 @@ type
     NextId: string;
     { The state of the block that will open next. }
     NextState: TWalkState;
+    { Where the word being collected is (with sources). }
+    BufSrc: TEpubWordSource;
+    { The innermost block element being walked. }
+    CurBlockEl: TEpubXmlNode;
     { Adds a word. }
     procedure FlushWord;
     { Opens a block for text in state AState when none is open. }
     procedure EnsureBlock(const AState: TWalkState);
     { Closes the open block (and the word in progress). }
     procedure CloseBlock;
-    { Appends AText to the open block in state AState. }
-    procedure AppendText(const AText: string; const AState: TWalkState);
+    { Appends the text of text node ANode to the open block in state
+      AState. }
+    procedure AppendText(ANode: TEpubXmlNode; const AState: TWalkState);
     { Records that ALength characters ending the open block's text were
       added in state AState (a new run, or the last one grown). }
     procedure AddRun(ALength: Integer; const AState: TWalkState);
@@ -518,6 +622,12 @@ begin
   L.FWords[W].IdIndex := BufId;
   L.FWords[W].Role := BufRole;
   L.FWords[W].Block := -1;
+  if L.FWithSources then
+  begin
+    if Length(L.FSources) < Length(L.FWords) then
+      SetLength(L.FSources, Length(L.FWords));
+    L.FSources[W] := BufSrc;
+  end;
   Inc(L.FWordCount);
   if WithBlocks and Open then
   begin
@@ -570,20 +680,55 @@ begin
     Dec(L.FBlockCount);
 end;
 
-procedure TWalker.AppendText(const AText: string; const AState: TWalkState);
+{ Length of the white space at AText[AI]: 1 for a space, tab, CR or LF,
+  the length of a Unicode space (no-break, en / em / thin, U+2000 - U+200A,
+  U+202F, U+3000; bytes with FPC, whose strings are UTF-8), 0 for anything
+  else. The same spaces as EpubPlainSpaces. }
+function SpaceAt(const AText: string; AI: Integer): Integer;
+begin
+  Result := 0;
+  if CharInSet(AText[AI], [' ', #9, #10, #13]) then
+    Exit(1);
+  {$ifdef FPC}
+  if (AI < Length(AText)) and (AText[AI] = #$C2) and (AText[AI + 1] = #$A0) then
+    Result := 2
+  else if (AI + 2 <= Length(AText)) and (AText[AI] = #$E2) and (AText[AI + 1] = #$80) and
+    ((Ord(AText[AI + 2]) in [$80..$8A]) or (AText[AI + 2] = #$AF)) then
+    Result := 3
+  else if (AI + 2 <= Length(AText)) and (AText[AI] = #$E3) and (AText[AI + 1] = #$80) and
+    (AText[AI + 2] = #$80) then
+    Result := 3;
+  {$else}
+  case Ord(AText[AI]) of
+    $A0, $2000..$200A, $202F, $3000:
+      Result := 1;
+  end;
+  {$endif}
+end;
+
+procedure TWalker.AppendText(ANode: TEpubXmlNode; const AState: TWalkState);
 var
-  K: Integer;
+  K, Sp: Integer;
   Ch: Char;
   S: string;
   Added: string;
 begin
-  S := EpubPlainSpaces(AText);
+  S := ANode.Text;
   Added := '';
-  for K := 1 to Length(S) do
+  K := 1;
+  while K <= Length(S) do
   begin
     Ch := S[K];
-    if CharInSet(Ch, [' ', #9, #10, #13]) then
+    Sp := SpaceAt(S, K);
+    if Sp > 0 then
     begin
+      Inc(K, Sp);
+      if Sp > 1 then
+        Ch := ' ';
+      {$ifndef FPC}
+      if not CharInSet(Ch, [#9, #10, #13]) then
+        Ch := ' ';
+      {$endif}
       FlushWord;
       if not WithBlocks then
         Continue;
@@ -612,6 +757,19 @@ begin
       BufRole := AState.Role;
       if WithBlocks then
         BufStart := Length(L.FBlocks[Cur].Text);
+      if L.FWithSources then
+      begin
+        BufSrc.FirstNode := ANode;
+        BufSrc.FirstStart := K;
+        BufSrc.Block := CurBlockEl;
+      end;
+    end;
+    if L.FWithSources then
+    begin
+      if BufSrc.FirstNode = ANode then
+        BufSrc.FirstEnd := K;
+      BufSrc.LastNode := ANode;
+      BufSrc.LastEnd := K;
     end;
     Buf := Buf + Ch;
     if WithBlocks then
@@ -619,6 +777,7 @@ begin
       Added := Added + Ch;
       L.FBlocks[Cur].Text := L.FBlocks[Cur].Text + Ch;
     end;
+    Inc(K);
   end;
   if WithBlocks and Open and (Added <> '') then
     AddRun(Length(Added), AState);
@@ -725,13 +884,14 @@ var
   SaveKind: TEpubBlockKind;
   SaveLevel: Integer;
   SaveState: TWalkState;
+  SaveBlockEl: TEpubXmlNode;
 begin
   for I := 0 to AEl.ChildCount - 1 do
   begin
     C := AEl.Children[I];
     if C.Kind = xnText then
     begin
-      AppendText(C.Text, AState);
+      AppendText(C, AState);
       Continue;
     end;
     Loc := C.LocalName;
@@ -844,8 +1004,10 @@ begin
     WStart := L.FWordCount;   // a word pending in Buf gets this index too
     if IdText <> '' then
     begin
-      SetLength(L.FIds, Length(L.FIds) + 1);
-      Id := High(L.FIds);
+      if L.FIdCount = Length(L.FIds) then
+        SetLength(L.FIds, L.FIdCount * 2 + 64);
+      Id := L.FIdCount;
+      Inc(L.FIdCount);
       L.FIds[Id].Id := IdText;
       L.FIds[Id].FirstWord := -1;
       L.FIds[Id].LastWord := -1;
@@ -908,7 +1070,11 @@ begin
       L.FIds[Id].Block := L.FBlockCount;   // the next block (or the open one)
     if (IdText <> '') and WithBlocks and Open then
       L.FIds[Id].Block := Cur;
+    SaveBlockEl := CurBlockEl;
+    if IsBlock then
+      CurBlockEl := C;
     Walk(C, St);
+    CurBlockEl := SaveBlockEl;
     if IdText <> '' then
     begin
       // every word that touches the element, nested ids included
@@ -935,13 +1101,14 @@ end;
 { TEpubDocLayout }
 
 constructor TEpubDocLayout.Create(ABody: TEpubXmlNode; const ADocPath: string; AStyles: TEpubStyleSheet;
-  AWithBlocks: Boolean);
+  AWithBlocks: Boolean; AWithSources: Boolean);
 var
   W: TWalker;
   S: TWalkState;
   Css: TEpubStyle;
 begin
   inherited Create;
+  FWithSources := AWithSources;
   W := TWalker.Create;
   try
     W.L := Self;
@@ -949,6 +1116,7 @@ begin
     W.Sheet := AStyles;
     W.WithBlocks := AWithBlocks;
     W.BufId := -1;
+    W.CurBlockEl := ABody;
     S := Default(TWalkState);
     S.IdIndex := -1;
     S.Role := ewrBody;
@@ -974,6 +1142,9 @@ begin
   end;
   SetLength(FWords, FWordCount);
   SetLength(FBlocks, FBlockCount);
+  SetLength(FIds, FIdCount);
+  if FWithSources then
+    SetLength(FSources, FWordCount);
 end;
 
 function TEpubDocLayout.GetWords: TEpubLayoutWordArray;

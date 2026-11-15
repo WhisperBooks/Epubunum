@@ -101,6 +101,15 @@ type
     { The rules: selector (one simple selector), declarations, specificity,
       order. }
     FRules: TList;
+    { StyleOf's answers by key (element, classes, style attribute, and the
+      id when a rule has an id selector); Objects index FCache. Cleared by
+      Add. }
+    FCacheKeys: TStringList;
+    { The cached styles. }
+    FCache: array of TEpubStyle;
+    { The ids of the rules with an id selector, lower case, sorted: only
+      those ids are part of the cache key. }
+    FRuleIds: TStringList;
     { Adds every rule of ACss. }
     procedure Parse(const ACss: string);
   public
@@ -129,6 +138,11 @@ implementation
 
 uses
   Math;
+
+var
+  { Number format with '.' as the decimal separator, set once (a copy of
+    FormatSettings per value is costly: some fifty strings). }
+  DotSettings: TFormatSettings;
 
 type
   { One rule: a simple selector and its declarations. }
@@ -177,7 +191,6 @@ function LengthEm(const AValue: string): Double;
 var
   S: string;
   V: Double;
-  FS: TFormatSettings;
   Unit_: string;
   I: Integer;
 begin
@@ -191,9 +204,7 @@ begin
   while (I <= Length(S)) and CharInSet(S[I], ['0'..'9', '.', '-', '+']) do
     Inc(I);
   Unit_ := Copy(S, I, MaxInt);
-  FS := FormatSettings;   // a copy; only the decimal separator is changed
-  FS.DecimalSeparator := '.';
-  if not TryStrToFloat(Copy(S, 1, I - 1), V, FS) then
+  if not TryStrToFloat(Copy(S, 1, I - 1), V, DotSettings) then
     Exit;
   if (Unit_ = 'em') or (Unit_ = 'rem') then
     Result := V
@@ -387,6 +398,12 @@ constructor TEpubStyleSheet.Create;
 begin
   inherited Create;
   FRules := TList.Create;
+  FCacheKeys := TStringList.Create;
+  FCacheKeys.Sorted := True;
+  FCacheKeys.CaseSensitive := True;
+  FRuleIds := TStringList.Create;
+  FRuleIds.Sorted := True;
+  FRuleIds.CaseSensitive := True;
 end;
 
 destructor TEpubStyleSheet.Destroy;
@@ -396,6 +413,8 @@ begin
   for I := 0 to FRules.Count - 1 do
     TRule(FRules[I]).Free;
   FRules.Free;
+  FCacheKeys.Free;
+  FRuleIds.Free;
   inherited;
 end;
 
@@ -405,8 +424,16 @@ begin
 end;
 
 procedure TEpubStyleSheet.Add(const ACss: string);
+var
+  I: Integer;
 begin
   Parse(ACss);
+  FCacheKeys.Clear;
+  FCache := nil;
+  FRuleIds.Clear;
+  for I := 0 to FRules.Count - 1 do
+    if TRule(FRules[I]).Id <> '' then
+      FRuleIds.Add(LowerCase(TRule(FRules[I]).Id));
 end;
 
 procedure TEpubStyleSheet.Parse(const ACss: string);
@@ -524,13 +551,24 @@ begin
 end;
 
 function TEpubStyleSheet.StyleOf(const ALocal, AClass, AId, AStyleAttr: string): TEpubStyle;
+const
+  { Most answers kept (a book has few distinct element / class pairs). }
+  MAX_CACHE = 4096;
 var
   I, K, Pass, Best: Integer;
   R: TRule;
-  Cls: string;
+  Cls, Key: string;
   Match: Boolean;
   Hits: TList;
 begin
+  // the same element and classes give the same style: every rule was
+  // scanned and its declarations parsed again for each element (a
+  // word-level overlay has a span per word)
+  Key := ALocal + #1 + AClass + #1 + AStyleAttr;
+  if (AId <> '') and (FRuleIds.Count > 0) and (FRuleIds.IndexOf(LowerCase(AId)) >= 0) then
+    Key := Key + #1 + AId;   // a rule names this id
+  if FCacheKeys.Find(Key, I) then
+    Exit(FCache[NativeInt(FCacheKeys.Objects[I])]);
   Result := EpubEmptyStyle;
   Cls := ' ' + LowerCase(StringReplace(StringReplace(AClass, #9, ' ', [rfReplaceAll]), #10, ' ',
     [rfReplaceAll])) + ' ';
@@ -571,6 +609,16 @@ begin
   end;
   if AStyleAttr <> '' then
     EpubApplyDeclarations(Result, AStyleAttr);
+  if FCacheKeys.Count < MAX_CACHE then
+  begin
+    SetLength(FCache, Length(FCache) + 1);
+    FCache[High(FCache)] := Result;
+    FCacheKeys.AddObject(Key, TObject(NativeInt(High(FCache))));
+  end;
 end;
+
+initialization
+  DotSettings := FormatSettings;
+  DotSettings.DecimalSeparator := '.';
 
 end.

@@ -20,9 +20,10 @@ deploys Skia's library (`sk4d.dll`, `libsk4d.so`, ...) next to the program.
 | | |
 |---|---|
 | Folder / Ctrl+O | choose a book |
-| Contents list | jump to a chapter |
-| bar + double triangle | previous / next chapter (document of the reading order) |
-| triangle + bar | previous / next sentence (media overlay clip) |
+| Contents list | jump to a chapter - the audio follows |
+| bar + double triangle | previous / next chapter (contents entries; documents when there are none); the audio moves to the chapter's first clip - playing on when playing, else Play starts there. Previous goes to the start of the chapter being read, pressed at its start to the one before |
+| triangle + bar | previous / next sentence or paragraph (the drop-down beside them), whatever the clips are (a word-level book has one per word). Previous: the start of the sentence being read; within 1.5 s of that start, the one before |
+| moon, D | dark mode (page, window, contents; the buttons keep the platform style) |
 | Play / Pause, P | play or pause the book's audio (books with media overlays) |
 | click a word | play from there |
 | A- / A+, Ctrl+Minus / Ctrl+Plus | text size |

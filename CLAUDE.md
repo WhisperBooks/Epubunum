@@ -124,7 +124,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 08.
+Last number used: 13.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -164,18 +164,186 @@ books are their test.
    (Epub.Layout's walk, the NCX reader) was quadratic. Callers must not
    change the array.
 Found in the same review and NOT fixed: Epub.Zip trusts the sizes of the
-directory (a small file can ask for 2 GB) and Extract reads the whole entry
-into memory although the error text says to use it; a descendant selector
+directory (a small file can ask for 2 GB) [zip 11: data ranges checked,
+Extract streams]; a descendant selector
 ('.poem p') is applied to every element matching its last part; style
 sheets are parsed once per DOCUMENT, not per CSS file, and StyleOf scans
 every rule and parses the declarations again for each element; ClipAt
 returns a clip without clipEnd for every later time; the XML tree and the
 layout walk recurse without a depth limit; ExtractAll skips every name with
-'..' in it ('Wait....xhtml'); with FPC, UTF-16 text is converted with
-string(W), not UTF8Encode; Active := True fails silently without
+'..' in it ('Wait....xhtml'); [fixed in zip 09: with FPC, UTF-16 text
+is converted with string(W), not UTF8Encode]; Active := True fails silently without
 OnOpenFailed; no LICENSE file.
 
+## EPUB writing (zip 09, on top of ef2daff "Claude review push")
+Owner, 2026-11-15: next work item 1, "EPUB writing: media overlays (SMIL),
+word spans, package update - so TWhisper can write synced books".
+Decisions (owner): "Matching is a TWhisper job. User can decide but default
+to word level". So:
+- lib/Epub.Writer, TEpubWriter: takes TIMED WORDS ONLY - (index into
+  TEpubBook.Words, audio file, clipBegin, clipEnd). No text matching here.
+  Level: eolWord (default; a span per timed word) or eolBlock (the
+  paragraph / heading / list item gets an id, one clip per block run).
+- Spans are INSERTED into the source text (never re-serialised): the
+  parser now records source positions (TEpubXmlNode.SrcPos / SrcLen /
+  SrcEnd / CData, TEpubXmlDoc.Source; EpubXmlRawIndex maps a decoded index
+  back), and the ONE walker records where each word is
+  (TEpubDocLayout.Create(..., AWithSources), Sources; TEpubBook.
+  DocumentSources). A word split by markup ('<i>Moby</i>-Dick') gets its
+  span on the first piece - the walker counts every word touching an
+  element, so the id still holds exactly that word.
+- Every tagged document is CHECKED before writing: laid out again it must
+  give the same words, and each new id must hold exactly its word.
+- A word alone in an element with an id keeps that id (Moby-Dick's
+  c01w00001; writing a written book again adds 0 spans).
+- Package: SMIL / audio / css / nav items, media-overlay, media:duration per
+  overlay + total (kept overlays' values counted), media:active-class (when
+  the book has none, plus epubunum-overlay.css linked from the tagged
+  documents so other readers highlight), media:narrator, dcterms:modified.
+  Edits are insertions / tag rewrites on the source, indented like the
+  file. A manifest href with a space is written with %20.
+- EPUB 2 -> EPUB 3 (overlays need it): version, nav from the NCX,
+  opf:role / opf:file-as -> refines metas, other opf: attributes and
+  extra dc:date dropped, HTML5 doctype + named entities as &#N; (the HTML5
+  doctype declares none: &nbsp; was FATAL in epubcheck).
+- Other files are copied RAW (TEpubZipWriter.AddRaw / TEpubZipReader.
+  ReadRaw, size checked against the file); audio from disk is stored in
+  pieces (AddFileStored), never loaded whole.
+- EpubConsole: --words, --overlay TIMINGS OUT [--audio F | --book-audio P]
+  [--block] [--narrator N], --clip-timings (test aid).
+Also in zip 09 (found while testing):
+- FPC UTF-8: EpubBytesText / EpubUtf8Bytes / CodeText converted through
+  the system code page (UTF8Decode -> string): with no UTF-8 locale every
+  non-ASCII character became '?' - in the words, and in written files.
+  Now byte copies under FPC (strings are UTF-8 by design). The old build
+  gave '?' for "Transcriber's" (curly quote) on Moby-Dick even with
+  LANG=C.UTF-8. Delphi unchanged.
+- Speed for word-level books (Moby-Dick with 212,881 clips): ReadOverlays
+  grew FClips by one per clip and resolved two paths per par (now doubled
+  capacity, paths cached per file); the walker grew FIds by one (now
+  doubled); ClipWords scanned the ids (now a sorted index per document,
+  first of a repeated id wins); ClipAt starts at the last clip found when
+  the clips are ordered (FClipsOrdered); EpubClockValue used a TStringList
+  and copied FormatSettings (~50 strings) per value (now split by hand,
+  DotSettings set once - also in Epub.Css); StyleOf caches its answers
+  (key: element, class, style, and the id only when a rule names it);
+  TEpubXmlNode.LocalName is cached. Open + LoadText of that book: 3.1 s ->
+  2.2 s (FPC -O2, Linux; most of it is parsing 46 MB of SMIL). The
+  original Moby-Dick: 0.24 s -> 0.18 s.
+TESTED here (FPC 3.0 from fpc-lambda, Linux x64, static link - no -k-ldl;
+epubcheck 5.2.1 from its GitHub release; Moby-Dick from IDPF epub3-samples
+20230704): word level for Moby-Dick's own two chapters (timings from its
+clips), + chapter 3 new with a second audio file, block level, every word
+of the book, a written book written again, a synthetic EPUB 2 (NCX,
+opf:role, two dc:date, XHTML 1.1 doctype, &nbsp; / &mdash;, a word split
+by <i>, a word across <a><sup>, ruby, pre, display:none, aside footnote,
+a file name with a space). epubcheck: 0 errors / 0 warnings (the EPUB 2
+sample only keeps its own fake cover PNG error). A test reader re-opened
+every result: same words (text, role, document), each clip's words =
+exactly its timed word, timings to the ms, ClipAt forwards and backwards.
+Every tagged document = the original with only our markup inserted
+(byte check). Old vs new library on Moby-Dick and the sample: same text,
+layout and info apart from the '?' fix.
+NOT RUN: Delphi build (owner), EpubReader on a written book. TO TEST:
+build the packages (EpubUnum has a new unit), EpubConsole --overlay as in
+its README on Moby-Dick, then open moby-words.epub in EpubReader: the
+highlight must move word by word; the prev / next clip buttons now step
+one WORD (a reader feature to decide: sentence stepping).
+Known, not done: sentence level (a sentence can cross inline markup);
+block level picks the innermost block, so a div's loose text after a p
+gets a clip on the div (its highlight covers the p too); a word-level
+book's SMIL parse dominates opening (a dedicated SMIL scanner would cut
+it); non-core audio (wav, ogg, flac) is written with a warning only.
+
+## Reader navigation and dark mode (zip 10, on top of zip 09)
+Owner, 2026-11-15, after zip 09: "Chapter forwards / backwards that syncs
+to the start of a chapter"; "next/prev ... non-sensical at word level.
+This should be sentence / paragraph (selectable - a drop-down for now is
+fine)"; "Dark mode would be good as well".
+- Chapters = Toc entries in reading order (an entry at the place of the
+  one before - a part and its first chapter - is merged; no Toc: the linear
+  documents). Previous / next chapter and a contents click show the
+  chapter AND move the audio to its first clip inside the chapter (a
+  chapter without audio stops playing, nothing jumps to a later
+  chapter's). Paused: FSeekClip - Play starts there instead of resuming.
+  lbToc follows the clip being read (FSyncingToc: no jump).
+- Steps by sentence / paragraph (cbStep, a TComboBox in the tool bar), on
+  WORDS, not clips: a paragraph = a block of the walker's layout; a
+  sentence ends at a block end or a word for which EpubEndsSentence
+  (Epub.Layout, new; closing quotes stripped; Mr. / Dr. / St. ... and
+  initials are not ends) is True. Then the first clip at or after that
+  word. Checked with FPC on Moby-Dick: every one of its own sentence clips
+  starts at a sentence start (its three word clips are the only others).
+  Previous: start of the sentence being read; within BACK_GRACE (1.5 s of
+  audio) of it - or paused at it - the one before.
+- Dark mode (moon button, D): TEpubView's four colours, the form's Fill,
+  lblStatus, the contents' item text and its style's 'background' shape
+  (TocApplyStyle on OnApplyStyleLookup; light = the style re-applied).
+  Zip 12 (owner: "Dark mode makes the sidebar unreadable" - light text on
+  the style's white): dark sets lbToc.StyleLookup :=
+  'transparentlistboxstyle' (FMX's own), so the form's dark Fill shows
+  through; TocApplyStyle stays as a fallback (a 'background' shape made
+  dark, another kind hidden). Light: StyleLookup ''.
+  The tool bar's buttons and the combo box keep the platform style. Not
+  remembered between runs (the reader keeps no settings yet).
+NOT COMPILED (no Delphi here): uMain.pas changes are the owner's build.
+TO TEST: chapter buttons while playing and paused; a contents click while
+playing; sentence / paragraph steps on moby-dick-word-level.epub and the
+original Moby-Dick; D on and off (the contents panel's background - if
+the style names its background differently, it stays light).
+
+## Streamed extraction (zip 11, on top of zip 10)
+Owner, 2026-11-15: "Yes fix streaming" - the LibriVox Moby Dick m4b files
+(Stuart Wills: 5 x 140 MB; Peter Dann: 3 x 225 MB) are copied out by
+EpubReader before playing, and Extract read the whole entry into memory.
+- TEpubZipReader.ReadTo(AIndex, AOut): stored or deflated, 1 MB pieces,
+  CRC over the pieces, short data and the data range checked against the
+  file. Extract uses it and deletes the file on any error. Tested (FPC): a
+  300 MB entry, stored and deflated, byte-identical, peak 13 MB; the 9 MB
+  deflated Moby-Dick mp4 = unzip's; a flipped byte -> "damaged (CRC)",
+  no file left; ExtractAll of a written book = unzip's.
+- ReadBytes checks the data range against the file too.
+Still so: ReadBytes allocates the size the directory declares (a small
+file can still ask for up to 2 GB when read whole; Extract does not).
+NOTE: the IDPF Moby-Dick sample's audio is LibriVox's Stuart Wills
+recording (chapters 1-2, the LibriVox intro before 24.5 s): TWhisper on
+the Wills m4b files can be compared with that human-made sync (sentence
+clips; offsets differ - find the median first).
+
+## Shall we do this - and if so, how to do the UI
+Ideas kept for later (owner, 2026-11-15): "keep them in a 'Shall we do
+this and if so how to do UI' section". ORDER (owner): "once we've got the
+reader at a satisfactory pausing point we can improve the other
+contributing components / systems" - reader first, then TFFMpegAPI etc.
+- LEARN TO READ mode (owner's idea: "if the playing was paused and the
+  user pressed fwd it could say the word ... people learning to read or
+  learning to read a new language"; "a 'Learn To Read' switch ... owing to
+  the differing use of the control(s)"). Proposal, not agreed in detail:
+  a toolbar toggle (+ a key, e.g. L). In the mode: the step drop-down gets
+  Word / Sentence / Paragraph (Word default); paused Next / Previous MOVE,
+  THEN SAY the unit and stop (what is seen is what is heard); a "say
+  again" key (Space or R) repeats the highlighted unit; a click on a word
+  says just that word; Play still reads on. Next with nothing highlighted
+  says the page's first word. Owner said "probably you want to read the
+  currently highlighted word then move" - the say-again key covers that;
+  confirm the order when it is built.
+- NEEDS (other components, after the reader): TFFMpegAPI play range -
+  TFFmpegAudioPlayer.PlayRange(Begin, End), the output stops feeding
+  samples at End (the reader's 100 ms timer would let a ~300 ms word run
+  into the next). Pad words 30-50 ms each side (consonants). Good word
+  timings: TWhisper's DTW words, not clips shared out by length (the
+  zip 09 test book's words are approximate - owner: "completely
+  understandable").
+- Speed change (owner had thought of it already): slower speech without a
+  pitch change - FFmpeg's atempo filter in TFFMpegAPI's player.
+- Say a sentence, then step through its words.
+- The current word shown large in a strip under the page.
+- Remember reader settings between runs (dark mode, step unit, text
+  size): the reader keeps none yet.
+
 ## Pushes checked
+- ef2daff = zip 08 (review fixes, on 68162a4 = zips 06 + 07): checked
+  2026-11-15 by clone; pasdoc_check and project_check 0 problems.
 - e8c3a23: zips 01-04 match. The IDE added the Skia requires (now in the
   generator, zip 05) and re-saved the .dproj files. The owner added
   test/README.md and test/.gitignore (*.epub - test books stay local).

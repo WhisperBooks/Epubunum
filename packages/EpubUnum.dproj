@@ -186,6 +186,7 @@
         <DCCReference Include="..\lib\Epub.Css.pas"/>
         <DCCReference Include="..\lib\Epub.Layout.pas"/>
         <DCCReference Include="..\lib\Epub.Book.pas"/>
+        <DCCReference Include="..\lib\Epub.Writer.pas"/>
         <DCCReference Include="..\lib\Epub.Components.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>

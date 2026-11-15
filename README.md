@@ -25,6 +25,8 @@ overlays the same way and would draw the layout model with its own view.
     with styled runs and the character span of every word.
   - `Epub.Book` - `TEpubBook`: package, spine, contents (EPUB 3 nav,
     EPUB 2 NCX), cover, text, media overlays, copy-protection refusal.
+  - `Epub.Writer` - `TEpubWriter`: a copy of a book with **media overlays
+    written** from timed words (what TWhisper makes synced books with).
   - `Epub.Components` - `TCustomEpub`, the base of the component.
 - `fmx/` - `TEpubUnum` (the book), `TEpubView` (Skia page view) and their
   design-time registration (palette page "EpubUnum").
@@ -64,6 +66,53 @@ end;
 - **Copy protection**: `META-INF/encryption.xml` naming anything but font
   obfuscation, `META-INF/rights.xml` (Adobe) or `META-INF/sinf.xml` (Apple
   FairPlay) - the book is refused with a message. Nothing is ever decrypted.
+
+## Writing media overlays (`TEpubWriter`)
+
+The caller gives, for each word it heard, the word's index in
+`Book.Words`, the audio file and the clip's start and end. Matching a
+transcript to the book's words is the caller's job (TWhisper's): the
+writer takes word indexes only, so they always agree with the reader's.
+
+```pascal
+W := TEpubWriter.Create(Book);                // Book stays open while saving
+try
+  A := W.AddAudioFile('narration.m4a');       // copied into the book (stored)
+  // or A := W.AddBookAudio('OEBPS/audio/ch1.mp4');   audio already inside
+  for I := 0 to High(Heard) do
+    W.AddWord(Heard[I].Word, A, Heard[I].Start, Heard[I].Stop);
+  W.Level := eolWord;                         // default; eolBlock = a clip per paragraph
+  W.Narrator := 'A. Narrator';
+  W.SaveToFile('book-synced.epub');           // never over the book itself
+  WriteLn(W.Report.Clips, ' clips, ', W.Report.Skipped, ' words left out');
+finally
+  W.Free;
+end;
+```
+
+- **Word level** (default): every timed word gets `<span id="eu-wN">`
+  (a word already alone in an element with an id keeps that id, so writing
+  a book again adds nothing); **block level**: the paragraph, heading or
+  list item gets an id and one clip covers its words.
+- Only **inserted**: the documents keep every byte of their markup,
+  comments and entities. Each tagged document is **checked** before it is
+  written: parsed and laid out again it must give the same words, and every
+  new id must hold exactly its word.
+- One SMIL file per document, in document order; the package gets the
+  SMIL and audio items, `media-overlay`, `media:duration` (each overlay and
+  the total), `media:active-class`, `media:narrator`, `dcterms:modified`.
+  A document's overlay is replaced as a whole; documents without timed
+  words, and every other file, are copied unchanged (not even unpacked).
+- A book without an active class gets a small style sheet with a
+  highlight rule, so other readers show the highlight too.
+- **EPUB 2 books become EPUB 3** (overlays are EPUB 3 only): version 3.0,
+  a nav document made from the NCX, `opf:role` / `opf:file-as` turned into
+  `refines` metadata, extra `dc:date` dropped, the HTML5 doctype with named
+  entities as character references.
+- Audio: MP3 or AAC in MP4 (what every EPUB 3 reader must play); other
+  types are written with a warning in `Report.Warnings`.
+- Checked with epubcheck 5.2.1: Moby-Dick (IDPF sample) with every one of
+  its 212,881 words timed, 142 overlays - no errors, no warnings.
 
 ## The view (`TEpubView`)
 
@@ -127,8 +176,8 @@ python3 tools/project_check.py     # projects, packages and build order agree
 
 ## Not covered (yet)
 
-- Writing media overlays into a book (what TWhisper needs: spans with ids
-  in the text, SMIL files, the package updated) - next.
-- Writing a new EPUB from a transcript (make-your-own books).
+- Writing a new EPUB from a transcript (make-your-own books) - next.
+- Sentence-level overlays (a sentence can cross inline markup: needs
+  splitting into several spans).
 - Paged (rather than scrolled) view; fonts embedded in books; SVG pictures.
 - Audio playback on Linux (FMX's TMediaPlayer there is untested).

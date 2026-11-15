@@ -46,6 +46,9 @@ type
     FKind: TEpubXmlNodeKind;
     { Backing field of @link(Name). }
     FName: string;
+    { LocalName, made on first use (the walker and FindAll ask for it for
+      every element, often more than once). }
+    FLocal: string;
     { Backing field of @link(Text). }
     FText: string;
     { Backing field of @link(Attrs). }
@@ -56,6 +59,14 @@ type
     FCount: Integer;
     { Backing field of @link(Parent). }
     FParent: TEpubXmlNode;
+    { Backing field of @link(SrcPos). }
+    FSrcPos: Integer;
+    { Backing field of @link(SrcLen). }
+    FSrcLen: Integer;
+    { Backing field of @link(SrcEnd). }
+    FSrcEnd: Integer;
+    { Backing field of @link(CData). }
+    FCData: Boolean;
     { The children: the node's own array, trimmed to FCount on the first
       read (no copy per read). }
     function GetChildren: TEpubXmlNodeArray;
@@ -99,6 +110,20 @@ type
     property ChildCount: Integer read FCount;
     { The parent (nil for the root). }
     property Parent: TEpubXmlNode read FParent;
+    { Where the node is in @link(TEpubXmlDoc.Source) (1-based): for an
+      element the '<' of its start tag, for text the first character as
+      written (entities not resolved; for CDATA the first character inside
+      it). 0 for the synthetic root. }
+    property SrcPos: Integer read FSrcPos;
+    { Length in the source: of the start tag ('<' to '>') for an element,
+      of the text as written for a text node. }
+    property SrcLen: Integer read FSrcLen;
+    { For an element: the position just after its end tag (after the start
+      tag when it is empty or void); 0 when the parser closed it as a
+      repair. }
+    property SrcEnd: Integer read FSrcEnd;
+    { A text node from a CDATA section (its source is not entity-encoded). }
+    property CData: Boolean read FCData;
   end;
 
   { A parsed document. }
@@ -108,6 +133,8 @@ type
     FRoot: TEpubXmlNode;
     { Backing field of @link(Repaired). }
     FRepaired: Integer;
+    { Backing field of @link(Source). }
+    FSource: string;
   public
     { Parses AText (tolerant; never raises for malformed markup).
       @param(AHtml  Treat it as XHTML: HTML void elements need no end tag,
@@ -123,6 +150,8 @@ type
     { How many repairs were made (unclosed or stray tags): 0 for
       well-formed input. }
     property Repaired: Integer read FRepaired;
+    { The text that was parsed (node positions point into it). }
+    property Source: string read FSource;
   end;
 
 { AText with XML / HTML entities resolved (&amp; &#233; &#xE9; &nbsp; ...;
@@ -130,6 +159,14 @@ type
 function EpubXmlDecode(const AText: string): string;
 { AText escaped for XML text or an attribute value (& < > "). }
 function EpubXmlEscape(const AText: string): string;
+{ AText with the named HTML entities (&nbsp; &mdash; ...) written as
+  character references (&#160;): XHTML with the HTML5 doctype (EPUB 3)
+  knows only the XML five, which stay. Unknown names stay as written. }
+function EpubXmlNumericEntities(const AText: string): string;
+{ Where character ADecoded (1-based) of EpubXmlDecode(ARaw) starts in ARaw;
+  Length(ARaw) + 1 for ADecoded past the end. Maps a place in a text
+  node's @link(TEpubXmlNode.Text) back to the source. }
+function EpubXmlRawIndex(const ARaw: string; ADecoded: Integer): Integer;
 { The local part of a qualified name ('type' for 'epub:type'), lower case. }
 function EpubLocalName(const AName: string): string;
 
@@ -174,6 +211,9 @@ const
 function CodeText(ACode: Integer): string;
 var
   W: UnicodeString;
+  {$ifdef FPC}
+  U: RawByteString;
+  {$endif}
 begin
   if (ACode < 0) or (ACode > $10FFFF) then
     ACode := $FFFD;
@@ -185,7 +225,12 @@ begin
   else
     W := WideChar(ACode);
   {$ifdef FPC}
-  Result := UTF8Encode(W);
+  // copied as bytes: an assignment would convert through the system code
+  // page (lossy when it is not UTF-8)
+  U := UTF8Encode(W);
+  SetLength(Result, Length(U));
+  if Length(U) > 0 then
+    Move(U[1], Result[1], Length(U));
   {$else}
   Result := W;
   {$endif}
@@ -199,11 +244,80 @@ begin
   Result := LowerCase(Copy(AName, P + 1, MaxInt));
 end;
 
-function EpubXmlDecode(const AText: string): string;
+{ Reads the entity at AText[AI] ('&'). Returns 2 when it is a known
+  entity ending at AEnd (the ';') with code point ACode, 1 when it ends at
+  AEnd but is unknown (kept as written), 0 for a bare '&'. }
+function ScanEntity(const AText: string; AI, AN: Integer; out AEnd, ACode: Integer): Integer;
 var
-  I, J, N, Code, K, Run: Integer;
+  J, K: Integer;
   Ent: string;
   Found: Boolean;
+begin
+  ACode := 0;
+  J := AI + 1;
+  while (J <= AN) and (J - AI <= 12) and (AText[J] <> ';') and (AText[J] <> '&') and (AText[J] > ' ') do
+    Inc(J);
+  AEnd := J;
+  if (J > AN) or (AText[J] <> ';') then
+    Exit(0);   // a bare '&': keep it
+  Ent := Copy(AText, AI + 1, J - AI - 1);
+  Found := False;
+  if (Length(Ent) > 1) and (Ent[1] = '#') then
+  begin
+    if (Ent[2] = 'x') or (Ent[2] = 'X') then
+      Found := TryStrToInt('$' + Copy(Ent, 3, MaxInt), ACode)
+    else
+      Found := TryStrToInt(Copy(Ent, 2, MaxInt), ACode);
+  end
+  else
+    for K := 0 to High(ENTITIES) do
+      if ENTITIES[K].Name = Ent then
+      begin
+        ACode := ENTITIES[K].Code;
+        Found := True;
+        Break;
+      end;
+  if Found then
+    Result := 2
+  else
+    Result := 1;
+end;
+
+function EpubXmlDecode(const AText: string): string;
+var
+  I, J, N, Code, Run: Integer;
+begin
+  if Pos('&', AText) = 0 then
+    Exit(AText);
+  Result := '';
+  N := Length(AText);
+  I := 1;
+  Run := 1;
+  while I <= N do
+  begin
+    if AText[I] <> '&' then
+    begin
+      Inc(I);
+      Continue;
+    end;
+    case ScanEntity(AText, I, N, J, Code) of
+      0:
+        Inc(I);
+      1:
+        I := J + 1;
+    else
+      Result := Result + Copy(AText, Run, I - Run) + CodeText(Code);
+      Run := J + 1;
+      I := J + 1;
+    end;
+  end;
+  Result := Result + Copy(AText, Run, MaxInt);
+end;
+
+function EpubXmlNumericEntities(const AText: string): string;
+var
+  I, J, N, K, Run: Integer;
+  Ent: string;
 begin
   if Pos('&', AText) = 0 then
     Exit(AText);
@@ -219,39 +333,56 @@ begin
       Continue;
     end;
     J := I + 1;
-    while (J <= N) and (J - I <= 12) and (AText[J] <> ';') and (AText[J] <> '&') and (AText[J] > ' ') do
+    while (J <= N) and (J - I <= 12) and CharInSet(AText[J], ['a'..'z', 'A'..'Z', '0'..'9']) do
       Inc(J);
-    if (J > N) or (AText[J] <> ';') then
+    if (J <= N) and (AText[J] = ';') and (J > I + 1) then
     begin
-      Inc(I);   // a bare '&': keep it
-      Continue;
-    end;
-    Ent := Copy(AText, I + 1, J - I - 1);
-    Found := False;
-    Code := 0;
-    if (Length(Ent) > 1) and (Ent[1] = '#') then
-    begin
-      if (Ent[2] = 'x') or (Ent[2] = 'X') then
-        Found := TryStrToInt('$' + Copy(Ent, 3, MaxInt), Code)
-      else
-        Found := TryStrToInt(Copy(Ent, 2, MaxInt), Code);
-    end
-    else
-      for K := 0 to High(ENTITIES) do
+      Ent := Copy(AText, I + 1, J - I - 1);
+      // ENTITIES[0..4] are the XML five
+      for K := 5 to High(ENTITIES) do
         if ENTITIES[K].Name = Ent then
         begin
-          Code := ENTITIES[K].Code;
-          Found := True;
+          Result := Result + Copy(AText, Run, I - Run) + '&#' + IntToStr(ENTITIES[K].Code) + ';';
+          Run := J + 1;
           Break;
         end;
-    if Found then
-    begin
-      Result := Result + Copy(AText, Run, I - Run) + CodeText(Code);
-      Run := J + 1;
     end;
-    I := J + 1;
+    I := J;
   end;
   Result := Result + Copy(AText, Run, MaxInt);
+end;
+
+function EpubXmlRawIndex(const ARaw: string; ADecoded: Integer): Integer;
+var
+  I, J, N, Code, C, L: Integer;
+begin
+  if Pos('&', ARaw) = 0 then
+  begin
+    if ADecoded > Length(ARaw) then
+      Exit(Length(ARaw) + 1);
+    Exit(ADecoded);
+  end;
+  N := Length(ARaw);
+  I := 1;
+  C := 0;   // decoded characters before ARaw[I]
+  while I <= N do
+  begin
+    // the same steps as EpubXmlDecode: a known entity is one unit
+    if (ARaw[I] = '&') and (ScanEntity(ARaw, I, N, J, Code) = 2) then
+    begin
+      L := Length(CodeText(Code));
+      if ADecoded <= C + L then
+        Exit(I);
+      Inc(C, L);
+      I := J + 1;
+      Continue;
+    end;
+    if ADecoded = C + 1 then
+      Exit(I);
+    Inc(C);
+    Inc(I);
+  end;
+  Result := N + 1;
 end;
 
 function EpubXmlEscape(const AText: string): string;
@@ -305,7 +436,9 @@ end;
 
 function TEpubXmlNode.LocalName: string;
 begin
-  Result := EpubLocalName(FName);
+  if (FLocal = '') and (FName <> '') then
+    FLocal := EpubLocalName(FName);
+  Result := FLocal;
 end;
 
 function TEpubXmlNode.Attr(const ALocal: string): string;
@@ -418,16 +551,22 @@ end;
 
 constructor TEpubXmlDoc.Create(const AText: string; AHtml: Boolean);
 var
-  N, I, J, K, Q: Integer;
+  N, I, J, K, Q, TagStart: Integer;
   Cur, E, P: TEpubXmlNode;
   Tag, NameS, AName, AValue: string;
   SelfClose: Boolean;
   Quote: Char;
 
-  procedure AddText(const AText_: string);
+  procedure AddText(APos, ALen: Integer);
+  var
+    T: TEpubXmlNode;
   begin
-    if AText_ <> '' then
-      Cur.AddChild(TEpubXmlNode.Create(xnText, EpubXmlDecode(AText_)));
+    if ALen <= 0 then
+      Exit;
+    T := TEpubXmlNode.Create(xnText, EpubXmlDecode(Copy(AText, APos, ALen)));
+    T.FSrcPos := APos;
+    T.FSrcLen := ALen;
+    Cur.AddChild(T);
   end;
 
   function IsNameChar(C: Char): Boolean;
@@ -437,6 +576,7 @@ var
 
 begin
   inherited Create;
+  FSource := AText;
   FRoot := TEpubXmlNode.Create(xnElement, '#document');
   Cur := FRoot;
   N := Length(AText);
@@ -449,7 +589,7 @@ begin
       while (J <= N) and (AText[J] <> '<') do
         Inc(J);
       if Cur <> FRoot then
-        AddText(Copy(AText, I, J - I));
+        AddText(I, J - I);
       I := J;
       Continue;
     end;
@@ -467,7 +607,11 @@ begin
       J := Pos(']]>', Copy(AText, I + 9, MaxInt));
       if J = 0 then
         J := N - I - 8 + 1;
-      Cur.AddChild(TEpubXmlNode.Create(xnText, Copy(AText, I + 9, J - 1)));
+      E := TEpubXmlNode.Create(xnText, Copy(AText, I + 9, J - 1));
+      E.FSrcPos := I + 9;
+      E.FSrcLen := J - 1;
+      E.FCData := True;
+      Cur.AddChild(E);
       I := I + 9 + J + 2;
       Continue;
     end;
@@ -496,6 +640,7 @@ begin
       Inc(J);
     end;
     Tag := Copy(AText, I + 1, J - I - 1);
+    TagStart := I;
     I := J + 1;
     if Tag = '' then
       Continue;
@@ -512,6 +657,7 @@ begin
       begin
         if P <> Cur then
           Inc(FRepaired);  // elements left open inside it are closed too
+        P.FSrcEnd := I;
         Cur := P.FParent;
       end;
       Continue;
@@ -525,6 +671,8 @@ begin
       Inc(K);
     NameS := Copy(Tag, 1, K - 1);
     E := TEpubXmlNode.Create(xnElement, NameS);
+    E.FSrcPos := TagStart;
+    E.FSrcLen := I - TagStart;
     // attributes
     while K <= Length(Tag) do
     begin
@@ -571,7 +719,9 @@ begin
     end;
     Cur.AddChild(E);
     if not SelfClose and not (AHtml and IsVoid(E.LocalName)) then
-      Cur := E;
+      Cur := E
+    else
+      E.FSrcEnd := I;
   end;
   if Cur <> FRoot then
     Inc(FRepaired);   // unclosed at the end

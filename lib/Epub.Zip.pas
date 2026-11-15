@@ -78,8 +78,21 @@ type
     function ReadBytes(const AName: string): TBytes; overload;
     { Entry AName as text: UTF-8 (a BOM is dropped), or UTF-16 with a BOM. }
     function ReadText(const AName: string): string;
-    { Writes entry AName to the file AFileName. }
+    { Writes entry AName to the file AFileName, in pieces: an audio file
+      of hundreds of megabytes is never held in memory. CRC-checked; on
+      any error the file is deleted.
+      @raises(EEpubError when there is no such entry, or it is damaged,
+        encrypted or of an unknown method.) }
     procedure Extract(const AName, AFileName: string);
+    { Writes the uncompressed data of entry AIndex to AOut, in pieces,
+      CRC-checked (AOut has the bad data when it raises).
+      @raises(EEpubError as Extract.) }
+    procedure ReadTo(AIndex: Integer; AOut: TStream);
+    { Copies entry AIndex's data as stored in the archive (compressed, not
+      checked) to AOut: for copying an entry into another archive
+      unchanged (@link(TEpubZipWriter.AddRaw)).
+      @raises(EEpubError for an encrypted or damaged entry.) }
+    procedure ReadRaw(AIndex: Integer; AOut: TStream);
     { The entries. }
     property Entries: TEpubZipEntryArray read FEntries;
     { The archive's file name ('' when read from a stream). }
@@ -98,6 +111,11 @@ type
     FEntries: TEpubZipEntryArray;
     { Finish was called. }
     FFinished: Boolean;
+    { Checks that ASize more bytes keep the archive under 4 GB. }
+    procedure CheckRoom(ASize: Int64);
+    { Writes the local header of AEntry (its LocalOffset is set here) and
+      records it for the central directory. }
+    procedure WriteLocalHeader(var AEntry: TEpubZipEntry);
   public
     { Creates AFileName (overwrites it). }
     constructor Create(const AFileName: string); overload;
@@ -109,6 +127,13 @@ type
     procedure Add(const AName: string; const AData: TBytes; AStored: Boolean = False); overload;
     { Adds entry AName with AText as UTF-8. }
     procedure Add(const AName, AText: string; AStored: Boolean = False); overload;
+    { Adds the file AFileName as entry AName, stored (not compressed - for
+      audio and pictures, which are compressed already). Read in pieces:
+      the file is never held in memory whole. }
+    procedure AddFileStored(const AName, AFileName: string);
+    { Copies entry AIndex of AReader unchanged (its data is not unpacked),
+      named AName ('' = its own name). }
+    procedure AddRaw(AReader: TEpubZipReader; AIndex: Integer; const AName: string = '');
     { Adds the EPUB 'mimetype' entry (stored, no extra field). Must be first. }
     procedure AddEpubMimetype;
     { Writes the central directory. Nothing can be added after it. }
@@ -194,7 +219,28 @@ begin
   Result := not Result;
 end;
 
+{$ifdef FPC}
+{ The bytes of AUtf8 as a string, unconverted. EpubUnum's strings are UTF-8
+  with FPC; an assignment would convert through the system code page,
+  which loses every non-ASCII character when that is not UTF-8 (no LANG
+  set: '?' for an em dash). }
+function Utf8AsString(const AUtf8: RawByteString): string;
+begin
+  SetLength(Result, Length(AUtf8));
+  if Length(AUtf8) > 0 then
+    Move(AUtf8[1], Result[1], Length(AUtf8));
+end;
+{$endif}
+
 function EpubUtf8Bytes(const AText: string): TBytes;
+{$ifdef FPC}
+begin
+  // the string holds UTF-8 already: copied, never converted
+  SetLength(Result, Length(AText));
+  if Length(AText) > 0 then
+    Move(AText[1], Result[0], Length(AText));
+end;
+{$else}
 var
   U: UTF8String;
 begin
@@ -203,12 +249,26 @@ begin
   if Length(U) > 0 then
     Move(U[1], Result[0], Length(U));
 end;
+{$endif}
 
 function EpubBytesText(const ABytes: TBytes): string;
 var
-  U: UTF8String;
   W: UnicodeString;
   I, N: Integer;
+  {$ifndef FPC}
+  U: UTF8String;
+  {$endif}
+
+  { W as the result. }
+  function FromWide: string;
+  begin
+    {$ifdef FPC}
+    Result := Utf8AsString(UTF8Encode(W));
+    {$else}
+    Result := W;
+    {$endif}
+  end;
+
 begin
   N := Length(ABytes);
   if (N >= 2) and (ABytes[0] = $FF) and (ABytes[1] = $FE) then
@@ -216,24 +276,27 @@ begin
     SetLength(W, (N - 2) div 2);
     if Length(W) > 0 then
       Move(ABytes[2], W[1], Length(W) * 2);
-    Exit(string(W));
+    Exit(FromWide);
   end;
   if (N >= 2) and (ABytes[0] = $FE) and (ABytes[1] = $FF) then
   begin
     SetLength(W, (N - 2) div 2);
     for I := 1 to Length(W) do
       W[I] := WideChar((ABytes[2 * I] shl 8) or ABytes[2 * I + 1]);
-    Exit(string(W));
+    Exit(FromWide);
   end;
   I := 0;
   if (N >= 3) and (ABytes[0] = $EF) and (ABytes[1] = $BB) and (ABytes[2] = $BF) then
     I := 3;
+  {$ifdef FPC}
+  // UTF-8 stays UTF-8: copied, never converted
+  SetLength(Result, N - I);
+  if N - I > 0 then
+    Move(ABytes[I], Result[1], N - I);
+  {$else}
   SetLength(U, N - I);
   if N - I > 0 then
     Move(ABytes[I], U[1], N - I);
-  {$ifdef FPC}
-  Result := UTF8Decode(U);
-  {$else}
   Result := UTF8ToString(U);
   {$endif}
 end;
@@ -415,6 +478,8 @@ begin
   if E.Size > MaxInt then
     raise EEpubError.CreateFmt('%s: entry %s is too large to read into memory (use Extract)',
       [FFileName, E.Name]);
+  if DataStart + E.CompressedSize > FStream.Size then
+    raise EEpubError.CreateFmt('%s: entry %s is damaged (past the end of the file)', [FFileName, E.Name]);
   case E.Method of
     METHOD_STORED:
       Result := ReadAt(FStream, DataStart, E.Size);
@@ -468,19 +533,116 @@ begin
   Result := EpubBytesText(ReadBytes(AName));
 end;
 
+procedure TEpubZipReader.ReadTo(AIndex: Integer; AOut: TStream);
+const
+  { Bytes per piece. }
+  CHUNK = 1 shl 20;
+var
+  E: TEpubZipEntry;
+  Head, Buf: TBytes;
+  DataStart, Left: Int64;
+  Z: TStream;
+  N, Got, R: Integer;
+  Crc: Cardinal;
+begin
+  E := FEntries[AIndex];
+  if (E.Flags and FLAG_ENCRYPTED) <> 0 then
+    raise EEpubError.CreateFmt('%s: entry %s is encrypted', [FFileName, E.Name]);
+  Head := ReadAt(FStream, E.LocalOffset, 30);
+  if Get32(Head, 0) <> SIG_LOCAL then
+    raise EEpubError.CreateFmt('%s: entry %s is damaged', [FFileName, E.Name]);
+  DataStart := E.LocalOffset + 30 + Get16(Head, 26) + Get16(Head, 28);
+  if DataStart + E.CompressedSize > FStream.Size then
+    raise EEpubError.CreateFmt('%s: entry %s is damaged (past the end of the file)', [FFileName, E.Name]);
+  if (E.Method = METHOD_STORED) and (E.CompressedSize <> E.Size) then
+    raise EEpubError.CreateFmt('%s: entry %s is damaged (sizes)', [FFileName, E.Name]);
+  if (E.Method <> METHOD_STORED) and (E.Method <> METHOD_DEFLATED) then
+    raise EEpubError.CreateFmt('%s: entry %s uses ZIP method %d (only stored and deflated are read)',
+      [FFileName, E.Name, E.Method]);
+  SetLength(Buf, CHUNK);
+  Crc := 0;
+  Left := E.Size;
+  FStream.Position := DataStart;
+  Z := nil;
+  try
+    if E.Method = METHOD_DEFLATED then
+      // reads the archive from DataStart on, as far as the data needs
+      {$ifdef FPC}
+      Z := TDecompressionStream.Create(FStream, True);   // raw deflate
+      {$else}
+      Z := TZDecompressionStream.Create(FStream, -15);   // raw deflate
+      {$endif}
+    while Left > 0 do
+    begin
+      N := CHUNK;
+      if Left < N then
+        N := Left;
+      if Z <> nil then
+      begin
+        // a decompression stream may return less than asked: read on
+        Got := 0;
+        while Got < N do
+        begin
+          R := Z.Read(Buf[Got], N - Got);
+          if R <= 0 then
+            Break;   // the data ended early: short
+          Inc(Got, R);
+        end;
+      end
+      else
+        Got := FStream.Read(Buf[0], N);
+      if Got <> N then
+        raise EEpubError.CreateFmt('%s: entry %s is damaged (short data)', [FFileName, E.Name]);
+      Crc := EpubCrc32(Crc, @Buf[0], N);
+      AOut.WriteBuffer(Buf[0], N);
+      Dec(Left, N);
+    end;
+  finally
+    Z.Free;
+  end;
+  if (E.Size > 0) and (Crc <> E.Crc) then
+    raise EEpubError.CreateFmt('%s: entry %s is damaged (CRC)', [FFileName, E.Name]);
+end;
+
 procedure TEpubZipReader.Extract(const AName, AFileName: string);
 var
-  B: TBytes;
+  I: Integer;
   S: TFileStream;
+  Ok: Boolean;
 begin
-  B := ReadBytes(AName);
+  I := IndexOf(AName);
+  if I < 0 then
+    raise EEpubError.CreateFmt('%s: there is no %s inside', [FFileName, AName]);
+  Ok := False;
   S := TFileStream.Create(AFileName, fmCreate);
   try
-    if Length(B) > 0 then
-      S.WriteBuffer(B[0], Length(B));
+    ReadTo(I, S);
+    Ok := True;
   finally
     S.Free;
+    if not Ok then
+      DeleteFile(AFileName);   // never a damaged file left behind
   end;
+end;
+
+procedure TEpubZipReader.ReadRaw(AIndex: Integer; AOut: TStream);
+var
+  E: TEpubZipEntry;
+  Head: TBytes;
+  DataStart: Int64;
+begin
+  E := FEntries[AIndex];
+  if (E.Flags and FLAG_ENCRYPTED) <> 0 then
+    raise EEpubError.CreateFmt('%s: entry %s is encrypted', [FFileName, E.Name]);
+  Head := ReadAt(FStream, E.LocalOffset, 30);
+  if Get32(Head, 0) <> SIG_LOCAL then
+    raise EEpubError.CreateFmt('%s: entry %s is damaged', [FFileName, E.Name]);
+  DataStart := E.LocalOffset + 30 + Get16(Head, 26) + Get16(Head, 28);
+  if DataStart + E.CompressedSize > FStream.Size then
+    raise EEpubError.CreateFmt('%s: entry %s is damaged (past the end of the file)', [FFileName, E.Name]);
+  FStream.Position := DataStart;
+  if E.CompressedSize > 0 then
+    AOut.CopyFrom(FStream, E.CompressedSize);
 end;
 
 { TEpubZipWriter }
@@ -533,14 +695,10 @@ end;
 procedure TEpubZipWriter.Add(const AName: string; const AData: TBytes; AStored: Boolean);
 var
   E: TEpubZipEntry;
-  Name: TBytes;
   Packed_: TMemoryStream;
   Z: TStream;
 begin
-  if FFinished then
-    raise EEpubError.Create('The ZIP archive is finished: nothing more can be added');
-  if FStream.Position > $FFFFFFFF - Int64(Length(AData)) then
-    raise EEpubError.Create('The ZIP archive would pass 4 GB (ZIP64 is not supported)');
+  CheckRoom(Length(AData) + 30 + 2 * Length(AName));
   E := Default(TEpubZipEntry);
   E.Name := AName;
   E.Size := Length(AData);
@@ -570,29 +728,100 @@ begin
       end;
     end;
     E.CompressedSize := Packed_.Size;
-    E.LocalOffset := FStream.Position;
-    Name := EpubUtf8Bytes(AName);
-    Put32(FStream, SIG_LOCAL);
-    Put16(FStream, ZIP_VERSION);
-    Put16(FStream, E.Flags);
-    Put16(FStream, E.Method);
-    Put16(FStream, 0);   // time
-    Put16(FStream, $21); // date: 1980-01-01
-    Put32(FStream, E.Crc);
-    Put32(FStream, E.CompressedSize);
-    Put32(FStream, E.Size);
-    Put16(FStream, Length(Name));
-    Put16(FStream, 0);   // no extra field (the EPUB mimetype rule)
-    if Length(Name) > 0 then
-      FStream.WriteBuffer(Name[0], Length(Name));
+    WriteLocalHeader(E);
     Packed_.Position := 0;
     if Packed_.Size > 0 then
       FStream.CopyFrom(Packed_, Packed_.Size);
   finally
     Packed_.Free;
   end;
+end;
+
+procedure TEpubZipWriter.CheckRoom(ASize: Int64);
+begin
+  if FFinished then
+    raise EEpubError.Create('The ZIP archive is finished: nothing more can be added');
+  if FStream.Position + ASize > $FFFFFFFF then
+    raise EEpubError.Create('The ZIP archive would pass 4 GB (ZIP64 is not supported)');
+end;
+
+procedure TEpubZipWriter.WriteLocalHeader(var AEntry: TEpubZipEntry);
+var
+  Name: TBytes;
+begin
+  AEntry.LocalOffset := FStream.Position;
+  Name := EpubUtf8Bytes(AEntry.Name);
+  Put32(FStream, SIG_LOCAL);
+  Put16(FStream, ZIP_VERSION);
+  Put16(FStream, AEntry.Flags);
+  Put16(FStream, AEntry.Method);
+  Put16(FStream, 0);   // time
+  Put16(FStream, $21); // date: 1980-01-01
+  Put32(FStream, AEntry.Crc);
+  Put32(FStream, AEntry.CompressedSize);
+  Put32(FStream, AEntry.Size);
+  Put16(FStream, Length(Name));
+  Put16(FStream, 0);   // no extra field (the EPUB mimetype rule)
+  if Length(Name) > 0 then
+    FStream.WriteBuffer(Name[0], Length(Name));
   SetLength(FEntries, Length(FEntries) + 1);
-  FEntries[High(FEntries)] := E;
+  FEntries[High(FEntries)] := AEntry;
+end;
+
+procedure TEpubZipWriter.AddFileStored(const AName, AFileName: string);
+const
+  CHUNK = 1 shl 20;
+var
+  F: TFileStream;
+  E: TEpubZipEntry;
+  Buf: TBytes;
+  Got: Integer;
+  Crc: Cardinal;
+begin
+  F := TFileStream.Create(AFileName, fmOpenRead or fmShareDenyWrite);
+  try
+    CheckRoom(F.Size + 30 + 2 * Length(AName));
+    // first pass: the CRC (the local header comes before the data)
+    SetLength(Buf, CHUNK);
+    Crc := 0;
+    repeat
+      Got := F.Read(Buf[0], CHUNK);
+      if Got > 0 then
+        Crc := EpubCrc32(Crc, @Buf[0], Got);
+    until Got <= 0;
+    E := Default(TEpubZipEntry);
+    E.Name := AName;
+    E.Flags := FLAG_UTF8;
+    E.Method := METHOD_STORED;
+    E.Crc := Crc;
+    E.Size := F.Size;
+    E.CompressedSize := F.Size;
+    WriteLocalHeader(E);
+    F.Position := 0;
+    if F.Size > 0 then
+      FStream.CopyFrom(F, F.Size);
+  finally
+    F.Free;
+  end;
+end;
+
+procedure TEpubZipWriter.AddRaw(AReader: TEpubZipReader; AIndex: Integer; const AName: string);
+var
+  E: TEpubZipEntry;
+begin
+  E := AReader.Entries[AIndex];
+  CheckRoom(E.CompressedSize + 30 + 2 * Length(E.Name) + 2 * Length(AName));
+  if (E.Method <> METHOD_STORED) and (E.Method <> METHOD_DEFLATED) then
+    raise EEpubError.CreateFmt('%s: entry %s uses ZIP method %d (only stored and deflated are copied)',
+      [AReader.FileName, E.Name, E.Method]);
+  if (E.Flags and FLAG_ENCRYPTED) <> 0 then
+    raise EEpubError.CreateFmt('%s: entry %s is encrypted', [AReader.FileName, E.Name]);
+  if AName <> '' then
+    E.Name := AName;
+  // sizes and CRC go in the local header: no data descriptor (bit 3)
+  E.Flags := FLAG_UTF8;
+  WriteLocalHeader(E);
+  AReader.ReadRaw(AIndex, FStream);
 end;
 
 procedure TEpubZipWriter.Add(const AName, AText: string; AStored: Boolean);

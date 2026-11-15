@@ -176,6 +176,15 @@ type
     FActiveClass: string;
     { Backing field of @link(MediaDuration). }
     FMediaDuration: Double;
+    { The clip ClipAt found last (where the next search starts). }
+    FLastClip: Integer;
+    { Per document: its ids sorted (Objects = index into its Ids), made by
+      ClipWords on first use; owned. }
+    FIdIndex: array of TStringList;
+    { Every clip has a clipEnd after its clipBegin, and the clips of each
+      audio file follow each other without overlapping (ClipAt may start
+      from FLastClip). }
+    FClipsOrdered: Boolean;
     { Style sheets by document path (TEpubStyleSheet objects, owned). }
     FSheets: TStringList;
     { Refuses a copy-protected book. }
@@ -188,6 +197,8 @@ type
     procedure ReadNcx(const APath: string);
     { Reads every media overlay. }
     procedure ReadOverlays;
+    { Sets FClipsOrdered (and forgets FLastClip). }
+    procedure CheckClipOrder;
     { Index of the document with APath, -1 when none. }
     function DocumentOf(const APath: string): Integer;
     { Index of the manifest item with AId, -1 when none. }
@@ -217,6 +228,13 @@ type
       indexes in it are local; add @code(Documents[ADoc].FirstWord) for
       @link(Words). The caller frees it. }
     function DocumentLayout(ADoc: Integer): TEpubDocLayout;
+    { The layout of document ADoc with word sources, for a writer: the same
+      words as @link(Words) (same walker, same style sheets), each with its
+      place in ADocXml, the parsed document (its Source is the document's
+      text). The caller frees both, the layout first.
+      @param(AText  A changed text of the document to lay out instead of
+        the book's ('' = the book's).) }
+    function DocumentSources(ADoc: Integer; out ADocXml: TEpubXmlDoc; const AText: string = ''): TEpubDocLayout;
     { The document and block showing word AWord (an index into
       @link(Words)) in ALayout (DocumentLayout of that document); -1 when
       ALayout is not that document's or the word has no block. }
@@ -290,6 +308,12 @@ function EpubClockValue(const AText: string): Double;
 
 implementation
 
+var
+  { Number format with '.' as the decimal separator, set once (copying
+    FormatSettings, a record of some fifty strings, for every clock value
+    was most of the time of reading a word-level overlay). }
+  DotSettings: TFormatSettings;
+
 const
   { Algorithms in encryption.xml that are font obfuscation, not DRM. }
   FONT_OBFUSCATION: array[0..1] of string = ('http://www.idpf.org/2008/embedding',
@@ -309,12 +333,10 @@ end;
 
 function EpubClockValue(const AText: string): Double;
 var
-  S: string;
-  Parts: TStringList;
-  FS: TFormatSettings;
+  S, Part: string;
   V: Double;
   Mult: Double;
-  I: Integer;
+  P: Integer;
 begin
   Result := -1;
   S := LowerCase(Trim(AText));
@@ -322,25 +344,24 @@ begin
     S := Copy(S, 5, MaxInt);
   if S = '' then
     Exit;
-  FS := FormatSettings;   // a copy; only the decimal separator is changed
-  FS.DecimalSeparator := '.';
   if Pos(':', S) > 0 then
   begin
-    Parts := TStringList.Create;
-    try
-      Parts.Delimiter := ':';
-      Parts.StrictDelimiter := True;
-      Parts.DelimitedText := S;
-      Result := 0;
-      for I := 0 to Parts.Count - 1 do
+    // h:mm:ss.f or mm:ss.f, split by hand (a word-level overlay has two
+    // clock values per word)
+    Result := 0;
+    repeat
+      P := Pos(':', S);
+      if P > 0 then
       begin
-        if not TryStrToFloat(Parts[I], V, FS) then
-          Exit(-1);
-        Result := Result * 60 + V;
-      end;
-    finally
-      Parts.Free;
-    end;
+        Part := Copy(S, 1, P - 1);
+        S := Copy(S, P + 1, MaxInt);
+      end
+      else
+        Part := S;
+      if not TryStrToFloat(Part, V, DotSettings) then
+        Exit(-1);
+      Result := Result * 60 + V;
+    until P = 0;
     Exit;
   end;
   Mult := 1;
@@ -361,7 +382,7 @@ begin
   end
   else if (S <> '') and (S[Length(S)] = 's') then
     SetLength(S, Length(S) - 1);
-  if TryStrToFloat(S, V, FS) then
+  if TryStrToFloat(S, V, DotSettings) then
     Result := V * Mult;
 end;
 
@@ -387,7 +408,11 @@ begin
 end;
 
 destructor TEpubBook.Destroy;
+var
+  I: Integer;
 begin
+  for I := 0 to High(FIdIndex) do
+    FIdIndex[I].Free;
   FZip.Free;
   FCreators.Free;
   FSheets.Free;
@@ -680,13 +705,14 @@ end;
 
 procedure TEpubBook.ReadOverlays;
 var
-  I, K: Integer;
+  I, K, N, P, LastDoc: Integer;
   D: TEpubXmlDoc;
   Pars: TEpubXmlNodeArray;
   T, A: TEpubXmlNode;
-  Src, SmilPath: string;
+  Src, SmilPath, Base, LastBase, LastPath, LastAudioSrc, LastAudioPath: string;
   Clip: TEpubClip;
 begin
+  N := 0;
   for I := 0 to High(FDocuments) do
   begin
     if FItems[FDocuments[I].Item].MediaOverlay = '' then
@@ -698,6 +724,11 @@ begin
     if not FZip.Exists(SmilPath) then
       Continue;
     D := TEpubXmlDoc.Create(FZip.ReadText(SmilPath));
+    LastBase := '';
+    LastPath := '';
+    LastDoc := -1;
+    LastAudioSrc := '';
+    LastAudioPath := '';
     try
       Pars := D.Root.FindAll('par');
       for K := 0 to High(Pars) do
@@ -707,24 +738,90 @@ begin
         if (T = nil) or (A = nil) then
           Continue;
         Clip := Default(TEpubClip);
+        // the pars of a file name the same document and audio file: their
+        // paths are resolved once (a word-level overlay has a par per word)
         Src := T.Attr('src');
-        Clip.TextPath := ResolvePath(SmilPath, Src);
-        if Pos('#', Src) > 0 then
-          Clip.TextId := Copy(Src, Pos('#', Src) + 1, MaxInt);
-        Clip.Document := DocumentOf(Clip.TextPath);
-        Clip.AudioPath := ResolvePath(SmilPath, A.Attr('src'));
+        P := Pos('#', Src);
+        if P > 0 then
+        begin
+          Clip.TextId := Copy(Src, P + 1, MaxInt);
+          Base := Copy(Src, 1, P - 1);
+        end
+        else
+          Base := Src;
+        if (K = 0) or (Base <> LastBase) then
+        begin
+          LastBase := Base;
+          LastPath := ResolvePath(SmilPath, Base);
+          LastDoc := DocumentOf(LastPath);
+        end;
+        Clip.TextPath := LastPath;
+        Clip.Document := LastDoc;
+        if (K = 0) or (A.Attr('src') <> LastAudioSrc) then
+        begin
+          LastAudioSrc := A.Attr('src');
+          LastAudioPath := ResolvePath(SmilPath, LastAudioSrc);
+        end;
+        Clip.AudioPath := LastAudioPath;
         Clip.ClipBegin := EpubClockValue(A.Attr('clipBegin'));
         if Clip.ClipBegin < 0 then
           Clip.ClipBegin := 0;
         Clip.ClipEnd := EpubClockValue(A.Attr('clipEnd'));
         if Clip.ClipEnd < 0 then
           Clip.ClipEnd := 0;
-        SetLength(FClips, Length(FClips) + 1);
-        FClips[High(FClips)] := Clip;
+        // grown by doubling: a word-level overlay has a clip per word
+        if N = Length(FClips) then
+          SetLength(FClips, N * 2 + 256);
+        FClips[N] := Clip;
+        Inc(N);
       end;
     finally
       D.Free;
     end;
+  end;
+  SetLength(FClips, N);
+  CheckClipOrder;
+end;
+
+procedure TEpubBook.CheckClipOrder;
+var
+  Files: TStringList;
+  Lasts: array of Double;
+  I, K: Integer;
+begin
+  FLastClip := -1;
+  FClipsOrdered := True;
+  Files := TStringList.Create;
+  try
+    Files.Sorted := True;
+    Files.CaseSensitive := False;
+    for I := 0 to High(FClips) do
+    begin
+      if FClips[I].ClipEnd <= FClips[I].ClipBegin then
+      begin
+        FClipsOrdered := False;
+        Exit;
+      end;
+      // Objects hold the index of the file's last clip end in Lasts
+      if Files.Find(FClips[I].AudioPath, K) then
+      begin
+        K := NativeInt(Files.Objects[K]);
+        if FClips[I].ClipBegin < Lasts[K] then
+        begin
+          FClipsOrdered := False;
+          Exit;
+        end;
+      end
+      else
+      begin
+        SetLength(Lasts, Length(Lasts) + 1);
+        K := High(Lasts);
+        Files.AddObject(FClips[I].AudioPath, TObject(NativeInt(K)));
+      end;
+      Lasts[K] := FClips[I].ClipEnd;
+    end;
+  finally
+    Files.Free;
   end;
 end;
 
@@ -846,6 +943,25 @@ begin
   FDocuments[ADoc].WordCount := FWordCount - FDocuments[ADoc].FirstWord;
 end;
 
+function TEpubBook.DocumentSources(ADoc: Integer; out ADocXml: TEpubXmlDoc; const AText: string): TEpubDocLayout;
+var
+  Body: TEpubXmlNode;
+begin
+  if AText <> '' then
+    ADocXml := TEpubXmlDoc.Create(AText, True)
+  else
+    ADocXml := ParseDocument(ADoc);
+  try
+    Body := ADocXml.Root.Find('body');
+    if Body = nil then
+      Body := ADocXml.Root;
+    Result := TEpubDocLayout.Create(Body, FDocuments[ADoc].Path, StyleSheetOf(ADoc, ADocXml), False, True);
+  except
+    FreeAndNil(ADocXml);
+    raise;
+  end;
+end;
+
 function TEpubBook.DocumentLayout(ADoc: Integer): TEpubDocLayout;
 var
   D: TEpubXmlDoc;
@@ -908,27 +1024,50 @@ begin
 end;
 
 function TEpubBook.ClipAt(const AAudioPath: string; ATime: Double): Integer;
-var
-  I: Integer;
-  E: Double;
-begin
-  Result := -1;
-  for I := 0 to High(FClips) do
+
+  { True when clip AI is of the audio file and plays at ATime. }
+  function Plays(AI: Integer): Boolean;
+  var
+    E: Double;
   begin
-    if not SameText(FClips[I].AudioPath, AAudioPath) then
-      Continue;
-    if ATime < FClips[I].ClipBegin then
-      Continue;
-    E := FClips[I].ClipEnd;
-    if (E <= 0) or (ATime < E) then
-      Exit(I);
+    Result := False;
+    if (ATime < FClips[AI].ClipBegin) or not SameText(FClips[AI].AudioPath, AAudioPath) then
+      Exit;
+    E := FClips[AI].ClipEnd;
+    Result := (E <= 0) or (ATime < E);
   end;
+
+var
+  I, K: Integer;
+begin
+  // Ordered clips (FClipsOrdered): at most one clip of a file plays at a
+  // time, so any match is the first one. Playing goes forward, so the clip
+  // found last or one of the next is the usual answer - a word-level
+  // overlay has a clip per word, and this runs on every tick.
+  if FClipsOrdered and (FLastClip >= 0) then
+    for K := FLastClip to FLastClip + 16 do
+    begin
+      if K > High(FClips) then
+        Break;
+      if Plays(K) then
+      begin
+        FLastClip := K;
+        Exit(K);
+      end;
+    end;
+  for I := 0 to High(FClips) do
+    if Plays(I) then
+    begin
+      FLastClip := I;
+      Exit(I);
+    end;
+  Result := -1;
 end;
 
 function TEpubBook.ClipWords(AClip: Integer; out AFirst, ALast: Integer): Boolean;
 var
   C: TEpubClip;
-  I: Integer;
+  I, K: Integer;
 begin
   AFirst := -1;
   ALast := -1;
@@ -945,13 +1084,33 @@ begin
     ALast := AFirst + FDocuments[C.Document].WordCount - 1;
     Exit(ALast >= AFirst);
   end;
-  for I := 0 to High(FDocuments[C.Document].Ids) do
-    if FDocuments[C.Document].Ids[I].Id = C.TextId then
-    begin
-      AFirst := FDocuments[C.Document].Ids[I].FirstWord;
-      ALast := FDocuments[C.Document].Ids[I].LastWord;
-      Exit(AFirst >= 0);
-    end;
+  // a sorted index of the document's ids: a word-level overlay has a clip
+  // (and an id) per word, and a reader asks for every clip
+  if Length(FIdIndex) <> Length(FDocuments) then
+    SetLength(FIdIndex, Length(FDocuments));
+  if FIdIndex[C.Document] = nil then
+  begin
+    FIdIndex[C.Document] := TStringList.Create;
+    FIdIndex[C.Document].CaseSensitive := True;
+    for I := 0 to High(FDocuments[C.Document].Ids) do
+      FIdIndex[C.Document].AddObject(FDocuments[C.Document].Ids[I].Id, TObject(NativeInt(I)));
+    // Sorted, not Sort: FPC's Find finds nothing in a list not marked sorted
+    FIdIndex[C.Document].Duplicates := dupAccept;
+    FIdIndex[C.Document].Sorted := True;
+  end;
+  if not FIdIndex[C.Document].Find(C.TextId, K) then
+    Exit;
+  // a repeated id: the first in the document wins (the sort keeps no order)
+  I := NativeInt(FIdIndex[C.Document].Objects[K]);
+  while (K + 1 < FIdIndex[C.Document].Count) and (FIdIndex[C.Document][K + 1] = C.TextId) do
+  begin
+    Inc(K);
+    if NativeInt(FIdIndex[C.Document].Objects[K]) < I then
+      I := NativeInt(FIdIndex[C.Document].Objects[K]);
+  end;
+  AFirst := FDocuments[C.Document].Ids[I].FirstWord;
+  ALast := FDocuments[C.Document].Ids[I].LastWord;
+  Result := AFirst >= 0;
 end;
 
 function TEpubBook.AudioFiles: TStringList;
@@ -963,5 +1122,9 @@ begin
     if Result.IndexOf(FClips[I].AudioPath) < 0 then
       Result.Add(FClips[I].AudioPath);
 end;
+
+initialization
+  DotSettings := FormatSettings;
+  DotSettings.DecimalSeparator := '.';
 
 end.
