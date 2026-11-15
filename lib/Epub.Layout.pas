@@ -265,6 +265,13 @@ function EpubResolvePath(const ABase, AHref: string): string;
   'St.', ...) or an initial ('J.'). A heuristic for stepping through a
   book; a paragraph's end ends a sentence too, which the caller knows. }
 function EpubEndsSentence(const AWord: string): Boolean;
+{ Narrows AFirst .. ALast (character indexes into AText, from 1, ALast
+  included) to the word without the punctuation around it: quotes,
+  brackets, commas, stops, dashes ('whales,' -> 'whales', 'calm' + dash ->
+  'calm', a curly quote + 'Call' -> 'Call'). What a highlight covers, so
+  a comma is not lit as if read. Left as given when the range is all
+  punctuation. Punctuation inside the word stays ('it's', 'sperm-whale'). }
+procedure EpubWordCore(const AText: string; var AFirst, ALast: Integer);
 
 implementation
 
@@ -352,6 +359,71 @@ begin
     end;
 end;
 {$endif}
+
+{ Length of the punctuation character at AText[AI] (ASCII punctuation,
+  the U+2010 - U+205E punctuation block - dashes, curly quotes, ellipsis -
+  and inverted marks / guillemets), 0 for anything else. ABack: AI is the
+  LAST unit of the character (FPC's UTF-8: its last byte). }
+function PunctuationAt(const AText: string; AI: Integer; ABack: Boolean): Integer;
+var
+  C: Integer;
+begin
+  Result := 0;
+  C := Ord(AText[AI]);
+  if C < $80 then
+  begin
+    if not CharInSet(AText[AI], ['A'..'Z', 'a'..'z', '0'..'9']) and (C > 32) then
+      Result := 1;
+    Exit;
+  end;
+  {$ifdef FPC}
+  if ABack then
+  begin
+    if (AI >= 3) and (AText[AI - 2] = #$E2) and
+      (((AText[AI - 1] = #$80) and (C >= $90)) or ((AText[AI - 1] = #$81) and (C <= $9E))) then
+      Result := 3
+    else if (AI >= 2) and (AText[AI - 1] = #$C2) and (C in [$A1, $AB, $B7, $BB, $BF]) then
+      Result := 2;
+  end
+  else if (C = $E2) and (AI + 2 <= Length(AText)) and
+    (((AText[AI + 1] = #$80) and (Ord(AText[AI + 2]) >= $90)) or
+     ((AText[AI + 1] = #$81) and (Ord(AText[AI + 2]) <= $9E))) then
+    Result := 3
+  else if (C = $C2) and (AI + 1 <= Length(AText)) and (Ord(AText[AI + 1]) in [$A1, $AB, $B7, $BB, $BF]) then
+    Result := 2;
+  {$else}
+  if ((C >= $2010) and (C <= $205E)) or (C = $A1) or (C = $AB) or (C = $B7) or (C = $BB) or (C = $BF) then
+    Result := 1;
+  {$endif}
+end;
+
+procedure EpubWordCore(const AText: string; var AFirst, ALast: Integer);
+var
+  F, L, N: Integer;
+begin
+  F := AFirst;
+  L := ALast;
+  if (F < 1) or (L > Length(AText)) then
+    Exit;
+  while F <= L do
+  begin
+    N := PunctuationAt(AText, F, False);
+    if N = 0 then
+      Break;
+    Inc(F, N);
+  end;
+  if F > L then
+    Exit;   // all punctuation
+  while L > F do
+  begin
+    N := PunctuationAt(AText, L, True);
+    if N = 0 then
+      Break;
+    Dec(L, N);
+  end;
+  AFirst := F;
+  ALast := L;
+end;
 
 function EpubEndsSentence(const AWord: string): Boolean;
 const
@@ -706,19 +778,53 @@ begin
   {$endif}
 end;
 
+{ Length of the dash at AText[AI] that books set between words without
+  spaces: U+2012 - U+2015 (figure, en, em dash, horizontal bar; 3 bytes
+  with FPC, whose strings are UTF-8), 0 for anything else. The same
+  dashes as TWhisper's WhisperSplitText. }
+function DashAt(const AText: string; AI: Integer): Integer;
+begin
+  Result := 0;
+  {$ifdef FPC}
+  if (AI + 2 <= Length(AText)) and (AText[AI] = #$E2) and (AText[AI + 1] = #$80) and
+    (Ord(AText[AI + 2]) in [$92..$95]) then
+    Result := 3;
+  {$else}
+  if (Ord(AText[AI]) >= $2012) and (Ord(AText[AI]) <= $2015) then
+    Result := 1;
+  {$endif}
+end;
+
 procedure TWalker.AppendText(ANode: TEpubXmlNode; const AState: TWalkState);
 var
-  K, Sp: Integer;
+  K, Sp, Dash, DashEnd: Integer;
   Ch: Char;
   S: string;
   Added: string;
+  DashEndsWord: Boolean;
 begin
   S := ANode.Text;
   Added := '';
+  DashEnd := 0;
+  DashEndsWord := False;
   K := 1;
   while K <= Length(S) do
   begin
     Ch := S[K];
+    // a dash between words ('calm' + em dash + 'frozen') ends the word it
+    // follows: 'calm' + dash and 'frozen' are two words, each with its
+    // own time in a media overlay. A dash that starts a word stays on it.
+    if K > DashEnd then
+    begin
+      Dash := DashAt(S, K);
+      if Dash > 0 then
+      begin
+        // (or a dash right after one that ended a word: a doubled dash
+        // is a word of its own)
+        DashEndsWord := (Buf <> '') or ((DashEnd = K - 1) and DashEndsWord);
+        DashEnd := K + Dash - 1;
+      end;
+    end;
     Sp := SpaceAt(S, K);
     if Sp > 0 then
     begin
@@ -777,6 +883,8 @@ begin
       Added := Added + Ch;
       L.FBlocks[Cur].Text := L.FBlocks[Cur].Text + Ch;
     end;
+    if (K = DashEnd) and DashEndsWord then
+      FlushWord;
     Inc(K);
   end;
   if WithBlocks and Open and (Added <> '') then

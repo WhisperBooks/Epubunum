@@ -1,0 +1,32 @@
+program EpubBuilder;
+
+{ EpubBuilder - makes a read-along EPUB: an EPUB on one side, its audio
+  files on the other, Create. It transcribes the audio with TWhisper (word
+  times by DTW), aligns the words with the book's own words and writes a
+  copy of the book with EPUB 3 media overlays and the audio inside - the
+  book EpubReader then reads aloud with the words highlighted. The steps
+  are those of the file pipeline (EpubConsole --words, WhisperConsole
+  --align-words --timings, EpubConsole --overlay), done in one program.
+
+  Needs TWhisper's runtime package WhisperAPI (and TFFMpegAPI's
+  FFmpegAPI, which it requires) built as well as EpubUnum's: their DCUs
+  come from Delphi's Dcp folder. At run time: whisper.cpp's libraries
+  (TWhisper's redistributable_bin) and FFmpeg 8's shared libraries next to
+  the program or on PATH, and a Whisper model file (ggml-*.bin). }
+
+uses
+  System.StartUpCopy,
+  FMX.Forms,
+  uBuilder in 'src\uBuilder.pas' {frmBuilder};
+
+{$R *.res}
+
+begin
+{$IFDEF DEBUG}
+  // Debug builds list leaked blocks when the program ends (Windows)
+  ReportMemoryLeaksOnShutdown := True;
+{$ENDIF}
+  Application.Initialize;
+  Application.CreateForm(TfrmBuilder, frmBuilder);
+  Application.Run;
+end.

@@ -34,6 +34,8 @@ overlays the same way and would draw the layout model with its own view.
   highlighting; its sound is TFFMpegAPI's player (FFmpeg streamed to
   WASAPI / PulseAudio), so the reader also needs TFFMpegAPI installed.
 - `demos/EpubConsole` - console demo and smoke test.
+- `demos/EpubBuilder` - makes a read-along EPUB from an EPUB and its audio
+  files (TWhisper transcribes and aligns; needs TWhisper installed too).
 
 ## The book (`TEpubBook`)
 
@@ -145,9 +147,12 @@ would draw the same blocks.
 3. `packages/dclEpubUnumFMX` - design time (Win32 / Win64): registers both.
 4. `demos/EpubConsole`
 5. `demos/EpubReader`
+6. `demos/EpubBuilder`
 
 The demos use the runtime packages' DCUs from Delphi's Dcp folder, as any
 user project would, so build the packages first. Install `dclEpubUnumFMX`.
+EpubBuilder also uses TWhisper's runtime package `WhisperAPI` (which needs
+TFFMpegAPI's `FFmpegAPI`): build TWhisper's packages before it.
 
 Platforms: Win32 / Win64, macOS (x64, ARM), Linux64, Android64 for the
 packages; the demos are desktop. iOS can follow (pure Pascal).

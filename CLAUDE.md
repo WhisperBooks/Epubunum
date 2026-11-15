@@ -124,7 +124,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 14.
+Last number used: 32.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -315,6 +315,8 @@ Ideas kept for later (owner, 2026-11-15): "keep them in a 'Shall we do
 this and if so how to do UI' section". ORDER (owner): "once we've got the
 reader at a satisfactory pausing point we can improve the other
 contributing components / systems" - reader first, then TFFMpegAPI etc.
+- LEARN TO READ: BUILT in zip 18 (see "Learn to read (zip 18)" below).
+  Original notes kept:
 - LEARN TO READ mode (owner's idea: "if the playing was paused and the
   user pressed fwd it could say the word ... people learning to read or
   learning to read a new language"; "a 'Learn To Read' switch ... owing to
@@ -334,8 +336,40 @@ contributing components / systems" - reader first, then TFFMpegAPI etc.
   timings: TWhisper's DTW words, not clips shared out by length (the
   zip 09 test book's words are approximate - owner: "completely
   understandable").
-- Speed change (owner had thought of it already): slower speech without a
-  pitch change - FFmpeg's atempo filter in TFFMpegAPI's player.
+- Speed change: DONE in zip 15 (slider 0.5x - 2x). 0.25x (owner: "down to
+  0.25 or 0.5") needs TFFMpegAPI to chain two atempo filters (one goes
+  down to 0.5): its MIN_SPEED, then SPEED_MIN here.
+- AUDIO OUTSIDE THE BOOK (owner, 2026-11-15: "a strong case for (1+3)").
+  (1) Timings file beside the ORIGINAL, untouched EPUB (small download,
+  reads without audio); the reader finds the timings + audio and builds
+  the overlays in memory. Only our reader plays it. (3) The complete
+  EPUB with the audio inside (what --overlay makes now; works in every
+  reader). (2) Remote audio URLs in the overlays - EPUB 3 allows it, few
+  readers do. To decide: how the reader finds timings / audio (same
+  folder + name, or picked), and an EDITION CHECK (word count / hash of
+  the text) so timings made from another edition are refused.
+  LIBRIVOX: their recordings and the Gutenberg texts are public domain;
+  a timings file can name LibriVox's own download (archive.org URL +
+  size / checksum) instead of a local path, so only book + timings are
+  published and the reader fetches the audio. LibriVox readers mostly read
+  a known Gutenberg edition: one timings file per recording + edition.
+  Owner: "an interesting option to talk to them about". Volunteer GPU
+  transcribers for this: TWhisper CLAUDE.md, plans.
+- DROP UNUSED AUDIO: --overlay keeps the source book's audio even when no
+  overlay plays it any more (moby-dick-mo.epub's
+  mobydick_001_002_melville.mp4, 9 MB). Owner: "no big loss" for now.
+- STEAM DECK (owner, 2026-11-15): the reader has TSteamAPI's platform fixes
+  already (native Linux64 + EpubReader.sh, or Windows under Proton).
+  Needs: Steam Input via TSteamAPI - proposed A play / pause, d-pad
+  sentence, bumpers chapter, triggers speed, Y dark, B contents, stick /
+  trackpad scroll, touch = click a word; a 1280x800 layout (bigger
+  buttons, contents hidden); remembered settings; a test in Game mode.
+  Needs TSteamAPI's current source in the session.
+- TESTED (owner, 2026-11-15): the reader on a Lenovo Miix 520 tablet
+  ("a hugely underpowered pile of junk") - "Worked perfectly and very low
+  system usage". Deploy: EpubReader.exe, sk4d.dll, FFmpeg's avutil-60,
+  swresample-6, avcodec-62, avformat-62 (+ swscale-9, avfilter-11 for
+  the speed slider), the .epub (audio inside).
 - Say a sentence, then step through its words.
 - The current word shown large in a strip under the page.
 - Remember reader settings between runs (dark mode, step unit, text
@@ -351,7 +385,295 @@ EpubConsole --overlay. Tested here: a synthetic transcript of Moby-Dick
 ch 1-2 over two m4b files (the IDPF mp4 cut at 860 s) -> 3672 clips,
 epubcheck 0 / 0, every clip = its timing.
 
+## Words split at dashes (zip 15, on top of 26118e5 = zip 14 pushed)
+Owner, Moby-Dick ch 135 in the reader: "calm-frozen" and "it!-it's" (em
+dashes) lit as one word. The walker (TWalker.AppendText, DashAt) now ends
+a word after a dash U+2012 - U+2015 that follows text: 'calm' + dash,
+then 'frozen'. A dash starting a word stays on it (dash + 'GENESIS.');
+a dash right after one that ended a word is a word of its own (doubled
+dashes). The same dashes as TWhisper's WhisperSplitText, so the aligner's
+split and EpubUnum's words now agree. WORD NUMBERS CHANGE: Moby-Dick
+212881 -> 214492 words (1611 more); old timings files must be made again
+(--words, then WhisperConsole --from-json --align-words --timings).
+Tested here: the owner's moby.json realigned against the new list - same
+aligner figures (TWhisper zip 23), 213544 timed words; --overlay (stand-in
+audio) 213544 clips, 0 left out; epubcheck 5.2.1 0 / 0; checkover (every
+word's clip = its timing) and onlyinserts (only markup inserted) clean.
+Sentence steps in the reader: 'it!' + dash no longer ends a sentence
+(EpubEndsSentence sees the dash) - right, it is mid-sentence.
+
+Also in zip 15:
+- PUNCTUATION NOT LIT (owner: "If a word has some punctuation after it
+  the punctuation is highlighted as well"). EpubWordCore (Epub.Layout)
+  narrows a word to its letters and digits (ASCII punctuation, U+2010 -
+  U+205E, guillemets, inverted marks trimmed at both ends; inner ones
+  kept: it's, sperm-whale). Used by TEpubView's highlight (first word's
+  start, last word's end) and by TEpubWriter's spans: '<span>whales</span>,'
+  and opening quotes outside the span. Reading the book back still ties
+  every clip to its word (the walker's word ids are unchanged: checkover
+  0 word differences, every clip = its timing), onlyinserts clean,
+  epubcheck 0 / 0. The FMX view is NOT compiled here (no Delphi / Skia).
+- SPEED SLIDER in the reader (owner: "slider will do ... Default 1"):
+  TTrackBar 0.5 - 1.5 step 0.1 (zip 16: owner "0.5 to 1.5 (2.0 sounds
+  silly)"; was 0.5 - 2). Zip 17: dragging made the window stop responding
+  (owner) - every step set Speed, and each set restarts the player's feed
+  (seek + new filter graph). Now the label follows at once and the player
+  gets the speed when the slider has rested SPEED_SETTLE_MS (300 ms,
+  tmSpeed): once per drag, once per run of [ / ] presses. + a '1.0x' label (click = 1x), keys [ and ];
+  sets TFFmpegAudioPlayer.Speed (the feed restarts at the same place).
+  Without avfilter / swscale the error goes to the status line and the
+  slider returns to 1. NOT COMPILED here.
+- ICON: demos/EpubReader/EpubReader_Icon.ico (16 - 256 px: an open book
+  with an amber highlighted word and a play badge, drawn here with PIL).
+  EpubReader.dproj: ONE line added, Icon_MainIcon in the Base_Win64
+  group; nothing else in the .dproj touched. gen_projects.py does not
+  write icons (it is never run on the existing .dproj). macOS (.icns) and
+  Linux icons: not yet.
+- FOUND, for TWhisper (not fixed): 375 words in the Moby timings have a
+  10 ms time starting where the next word starts (DTW gave Whisper's
+  'the' no length) - in 18 places the reader's ClipAt in the middle of
+  such a clip finds the word before. Harmless to hear; TWhisper should
+  give such a word part of the gap before it.
+
+## Learn to read (zip 18, on top of 17)
+Owner, 2026-11-15: "Learn To Read is also a good thing to have - may also
+be useful for proof-reading books (re-labelled but same functionality)".
+EpubReader (uMain only): btnLearn ('Abc', StaysPressed) + key L; cbStep
+holds Word / Sentence / Paragraph in the mode (Word chosen on entry),
+Sentence / Paragraph outside it (StepUnit maps the index: UNIT_WORD /
+UNIT_SENTENCE / UNIT_PARAGRAPH; FillSteps refills keeping the unit).
+In the mode Next / Previous (LearnStep): StopPlaying, the next / previous
+unit (UnitStart / new UnitEnd; IsUnitStart is True for every word in
+Word steps), SayWords: highlight + scroll + SyncToc, then
+FPlayer.PlayRange(first clip's begin - 40 ms, last clip's end + 60 ms)
+(SAY_PAD_BEFORE / AFTER) and stop. No clip (not read): lit, silent, the
+previous sound cut. A unit across two audio files is said to the end of
+the first file's part. Word steps pass over words with no clip and no
+letter or digit. R: say again. Click a word: that word. Play reads on
+from the unit (FSeekClip); with nothing said yet after a pause, Next
+goes on from the paused sentence, Previous says it. Book open / chapter
+jump reset the unit. OpenClipAudio split out of StartClip (the audio
+extraction, unchanged). NOT COMPILED here (no Delphi / FMX / Skia).
+Proof-reading: same mode, a second label later (owner).
+Zip 19 (owner, first test): "The word level accuracy is noticeably bad
+here. A single word frequently includes the end of previous word and the
+start of the next - possibly reduce the padding to near zero. Sentence on
+the other hand is frequently too much prose ... sections of the sentence
+between punctuation". SAY_PAD_BEFORE / AFTER 40 / 60 ms -> 0. New unit
+PHRASE (UNIT_WORD 0, UNIT_PHRASE 1, UNIT_SENTENCE 2, UNIT_PARAGRAPH 3;
+outside the mode the list is Sentence / Paragraph = index + 2): a phrase
+ends after a word whose last character (closing quotes stripped) is
+, ; : . ! ? or a dash U+2012 - U+2015, or that closes a bracket
+(EndsPhrase). Phrase is the mode's default. WORD TIMING: with no padding
+any bleed left is the timings' own - DTW word boundaries; on the human
+sync, sentence starts were within 0.21 s on average. If single words
+still bleed, the fix is in TWhisper (word edges), not here.
+Zip 20: owner "phrase works well, drop word as an option" (single words
+still bled with no padding, on TWhisper-26 timings). Word steps removed
+(UNIT_PHRASE 0, UNIT_SENTENCE 1, UNIT_PARAGRAPH 2; outside the mode the
+list is Sentence / Paragraph = index + 1); a click still says one word.
+Zip 21 (owner): "In Learn Mode the Play button should play the
+highlighted text rather than the next text ... useful if someone had
+problems with a specific word. Also Learn Mode should be much more
+distinctive". btnPlayClick in the mode: SayWords(FLearnFirst, FLearnLast)
+again (nothing said yet: the unit of CurrentWord) - never reads on; its
+hint changes. Distinctive: recLearn (TRectangle, Align Contents, behind
+layTop's buttons) green band LEARN_BAR / LEARN_BAR_DARK; highlight
+LEARN_HIGHLIGHT / _DARK instead of amber (ApplyTheme); LEARN_TITLE
+appended to the window title (kept across book opens); status line
+prefixed "LEARN TO READ - ".
+Zip 22 (owner: "Chapter 1 - clicked Call - that was it": the click said
+one word and Play then repeated only that word). A click in the mode now
+picks the unit the word is in (UnitStart .. UnitEnd, by cbStep) and says
+it; single words are no longer said anywhere in the mode.
+TWhisper idea for the bleed: move each word boundary to the quietest
+point within ~80 ms of DTW's (loudness per frame, as the benchmark
+stretch), at --from-json time - offered, not agreed.
+
+## GUI book builder (zip 23: BUILT, NOT COMPILED - see "EpubBuilder (zip 23)")
+"Epub on one side, Audio list on the other and a Create button to take
+the parts, run the make steps and build the final ePub you can then open
+with reader. Probably integrate Reader at some stage later but for now a
+simple GUI." The steps it runs are today's files: EpubConsole --words ->
+WhisperConsole (transcribe, --json) + --align-words --timings ->
+EpubConsole --overlay. Linking both libraries in one app was always the
+plan ("A GUI app linking both can come later", TWhisper zip 21 notes).
+To decide: which repo it lives in (it needs TWhisper + EpubUnum +
+TFFMpegAPI), progress / cancel for a 20 min transcription, keeping the
+transcript JSON so a re-align needs no new transcription, the device /
+model choice (TWhisperBenchmark).
+
+## EpubBuilder (zip 23, on top of 22; needs TWhisper zip 27)
+Owner: builder in EpubUnum's demos (chosen over TWhisper's demos / a new
+repo), linking the libraries in-process (chosen over running the console
+exes). demos/EpubBuilder: EpubBuilder.dpr, src/uBuilder.pas + .fmx (form
+only; controls built in code), README.md, EpubBuilder.dproj made by
+tools/gen_projects.py (new file only - no existing .dproj touched; the
+generator gained the project and GROUP_ORDER the name). EpubUnum.groupproj
+edited BY HAND: EpubBuilder after EpubReader in Projects, its three
+targets, and in Build / Clean / Make (project_check: 0 problems).
+Window: book (left: Choose..., title / words / existing overlays; a
+protected book refused with the library's message), audio (right: Add
+files... / Add folder... sorted by WhisperNaturalCompare, Remove, Up,
+Down), below: model, device (TWhisperLib.SelectableDevices; Default),
+output (default <book>-synced.epub; never the book itself), "Chapters of
+a file are parts" (on), "Use a saved transcript" (on), Create / Cancel,
+progress, log. TBuildThread: TEpubBook words without role nav ->
+FFmpeg (PATH, else whisper.cpp's folder) -> TWhisperAudioSet -> the
+transcript: <output>.transcript.json when its parts are the same files
+and starts, else TWhisperRun part by part as WhisperConsole (DTW words,
+WhisperCleanTranscription, FillGaps, WhisperAppendTranscription, the
+first part's language kept) and saved -> WhisperSplitBookWords /
+WhisperAlignText / WhisperJoinAligned -> WhisperWordFileTimes (TWhisper
+zip 27) -> TEpubWriter.AddAudioFile + AddWord -> SaveToFile. Progress:
+5 % book + audio, 85 % transcription by whisper.cpp's progress per part
+weighted by length, then align / write. Cancel: Terminate + Run.Cancel.
+NOT COMPILED here (no Delphi / FMX): the owner's build is its first.
+Zip 24 (owner's first compile, dcc64): EEpubError is in Epub.Zip (added
+to uses); WhisperTimeToStr(Round(SecondsBetween(..) * 100)) "incompatible
+types" -> MilliSecondsBetween(..) div 10; TThread.ForceQueue(nil, anon)
+"no overloaded version" -> the thread is FreeOnTerminate, BuildDone only
+clears FBuild; FormClose of a running build sets FreeOnTerminate False,
+cancels, WaitFor (OnTerminate has not run: it runs on the main thread),
+frees.
+Zip 25 (owner, first run on Aladdin: "More user feedback would be nice -
+not sure if it's got stuck"; it was at 60 % in one 34 min part with no
+log line since the model loaded): a "Now" status line - the step
+(reading, opening audio, loading model, decoding part N, transcribing,
+second pass, aligning, writing), during transcription each segment's
+text and its time on the joined line (TWhisperRun.OnSegment), plus time
+taken and time left (from the progress, once >= 7 %), refreshed every
+second by tmStatus so the clock moves during a long part.
+Zip 26. FIRST REAL BUILD (owner, Aladdin, 34:32 m4a, Gutenberg EPUB 2):
+5212 exact, 29 similar, 15 interpolated, 3056 not spoken (Gutenberg
+header + licence: the story from "There once lived" to "kings." is all
+timed), 5256 clips, 0 left out; second Create from the saved transcript
+in 0.4 s. OPEN: (1) 357.6 s to transcribe (5.8x) where WhisperConsole
+did Aladdin at 116x - device "Default"? to test with Vulkan0 and the
+saved transcript UNticked; (2) the builder's transcript is ALL lower case
+with NO punctuation (150 segments) and starts at 0.00 with "there once
+lived" - WhisperConsole's text has both; same params on paper. Both may
+be one cause (a slow fallback path / another device). Fixed here:
+- epubcheck on the result: 3 errors from the EPUB 2 -> 3 upgrade.
+  dc:language xsi:type="dcterms:RFC4646" (xsi: attributes now dropped
+  with opf: ones) and meta http-equiv="Content-Style-Type" in the
+  documents (WithoutOldHttpEquiv in Html5Text: http-equiv values HTML5
+  does not allow are removed). Tested: Aladdin's EPUB set back to 2.0 +
+  --overlay -> epubcheck 0 / 0.
+- RESULTS in the log after a build (owner: "Stats after completion would
+  be nice with explanation"): each figure with what it means, a verdict
+  (matched / timed: >= 98 very good, >= 93 good, >= 80 usable, else
+  poor - wrong recording or file order?), front / back matter told apart
+  from not-spoken text inside the book (a warning past 10 %), and the
+  10 longest stretches of 3+ words with time and quote.
+Zip 27 - CAUSE of the slow, lower-case transcripts (owner's Vulkan0 run:
+still 16x and the same text): the builder used whisper.cpp's defaults -
+previous text as context, no prompt. With DTW, flash attention is off,
+and TWhisper's own notes (its CLAUDE.md, session 5) say turbo with flash
+attention off and the previous text as context falls into loops and
+lower-case run-on text; RECOMMENDED for books: --no-context
+--carry-prompt + a punctuated prompt - what the owner's Moby-Dick run
+used ("previous text as context False, initial prompt in every window",
+81x). The builder now sets NoContext, MaxTextContext 0, InitialPrompt
+BOOK_PROMPT ("Once upon a time, there was a story. It was read
+aloud.") carried into every window, and cleans prompt echoes with it.
+A saved transcript made before zip 27 should be made again (untick
+"Use a saved transcript" once).
+Zip 28 (owner: "persist model and device at least ... somewhere
+OS-friendly"): EpubBuilder.ini (TMemIniFile, UTF-8) in %APPDATA%\EpubBuilder
+(TPath.GetHomePath), ~/Library/Application Support/EpubBuilder (macOS),
+$XDG_CONFIG_HOME or ~/.config /EpubBuilder (Linux): [Build] Model (dropped
+when the file is gone), Device BY NAME (the list order can change),
+Chapters, UseSavedTranscript; [Folders] Book, Audio (the dialogs open
+there). Saved on choosing a model, on Create and on close.
+Zip 29 (owner): choosing another book empties the audio list ("started
+new book, still had old audio") and sets the output name afresh.
+FOREIGN LANGUAGES (owner has Night Watch in German too; "I only want
+transcribe, not translate"): Params.Translate := False explicitly;
+Params.Language := the book's dc:language primary subtag when whisper.cpp
+knows it (else auto); the carried prompt in that language (BOOK_PROMPTS:
+en, de, fr, es, it, nl; accented letters as #$xx codes - ASCII source);
+other languages: no prompt (NoContext + MaxTextContext 0 still - no
+loops; maybe no capitals / punctuation, which the aligner ignores).
+KNOWN LIMITS for other languages, in TWhisper's aligner: number words are
+English (WhisperNumberWords: "4" -> "four", Roman "IV" -> "four"), so a
+German "Kapitel IV" heard as "Kapitel vier" does not match (it is then
+interpolated - a few words per chapter heading); letters / similarity
+work on UTF-8 bytes (umlauts count as two). Worth a German number-word
+table in TWhisper if the German run shows many heading misses.
+Zip 30. NIGHT WATCH (owner, English, professional reader, 1 m4b, 75
+chapter parts, 14:41:28; copyrighted - local only): 19:32 in all;
+108371 exact (95.2 %), 1899 similar, 441 MOVED (the footnotes, read
+where called - working: 101, 70, 56, 51 ... word stretches at their
+call points), 2029 interpolated, 812 not spoken (mostly back matter:
+about the author, copyright - not at the very end, so not counted as
+edges), verdict 97.8 % good. Slow parts: opening credits 114 s audio in
+85 s, chapters 10, 53, 73 (63-89 s) - music / credits or fallbacks.
+- Word edges: TWhisper zip 28 WhisperTrimWordSilence called after
+  FillGaps; a saved transcript without TRIMMED_MARK ("word_edges":
+  "trimmed", written after the JSON's opening brace by SaveTranscript)
+  is trimmed once from the audio (TrimSaved, part by part) and saved
+  again - so Aladdin / Night Watch need no new transcription.
+EpubReader: RegisterOpenWith at start-up (owner: "add Reader to Open
+With association. Maybe later Always open with"): Windows HKCU\Software\
+Classes - ProgID EpubUnum.EpubReader (open command, icon), .epub\
+OpenWithProgids, Applications\EpubReader.exe\SupportedTypes, then
+SHChangeNotify; Linux ~/.local/share/applications/epubreader.desktop
+(MimeType application/epub+zip, Exec through EpubReader.sh when it is
+there). Only written when missing or pointing elsewhere; the status line
+says so until a book opens. "Always": Windows 10/11 let only the user
+choose the default (the UserChoice key is hash-protected) - Open with >
+Choose another app > EpubReader > Always. macOS: CFBundleDocumentTypes
+in the Info.plist - later.
+NOT COMPILED here (no Delphi). Open question to the owner: ask before
+Create replaces an existing EPUB the last build of this book did not make?
+IDEA, PARKED (owner: "didn't think it was practical anyway"): an English
+sentence -> its German sentence and audio, from two synced EPUBs by
+sentence alignment (lengths, names, numbers; Whisper's X -> English
+translation as a bridge); phrase level needs a translation model.
+Zip 31 - READER (owner, 2026-11-15 21:02): menu bar (TMainMenu, made in
+code: File > Open... / Recently Opened / Exit; View > Dark mode / Learn
+to read (checked) / Larger / Smaller text); the toolbar's Open button
+gone. Settings in JSON (owner: "they will get more complex"):
+EpubReader.json in %APPDATA%\EpubReader / ~/Library/Application
+Support/EpubReader / $XDG_CONFIG_HOME or ~/.config/EpubReader -
+"dark", "textSize", "speed", "recent": [{file, title, word}] (RECENT_MAX
+10, latest first). Position = ReadingWord (Learn unit, else the clip
+highlighted, else the document's first word), kept on close and when
+another book is opened (RememberBook), restored in EpubUnum1Open
+(RestoreWord: GoClip - lit, Play starts there). Matched BY FILE NAME
+(owner: "tied to the epub name for now"). No book on the command line:
+the last one read opens. A missing recent file: a message, taken off.
+SMOOTH FOLLOWING (owner: "display is rather jerky ... the row the reader
+is on is central"): TEpubView.ScrollToWord(AWord, ACenter) - with
+ACenter the word's LINE (WordLine: Skia's rect of the word) goes to the
+middle, by SmoothScrollTo (15 ms timer, 20 % of the way per tick; a jump
+farther than 1.5 screens is instant; any other scroll stops it); every
+ScrollToWord of the reader centres. NOT COMPILED here (no Delphi).
+Settings menu: later (owner: "We will also eventually need").
+Zip 32 - FOOTNOTES (owner: "I couldn't spot any. They should probably be
+highlighted ... File -> Goto Footnote -> [list] ... disable" when none):
+TEpubView.NoteColor (index 4; default $FFEDE6D6, a shade darker than the
+paper; claNull = off) drawn behind blocks whose Role = ewrNote (the
+walker's: aside, epub:type / role / class footnote, endnote, note,
+rearnote); reader DARK_NOTE $FF2C2C34. File > Go to Footnote: runs of
+note words per document (at most 300), item "N. <chapter>: <first 8
+words> ...", click = RestoreWord (lit; Play from there - a footnote
+read at its call point plays there). OPEN: if Night Watch's EPUB does
+not mark its footnotes as notes (plain paragraphs, or only a noteref
+link), the menu stays disabled - then the markup decides what to
+detect (the owner can describe one footnote's tags; the book stays
+local).
+LATER (owner): go to the suspicious parts from the results - needs the
+reader inside the builder (or the builder inside the reader).
+To come: remember settings (model, device, folders), a summary of the
+not-spoken stretches, open the result in EpubReader, integrate in the
+reader later (owner).
+
 ## Pushes checked
+- 26118e5 = zip 14 (owner: applied and pushed; his Delphi EpubConsole
+  --overlay of the full Moby-Dick from TWhisper timings: 211964 clips, 0
+  left out).
 - 6ab27c4 ("EPub view etc") = zips 09-13: every delivered file identical
   to a fresh clone (2026-11-15); pasdoc_check, project_check 0 problems;
   FPC build of lib + EpubConsole runs. Owner: "11-13 applied and tested"

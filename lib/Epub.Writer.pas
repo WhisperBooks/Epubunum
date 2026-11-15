@@ -170,7 +170,7 @@ function EpubRelativeHref(const AFrom, ATo: string): string;
 implementation
 
 uses
-  DateUtils;
+  DateUtils, StrUtils;
 
 const
   { The XHTML namespace. }
@@ -537,13 +537,64 @@ begin
   Result := Copy(AText, 1, P - 1) + '<!DOCTYPE html>' + Copy(AText, E + 1, MaxInt);
 end;
 
-{ AText made an EPUB 3 content document: the HTML5 doctype, and named
-  entities as character references (the HTML5 doctype declares none). }
+{ AText without the meta elements whose http-equiv HTML5 does not allow
+  (EPUB 2 books, Project Gutenberg's among them, carry
+  http-equiv="Content-Style-Type"; epubcheck rejects it in EPUB 3).
+  Allowed: content-type, default-style, refresh, x-ua-compatible,
+  content-security-policy. }
+function WithoutOldHttpEquiv(const AText: string): string;
+const
+  ALLOWED = '|content-type|default-style|refresh|x-ua-compatible|content-security-policy|';
+var
+  Low, Tag, Value: string;
+  From, P, E, A, Q: Integer;
+begin
+  Result := AText;
+  Low := LowerCase(Result);   // the same length as Result: offsets match
+  From := 1;
+  repeat
+    P := PosEx('<meta', Low, From);
+    if P = 0 then
+      Break;
+    E := PosEx('>', Low, P);
+    if E = 0 then
+      Break;
+    Tag := Copy(Low, P, E - P + 1);
+    A := Pos('http-equiv', Tag);
+    Value := '';
+    if A > 0 then
+    begin
+      Inc(A, Length('http-equiv'));
+      while (A <= Length(Tag)) and CharInSet(Tag[A], [' ', #9, #10, #13, '=']) do
+        Inc(A);
+      if (A <= Length(Tag)) and CharInSet(Tag[A], ['"', '''']) then
+      begin
+        Q := A + 1;
+        while (Q <= Length(Tag)) and (Tag[Q] <> Tag[A]) do
+          Inc(Q);
+        Value := Trim(Copy(Tag, A + 1, Q - A - 1));
+      end;
+    end;
+    if (A > 0) and (Pos('|' + Value + '|', ALLOWED) = 0) then
+    begin
+      Delete(Result, P, E - P + 1);
+      Delete(Low, P, E - P + 1);
+      From := P;
+    end
+    else
+      From := E + 1;
+  until False;
+end;
+
+{ AText made an EPUB 3 content document: the HTML5 doctype, named
+  entities as character references (the HTML5 doctype declares none),
+  and no meta http-equiv that HTML5 does not allow. }
 function Html5Text(const AText: string): string;
 begin
   Result := Html5Doctype(AText);
   if Result <> AText then
     Result := EpubXmlNumericEntities(Result);
+  Result := WithoutOldHttpEquiv(Result);
 end;
 
 { The file name part of archive path APath. }
@@ -890,7 +941,7 @@ var
   Ids, BlockKeys, NewIds: TStringList;
   BlockIdList: array of string;
   Pars: TParArray;
-  NPars, I, K, Local, P1, P2, First0, IdIdx, N: Integer;
+  NPars, I, K, Local, P1, P2, CoreFirst, CoreLast, First0, IdIdx, N: Integer;
   WS: TEpubWordSource;
   Head, Blk: TEpubXmlNode;
 
@@ -968,8 +1019,15 @@ begin
         else
         begin
           Id := NewId('w' + IntToStr(Local + 1));
-          P1 := RawPos(WS.FirstNode, WS.FirstStart);
-          P2 := RawPos(WS.FirstNode, WS.FirstEnd + 1);
+          // the span holds the word without the punctuation around it (a
+          // reading system lights the span: 'whales' read, not 'whales,')
+          CoreFirst := WS.FirstStart;
+          CoreLast := WS.FirstEnd;
+          EpubWordCore(WS.FirstNode.Text, CoreFirst, CoreLast);
+          if WS.FirstNode <> WS.LastNode then
+            CoreLast := WS.FirstEnd;   // the word goes on in the next node
+          P1 := RawPos(WS.FirstNode, CoreFirst);
+          P2 := RawPos(WS.FirstNode, CoreLast + 1);
           AddEdit(Edits, P1, 0, 1, '<span id="' + EpubXmlEscape(Id) + '">');
           AddEdit(Edits, P2, 0, 0, '</span>');
           NewIds.AddObject(Id, TObject(NativeInt(Local)));
@@ -1364,13 +1422,14 @@ begin
           Continue;
         end;
       end;
-      // opf: attributes are EPUB 2 only
+      // opf: attributes are EPUB 2 only; so is xsi:type (EPUB 2's
+      // <dc:language xsi:type="dcterms:RFC4646">, Project Gutenberg's)
       Changed := False;
       Kept := nil;
       Role := '';
       FileAs := '';
       for K := 0 to High(E.Attrs) do
-        if SameText(Copy(E.Attrs[K].Name, 1, 4), 'opf:') then
+        if SameText(Copy(E.Attrs[K].Name, 1, 4), 'opf:') or SameText(Copy(E.Attrs[K].Name, 1, 4), 'xsi:') then
         begin
           Changed := True;
           if SameText(E.Attrs[K].Name, 'opf:role') then

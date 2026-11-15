@@ -33,6 +33,13 @@ them; a relative path is relative to the timings file). `--audio` copies a file 
 `--book-audio` uses one already inside it. `--block` writes a clip per
 paragraph instead of per word.
 
+Word numbers belong to the Epubunum version that listed them. When an
+update changes how words are found (zip 15: a dash between two words now
+ends the first, so 'calm' + em dash + 'frozen' is two words), make a new
+`--words` list and align again before `--overlay`; a timings file made
+from an older list puts times on the wrong words. Re-aligning does not
+need a new transcription: WhisperConsole `--from-json` reads the old one.
+
 `--clip-timings` is a test aid: it shares each clip of the book's own
 overlays out over the clip's words by length - not an aligner. For
 example, Moby-Dick at word level:

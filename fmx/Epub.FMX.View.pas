@@ -71,6 +71,11 @@ type
     FContentHeight: Single;
     { Backing field of @link(ScrollPos). }
     FScroll: Single;
+    { Where a smooth scroll is going (@link(ScrollToWord) with ACenter). }
+    FScrollTarget: Single;
+    { Moves FScroll towards FScrollTarget a step per tick (nil until the
+      first smooth scroll). }
+    FScrollTimer: TTimer;
     { Backing field of @link(FontSize). }
     FFontSize: Single;
     { Backing field of @link(FontFamily). }
@@ -91,6 +96,8 @@ type
     FHighlightColor: TAlphaColor;
     { Backing field of @link(LinkColor). }
     FLinkColor: TAlphaColor;
+    { Backing field of @link(NoteColor). }
+    FNoteColor: TAlphaColor;
     { First highlighted word (book index), -1 = none. }
     FHighFirst: Integer;
     { Last highlighted word. }
@@ -109,6 +116,16 @@ type
     procedure SetLineHeight(const AValue: Single);
     { Scroll position (clamped). }
     procedure SetScrollPos(const AValue: Single);
+    { Stops a smooth scroll where it is. }
+    procedure StopScrolling;
+    { Scrolls to ATarget smoothly - at once when it is far (another part
+      of the document) or the view is not shown. }
+    procedure SmoothScrollTo(ATarget: Single);
+    { A step of the smooth scroll. }
+    procedure ScrollTimer(Sender: TObject);
+    { The top and height of the line word AWord (book index) is on, in
+      the document (px); False when it has no line (a picture). }
+    function WordLine(AWord: Integer; out ATop, AHeight: Single): Boolean;
     { A colour property changed: draw again. }
     procedure SetColor(const AIndex: Integer; const AValue: TAlphaColor);
     { A colour property's value. }
@@ -153,9 +170,12 @@ type
     procedure Highlight(AFirst, ALast: Integer);
     { Removes the highlight. }
     procedure ClearHighlight;
-    { Shows word AWord (switching document when needed): scrolls only when
-      it is not already well inside the view. }
-    procedure ScrollToWord(AWord: Integer);
+    { Shows word AWord (switching document when needed). ACenter = @false:
+      scrolls only when it is not already well inside the view. ACenter =
+      @true (reading along): scrolls smoothly so the word's LINE is in the
+      middle of the view - each new line moves the text up by a line -
+      except where the document's start or end does not allow it. }
+    procedure ScrollToWord(AWord: Integer; ACenter: Boolean = False);
     { The word at a point of the view (book index), -1 when none. }
     function WordAt(X, Y: Single): Integer;
     { Scrolls one screen down (True) or up. }
@@ -195,6 +215,10 @@ type
     property HighlightColor: TAlphaColor index 2 read GetColor write SetColor;
     { Colour of links. }
     property LinkColor: TAlphaColor index 3 read GetColor write SetColor;
+    { Background of footnotes and other notes (blocks whose role is
+      ewrNote: aside, epub:type / class footnote, endnote, note), so they
+      can be told from the text; transparent (claNull) = not marked. }
+    property NoteColor: TAlphaColor index 4 read GetColor write SetColor;
     { A word was clicked. }
     property OnWordClick: TEpubWordEvent read FOnWordClick write FOnWordClick;
     { Another document is shown. }
@@ -241,10 +265,12 @@ begin
   FBackgroundColor := $FFFBF7EF;     // warm paper
   FHighlightColor := $FFFFE08A;
   FLinkColor := $FF1A5FB4;
+  FNoteColor := $FFEDE6D6;           // a shade darker than the paper
 end;
 
 destructor TEpubView.Destroy;
 begin
+  StopScrolling;
   FLayout.Free;
   inherited;
 end;
@@ -291,6 +317,7 @@ begin
     0: Result := FTextColor;
     1: Result := FBackgroundColor;
     2: Result := FHighlightColor;
+    4: Result := FNoteColor;
   else
     Result := FLinkColor;
   end;
@@ -302,6 +329,7 @@ begin
     0: FTextColor := AValue;
     1: FBackgroundColor := AValue;
     2: FHighlightColor := AValue;
+    4: FNoteColor := AValue;
   else
     FLinkColor := AValue;
   end;
@@ -341,10 +369,92 @@ begin
   Redraw;
 end;
 
+procedure TEpubView.StopScrolling;
+begin
+  if FScrollTimer <> nil then
+    FScrollTimer.Enabled := False;
+end;
+
+procedure TEpubView.SmoothScrollTo(ATarget: Single);
+const
+  { Ticks of the smooth scroll, ms. }
+  TICK_MS = 15;
+begin
+  ATarget := Max(0, Min(ATarget, FContentHeight - Height));
+  if not Visible or (Abs(ATarget - FScroll) > Height * 1.5) then
+  begin
+    ScrollPos := ATarget;
+    Exit;
+  end;
+  FScrollTarget := ATarget;
+  if FScrollTimer = nil then
+  begin
+    FScrollTimer := TTimer.Create(Self);
+    FScrollTimer.Interval := TICK_MS;
+    FScrollTimer.OnTimer := ScrollTimer;
+  end;
+  FScrollTimer.Enabled := True;
+end;
+
+procedure TEpubView.ScrollTimer(Sender: TObject);
+const
+  { Share of the way left that a tick moves (eases out). }
+  EASE = 0.2;
+var
+  D: Single;
+begin
+  D := FScrollTarget - FScroll;
+  if Abs(D) < 0.5 then
+  begin
+    FScroll := FScrollTarget;
+    StopScrolling;
+  end
+  else
+    FScroll := FScroll + D * EASE;
+  Redraw;
+end;
+
+function TEpubView.WordLine(AWord: Integer; out ATop, AHeight: Single): Boolean;
+var
+  B: TEpubBook;
+  Blk, K, I, Local, S: Integer;
+  Boxes: TArray<TSkTextBox>;
+  Block: TEpubBlock;
+begin
+  Result := False;
+  ATop := 0;
+  AHeight := 0;
+  B := Book;
+  if (B = nil) or not LayoutCurrent or (B.Words[AWord].Document <> FDocument) then
+    Exit;
+  Blk := B.BlockOfWord(FLayout, FDocument, AWord);
+  if Blk < 0 then
+    Exit;
+  K := ItemOfBlock(Blk);
+  if (K < 0) or (FItems[K].Paragraph = nil) then
+    Exit;
+  Block := FLayout.Blocks[Blk];
+  Local := AWord - B.Documents[FDocument].FirstWord;
+  for I := 0 to High(Block.Words) do
+    if Block.Words[I].Word = Local then
+    begin
+      S := Block.Words[I].Start + FItems[K].Offset;
+      Boxes := FItems[K].Paragraph.GetRectsForRange(S, S + Max(1, Block.Words[I].Length),
+        TSkRectHeightStyle.Max, TSkRectWidthStyle.Tight);
+      if Length(Boxes) = 0 then
+        Exit;
+      ATop := FItems[K].Top + Boxes[0].Rect.Top;
+      AHeight := Boxes[0].Rect.Height;
+      Exit(True);
+    end;
+end;
+
 procedure TEpubView.SetScrollPos(const AValue: Single);
 var
   V: Single;
 begin
+  // a scroll by the user (wheel, keys) or from code ends a smooth one
+  StopScrolling;
   V := Min(AValue, FContentHeight - Height);
   V := Max(V, 0);
   if SameValue(V, FScroll) then
@@ -355,6 +465,7 @@ end;
 
 procedure TEpubView.Clear;
 begin
+  StopScrolling;
   FreeAndNil(FLayout);
   FItems := nil;
   FDocument := -1;
@@ -388,6 +499,7 @@ begin
     if Assigned(FOnDocumentChange) then
       FOnDocumentChange(Self);
   end;
+  StopScrolling;
   FScroll := 0;
   Redraw;
 end;
@@ -423,11 +535,11 @@ begin
   Highlight(-1, -1);
 end;
 
-procedure TEpubView.ScrollToWord(AWord: Integer);
+procedure TEpubView.ScrollToWord(AWord: Integer; ACenter: Boolean);
 var
   B: TEpubBook;
   Doc, Blk, K: Integer;
-  Top, Bottom: Single;
+  Top, Bottom, LineTop, LineHeight: Single;
 begin
   B := Book;
   if (B = nil) or (AWord < 0) or (AWord >= B.WordCount) then
@@ -443,6 +555,15 @@ begin
   K := ItemOfBlock(Blk);
   if K < 0 then
     Exit;
+  // reading along: the word's line in the middle, scrolled smoothly
+  if ACenter then
+  begin
+    if WordLine(AWord, LineTop, LineHeight) then
+      SmoothScrollTo(LineTop + LineHeight / 2 - Height / 2)
+    else
+      SmoothScrollTo(FItems[K].Top + FItems[K].Height / 2 - Height / 2);
+    Exit;
+  end;
   Top := FItems[K].Top;
   Bottom := Top + Min(FItems[K].Height, Height / 2);
   // keep it in the upper two thirds; scroll only when it left that
@@ -641,7 +762,7 @@ end;
 procedure TEpubView.Draw(const ACanvas: ISkCanvas; const ADest: TRectF; const AOpacity: Single);
 var
   Paint: ISkPaint;
-  I, K, Local, F, L, S, E: Integer;
+  I, K, Local, F, L, S, E, CoreFirst: Integer;
   Item: TEpubViewItem;
   Top, Y: Single;
   Blk: TEpubBlock;
@@ -674,6 +795,14 @@ begin
       if Top + Item.Height < ADest.Top then
         Continue;
       Blk := FLayout.Blocks[Item.Block];
+      // a note (footnote, endnote, aside): its own background
+      if (Blk.Role = ewrNote) and (TAlphaColorRec(FNoteColor).A > 0) then
+      begin
+        Paint.Style := TSkPaintStyle.Fill;
+        Paint.Color := FNoteColor;
+        ACanvas.DrawRect(RectF(ADest.Left + Item.X - FPageMargin / 2, Top - 2,
+          ADest.Left + Item.X + Item.Width + FPageMargin / 2, Top + Item.Height + 2), Paint);
+      end;
       if Item.Paragraph <> nil then
       begin
         // the highlight, behind the text
@@ -693,8 +822,16 @@ begin
           end;
           if F >= 0 then
           begin
-            S := Blk.Words[F].Start + Item.Offset;
-            E := Blk.Words[L].Start + Blk.Words[L].Length + Item.Offset;
+            // without the punctuation around the words: 'whales' is read,
+            // the comma after it is not
+            S := Blk.Words[F].Start + 1;
+            E := Blk.Words[F].Start + Blk.Words[F].Length;
+            EpubWordCore(Blk.Text, S, E);
+            S := S - 1 + Item.Offset;
+            CoreFirst := Blk.Words[L].Start + 1;
+            E := Blk.Words[L].Start + Blk.Words[L].Length;
+            EpubWordCore(Blk.Text, CoreFirst, E);
+            E := E + Item.Offset;
             Boxes := Item.Paragraph.GetRectsForRange(S, E, TSkRectHeightStyle.Max, TSkRectWidthStyle.Tight);
             Paint.Color := FHighlightColor;
             for K := 0 to High(Boxes) do

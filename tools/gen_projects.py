@@ -76,11 +76,19 @@ PROJECTS = [
                 ("FmxSkiaCanvas", "src\\FmxSkiaCanvas.pas")],
          forms=[("uMain", "src\\uMain.pas", "frmMain")],
          search="src", depends=["EpubUnumFMX"], skia=True),
+    # The book builder (owner, 2026-11-15): EPUB + audio files -> read-along
+    # EPUB, in one program. Needs TWhisper's WhisperAPI (and TFFMpegAPI's
+    # FFmpegAPI) built too: their DCUs come from the Dcp folder like
+    # EpubUnum's. No Skia (no page view).
+    dict(name="EpubBuilder", dir="demos\\EpubBuilder", kind="app", framework="FMX",
+         platforms=APP_PLATFORMS, default="Win64",
+         units=[], forms=[("uBuilder", "src\\uBuilder.pas", "frmBuilder")],
+         search="src", depends=["EpubUnum"]),
 ]
 
 # OWNER'S GROUP ORDER (tiers, as TWhisper's 1cac2e7): plain runtime packages,
 # FMX runtime packages, design packages, applications.
-GROUP_ORDER = ["EpubUnum", "EpubUnumFMX", "dclEpubUnumFMX", "EpubConsole", "EpubReader"]
+GROUP_ORDER = ["EpubUnum", "EpubUnumFMX", "dclEpubUnumFMX", "EpubConsole", "EpubReader", "EpubBuilder"]
 
 # What the IDE's Project > Enable Skia adds to a .dproj (TSteamAPI's
 # gen_projects.py, as the IDE wrote it into VirtualGamepad.dproj): the SKIA
