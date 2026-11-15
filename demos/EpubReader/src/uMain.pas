@@ -179,6 +179,25 @@ const
   ICON_SIZE = 24;
   { Button width, px. }
   BUTTON_WIDTH = 36;
+  { Longest extension kept for an extracted audio file, the dot included. }
+  MAX_AUDIO_EXTENSION = 8;
+
+{ The extension of APath (a path inside a book) for the extracted copy:
+  '.mp3', '.m4a', ... when it is a dot and a few ASCII letters or digits,
+  else '' - nothing of the book's path that could name another folder. }
+function SafeAudioExtension(const APath: string): string;
+var
+  I, P: Integer;
+begin
+  Result := '';
+  P := LastDelimiter('.', APath);
+  if (P = 0) or (Length(APath) - P + 1 > MAX_AUDIO_EXTENSION) or (P = Length(APath)) then
+    Exit;
+  for I := P + 1 to Length(APath) do
+    if not CharInSet(APath[I], ['a'..'z', 'A'..'Z', '0'..'9']) then
+      Exit;
+  Result := Copy(APath, P, MaxInt);
+end;
 
 function TfrmMain.AddIconButton(const AIcon, AHint: string; AOnClick: TNotifyEvent): TButton;
 var
@@ -281,7 +300,10 @@ begin
   FClip := -1;
   BuildToolBar;
   StartSound;
-  FAudioFolder := System.IOUtils.TPath.Combine(System.IOUtils.TPath.GetTempPath, 'EpubReader-' + IntToStr(Random(MaxInt)));
+  // a new name every run (Random without Randomize gave the same one, so
+  // two readers shared - and deleted - one folder)
+  FAudioFolder := System.IOUtils.TPath.Combine(System.IOUtils.TPath.GetTempPath,
+    'EpubReader-' + System.IOUtils.TPath.GetGUIDFileName);
   // which canvas FMX really draws the form with (GDI+, Direct2D, Skia ...)
   // and what the Wine / Proton units decided - stderr, as TSteamAPI's demos
   {$IFDEF POSIX}
@@ -488,6 +510,7 @@ var
   B: TEpubBook;
   C: TEpubClip;
   Target: string;
+  I, First: Integer;
 begin
   B := EpubUnum1.Book;
   if (B = nil) or (AClip < 0) or (AClip > High(B.Clips)) then
@@ -511,7 +534,21 @@ begin
     if C.AudioPath <> FAudioPath then
     begin
       // FFmpeg streams a file: the book's audio is extracted once
-      Target := System.IOUtils.TPath.Combine(FAudioFolder, StringReplace(C.AudioPath, '/', '_', [rfReplaceAll]));
+      // The file name is made HERE, never from the path inside the book:
+      // that path is the book's to choose, and one with backslashes and
+      // '..', or an absolute one (which TPath.Combine returns as it is),
+      // wrote the book's bytes anywhere on the disk. It is
+      // <book number>-<first clip of this audio file><extension>, so a
+      // second book never finds the first one's file under its own name.
+      First := AClip;
+      for I := 0 to AClip do
+        if B.Clips[I].AudioPath = C.AudioPath then
+        begin
+          First := I;
+          Break;
+        end;
+      Target := System.IOUtils.TPath.Combine(FAudioFolder, Format('%d-%d%s', [EpubUnum1.BookSerial, First,
+        SafeAudioExtension(C.AudioPath)]));
       if not TFile.Exists(Target) then
       begin
         ForceDirectories(FAudioFolder);

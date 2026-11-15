@@ -72,7 +72,10 @@ Link it to a `TEpubUnum` (`Epub` property), call `ShowDocument` or
 narration; `OnWordClick` gives the word under a click. Text size, line
 height, paragraph spacing, page margin and colours are properties. It lays out
 each block with Skia's paragraph engine (`TSkParagraph`) and draws the
-highlight from the paragraph's range rectangles.
+highlight from the paragraph's range rectangles. When the component opens
+another book the view notices (`TEpubUnum.BookSerial`): it draws an empty
+page until `ShowDocument` is called for the new book, and never the old
+book's text. A picture that cannot be read is left out; the text goes on.
 
 **Skia:** `TEpubView` derives from `TSkCustomControl` and draws with Skia
 whatever FMX's own canvas is. Enable Skia (Project > Enable Skia) on

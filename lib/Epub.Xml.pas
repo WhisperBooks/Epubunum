@@ -56,7 +56,8 @@ type
     FCount: Integer;
     { Backing field of @link(Parent). }
     FParent: TEpubXmlNode;
-    { The children, trimmed to FCount. }
+    { The children: the node's own array, trimmed to FCount on the first
+      read (no copy per read). }
     function GetChildren: TEpubXmlNodeArray;
     { Adds AChild (taking ownership). }
     procedure AddChild(AChild: TEpubXmlNode);
@@ -92,7 +93,7 @@ type
     property Text: string read FText;
     { Attributes of an element. }
     property Attrs: TEpubXmlAttrArray read FAttrs;
-    { Child nodes. }
+    { Child nodes (the node's own array: read it, do not change it). }
     property Children: TEpubXmlNodeArray read GetChildren;
     { Number of child nodes. }
     property ChildCount: Integer read FCount;
@@ -284,7 +285,13 @@ end;
 
 function TEpubXmlNode.GetChildren: TEpubXmlNodeArray;
 begin
-  Result := Copy(FChildren, 0, FCount);
+  // Not a copy: Children[I] in a loop over ChildCount copied every child
+  // pointer once per child (a body of 50 000 nodes: 20 GB moved per walk).
+  // The spare room AddChild left is cut off once; AddChild grows it again
+  // if the parser is still adding.
+  if Length(FChildren) <> FCount then
+    SetLength(FChildren, FCount);
+  Result := FChildren;
 end;
 
 procedure TEpubXmlNode.AddChild(AChild: TEpubXmlNode);

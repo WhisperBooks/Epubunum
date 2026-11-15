@@ -44,6 +44,8 @@ type
     FFileName: string;
     { Backing field of @link(Book). }
     FBook: TEpubBook;
+    { Backing field of @link(BookSerial). }
+    FBookSerial: Integer;
     { Backing field of @link(OnOpen). }
     FOnOpen: TNotifyEvent;
     { Backing field of @link(OnOpenFailed). }
@@ -71,6 +73,11 @@ type
     procedure Close;
     { The open book (nil when closed). }
     property Book: TEpubBook read FBook;
+    { A number that changes every time a book is opened or closed: what was
+      made from @link(Book) (a view's layout, word indexes) belongs to the
+      book only while this is the same. (Comparing Book itself is not
+      enough: a new book can get the address of the one just freed.) }
+    property BookSerial: Integer read FBookSerial;
     { The book is open (setting it opens or closes; a failure goes to
       OnOpenFailed). At design time the value is only stored. }
     property Active: Boolean read FActive write SetActive default False;
@@ -161,6 +168,7 @@ begin
   if FFileName = '' then
     raise EEpubError.Create('No FileName set');
   FBook := TEpubBook.Create(FFileName);
+  Inc(FBookSerial);
   FActive := True;
   if Assigned(FOnOpen) then
     try
@@ -177,6 +185,8 @@ var
 begin
   WasOpen := FBook <> nil;
   FreeAndNil(FBook);
+  if WasOpen then
+    Inc(FBookSerial);
   FActive := False;
   if WasOpen and Assigned(FOnClose) and not (csDestroying in ComponentState) then
     try

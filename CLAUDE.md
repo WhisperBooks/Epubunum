@@ -124,7 +124,56 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 07.
+Last number used: 08.
+
+## Review fixes (zip 08, on top of 68162a4 "A Claude push")
+From a code review by reading (owner, 2026-11-15: "code review", then "y" to
+a zip with the five fixes). NOT COMPILED OR RUN in that session (no FPC, no
+Delphi, no Skia there; pasdoc_check and project_check: 0 problems): the
+owner's Delphi build and an FPC build of lib/ with EpubConsole on the test
+books are their test.
+1. EpubReader, StartClip: the name of the extracted audio file was the
+   overlay's audio path with '/' turned into '_'. A book chooses that path:
+   backslashes with '..', or an absolute path (TPath.Combine returns an
+   absolute second part as it is), wrote the book's bytes anywhere. Now the
+   name is <BookSerial>-<first clip of that audio><extension>, the
+   extension only a dot and ASCII letters / digits (SafeAudioExtension), so
+   a second book with the same inner path no longer plays the first book's
+   file either. The temp folder's name is a GUID (Random without Randomize
+   gave the same folder every run; two readers shared and deleted it).
+   Never build a file name on disk from a path inside a book.
+2. TCustomEpub.BookSerial (Epub.Components): changes with every open and
+   close. TEpubView keeps the serial its layout was made at
+   (LayoutCurrent): ShowDocument makes the layout again when the book is
+   another one even if the document number is the same - it showed the
+   FIRST book's text for a second book starting at the same document - and
+   Draw / WordAt / ScrollToWord / ShowFragment do nothing with a layout of
+   the book before. TO TEST: open a book, then another, without leaving the
+   first document.
+3. Epub.Css, Parse: a statement without a block ('@charset "UTF-8";',
+   '@namespace ...;', '@import ...;') ends at its ';'. It was scanned on to
+   the next '{', became that rule's selector, started with '@' and the rule
+   was skipped: the first rule of every style sheet starting that way. TO
+   TEST: EpubConsole's rule counts / a book whose CSS starts with @charset.
+4. TEpubView.LayoutItems: reading a picture is in try / except - a damaged
+   entry (CRC, ZIP method, too large) gives no picture. The exception left
+   Draw with FItems half made and the width marked as laid out, so the
+   chapter stayed cut off.
+5. Epub.Xml: Children no longer copies the array on every read (the node's
+   own array, trimmed once). Children[I] in a loop over ChildCount
+   (Epub.Layout's walk, the NCX reader) was quadratic. Callers must not
+   change the array.
+Found in the same review and NOT fixed: Epub.Zip trusts the sizes of the
+directory (a small file can ask for 2 GB) and Extract reads the whole entry
+into memory although the error text says to use it; a descendant selector
+('.poem p') is applied to every element matching its last part; style
+sheets are parsed once per DOCUMENT, not per CSS file, and StyleOf scans
+every rule and parses the declarations again for each element; ClipAt
+returns a clip without clipEnd for every later time; the XML tree and the
+layout walk recurse without a depth limit; ExtractAll skips every name with
+'..' in it ('Wait....xhtml'); with FPC, UTF-16 text is converted with
+string(W), not UTF8Encode; Active := True fails silently without
+OnOpenFailed; no LICENSE file.
 
 ## Pushes checked
 - e8c3a23: zips 01-04 match. The IDE added the Skia requires (now in the

@@ -61,6 +61,8 @@ type
     FDocument: Integer;
     { Layout of the shown document (nil when none). }
     FLayout: TEpubDocLayout;
+    { The component's BookSerial when FLayout was made. }
+    FLayoutSerial: Integer;
     { The laid-out blocks. }
     FItems: TEpubViewItemArray;
     { Width the items were laid out for (-1 = lay out again). }
@@ -113,6 +115,9 @@ type
     function GetColor(const AIndex: Integer): TAlphaColor;
     { The book (nil when none is open). }
     function Book: TEpubBook;
+    { True when FLayout is of the book that is open now (the component may
+      have opened another one since). }
+    function LayoutCurrent: Boolean;
     { Lays the items out for AWidth px. }
     procedure LayoutItems(AWidth: Single);
     { The Skia paragraph of block ABlock, AWidth px wide. }
@@ -274,6 +279,12 @@ begin
     Result := FEpub.Book;
 end;
 
+function TEpubView.LayoutCurrent: Boolean;
+begin
+  Result := (FLayout <> nil) and (FEpub <> nil) and (FEpub.Book <> nil) and
+    (FEpub.BookSerial = FLayoutSerial);
+end;
+
 function TEpubView.GetColor(const AIndex: Integer): TAlphaColor;
 begin
   case AIndex of
@@ -364,11 +375,14 @@ begin
     Exit;
   end;
   B.LoadText;   // word numbering of the book (highlights use it)
-  if ADoc <> FDocument then
+  // also when the document number is the same but the book is another one:
+  // the layout kept was the first book's text
+  if (ADoc <> FDocument) or not LayoutCurrent then
   begin
     FreeAndNil(FLayout);
     FItems := nil;
     FLayout := B.DocumentLayout(ADoc);
+    FLayoutSerial := FEpub.BookSerial;
     FDocument := ADoc;
     FLaidOutWidth := -1;
     if Assigned(FOnDocumentChange) then
@@ -383,7 +397,7 @@ var
   I, K: Integer;
 begin
   ShowDocument(ADoc);
-  if (FLayout = nil) or (AId = '') then
+  if not LayoutCurrent or (AId = '') then
     Exit;
   I := FLayout.IndexOfId(AId);
   if (I < 0) or (FLayout.Ids[I].Block < 0) then
@@ -419,7 +433,7 @@ begin
   if (B = nil) or (AWord < 0) or (AWord >= B.WordCount) then
     Exit;
   Doc := B.Words[AWord].Document;
-  if Doc <> FDocument then
+  if (Doc <> FDocument) or not LayoutCurrent then
     ShowDocument(Doc);
   Blk := B.BlockOfWord(FLayout, Doc, AWord);
   if Blk < 0 then
@@ -571,10 +585,18 @@ begin
       ebkImage:
         begin
           Item.Image := nil;
-          if B.Zip.Exists(Blk.ImagePath) then
-          begin
-            Bytes := B.ReadResource(Blk.ImagePath);
-            Item.Image := TSkImage.MakeFromEncoded(Bytes);   // nil for SVG etc.
+          try
+            if B.Zip.Exists(Blk.ImagePath) then
+            begin
+              Bytes := B.ReadResource(Blk.ImagePath);
+              Item.Image := TSkImage.MakeFromEncoded(Bytes);   // nil for SVG etc.
+            end;
+          except
+            // a damaged or unreadable entry (CRC, ZIP method, too large):
+            // no picture, and the rest of the document is still laid out.
+            // Raised from here it left Draw with the items half made.
+            on E: Exception do
+              Item.Image := nil;
           end;
           if Item.Image <> nil then
           begin
@@ -633,8 +655,8 @@ begin
   Paint.Color := FBackgroundColor;
   ACanvas.DrawRect(ADest, Paint);
   B := Book;
-  if (B = nil) or (FLayout = nil) then
-    Exit;
+  if (B = nil) or not LayoutCurrent then
+    Exit;   // no book, or a layout of the book before: an empty page
   if not SameValue(FLaidOutWidth, ADest.Width) then
   begin
     LayoutItems(ADest.Width);
@@ -715,7 +737,7 @@ var
 begin
   Result := -1;
   B := Book;
-  if (B = nil) or (FLayout = nil) then
+  if (B = nil) or not LayoutCurrent then
     Exit;
   DocY := Y + FScroll;
   for I := 0 to High(FItems) do

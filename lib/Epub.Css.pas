@@ -436,10 +436,19 @@ begin
     while I <= Length(S) do
     begin
       P := I;
-      while (I <= Length(S)) and (S[I] <> '{') do
+      while (I <= Length(S)) and (S[I] <> '{') and (S[I] <> ';') do
         Inc(I);
       if I > Length(S) then
         Break;
+      if S[I] = ';' then
+      begin
+        // a statement without a block (@charset "UTF-8"; @namespace ...;
+        // @import ...;) or a stray ';': it ends here. Scanning on to the
+        // next '{' made it part of the next rule's selector, which then
+        // started with '@' and was skipped - the first rule of many books.
+        Inc(I);
+        Continue;
+      end;
       Sel := Trim(Copy(S, P, I - P));
       Inc(I);
       P := I;
