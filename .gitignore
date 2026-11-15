@@ -1,0 +1,36 @@
+# Delphi output and IDE state
+__history/
+__recovery/
+*.dcu
+*.dcp
+*.bpl
+*.exe
+*.local
+*.identcode
+*.dsk
+*.stat
+*.res
+Win32/
+Win64/
+OSX64/
+OSXARM64/
+Linux64/
+Android64/
+# FFmpeg binaries and test media are never committed
+*.dll
+*.so
+*.so.*
+*.dylib
+*.m4b
+*.m4a
+*.aax
+*.mp3
+*.wav
+*.flac
+*.ogg
+*.opus
+# FPC output
+*.o
+*.ppu
+*.a
+link.res

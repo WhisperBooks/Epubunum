@@ -1,0 +1,20 @@
+package EpubUnum;
+
+{ EpubUnum EPUB library - runtime. }
+
+{$DESCRIPTION 'EpubUnum EPUB library - runtime'}
+{$RUNONLY}
+{$IMPLICITBUILD ON}
+
+requires
+  rtl;
+
+contains
+  Epub.Zip in '..\lib\Epub.Zip.pas',
+  Epub.Xml in '..\lib\Epub.Xml.pas',
+  Epub.Css in '..\lib\Epub.Css.pas',
+  Epub.Layout in '..\lib\Epub.Layout.pas',
+  Epub.Book in '..\lib\Epub.Book.pas',
+  Epub.Components in '..\lib\Epub.Components.pas';
+
+end.

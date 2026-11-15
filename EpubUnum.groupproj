@@ -1,0 +1,84 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{2E8E0FE6-870B-4362-ACE7-31535AC1BE4E}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="packages\EpubUnum.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="packages\EpubUnumFMX.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="packages\dclEpubUnumFMX.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="demos\EpubConsole\EpubConsole.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="demos\EpubReader\EpubReader.dproj">
+            <Dependencies/>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="EpubUnum">
+        <MSBuild Projects="packages\EpubUnum.dproj"/>
+    </Target>
+    <Target Name="EpubUnum:Clean">
+        <MSBuild Projects="packages\EpubUnum.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="EpubUnum:Make">
+        <MSBuild Projects="packages\EpubUnum.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="EpubUnumFMX">
+        <MSBuild Projects="packages\EpubUnumFMX.dproj"/>
+    </Target>
+    <Target Name="EpubUnumFMX:Clean">
+        <MSBuild Projects="packages\EpubUnumFMX.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="EpubUnumFMX:Make">
+        <MSBuild Projects="packages\EpubUnumFMX.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="dclEpubUnumFMX">
+        <MSBuild Projects="packages\dclEpubUnumFMX.dproj"/>
+    </Target>
+    <Target Name="dclEpubUnumFMX:Clean">
+        <MSBuild Projects="packages\dclEpubUnumFMX.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="dclEpubUnumFMX:Make">
+        <MSBuild Projects="packages\dclEpubUnumFMX.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="EpubConsole">
+        <MSBuild Projects="demos\EpubConsole\EpubConsole.dproj"/>
+    </Target>
+    <Target Name="EpubConsole:Clean">
+        <MSBuild Projects="demos\EpubConsole\EpubConsole.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="EpubConsole:Make">
+        <MSBuild Projects="demos\EpubConsole\EpubConsole.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="EpubReader">
+        <MSBuild Projects="demos\EpubReader\EpubReader.dproj"/>
+    </Target>
+    <Target Name="EpubReader:Clean">
+        <MSBuild Projects="demos\EpubReader\EpubReader.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="EpubReader:Make">
+        <MSBuild Projects="demos\EpubReader\EpubReader.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="EpubUnum;EpubUnumFMX;dclEpubUnumFMX;EpubConsole;EpubReader"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="EpubUnum:Clean;EpubUnumFMX:Clean;dclEpubUnumFMX:Clean;EpubConsole:Clean;EpubReader:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="EpubUnum:Make;EpubUnumFMX:Make;dclEpubUnumFMX:Make;EpubConsole:Make;EpubReader:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>

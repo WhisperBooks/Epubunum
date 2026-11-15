@@ -1,0 +1,1 @@
+Test books like https://github.com/IDPF/epub3-samples/releases/download/20230704/moby-dick-mo.epub

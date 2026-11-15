@@ -1,0 +1,19 @@
+package dclEpubUnumFMX;
+
+{ EpubUnum for FireMonkey - design time. }
+
+{$DESCRIPTION 'EpubUnum for FireMonkey - design time'}
+{$DESIGNONLY}
+{$IMPLICITBUILD ON}
+
+requires
+  rtl,
+  fmx,
+  designide,
+  EpubUnum,
+  EpubUnumFMX;
+
+contains
+  Epub.FMX.Reg in '..\fmx\Epub.FMX.Reg.pas';
+
+end.
