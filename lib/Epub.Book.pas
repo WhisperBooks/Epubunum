@@ -58,6 +58,12 @@ type
     FirstWord: Integer;
     { Last word, -1 when it holds none. }
     LastWord: Integer;
+    { First word of the block (paragraph) the element starts in, -1 when
+      that block has none (an empty anchor just before a paragraph is in
+      that paragraph's block). }
+    BlockFirst: Integer;
+    { Last word of that block. }
+    BlockLast: Integer;
   end;
   { Ids of a document, in document order. }
   TEpubIdRangeArray = array of TEpubIdRange;
@@ -207,8 +213,15 @@ type
     function GetWords: TEpubWordArray;
     { Number of words (LoadText first). }
     function GetWordCount: Integer;
-    { The words of document ADoc. }
-    procedure LoadDocumentText(ADoc: Integer);
+    { The words of document ADoc; its footnote links (a marker - *, a
+      dagger, a raised number - linking to an id) are added to ALinks as
+      'path#id' with the word they follow as the object. }
+    procedure LoadDocumentText(ADoc: Integer; ALinks: TStringList);
+    { Gives the role note to the words of every footnote that ALinks
+      point to (LoadDocumentText's list): the block (paragraph) holding
+      the target id, when it comes AFTER the link in the book - a link
+      back from the note to its marker points the other way. }
+    procedure MarkLinkedNotes(ALinks: TStringList);
     { The style sheets of document ADoc (its links and style elements),
       parsed once; owned by the book. }
     function StyleSheetOf(ADoc: Integer; ADocXml: TEpubXmlDoc): TEpubStyleSheet;
@@ -895,12 +908,55 @@ begin
     Result.Add(Styles[K].InnerText);
 end;
 
-procedure TEpubBook.LoadDocumentText(ADoc: Integer);
+{ True when AText is a footnote marker: asterisks, daggers, section or
+  paragraph signs (up to 4), or - raised (ASuper) - a number or letter of
+  up to 3 characters. }
+function IsNoteMarker(const AText: string; ASuper: Boolean): Boolean;
+const
+  {$ifdef FPC}
+  // UTF-8 (FPC strings are bytes)
+  DAGGER = #$E2#$80#$A0;
+  DOUBLE_DAGGER = #$E2#$80#$A1;
+  SECTION = #$C2#$A7;
+  PILCROW = #$C2#$B6;
+  {$else}
+  DAGGER = #$2020;
+  DOUBLE_DAGGER = #$2021;
+  SECTION = #$A7;
+  PILCROW = #$B6;
+  {$endif}
+var
+  S, R: string;
+  I: Integer;
+begin
+  Result := False;
+  S := Trim(AText);
+  if (S = '') or (Length(S) > 12) then
+    Exit;
+  R := StringReplace(S, '*', '', [rfReplaceAll]);
+  R := StringReplace(R, DAGGER, '', [rfReplaceAll]);
+  R := StringReplace(R, DOUBLE_DAGGER, '', [rfReplaceAll]);
+  R := StringReplace(R, SECTION, '', [rfReplaceAll]);
+  R := StringReplace(R, PILCROW, '', [rfReplaceAll]);
+  if (R = '') and (Length(S) <= 12) then
+    Exit(True);
+  if not ASuper or (Length(S) > 3) then
+    Exit;
+  for I := 1 to Length(S) do
+    if not CharInSet(S[I], ['0'..'9', 'a'..'z', 'A'..'Z']) then
+      Exit;
+  Result := True;
+end;
+
+procedure TEpubBook.LoadDocumentText(ADoc: Integer; ALinks: TStringList);
 var
   D: TEpubXmlDoc;
   Body: TEpubXmlNode;
   Lay: TEpubDocLayout;
-  I, N: Integer;
+  I, N, B, K, R, P, Src: Integer;
+  Blk: TEpubBlock;
+  Run: TEpubRun;
+  Href: string;
 begin
   FDocuments[ADoc].FirstWord := FWordCount;
   FDocuments[ADoc].Ids := nil;
@@ -909,7 +965,8 @@ begin
     Body := D.Root.Find('body');
     if Body = nil then
       Body := D.Root;
-    Lay := TEpubDocLayout.Create(Body, FDocuments[ADoc].Path, StyleSheetOf(ADoc, D), False);
+    // with blocks: the paragraphs and the links in them (footnotes)
+    Lay := TEpubDocLayout.Create(Body, FDocuments[ADoc].Path, StyleSheetOf(ADoc, D), True);
     try
       N := Lay.WordCount;
       if FWordCount + N > Length(FWords) then
@@ -927,12 +984,46 @@ begin
         FDocuments[ADoc].Ids[I].Id := Lay.Ids[I].Id;
         FDocuments[ADoc].Ids[I].FirstWord := -1;
         FDocuments[ADoc].Ids[I].LastWord := -1;
+        FDocuments[ADoc].Ids[I].BlockFirst := -1;
+        FDocuments[ADoc].Ids[I].BlockLast := -1;
         if Lay.Ids[I].FirstWord >= 0 then
         begin
           FDocuments[ADoc].Ids[I].FirstWord := FWordCount + Lay.Ids[I].FirstWord;
           FDocuments[ADoc].Ids[I].LastWord := FWordCount + Lay.Ids[I].LastWord;
         end;
+        B := Lay.Ids[I].Block;
+        if (B >= 0) and (B < Lay.BlockCount) and (Length(Lay.Blocks[B].Words) > 0) then
+        begin
+          FDocuments[ADoc].Ids[I].BlockFirst := FWordCount + Lay.Blocks[B].Words[0].Word;
+          FDocuments[ADoc].Ids[I].BlockLast := FWordCount + Lay.Blocks[B].Words[High(Lay.Blocks[B].Words)].Word;
+        end;
       end;
+      // footnote links: a marker linking to an id
+      if ALinks <> nil then
+        for B := 0 to Lay.BlockCount - 1 do
+        begin
+          Blk := Lay.Blocks[B];
+          for R := 0 to High(Blk.Runs) do
+          begin
+            Run := Blk.Runs[R];
+            Href := Run.Href;
+            P := Pos('#', Href);
+            if not (ersLink in Run.Styles) or (P = 0) or
+              not IsNoteMarker(Copy(Blk.Text, Run.Start + 1, Run.Length), ersSuper in Run.Styles) then
+              Continue;
+            // the word it belongs to: the one it is in or follows
+            Src := -1;
+            for K := 0 to High(Blk.Words) do
+              if Blk.Words[K].Start <= Run.Start then
+                Src := Blk.Words[K].Word
+              else
+                Break;
+            if Src < 0 then
+              Continue;
+            ALinks.AddObject(EpubResolvePath(FDocuments[ADoc].Path, Href) + '#' + Copy(Href, P + 1, MaxInt),
+              TObject(NativeInt(FWordCount + Src)));
+          end;
+        end;
       Inc(FWordCount, N);
     finally
       Lay.Free;
@@ -995,20 +1086,66 @@ end;
 procedure TEpubBook.LoadText;
 var
   I: Integer;
+  Links: TStringList;
 begin
   if FTextLoaded then
     Exit;
   FWordCount := 0;
-  for I := 0 to High(FDocuments) do
-    if Pos('html', FItems[FDocuments[I].Item].MediaType) > 0 then
-      LoadDocumentText(I)
-    else
-    begin
-      FDocuments[I].FirstWord := FWordCount;
-      FDocuments[I].WordCount := 0;
-    end;
-  SetLength(FWords, FWordCount);
+  Links := TStringList.Create;
+  try
+    for I := 0 to High(FDocuments) do
+      if Pos('html', FItems[FDocuments[I].Item].MediaType) > 0 then
+        LoadDocumentText(I, Links)
+      else
+      begin
+        FDocuments[I].FirstWord := FWordCount;
+        FDocuments[I].WordCount := 0;
+      end;
+    SetLength(FWords, FWordCount);
+    MarkLinkedNotes(Links);
+  finally
+    Links.Free;
+  end;
   FTextLoaded := True;
+end;
+
+procedure TEpubBook.MarkLinkedNotes(ALinks: TStringList);
+var
+  I, P, D, K, Src, First, Last, W: Integer;
+  Path, Id: string;
+begin
+  for I := 0 to ALinks.Count - 1 do
+  begin
+    P := LastDelimiter('#', ALinks[I]);
+    Path := Copy(ALinks[I], 1, P - 1);
+    Id := Copy(ALinks[I], P + 1, MaxInt);
+    Src := Integer(NativeInt(ALinks.Objects[I]));
+    for D := 0 to High(FDocuments) do
+      if SameText(FDocuments[D].Path, Path) then
+      begin
+        for K := 0 to High(FDocuments[D].Ids) do
+          if FDocuments[D].Ids[K].Id = Id then
+          begin
+            // the paragraph the target is in (and all the element holds)
+            First := FDocuments[D].Ids[K].BlockFirst;
+            Last := FDocuments[D].Ids[K].BlockLast;
+            if FDocuments[D].Ids[K].FirstWord >= 0 then
+            begin
+              if (First < 0) or (FDocuments[D].Ids[K].FirstWord < First) then
+                First := FDocuments[D].Ids[K].FirstWord;
+              if FDocuments[D].Ids[K].LastWord > Last then
+                Last := FDocuments[D].Ids[K].LastWord;
+            end;
+            // only after the marker: a link back from the note points up
+            if (First > Src) and (Last >= First) then
+              for W := First to Last do
+                if FWords[W].Role in [ewrBody, ewrCaption, ewrTable] then
+                  FWords[W].Role := ewrNote;
+            Break;
+          end;
+        Break;
+      end;
+  end;
 end;
 
 function TEpubBook.GetWords: TEpubWordArray;

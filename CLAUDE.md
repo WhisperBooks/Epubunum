@@ -124,7 +124,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 32.
+Last number used: 37.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -664,6 +664,58 @@ not mark its footnotes as notes (plain paragraphs, or only a noteref
 link), the menu stays disabled - then the markup decides what to
 detect (the owner can describe one footnote's tags; the book stays
 local).
+Zip 33 (owner: "Reader doesn't have a menu"): a TMainMenu made in code
+reaches the window's (Windows' / macOS') own menu bar only after
+RecreateOSMenu - now called at the end of BuildMenu, BuildRecentMenu,
+BuildNotesMenu and after a tick changes. If it still does not show:
+a TMenuBar (FMX-drawn, Align Top) is the fallback.
+Zip 34 - FIND (owner: "We could just add a Search function :)" ... "we
+want one anyway"): Edit > Find (Ctrl+F) / Find next (F3) / Find previous
+(Shift+F3); a find bar under the tool bar (layFind: edFind, < >, "3 of
+17", X; Enter / Shift+Enter / Esc). FindAll: the query split at spaces,
+each word compared with the book's words without case and surrounding
+punctuation (FindKey = EpubWordCore + LowerCase); whole words, the LAST
+one may be a word's start ("Vim" finds "Vimes"); contents page (role
+nav) skipped. FindStep: from the match shown, else from ReadingWord;
+round the book. A match: shown lit (all its words), centred, its chapter
+in the contents, FClip / FSeekClip so Play starts there. While the find
+box has the focus FormKeyDown leaves typed keys alone (P, D, L, R, [ ]
+would otherwise act). A new book clears the matches. Night Watch's
+footnotes: still need their markup to be found as notes.
+Zip 35 (owner's debugger: an exception at start-up in RegisterOpenWith,
+TRegistry.WriteString - caught, so silent outside the debugger, but the
+registration never happened): TRegistry.OpenKeyReadOnly sets the
+object's Access to KEY_READ for good, so every OpenKey / WriteString
+after the "already registered?" check failed. Access is put back to
+KEY_READ or KEY_WRITE before writing.
+Zip 36 - FOOTNOTES FROM LINKS (owner, Night Watch, a Calibre conversion:
+every call is <a href="Night_Watch_split_013.html#filepos902870"><span
+class="calibre11">*</span></a>; "I definitely don't trust that [class]
+to always be true"). Detection by the LINK, not by class names:
+TEpubBook.LoadText now walks each document WITH blocks; a run that is a
+link with a fragment and whose text is a footnote marker (IsNoteMarker:
+asterisks, daggers, section / pilcrow signs; or a raised number / letter
+of up to 3 characters - ersSuper) records 'path#id' + the word it
+follows; MarkLinkedNotes then gives role note to the target's block
+(the paragraph holding the id; TEpubIdRange.BlockFirst / BlockLast, new)
+plus what the element holds - only when the target comes AFTER the
+marker (a link back from the note to its marker points up, so the main
+text is never marked); body / caption / table words only. TEpubView
+shades a block whose first word has role note (the book's roles) as
+well as walker notes; the reader's Go to Footnote lists them. TESTED
+(synthetic Calibre-style EPUB): "*" to another file, raised "2" to the
+same file, back links (no effect), an unraised "1" index link (no
+effect) - all as meant; Moby-Dick: word list and roles unchanged
+(its footnote has no link); words load 0.55 s (blocks now built).
+OWNER'S CHECK (Night Watch): Go to Footnote lists them ("* The Igor
+employed by the Watch as ...", "* Who was an orangutan ..."): detection
+works. Their labels said "About the Publisher:" - the book's contents
+list has only front / back matter, and the notes live after it.
+Zip 37 (owner: "this was more for debugging anyway. Stick a debug entry
+in settings - normally false ... only way to turn it on is to manually
+edit settings"): "debug" in EpubReader.json (written every save, false
+by default); File > Go to Footnote is created hidden and shown only when
+it is true.
 LATER (owner): go to the suspicious parts from the results - needs the
 reader inside the builder (or the builder inside the reader).
 To come: remember settings (model, device, folders), a summary of the
@@ -671,6 +723,12 @@ not-spoken stretches, open the result in EpubReader, integrate in the
 reader later (owner).
 
 ## Pushes checked
+- 7723030 ("Claude push", 2026-11-15 21:12) = zips 15 - 32: every file
+  identical to the deliveries (CR LF / BOM aside) except
+  demos/EpubBuilder/EpubBuilder.dproj, re-saved by the IDE (its platform
+  blocks and TargetedPlatforms; MainSource and the uBuilder reference
+  unchanged) - the pushed one is the one to keep. pasdoc_check,
+  project_check: 0 problems. TWhisper at f47da6b (= its zip 28).
 - 26118e5 = zip 14 (owner: applied and pushed; his Delphi EpubConsole
   --overlay of the full Moby-Dick from TWhisper timings: 211964 clips, 0
   left out).

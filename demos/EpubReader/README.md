@@ -21,8 +21,8 @@ deploys Skia's library (`sk4d.dll`, `libsk4d.so`, ...) next to the program.
 |---|---|
 | File > Open, Ctrl+O | choose a book |
 | File > Recently Opened | the last 10 books, each reopened where you left off |
-| File > Go to Footnote | the book's footnotes (and other notes), by chapter - disabled when the book marks none |
 | File > Exit | close (the place in the book is kept) |
+| Edit > Find, Ctrl+F | the find bar: words or the start of a word, anywhere in the book; Enter / F3 next, Shift+Enter / Shift+F3 previous, Esc closes. A match is lit and Play starts there |
 | Contents list | jump to a chapter - the audio follows |
 | bar + double triangle | previous / next chapter (contents entries; documents when there are none); the audio moves to the chapter's first clip - playing on when playing, else Play starts there. Previous goes to the start of the chapter being read, pressed at its start to the one before |
 | triangle + bar | previous / next sentence or paragraph (the drop-down beside them), whatever the clips are (a word-level book has one per word). Previous: the start of the sentence being read; within 1.5 s of that start, the one before |
@@ -52,8 +52,10 @@ book's timings by ear.
 
 Footnotes, endnotes and asides have a background of their own (a shade
 darker than the page; dark grey-blue in dark mode), so they can be told
-from the text. A note is what the book marks as one: an `aside`, or
-`epub:type` / `class` footnote, endnote or note.
+from the text. A note is what the book marks as one (an `aside`, or
+`epub:type` / `class` footnote, endnote or note), or the paragraph a
+footnote marker links to - an asterisk, a dagger or a raised number
+that is a link (a link back from the note to its marker is ignored).
 
 The highlight covers the word, not the punctuation around it: in
 "whales," the comma is not lit.
@@ -65,7 +67,9 @@ Copy-protected books are refused with a message.
 The reader keeps, in `EpubReader.json` (`%APPDATA%\EpubReader` on
 Windows, `~/Library/Application Support/EpubReader` on macOS,
 `~/.config/EpubReader` on Linux): dark mode, text size, speed, and the
-last 10 books with the place you left each one. Started without a book
+last 10 books with the place you left each one. `"debug": true` (set by
+hand in the file; false otherwise) shows debugging aids such as File >
+Go to Footnote - a list of the book's notes. Started without a book
 on the command line it opens the last book read; any book opens where
 you left it - the sentence lit, and Play starts there. Books are matched
 by file name for now (a book moved to another folder keeps its place).

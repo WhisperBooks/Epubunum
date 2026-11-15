@@ -32,7 +32,7 @@ interface
 uses
   System.SysUtils, System.Types, System.UITypes, System.Classes, System.IOUtils, System.Math,
   FMX.Types, FMX.Controls, FMX.Forms, FMX.Graphics, FMX.Dialogs, FMX.StdCtrls, FMX.Layouts,
-  FMX.ListBox, FMX.Controls.Presentation, FMX.Objects, FMX.Menus, System.JSON,
+  FMX.ListBox, FMX.Controls.Presentation, FMX.Objects, FMX.Menus, FMX.Edit, System.JSON,
   Epub.Zip, Epub.Layout, Epub.Book, Epub.Components, Epub.FMX, Epub.FMX.View,
   // sound: DCUs of TFFMpegAPI's runtime package FFmpegAPI
   FFmpeg.API, FFmpeg.Player;
@@ -193,6 +193,24 @@ type
     miNotes: TMenuItem;
     { First word of each note of the book (miNotes' items' Tags index it). }
     FNoteWords: TArray<Integer>;
+    { Debugging aids shown (File > Go to Footnote ...): "debug" in the
+      settings file, false unless edited there by hand - it only hides
+      what would confuse a reader. }
+    FDebug: Boolean;
+    { The find bar, under the tool bar (shown by Edit > Find, Ctrl+F). }
+    layFind: TLayout;
+    { What to find: a word, the start of a word, or several words. }
+    edFind: TEdit;
+    { Where the finding is: '3 of 17', 'Not found'. }
+    lblFind: TLabel;
+    { The query FFindHits were found for ('' = none yet). }
+    FFindQuery: string;
+    { First word of every match of FFindQuery, in book order. }
+    FFindHits: TArray<Integer>;
+    { Words in a match. }
+    FFindLength: Integer;
+    { The match shown, -1 = none yet. }
+    FFindIndex: Integer;
     { View > Dark mode (checked when on). }
     miDark: TMenuItem;
     { View > Learn to read (checked when on). }
@@ -288,6 +306,24 @@ type
     procedure miClearRecentClick(Sender: TObject);
     { File > Exit. }
     procedure miExitClick(Sender: TObject);
+    { Makes the find bar (hidden). }
+    procedure BuildFindBar;
+    { Edit > Find: shows the find bar, the text selected. }
+    procedure miFindClick(Sender: TObject);
+    { Edit > Find next. }
+    procedure miFindNextClick(Sender: TObject);
+    { Edit > Find previous. }
+    procedure miFindPreviousClick(Sender: TObject);
+    { The find bar's close button / Esc. }
+    procedure btnFindCloseClick(Sender: TObject);
+    { Keys in the find box: Enter next, Shift+Enter previous, Esc close. }
+    procedure edFindKeyDown(Sender: TObject; var Key: Word; var KeyChar: WideChar; Shift: TShiftState);
+    { Lists every match of AQuery in FFindHits (whole words, the last one
+      may be the start of a word; case and punctuation ignored). }
+    procedure FindAll(const AQuery: string);
+    { Shows the next (ADirection 1) or previous (-1) match, from the place
+      being read; round the book at its end. }
+    procedure FindStep(ADirection: Integer);
     { The word the reader is at (the unit said in Learn to read, else the
       clip highlighted, else the shown document's first word); -1 = none. }
     function ReadingWord: Integer;
@@ -634,6 +670,10 @@ begin
       (Reg.ReadString('') = Command) then
       Exit;
     Reg.CloseKey;
+    // OpenKeyReadOnly leaves the object's Access at KEY_READ: every write
+    // after it failed ("Failed to set data", seen in the debugger at
+    // start-up) - writing needs it back
+    Reg.Access := KEY_READ or KEY_WRITE;
     if Reg.OpenKey('Software\Classes\' + PROG_ID, True) then
     begin
       Reg.WriteString('', 'EPUB book');
@@ -711,10 +751,16 @@ begin
   M := Item(mnuMain, '&File', nil);
   Item(M, '&Open...'#9'Ctrl+O', btnOpenClick);
   miRecent := Item(M, '&Recently Opened', nil);
+  // a debugging aid: only with "debug": true in the settings file
   miNotes := Item(M, 'Go to &Footnote', nil);
   miNotes.Enabled := False;
+  miNotes.Visible := False;
   Item(M, '-', nil);
   Item(M, 'E&xit', miExitClick);
+  M := Item(mnuMain, '&Edit', nil);
+  Item(M, '&Find...'#9'Ctrl+F', miFindClick);
+  Item(M, 'Find &next'#9'F3', miFindNextClick);
+  Item(M, 'Find &previous'#9'Shift+F3', miFindPreviousClick);
   M := Item(mnuMain, '&View', nil);
   miDark := Item(M, '&Dark mode'#9'D', btnDarkClick);
   miLearn := Item(M, '&Learn to read'#9'L', btnLearnClick);
@@ -722,6 +768,9 @@ begin
   Item(M, '&Larger text'#9'Ctrl+Plus', btnLargerClick);
   Item(M, '&Smaller text'#9'Ctrl+Minus', btnSmallerClick);
   BuildRecentMenu;
+  // a menu made in code reaches the window (Windows' / macOS' own menu
+  // bar) only when it is recreated - without this there was no menu
+  mnuMain.RecreateOSMenu;
 end;
 
 procedure TfrmMain.BuildRecentMenu;
@@ -753,6 +802,7 @@ begin
     M.OnClick := miClearRecentClick;
   end;
   miRecent.Enabled := Length(FRecent) > 0;
+  mnuMain.RecreateOSMenu;
 end;
 
 procedure TfrmMain.BuildNotesMenu;
@@ -810,6 +860,7 @@ begin
     end;
   end;
   miNotes.Enabled := Length(FNoteWords) > 0;
+  mnuMain.RecreateOSMenu;
 end;
 
 procedure TfrmMain.miNoteClick(Sender: TObject);
@@ -848,6 +899,207 @@ end;
 procedure TfrmMain.miExitClick(Sender: TObject);
 begin
   Close;
+end;
+
+procedure TfrmMain.BuildFindBar;
+var
+  B: TButton;
+begin
+  layFind := TLayout.Create(Self);
+  layFind.Parent := Self;
+  layFind.Align := TAlignLayout.Top;
+  layFind.Position.Y := layTop.Position.Y + layTop.Height + 1;   // under the tool bar
+  layFind.Height := 36;
+  layFind.Visible := False;
+  edFind := TEdit.Create(Self);
+  edFind.Parent := layFind;
+  edFind.Align := TAlignLayout.Left;
+  edFind.Width := 320;
+  edFind.Margins.Rect := RectF(8, 5, 4, 5);
+  edFind.TextPrompt := 'Find in the book';
+  edFind.OnKeyDown := edFindKeyDown;
+  B := AddTextButton('<', 'Previous match (Shift+F3, Shift+Enter)', miFindPreviousClick);
+  B.Parent := layFind;
+  B.Position.X := 100000;
+  B := AddTextButton('>', 'Next match (F3, Enter)', miFindNextClick);
+  B.Parent := layFind;
+  B.Position.X := 100000;
+  lblFind := TLabel.Create(Self);
+  lblFind.Parent := layFind;
+  lblFind.Align := TAlignLayout.Left;
+  lblFind.Position.X := 100000;
+  lblFind.Width := 180;
+  lblFind.Margins.Left := 8;
+  B := AddTextButton('X', 'Close (Esc)', btnFindCloseClick);
+  B.Parent := layFind;
+  B.Align := TAlignLayout.Right;
+end;
+
+procedure TfrmMain.miFindClick(Sender: TObject);
+begin
+  layFind.Visible := True;
+  edFind.SetFocus;
+  edFind.SelectAll;
+end;
+
+procedure TfrmMain.miFindNextClick(Sender: TObject);
+begin
+  if Trim(edFind.Text) = '' then
+    miFindClick(nil)
+  else
+    FindStep(1);
+end;
+
+procedure TfrmMain.miFindPreviousClick(Sender: TObject);
+begin
+  if Trim(edFind.Text) = '' then
+    miFindClick(nil)
+  else
+    FindStep(-1);
+end;
+
+procedure TfrmMain.btnFindCloseClick(Sender: TObject);
+begin
+  layFind.Visible := False;
+  View1.SetFocus;
+end;
+
+procedure TfrmMain.edFindKeyDown(Sender: TObject; var Key: Word; var KeyChar: WideChar; Shift: TShiftState);
+begin
+  if Key = vkReturn then
+  begin
+    if ssShift in Shift then
+      FindStep(-1)
+    else
+      FindStep(1);
+    Key := 0;
+  end
+  else if Key = vkEscape then
+  begin
+    btnFindCloseClick(nil);
+    Key := 0;
+  end;
+end;
+
+{ AText lower case, without the punctuation around it (EpubWordCore). }
+function FindKey(const AText: string): string;
+var
+  F, L: Integer;
+begin
+  F := 1;
+  L := Length(AText);
+  EpubWordCore(AText, F, L);
+  Result := LowerCase(Copy(AText, F, L - F + 1));
+end;
+
+procedure TfrmMain.FindAll(const AQuery: string);
+var
+  B: TEpubBook;
+  Parts: TArray<string>;
+  Keys: TArray<string>;
+  I, J, N: Integer;
+  Ok: Boolean;
+  W: string;
+begin
+  FFindQuery := AQuery;
+  FFindHits := nil;
+  FFindIndex := -1;
+  B := EpubUnum1.Book;
+  Parts := Trim(AQuery).Split([' '], TStringSplitOptions.ExcludeEmpty);
+  Keys := nil;
+  for I := 0 to High(Parts) do
+    if FindKey(Parts[I]) <> '' then
+      Keys := Keys + [FindKey(Parts[I])];
+  FFindLength := Length(Keys);
+  if (B = nil) or (FFindLength = 0) then
+    Exit;
+  N := B.WordCount;
+  for I := 0 to N - FFindLength do
+  begin
+    if B.Words[I].Role = ewrNav then
+      Continue;   // the contents page
+    Ok := True;
+    for J := 0 to FFindLength - 1 do
+    begin
+      W := FindKey(B.Words[I + J].Text);
+      // the last word may be the start of one ('Vim' finds 'Vimes')
+      if (J < FFindLength - 1) and (W <> Keys[J]) or
+        (J = FFindLength - 1) and not W.StartsWith(Keys[J]) then
+      begin
+        Ok := False;
+        Break;
+      end;
+    end;
+    if Ok then
+      FFindHits := FFindHits + [I];
+  end;
+end;
+
+procedure TfrmMain.FindStep(ADirection: Integer);
+var
+  B: TEpubBook;
+  From, I, W, C: Integer;
+begin
+  B := EpubUnum1.Book;
+  if B = nil then
+    Exit;
+  layFind.Visible := True;
+  if edFind.Text <> FFindQuery then
+    FindAll(edFind.Text);
+  if Length(FFindHits) = 0 then
+  begin
+    lblFind.Text := 'Not found';
+    Exit;
+  end;
+  // from the match shown, else from the place being read
+  if FFindIndex >= 0 then
+    FFindIndex := (FFindIndex + ADirection + Length(FFindHits)) mod Length(FFindHits)
+  else
+  begin
+    From := Max(ReadingWord, 0);
+    FFindIndex := -1;
+    if ADirection > 0 then
+    begin
+      for I := 0 to High(FFindHits) do
+        if FFindHits[I] > From then
+        begin
+          FFindIndex := I;
+          Break;
+        end;
+      if FFindIndex < 0 then
+        FFindIndex := 0;   // round to the start
+    end
+    else
+    begin
+      for I := High(FFindHits) downto 0 do
+        if FFindHits[I] < From then
+        begin
+          FFindIndex := I;
+          Break;
+        end;
+      if FFindIndex < 0 then
+        FFindIndex := High(FFindHits);
+    end;
+  end;
+  lblFind.Text := Format('%d of %d', [FFindIndex + 1, Length(FFindHits)]);
+  // show it lit; Play starts there
+  W := FFindHits[FFindIndex];
+  StopPlaying;
+  FLearnFirst := -1;
+  if B.Words[W].Document <> View1.Document then
+    View1.ShowDocument(B.Words[W].Document);
+  View1.Highlight(W, W + FFindLength - 1);
+  View1.ScrollToWord(W, True);
+  SyncToc(W);
+  C := ClipOfWord(W);
+  if C < 0 then
+    C := ClipFromWord(W);
+  if C >= 0 then
+  begin
+    FClip := C;
+    FSeekClip := C;
+  end;
+  UpdateControls;
 end;
 
 function TfrmMain.ReadingWord: Integer;
@@ -927,6 +1179,7 @@ begin
         Exit;
       O := TJSONObject(V);
       O.TryGetValue<Boolean>('dark', FDark);
+      O.TryGetValue<Boolean>('debug', FDebug);
       if O.TryGetValue<Double>('textSize', Size) and (Size >= 10) and (Size <= 60) then
         View1.FontSize := Size;
       if O.TryGetValue<Double>('speed', Speed) then
@@ -954,7 +1207,8 @@ begin
   end;
   ApplyTheme;
   miDark.IsChecked := FDark;
-  BuildRecentMenu;
+  miNotes.Visible := FDebug;
+  BuildRecentMenu;   // recreates the OS menu
 end;
 
 procedure TfrmMain.SaveSettings;
@@ -966,6 +1220,8 @@ begin
   O := TJSONObject.Create;
   try
     O.AddPair('dark', TJSONBool.Create(FDark));
+    // written every time, so it can be found and set by hand
+    O.AddPair('debug', TJSONBool.Create(FDebug));
     O.AddPair('textSize', TJSONNumber.Create(View1.FontSize));
     O.AddPair('speed', TJSONNumber.Create(FPendingSpeed));
     A := TJSONArray.Create;
@@ -991,6 +1247,7 @@ end;
 
 procedure TfrmMain.FormCreate(Sender: TObject);
 begin
+  FFindIndex := -1;
   FLearnFirst := -1;
   FLearnLast := -1;
   FClip := -1;
@@ -998,6 +1255,7 @@ begin
   FUnitDoc := -1;
   lbToc.OnApplyStyleLookup := TocApplyStyle;
   BuildToolBar;
+  BuildFindBar;
   BuildMenu;
   StartSound;
   // a new name every run (Random without Randomize gave the same one, so
@@ -1047,6 +1305,26 @@ end;
 
 procedure TfrmMain.FormKeyDown(Sender: TObject; var Key: Word; var KeyChar: WideChar; Shift: TShiftState);
 begin
+  // Ctrl+F, F3 / Shift+F3 work anywhere
+  if (ssCtrl in Shift) and ((KeyChar = 'f') or (KeyChar = 'F') or (Key = Ord('F'))) then
+  begin
+    miFindClick(nil);
+    Key := 0;
+    KeyChar := #0;
+    Exit;
+  end;
+  if Key = vkF3 then
+  begin
+    if ssShift in Shift then
+      miFindPreviousClick(nil)
+    else
+      miFindNextClick(nil);
+    Key := 0;
+    Exit;
+  end;
+  // typing in the find box is text, not the reader's keys (P, D, L, R ...)
+  if (edFind <> nil) and edFind.IsFocused then
+    Exit;
   if (KeyChar = 'p') or (KeyChar = 'P') then
   begin
     btnPlayClick(nil);
@@ -1144,6 +1422,11 @@ begin
   StopPlaying;
   // the book being left: its position kept
   RememberBook;
+  FFindQuery := '';
+  FFindHits := nil;
+  FFindIndex := -1;
+  if lblFind <> nil then
+    lblFind.Text := '';
   FBookFile := '';
   FOpenWithNote := '';
   FAudioPath := '';
@@ -1562,6 +1845,7 @@ begin
   FLearn := not FLearn;
   btnLearn.IsPressed := FLearn;
   miLearn.IsChecked := FLearn;
+  mnuMain.RecreateOSMenu;
   FLearnFirst := -1;
   FLearnLast := -1;
   if FLearn then
@@ -1739,6 +2023,7 @@ procedure TfrmMain.btnDarkClick(Sender: TObject);
 begin
   FDark := not FDark;
   miDark.IsChecked := FDark;
+  mnuMain.RecreateOSMenu;
   ApplyTheme;
 end;
 

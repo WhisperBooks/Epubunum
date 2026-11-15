@@ -795,8 +795,10 @@ begin
       if Top + Item.Height < ADest.Top then
         Continue;
       Blk := FLayout.Blocks[Item.Block];
-      // a note (footnote, endnote, aside): its own background
-      if (Blk.Role = ewrNote) and (TAlphaColorRec(FNoteColor).A > 0) then
+      // a note (footnote, endnote, aside - marked so, or the target of a
+      // footnote marker's link: the book's word roles): its own background
+      if (TAlphaColorRec(FNoteColor).A > 0) and ((Blk.Role = ewrNote) or ((Length(Blk.Words) > 0) and
+        (B.Words[Blk.Words[0].Word + B.Documents[FDocument].FirstWord].Role = ewrNote))) then
       begin
         Paint.Style := TSkPaintStyle.Fill;
         Paint.Color := FNoteColor;
