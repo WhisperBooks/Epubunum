@@ -124,7 +124,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 13.
+Last number used: 14.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -341,7 +341,21 @@ contributing components / systems" - reader first, then TFFMpegAPI etc.
 - Remember reader settings between runs (dark mode, step unit, text
   size): the reader keeps none yet.
 
+## Timings with their audio (zip 14, on top of 6ab27c4)
+EpubConsole --overlay without --audio / --book-audio takes the files from
+the timings' own "# audio N: path" lines (WhisperConsole --timings, TWhisper
+zip 21, writes them; a relative path is relative to the timings file; a
+missing file is an error). The sync pipeline (TWhisper and Epubunum stay
+separate): EpubConsole --words -> WhisperConsole --align-words --timings ->
+EpubConsole --overlay. Tested here: a synthetic transcript of Moby-Dick
+ch 1-2 over two m4b files (the IDPF mp4 cut at 860 s) -> 3672 clips,
+epubcheck 0 / 0, every clip = its timing.
+
 ## Pushes checked
+- 6ab27c4 ("EPub view etc") = zips 09-13: every delivered file identical
+  to a fresh clone (2026-11-15); pasdoc_check, project_check 0 problems;
+  FPC build of lib + EpubConsole runs. Owner: "11-13 applied and tested"
+  (dark sidebar fixed by the transparent list style).
 - ef2daff = zip 08 (review fixes, on 68162a4 = zips 06 + 07): checked
   2026-11-15 by clone; pasdoc_check and project_check 0 problems.
 - e8c3a23: zips 01-04 match. The IDE added the Skia requires (now in the

@@ -27,7 +27,9 @@ TIMINGS is a text file, a timed word per line: `WORD BEGIN END [AUDIO]` -
 the word's number as `--words` lists it (from 1), start and end in
 seconds (`.` decimal), and the audio file's number in the order the
 `--audio` / `--book-audio` options are given (default 1). Lines starting
-with `#` are comments. `--audio` copies a file into the book;
+with `#` are comments. Without `--audio` / `--book-audio`, the files come from the timings
+file's own `# audio N: path` lines (WhisperConsole `--timings` writes
+them; a relative path is relative to the timings file). `--audio` copies a file into the book;
 `--book-audio` uses one already inside it. `--block` writes a clip per
 paragraph instead of per word.
 

@@ -207,8 +207,8 @@ procedure WriteOverlay(ABook: TEpubBook; const ATimings, AOut: string; AAudio: T
 var
   W: TEpubWriter;
   Lines, Parts: TStringList;
-  I, Audio, Bad: Integer;
-  Line: string;
+  I, Audio, Bad, P: Integer;
+  Line, Name: string;
   B, E: Double;
   FS: TFormatSettings;
   Started: TDateTime;
@@ -223,17 +223,38 @@ begin
   try
     // audio files are numbered in the order given: --audio and --book-audio
     // keep their own order inside AAudio (Objects: 1 = in the book)
+    Lines.LoadFromFile(ATimings);
+    if AAudio.Count = 0 then
+      // no --audio: the files the timings name ("# audio N: path", as
+      // WhisperConsole --timings writes them), a relative path relative
+      // to the timings file
+      for I := 0 to Lines.Count - 1 do
+      begin
+        Line := Trim(Lines[I]);
+        if Copy(Line, 1, 8) <> '# audio ' then
+          Continue;
+        P := Pos(':', Line);
+        if (P = 0) or (StrToIntDef(Trim(Copy(Line, 9, P - 9)), 0) <> AAudio.Count + 1) then
+          Continue;
+        Name := Trim(Copy(Line, P + 1, MaxInt));
+        if (Name <> '') and (ExtractFileDrive(Name) = '') and (Name[1] <> PathDelim) and (Name[1] <> '/') then
+          Name := ExtractFilePath(ExpandFileName(ATimings)) + Name;
+        if not FileExists(Name) then
+          raise EEpubError.CreateFmt('Audio %d of %s does not exist: %s', [AAudio.Count + 1, ATimings, Name]);
+        AAudio.Add(Name);
+        WriteLn(Format('  audio %d: %s', [AAudio.Count, Name]));
+      end;
     for I := 0 to AAudio.Count - 1 do
       if AAudio.Objects[I] <> nil then
         W.AddBookAudio(AAudio[I])
       else
         W.AddAudioFile(AAudio[I]);
     if AAudio.Count = 0 then
-      raise EEpubError.Create('--overlay needs an audio file: --audio FILE or --book-audio PATH');
+      raise EEpubError.Create('--overlay needs audio: --audio FILE, --book-audio PATH, or "# audio N: path" ' +
+        'lines in the timings file');
     if ABlock then
       W.Level := eolBlock;
     W.Narrator := ANarrator;
-    Lines.LoadFromFile(ATimings);
     Parts.Delimiter := ' ';
     Bad := 0;
     for I := 0 to Lines.Count - 1 do
