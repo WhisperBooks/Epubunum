@@ -108,8 +108,15 @@ TSteamAPI do not apply (no 3D).
 - Zips hold only the files changed since the previous zip, paths from the
   repo root, named EpubUnum-NN-topic.zip; the number is never reused; every
   delivery says what it goes on top of. Zip 01 is the whole repository.
-- Every delivery says either "PACKAGE REBUILD NEEDED" (which packages) or
-  "NO PACKAGE REBUILD", in capitals.
+- PACKAGE REBUILDS (owner, 2026-11-15: "Add rule"). Every delivery says
+  one or the other. When a package must be rebuilt, the message carries,
+  exactly, a blank line, the banner, a blank line, then the details:
+
+      =====> PACKAGE REBUILD NEEDED <=====
+
+  Details of the package rebuilds: which packages, in build order, why
+  (which unit changed), and what to rebuild after them (programs, other
+  repos' packages). Otherwise say "NO PACKAGE REBUILD", in capitals.
 - Never commit or push, and don't offer to.
 - Sync + check needs access: the repo is private (give this session access
   to WhisperBooks/Epubunum, or send a zip of the checkout).
@@ -117,15 +124,14 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 05.
+Last number used: 07.
 
 ## Pushes checked
 - e8c3a23: zips 01-04 match. The IDE added the Skia requires (now in the
   generator, zip 05) and re-saved the .dproj files. The owner added
   test/README.md and test/.gitignore (*.epub - test books stay local).
-  The console folder was pushed as demos/EPubConsole: rename it with two
-  git mv steps (case-only rename) to demos/EpubConsole, which the group
-  and project_check expect.
+  The console folder was pushed as demos/EPubConsole; the owner renamed it
+  to demos/EpubConsole in cdcebf7 (checked). bed841b = zip 05 (checked).
 
 ## Test notes (zip 01, FPC 3.0, Linux x64)
 - Seven EPUBs (local only, copyrighted - never committed or quoted):
@@ -146,8 +152,14 @@ Last number used: 05.
   5 -> 0 (captions and notes left out).
 - Owner's first Delphi build of zip 01 (Win64): E2003 DefaultFormatSettings
   in Epub.Css (FPC-only name; also in Epub.Book) - fixed in zip 02.
-- NOT YET BUILT: anything in fmx/ and EpubReader (no Delphi here). First
-  build checks: TEpubView compiles against Delphi 13's Skia; Enable Skia on
-  EpubUnumFMX; the reader opens a book, scrolls, changes size; Play on a
-  book with media overlays (none of the seven has them - a synced EPUB is
-  needed, e.g. from TWhisper once writing is done, or a public one).
+- Owner (2026-11-15, Delphi 13, Windows): EpubUnumFMX and EpubReader build
+  (the IDE added the Skia requires to EpubUnumFMX on the first compile).
+  EpubReader with Moby-Dick (IDPF epub3-samples, CC-BY-SA, media overlays,
+  one AAC mp4): "All tests ran perfectly" - the book shows, WASAPI sound,
+  the highlight follows the audio, pause / resume, clip buttons, chapter 2.
+- A Windows "ding" on the very first run, not seen in the debugger log
+  (that log is only the File Open dialog's shell noise). Possibly Ctrl+O:
+  FormKeyDown opens the dialog inside the key press, and the pending Ctrl+O
+  character may reach the dialog's file-name box. Unconfirmed - change only
+  if it comes back (fix: TThread.ForceQueue the open).
+- Not yet run: Linux / SteamOS (PulseAudio), macOS, a paged view.
