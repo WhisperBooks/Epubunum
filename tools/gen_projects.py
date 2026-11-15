@@ -43,14 +43,15 @@ PROJECTS = [
          platforms=PKG_PLATFORMS, default="Win64",
          units=lib_units("..\\"), forms=[], search="..\\lib", requires=["rtl"],
          description="EpubUnum EPUB library - runtime"),
-    # FMX runtime package: TEpubUnum and the Skia view TEpubView. Delphi's
-    # Skia units come with Project > Enable Skia (owner 2026-11-15: "skia is
-    # automatically included by the IDE when you Enable Skia") - tick it on
-    # this package; the IDE's saved .dpk / .dproj are then authoritative.
+    # FMX runtime package: TEpubUnum and the Skia view TEpubView. TEpubView
+    # uses System.Skia and FMX.Skia, which live in Delphi's Skia.Package.RTL
+    # and Skia.Package.FMX: without them in requires the IDE adds them itself
+    # on the first compile (owner 2026-11-15: "Skia was actually forced on me
+    # by the IDE when compiling the package"), so they are generated here.
     dict(name="EpubUnumFMX", dir="packages", kind="runtime", framework="FMX",
          platforms=PKG_PLATFORMS, default="Win64",
          units=[("Epub.FMX", "..\\fmx\\Epub.FMX.pas"), ("Epub.FMX.View", "..\\fmx\\Epub.FMX.View.pas")],
-         forms=[], search="..\\lib;..\\fmx", requires=["rtl", "fmx", "EpubUnum"],
+         forms=[], search="..\\lib;..\\fmx", requires=["rtl", "fmx", "EpubUnum", "Skia.Package.RTL", "Skia.Package.FMX"],
          description="EpubUnum for FireMonkey (Skia view) - runtime",
          depends=["EpubUnum"], skia=True),
     # Registers TEpubUnum and TEpubView on the "EpubUnum" palette page.

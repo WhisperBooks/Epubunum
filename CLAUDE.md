@@ -40,12 +40,13 @@ The owner builds in the 32-bit IDE (the 64-bit one has no macOS / Linux
 targets): packages build for Win32 too; design packages open on Win32.
 
 ## Skia (owner, 2026-11-15)
-- "skia is automatically included by the IDE when you Enable Skia" (with
-  sk4d.dll): no Skia package name is hard-coded. EpubUnumFMX (TEpubView)
-  and EpubReader are generated with the SKIA define; the owner ticks
-  Project > Enable Skia on both and the IDE's saved files are authoritative.
-  If the IDE adds a requires entry to EpubUnumFMX.dpk, copy it into
-  gen_projects.py.
+- EpubUnumFMX requires Skia.Package.RTL and Skia.Package.FMX (Delphi 13's
+  names). TEpubView uses System.Skia and FMX.Skia, so the IDE adds both
+  packages on the first compile if they are missing ("Skia was actually
+  forced on me by the IDE when compiling the package" - push e8c3a23).
+  gen_projects.py now writes them, with the SKIA define.
+- Programs (EpubReader) still need Project > Enable Skia for sk4d.dll
+  deployment; gen_projects.py writes those DeployFile entries.
 - The IDE writes "GlobalUseSkia := True;" into a program's .dpr: NEVER
   keep it (TSteamAPI's rule; FmxSkiaCanvas decides under Proton).
 - Skia API used by TEpubView was checked against the Skia4Delphi source
@@ -116,7 +117,15 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 04.
+Last number used: 05.
+
+## Pushes checked
+- e8c3a23: zips 01-04 match. The IDE added the Skia requires (now in the
+  generator, zip 05) and re-saved the .dproj files. The owner added
+  test/README.md and test/.gitignore (*.epub - test books stay local).
+  The console folder was pushed as demos/EPubConsole: rename it with two
+  git mv steps (case-only rename) to demos/EpubConsole, which the group
+  and project_check expect.
 
 ## Test notes (zip 01, FPC 3.0, Linux x64)
 - Seven EPUBs (local only, copyrighted - never committed or quoted):
