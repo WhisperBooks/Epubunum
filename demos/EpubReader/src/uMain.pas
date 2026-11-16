@@ -393,6 +393,9 @@ type
     { Goes to word AWord as when reading paused there: its clip
       highlighted, Play starts there. }
     procedure RestoreWord(AWord: Integer);
+    { The shown document's block count, for the debug log.
+      @returns(0 when no document is laid out) }
+    function LayoutBlocks: Integer;
     { Reads dark mode, text size, speed and the recent books
       (SettingsFile). }
     procedure LoadSettings;
@@ -733,8 +736,10 @@ begin
   Hue := 0;
   for I := 1 to Length(ATitle) do
     Hue := (Hue * 31 + Ord(ATitle[I])) mod 360;
+  DebugLog(Format('cover: made one, %d x %d', [TEXT_COVER_WIDTH, H]));
   Bmp := FMX.Graphics.TBitmap.Create(TEXT_COVER_WIDTH, H);
   try
+    DebugLog('cover: drawing');
     if Bmp.Canvas.BeginScene then
     try
       Bmp.Canvas.Clear(HSLtoRGB(Hue / 360, 0.45, 0.30));
@@ -762,7 +767,9 @@ begin
     finally
       Bmp.Canvas.EndScene;
     end;
+    DebugLog('cover: drawn, saving ' + AFile);
     Bmp.SaveToFile(AFile);
+    DebugLog('cover: saved');
   finally
     Bmp.Free;
   end;
@@ -778,10 +785,12 @@ var
   Scale: Single;
   W, H: Integer;
 begin
+  DebugLog(Format('cover: the book''s picture, %d bytes - decoding', [Length(ABytes)]));
   S := TBytesStream.Create(ABytes);
   Src := FMX.Graphics.TBitmap.Create;
   try
     Src.LoadFromStream(S);
+    DebugLog(Format('cover: decoded, %d x %d', [Src.Width, Src.Height]));
     if (Src.Width = 0) or (Src.Height = 0) then
       raise EEpubError.Create('The cover image is empty');
     Scale := Min(1, COVER_HEIGHT / Src.Height);
@@ -789,13 +798,16 @@ begin
     H := Max(1, Round(Src.Height * Scale));
     Dst := FMX.Graphics.TBitmap.Create(W, H);
     try
+      DebugLog(Format('cover: scaling to %d x %d', [W, H]));
       if Dst.Canvas.BeginScene then
       try
         Dst.Canvas.DrawBitmap(Src, RectF(0, 0, Src.Width, Src.Height), RectF(0, 0, W, H), 1, False);
       finally
         Dst.Canvas.EndScene;
       end;
+      DebugLog('cover: scaled, saving ' + AFile);
       Dst.SaveToFile(AFile);
+      DebugLog('cover: saved');
     finally
       Dst.Free;
     end;
@@ -817,6 +829,13 @@ var
   I: Integer;
 begin
   DebugLog('cover: ' + ABookFile);
+  // EPUBREADER_NO_COVERS=1: no covers made (the library shows titles) -
+  // for finding why making one hangs (owner, Linux, 2026-11-16)
+  if GetEnvironmentVariable('EPUBREADER_NO_COVERS') = '1' then
+  begin
+    DebugLog('cover: not made (EPUBREADER_NO_COVERS=1)');
+    Exit;
+  end;
   F := CoverFile(ABookFile);
   if FileExists(F) then
     Exit;
@@ -849,6 +868,8 @@ begin
             Exit;
           except
             // a picture FMX cannot read: a made cover
+            on E: Exception do
+              DebugLog('cover: the book''s picture failed - ' + E.Message);
           end;
       end;
       if Title = '' then
@@ -1616,6 +1637,14 @@ begin
   BuildRecentMenu;
 end;
 
+function TfrmMain.LayoutBlocks: Integer;
+begin
+  if View1.Layout <> nil then
+    Result := View1.Layout.BlockCount
+  else
+    Result := 0;
+end;
+
 procedure TfrmMain.RestoreWord(AWord: Integer);
 var
   B: TEpubBook;
@@ -1631,8 +1660,10 @@ begin
     GoClip(C)   // highlighted, and Play starts there
   else
   begin
+    DebugLog(Format('restore word %d (document %d): laying out', [AWord, B.Words[AWord].Document]));
     View1.ShowDocument(B.Words[AWord].Document);
     View1.ScrollToWord(AWord, True);
+    DebugLog(Format('restore word %d: shown (%d blocks)', [AWord, LayoutBlocks]));
     SyncToc(AWord);
     UpdateControls;
   end;
@@ -1735,6 +1766,13 @@ begin
   lbToc.OnApplyStyleLookup := TocApplyStyle;
   // how far through the book, under the text
   View1.ShowProgress := True;
+  // EPUBREADER_FONT=<family>: the text in that font family instead of
+  // Skia's default (testing font lookup speed on Linux, 2026-11-16)
+  if GetEnvironmentVariable('EPUBREADER_FONT') <> '' then
+  begin
+    View1.FontFamily := GetEnvironmentVariable('EPUBREADER_FONT');
+    DebugLog('font: ' + View1.FontFamily + ' (EPUBREADER_FONT)');
+  end;
   BuildToolBar;
   BuildFindBar;
   BuildMenu;
@@ -1956,8 +1994,28 @@ procedure TfrmMain.EpubUnum1Open(Sender: TObject);
 var
   B: TEpubBook;
   I, F, L, First: Integer;
+  DocWords: TArray<Integer>;
+  Ws: TEpubWordArray;
+  K, Big: Integer;
 begin
   DebugLog('open: read, building the view');
+  DebugLog(Format('book: %d documents, %d words, %d clips', [Length(EpubUnum1.Book.Documents),
+    EpubUnum1.Book.WordCount, Length(EpubUnum1.Book.Clips)]));
+  // the biggest document (the one whose layout takes longest)
+  if EpubUnum1.Book.WordCount > 0 then
+  begin
+    SetLength(DocWords, Length(EpubUnum1.Book.Documents));
+    Ws := EpubUnum1.Book.Words;
+    for K := 0 to High(Ws) do
+      if (Ws[K].Document >= 0) and (Ws[K].Document <= High(DocWords)) then
+        Inc(DocWords[Ws[K].Document]);
+    Big := 0;
+    for K := 1 to High(DocWords) do
+      if DocWords[K] > DocWords[Big] then
+        Big := K;
+    if Length(DocWords) > 0 then
+      DebugLog(Format('book: the biggest document is %d, %d words', [Big, DocWords[Big]]));
+  end;
   B := EpubUnum1.Book;
   Caption := 'EpubReader - ' + B.Title;
   if FLearn then
@@ -2342,14 +2400,17 @@ begin
   // paused or stopped: show it; Play starts here
   FClip := AClip;
   FSeekClip := AClip;
+  DebugLog(Format('go to clip %d (document %d): laying out', [AClip, B.Clips[AClip].Document]));
   if B.Clips[AClip].Document <> View1.Document then
     View1.ShowDocument(B.Clips[AClip].Document);
   if FClipFirst[AClip] >= 0 then
   begin
     View1.Highlight(FClipFirst[AClip], FClipLast[AClip]);
+    // the layout itself happens here (ScrollToWord lays the document out)
     View1.ScrollToWord(FClipFirst[AClip], True);
     SyncToc(FClipFirst[AClip]);
   end;
+  DebugLog(Format('go to clip %d: shown (%d blocks)', [AClip, LayoutBlocks]));
   UpdateControls;
 end;
 
@@ -3107,15 +3168,24 @@ begin
   C := B.ClipAt(FAudioPath, T);
   if (C <> FClip) and (C >= 0) then
   begin
+    // the first clips of a play, and every change of document, in the
+    // debug log (a document laid out can take long - Linux)
+    if (FClip < 0) or (B.Clips[C].Document <> View1.Document) then
+      DebugLog(Format('clip %d at %.3f s (document %d)', [C, T, B.Clips[C].Document]));
     FClip := C;
     if B.Clips[C].Document <> View1.Document then
+    begin
+      DebugLog(Format('document %d: laying out', [B.Clips[C].Document]));
       View1.ShowDocument(B.Clips[C].Document);
+    end;
     if FClipFirst[C] >= 0 then
     begin
       View1.Highlight(FClipFirst[C], FClipLast[C]);
       View1.ScrollToWord(FClipFirst[C], True);
       SyncToc(FClipFirst[C]);
     end;
+    if FClip = C then
+      DebugLog(Format('clip %d: shown (%d blocks)', [C, LayoutBlocks]));
     UpdateControls;
   end;
   if FPlayer.LastError <> '' then

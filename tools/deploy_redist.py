@@ -3,7 +3,12 @@
 programs that need it, so Deploy (PAServer) copies the libraries next to
 the program - after a Clean as well.
 
-    python tools/deploy_redist.py
+    python tools/deploy_redist.py [--skip REGEX]...
+
+--skip leaves out the files whose path in the folder (with '/') matches
+REGEX, e.g. --skip "^(rocblas|hipblaslt)/" or --skip "^libcublasLt"
+(for testing what a deploy can take; the entries written before are
+replaced either way).
 
 Run it after tools/redist.sh collect (on Linux) or after copying
 redistributable_bin/Linux64 to the Windows machine (sftp turns the
@@ -122,15 +127,24 @@ def update(dproj, files):
 
 
 def main():
+    skips = []
+    args = sys.argv[1:]
+    while args:
+        if args[0] == "--skip" and len(args) > 1:
+            skips.append(re.compile(args[1]))
+            args = args[2:]
+        else:
+            sys.exit(__doc__)
     folder = os.path.join(ROOT, "redistributable_bin", PLATFORM)
     if not os.path.isdir(folder):
         sys.exit("No %s: run tools/redist.sh collect on Linux first (or copy the folder here)" % folder)
-    files = collect(folder)
+    files = [(r, s) for r, s in collect(folder) if not any(x.search(r) for x in skips)]
     for dproj, want in PROJECTS.items():
         mine = [(r, s) for r, s in files if want(r)]
         removed = update(dproj, [r for r, _ in mine])
-        print("%s: %d file(s), %.0f MB (replacing %d earlier entries)"
-              % (dproj, len(mine), sum(s for _, s in mine) / 1048576.0, removed))
+        longest = max((r for r, _ in mine), key=len, default="")
+        print("%s: %d file(s), %.0f MB, longest name %d characters (replacing %d earlier entries)"
+              % (dproj, len(mine), sum(s for _, s in mine) / 1048576.0, len(longest), removed))
 
 
 if __name__ == "__main__":

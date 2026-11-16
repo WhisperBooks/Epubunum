@@ -118,6 +118,39 @@ end), shared helpers for the builder (WhisperWordFileTimes etc.).
    9 MB mp4); a drawn menu bar that follows dark mode (the native one
    stays light); the Settings menu (later).
 
+### Later tests (owner, 2026-11-16: "stick that in 'later tests' - bit
+busy testing base functionality")
+
+1. WHERE THE TIME GOES PER WINDOW. On the owner's GTX 1650 (Linux,
+   Night Watch, 14 h 41 min) base.en took 34 min 54 s on CUDA0 and about
+   31 min on Vulkan1, and large-v3-turbo was "quite close" - so the
+   model's size is not what sets the time: a fixed cost per 30 s window
+   is. First suspect DTW (word times, after every window, largely CPU -
+   EpubBuilder held ~75 % of a core, GPU ~60 % with base); then token
+   choice / bookkeeping, then host <-> GPU copies. Recipe (EpubBuilder
+   cannot do part of a book):
+   a. a 10 min cut: ffmpeg -ss 00:13:00 -t 600 -i NightWatch.m4b
+      -ar 16000 -ac 1 nw10.wav
+   b. speed without DTW, both models, both devices: WhisperConsole
+      --bench ggml-base.en.bin nw10.wav en --seconds all --devices
+      CUDA0,Vulkan1 --also ggml-large-v3-turbo.bin
+   c. the same with DTW as the builder runs it: time WhisperConsole
+      <model> nw10.wav en --device Vulkan1 --words --no-context
+   b against c = DTW's share. If large: DTW's alignment heads on the GPU,
+   or DTW only where the aligner needs it (a TWhisper item; matters most
+   on small GPUs - the Steam Machine's too). Needs a Linux WhisperConsole
+   (Delphi) next to the same libraries.
+2. Offered, not built: EpubBuilder "transcribe only the first N minutes"
+   (try a model on a new book before an overnight run; would also do 1).
+3. HIP against Vulkan on the Steam Machine (the DLC plan's step 4).
+4. Deploy: the full EpubBuilder set (1811 files, 2287 MB) failed in
+   paclient's Clean with "E0009 Range check error"; without the kernel
+   folders (115 files, 1760 MB, longest name 50) it deploys. Test 2:
+   deploy_redist.py --skip "^lib(cublas|cudart|ggml-cuda)" (kernels in,
+   under 2 GiB): deploys = the 2 GiB total, fails = the kernels' names.
+5. EpubReader "not responding" (Linux): the log shows it in making the
+   book's cover (zip 68 logs each step; EPUBREADER_NO_COVERS=1 skips).
+
 ### Next - other operating systems (agreed order: Linux, then macOS)
 
 - **Linux (incl. Steam Machine, Steam Deck):** a Linux build of TWhisper
@@ -564,6 +597,35 @@ contributing components / systems" - reader first, then TFFMpegAPI etc.
      job (GPL x264 builds).
   Fits the Steam side: a manual readable on the Deck, opened from the
   game or Steam (TSteamAPI).
+- GPU BACKENDS AS FREE STEAM DLC (owner, 2026-11-16: "On Steam the DLLs
+  could be DLC. Everyone gets Vulkan, download DLC for CUDA or HIP. This
+  also makes the footprint smaller on the end users machine";
+  "definitely"). Matches tools/redist.sh package's parts (zip 63):
+  | Steam | part | for |
+  | base game depot | core (whisper, ggml CPU + Vulkan, FFmpeg, libgomp) | everyone |
+  | free DLC "NVIDIA CUDA acceleration" | cuda (~1 GB) | NVIDIA owners |
+  | free DLC "AMD ROCm acceleration" | rocm (~1 GB) | AMD owners |
+  A DLC's depot installs into the game's own folder - next to the
+  program, where the libraries must be ($ORIGIN): no code change, ggml
+  just finds no CUDA / HIP backend without the DLC (Vulkan and CPU
+  listed). Each DLC carries its licences (CUDA EULA / ROCm texts, the
+  licences/ split the packages already make). Valve: each DLC an app ID
+  and a small store page, reviewed once; free DLC allowed.
+  Steps: 1. Steamworks: two DLC app IDs, a Linux depot each (+ Windows
+  depots with redist.bat package's parts), the base depot without the
+  GPU parts. 2. The build scripts (app_build / depot .vdf): one content
+  root per part, from redistributable_bin/packages unpacked (or
+  redistributable_bin/<platform> filtered like package does). 3. HINT IN
+  EPUBBUILDER (and the reader if it ever transcribes): GPU vendor seen
+  (Vulkan device names: NVIDIA / AMD) without its backend -> "CUDA (or
+  ROCm) acceleration is a free download" with a button: TSteamAPI's
+  BIsDlcInstalled / InstallDLC (ISteamApps); outside Steam the release
+  package to download instead. 4. Measure before recommending: on the
+  owner's GTX 1650 CUDA and Vulkan are close for base: CUDA 34 min 54 s
+  for Night Watch (14 h 41 min of audio, 25x real time), Vulkan "c 31
+  mins" (the 20 min first seen was the old time-left estimate); HIP
+  against Vulkan on the Steam Machine is not known yet - the hint should
+  say "may be faster", or be shown only where measured faster.
 - Say a sentence, then step through its words.
 - The current word shown large in a strip under the page.
 - Remember reader settings between runs (dark mode, step unit, text
@@ -1361,7 +1423,87 @@ Tested: redist.sh package on a fake folder built with gcc (real NEEDED
 chains): parts and links right. The PowerShell script is untested here
 (no PowerShell).
 
+## Zip 64 (on top of 63): deploy_redist.py --skip, sizes
+The owner's first Deploy with the generated entries (EpubBuilder: 1811
+files, 2287 MB) failed at once in paclient's Clean: "E0009 Range check
+error". Suspects: the total over 2 GiB (a 32-bit size) or the kernel
+files' long names. --skip REGEX (repeatable) leaves files out, and the
+summary gives the longest name, to find which.
+
+## Zip 68 (on top of 67): the cover step logged; EPUBREADER_NO_COVERS
+Owner's Linux debug log before "Force Quit": open, read, chapters
+built, then "cover: <book>" and nothing more - the hang is in EnsureCover
+(the first cover ever made on that machine: the library had no recent
+books), not in Play (the earlier report: Play pressed while it hung).
+Every step of SaveImageCover / SaveTextCover is logged now (decoding with
+the byte count, the picture's size, scaling, saving, saved; a failed
+picture's message). EPUBREADER_NO_COVERS=1 skips making covers (the
+library shows titles) so the reader can be tested meanwhile. Later-tests
+item 5 updated by this.
+
+## Zip 69 (on top of 68): the play timer logged
+Owner's next Linux run: Play heard (clip 0 extracted - 840 MB m4b in
+2.7 s - opened, playing from 116 s) but the page never moved, then "Force
+Quit": the main thread stuck in tmPlayTimer's first highlight. Player
+calls there are cheap (Position / Clock: a lock, no I/O), so the suspect
+is View1.ShowDocument laying out a big document on Linux. Logged now: the
+first clip of a play and every change of document ("clip N at T s
+(document D)", "document D: laying out" / "shown"), and on open the
+book's documents / words / clips and its biggest document's word count.
+Ask the owner to press Wait, not Force Quit: a slow layout ends, a hang
+does not.
+
+## Zip 70 (on top of 69): the hang is laying out a big document
+Owner, EPUBREADER_NO_COVERS=1: the same stop right after the cover step,
+and covers DO work (one was in the library after a restart) - so the
+cover was never it. What follows the cover step on open is RestoreWord
+(the place left) -> GoClip / ShowDocument + ScrollToWord: the layout of
+the document there. Night Watch: 24 documents, the biggest (6) 31851
+words. Every earlier hang fits: open (restore) and Play (the timer
+moving into document 6). TEpubView lays out on ScrollToWord / paint
+(LayoutItems: MakeParagraph per block - a new TSkParagraphBuilder each,
+no shared font collection), so the suspect is Skia's font lookup through
+fontconfig on Linux, repeated per paragraph. Logged now: GoClip /
+RestoreWord / the play timer "laying out" -> "shown (N blocks)" around
+the layout. EPUBREADER_FONT=<family> sets View1.FontFamily (test: a font
+the machine has, e.g. "DejaVu Sans", against the default). If confirmed:
+one shared font collection / typeface cache in TEpubView (package
+change), and laying out only the blocks near the view.
+
+## Zip 71 (on top of 70): fonts looked up once per view (the Linux hang)
+Owner's gdb stack of the hung reader (twice, same place): tmPlayTimer ->
+TEpubView.ScrollToWord -> LayoutItems -> MakeParagraph ->
+ParagraphImpl::layout -> OneLineShaper -> FontCollection::matchTypeface
+-> SkFontMgr_fontconfig::onMatchFamily -> AnyStringMatching (an
+SkTIntroSort of every installed font's names, FcStrCmpIgnoreCase). Each
+paragraph had its own TSkParagraphBuilder (so its own FontCollection:
+no typeface cache between paragraphs), and each asked fontconfig for its
+family again - minutes for one chapter on a machine with many fonts;
+Windows' DirectWrite answers at once. EPUBREADER_FONT made no difference
+(the lookup is per paragraph whatever the name).
+Fix (Epub.FMX.View.pas, PACKAGE EpubUnumFMX): Fonts - a
+TSkTypefaceFontProvider made once (again when FontFamily / MonoFamily
+change) with the text family's regular / bold / italic / bold italic
+(TSkTypeface.MakeFromName; '' = "sans-serif" as before) registered as
+'EpubView Text' and MonoFamily's as 'EpubView Mono'; every
+TSkParagraphBuilder.Create(PS, Fonts, True) (the provider is the
+collection's asset manager, asked before the system's; fallback stays on
+for characters the font lacks); every text style names those families;
+NewParagraphStyle gives the paragraph style's default text style the same
+family. NOT COMPILED here (no Delphi / Skia): the Skia4Delphi names used
+- TSkTypefaceFontProvider, RegisterTypeface(Typeface, FamilyName),
+TSkTypeface.MakeFromName(Name, Style), ISkParagraphStyle.TextStyle, the
+three-argument TSkParagraphBuilder.Create - are from memory of its API.
+Later: lay out only the blocks near the view (Night Watch's document 6:
+31851 words).
+
 ## Pushes checked
+- 01a4b4e ("Claude push", 2026-11-16 18:14) = zips 52 - 63: every
+  delivered file identical (CR LF / BOM aside) except the four .dproj
+  files the IDE re-saved: default platform now Linux64 (owner's IDE),
+  ProjectName lines dropped from the packages, uDebugLog references kept;
+  new *.deployproj files (IDE). project_check 0. whisper-dev 3459870 =
+  its zips 08 - 18; ffmpeg-dev 4d7b7be = 09; TWhisper d669a06 = 30.
 - 4d7dfbe ("Claude push", 2026-11-15 22:58): the repo's head at the
   start of session 7, after 5717238 = zip 37; taken as zip 38 (the
   handover). Clone is shallow: not compared file by file.

@@ -20,6 +20,546 @@
     <ItemGroup Condition="'$(Platform)'=='iOSSimARM64'"/>
     <ItemGroup Condition="'$(Platform)'=='Win64x'"/>
     <ItemGroup Condition="'$(Platform)'=='Linux64'">
+        <DeployFile Include="..\..\redistributable_bin\Linux64\liborigami.so.1">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>liborigami.so.1</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-rocjpeg-LICENSE">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-rocjpeg-LICENSE</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-rocprofiler-sdk-roctx-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-rocprofiler-sdk-roctx-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\FFmpeg-BUILD-INFO.txt">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>FFmpeg-BUILD-INFO.txt</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libavutil.so.60">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libavutil.so.60</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\CUDA-cuda-cudart-13-5-copyright.txt">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>CUDA-cuda-cudart-13-5-copyright.txt</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\librocm_sysdeps_drm.so.2">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>librocm_sysdeps_drm.so.2</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libamd_comgr.so.3">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libamd_comgr.so.3</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\librocroller.so.1">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>librocroller.so.1</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\CUDA-libcublas-13-5-copyright.txt">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>CUDA-libcublas-13-5-copyright.txt</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\librocm_sysdeps_z.so.1">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>librocm_sysdeps_z.so.1</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-rpp-asan-LICENSE">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-rpp-asan-LICENSE</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libcublas.so.13">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libcublas.so.13</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\whisper.cpp-LICENSE.txt">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>whisper.cpp-LICENSE.txt</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-hipblas-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-hipblas-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-rocprofiler-sdk-rocattach-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-rocprofiler-sdk-rocattach-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-rocprofiler-sdk-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-rocprofiler-sdk-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-rocdxg-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-rocdxg-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\FFmpeg-COPYING.LGPLv3">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>FFmpeg-COPYING.LGPLv3</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libggml-base.so.0">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libggml-base.so.0</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-rocshmem-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-rocshmem-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libavutil.so">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libavutil.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libggml-base.so">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libggml-base.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libhipblas.so.3">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libhipblas.so.3</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libggml-cpu-skylakex.so">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libggml-cpu-skylakex.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-roctracer-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-roctracer-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libamdhip64.so.7">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libamdhip64.so.7</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-miopen-hip-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-miopen-hip-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libggml-cuda.so">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libggml-cuda.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libggml-cpu-zen4.so">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libggml-cpu-zen4.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\librocprofiler-register.so.0">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>librocprofiler-register.so.0</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-rocblas-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-rocblas-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libLLVM.so.24.0git">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libLLVM.so.24.0git</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libggml-cpu-cascadelake.so">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libggml-cpu-cascadelake.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libroctx64.so.4">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libroctx64.so.4</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libggml-cpu-sapphirerapids.so">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libggml-cpu-sapphirerapids.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-hipfile-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-hipfile-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-hipsolver-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-hipsolver-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-opencl-asan-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-opencl-asan-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libavformat.so.62">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libavformat.so.62</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libggml-cpu-sandybridge.so">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libggml-cpu-sandybridge.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libggml-cpu-x64.so">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libggml-cpu-x64.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libggml-cpu-sse42.so">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libggml-cpu-sse42.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libggml-vulkan.so">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libggml-vulkan.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-rocsolver-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-rocsolver-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\GCC-libgomp1-copyright.txt">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>GCC-libgomp1-copyright.txt</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-hipcc-LICENSE.txt">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-hipcc-LICENSE.txt</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\librocm_sysdeps_bz2.so">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>librocm_sysdeps_bz2.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libclang-cpp.so.24.0git">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libclang-cpp.so.24.0git</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libswresample.so">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libswresample.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\librocm_sysdeps_drm_amdgpu.so.1">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>librocm_sysdeps_drm_amdgpu.so.1</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libggml-cpu-piledriver.so">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libggml-cpu-piledriver.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libggml-cpu-icelake.so">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libggml-cpu-icelake.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libggml-cpu-alderlake.so">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libggml-cpu-alderlake.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-hipfft-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-hipfft-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libavformat.so">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libavformat.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\CUDA-EULA.txt">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>CUDA-EULA.txt</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-rocsparse-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-rocsparse-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libggml-cpu-cooperlake.so">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libggml-cpu-cooperlake.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-rocm-core-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-rocm-core-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
         <DeployFile Include="Linux64\Debug\EpubBuilder" Condition="'$(Config)'=='Debug'">
             <RemoteDir>EpubBuilder\</RemoteDir>
             <RemoteName>EpubBuilder</RemoteName>
@@ -29,6 +569,501 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
             <Required>True</Required>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\FFmpeg-COPYING.LGPLv2.1">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>FFmpeg-COPYING.LGPLv2.1</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-hip-asan-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-hip-asan-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-hiprand-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-hiprand-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libcudart.so.13">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libcudart.so.13</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libavfilter.so">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libavfilter.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-amd-smi-lib-copyright">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-amd-smi-lib-copyright</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libavcodec.so">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libavcodec.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-hsa-amd-aqlprofile-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-hsa-amd-aqlprofile-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libwhisper.so.1">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libwhisper.so.1</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-opencl-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-opencl-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-rccl-LICENSE.txt">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-rccl-LICENSE.txt</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libavcodec.so.62">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libavcodec.so.62</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-rocr-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-rocr-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libggml.so">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libggml.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-rocprofiler-register-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-rocprofiler-register-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-rocfft-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-rocfft-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libwhisper.so">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libwhisper.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-rocminfo-License.txt">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-rocminfo-License.txt</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\librocm_sysdeps_liblzma.so.5">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>librocm_sysdeps_liblzma.so.5</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\librocsolver.so.0">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>librocsolver.so.0</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libggml.so.0">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libggml.so.0</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-rocprim-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-rocprim-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libgomp.so.1">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libgomp.so.1</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libggml-cpu-haswell.so">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libggml-cpu-haswell.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\librocm_sysdeps_numa.so.1">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>librocm_sysdeps_numa.so.1</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-origami-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-origami-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-rocprofiler-sdk-tests-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-rocprofiler-sdk-tests-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-rpp-LICENSE">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-rpp-LICENSE</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-hip-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-hip-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-hipsparselt-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-hipsparselt-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\librocm_sysdeps_elf.so.1">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>librocm_sysdeps_elf.so.1</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\FFmpeg-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>FFmpeg-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libggml-cpu-ivybridge.so">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libggml-cpu-ivybridge.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\librocm_sysdeps_zstd.so.1">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>librocm_sysdeps_zstd.so.1</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-amd-smi-lib-LICENSE.txt">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-amd-smi-lib-LICENSE.txt</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libhipblaslt.so.1">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libhipblaslt.so.1</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-rocroller-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-rocroller-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-rocprofiler-sdk-rocpd-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-rocprofiler-sdk-rocpd-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libhsa-runtime64.so.1">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libhsa-runtime64.so.1</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libavfilter.so.11">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libavfilter.so.11</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-rocrand-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-rocrand-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libggml-hip.so">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libggml-hip.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-hipsparse-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-hipsparse-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-hipblaslt-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-hipblaslt-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-rocdecode-LICENSE">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-rocdecode-LICENSE</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libswresample.so.6">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libswresample.so.6</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libswscale.so">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libswscale.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-amd_comgr-LICENSE.txt">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-amd_comgr-LICENSE.txt</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-composablekernel-LICENSE">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-composablekernel-LICENSE</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-roctracer-asan-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-roctracer-asan-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libggml-cpu-cannonlake.so">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libggml-cpu-cannonlake.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libcublasLt.so.13">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libcublasLt.so.13</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\librocblas.so.5">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>librocblas.so.5</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\librocm_kpack.so.0">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>librocm_kpack.so.0</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libswscale.so.9">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libswscale.so.9</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
         </DeployFile>
     </ItemGroup>
 </Project>

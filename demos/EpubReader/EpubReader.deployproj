@@ -61,6 +61,42 @@
     <ItemGroup Condition="'$(Platform)'=='iOSSimARM64'"/>
     <ItemGroup Condition="'$(Platform)'=='Win64x'"/>
     <ItemGroup Condition="'$(Platform)'=='Linux64'">
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libavformat.so">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>libavformat.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\FFmpeg-BUILD-INFO.txt">
+            <RemoteDir>EpubReader\licences\</RemoteDir>
+            <RemoteName>FFmpeg-BUILD-INFO.txt</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libavutil.so.60">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>libavutil.so.60</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\FFmpeg-COPYING.LGPLv2.1">
+            <RemoteDir>EpubReader\licences\</RemoteDir>
+            <RemoteName>FFmpeg-COPYING.LGPLv2.1</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
         <DeployFile Include="Linux64\Debug\EpubReader" Condition="'$(Config)'=='Debug'">
             <RemoteDir>EpubReader\</RemoteDir>
             <RemoteName>EpubReader</RemoteName>
@@ -91,6 +127,33 @@
             <Overwrite>True</Overwrite>
             <Required>True</Required>
         </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libavfilter.so">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>libavfilter.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libavcodec.so">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>libavcodec.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\FFmpeg-LICENSE.md">
+            <RemoteDir>EpubReader\licences\</RemoteDir>
+            <RemoteName>FFmpeg-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
         <DeployFile Include="$(BDS)\binlinux64\libsk4d.so" Condition="'$(Config)'=='Debug' And '$(SKIADIR)'==''">
             <RemoteDir>EpubReader\</RemoteDir>
             <RemoteName>libsk4d.so</RemoteName>
@@ -110,6 +173,87 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
             <Required>True</Required>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libavcodec.so.62">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>libavcodec.so.62</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libavformat.so.62">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>libavformat.so.62</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libavfilter.so.11">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>libavfilter.so.11</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\FFmpeg-COPYING.LGPLv3">
+            <RemoteDir>EpubReader\licences\</RemoteDir>
+            <RemoteName>FFmpeg-COPYING.LGPLv3</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libavutil.so">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>libavutil.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libswresample.so.6">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>libswresample.so.6</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libswscale.so">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>libswscale.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libswresample.so">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>libswresample.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libswscale.so.9">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>libswscale.so.9</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
         </DeployFile>
     </ItemGroup>
 </Project>

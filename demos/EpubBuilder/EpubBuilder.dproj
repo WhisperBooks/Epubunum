@@ -252,6 +252,811 @@
                 <Platform value="Win64">True</Platform>
             </Platforms>
             <Deployment Version="5">
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libLLVM.so.24.0git" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libLLVM.so.24.0git</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libamd_comgr.so.3" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libamd_comgr.so.3</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libamdhip64.so.7" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libamdhip64.so.7</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavcodec.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libavcodec.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavcodec.so.62" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libavcodec.so.62</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavfilter.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libavfilter.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavfilter.so.11" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libavfilter.so.11</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavformat.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libavformat.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavformat.so.62" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libavformat.so.62</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavutil.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libavutil.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavutil.so.60" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libavutil.so.60</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libclang-cpp.so.24.0git" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libclang-cpp.so.24.0git</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libcublas.so.13" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libcublas.so.13</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libcublasLt.so.13" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libcublasLt.so.13</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libcudart.so.13" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libcudart.so.13</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-base.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-base.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-base.so.0" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-base.so.0</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-alderlake.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-cpu-alderlake.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-cannonlake.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-cpu-cannonlake.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-cascadelake.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-cpu-cascadelake.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-cooperlake.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-cpu-cooperlake.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-haswell.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-cpu-haswell.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-icelake.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-cpu-icelake.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-ivybridge.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-cpu-ivybridge.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-piledriver.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-cpu-piledriver.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-sandybridge.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-cpu-sandybridge.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-sapphirerapids.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-cpu-sapphirerapids.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-skylakex.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-cpu-skylakex.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-sse42.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-cpu-sse42.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-x64.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-cpu-x64.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-zen4.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-cpu-zen4.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cuda.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-cuda.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-hip.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-hip.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-vulkan.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-vulkan.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml.so.0" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml.so.0</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libgomp.so.1" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libgomp.so.1</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libhipblas.so.3" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libhipblas.so.3</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libhipblaslt.so.1" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libhipblaslt.so.1</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libhsa-runtime64.so.1" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libhsa-runtime64.so.1</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\liborigami.so.1" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>liborigami.so.1</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocblas.so.5" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>librocblas.so.5</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_kpack.so.0" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>librocm_kpack.so.0</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_sysdeps_bz2.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>librocm_sysdeps_bz2.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_sysdeps_drm.so.2" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>librocm_sysdeps_drm.so.2</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_sysdeps_drm_amdgpu.so.1" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>librocm_sysdeps_drm_amdgpu.so.1</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_sysdeps_elf.so.1" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>librocm_sysdeps_elf.so.1</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_sysdeps_liblzma.so.5" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>librocm_sysdeps_liblzma.so.5</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_sysdeps_numa.so.1" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>librocm_sysdeps_numa.so.1</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_sysdeps_z.so.1" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>librocm_sysdeps_z.so.1</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_sysdeps_zstd.so.1" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>librocm_sysdeps_zstd.so.1</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocprofiler-register.so.0" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>librocprofiler-register.so.0</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocroller.so.1" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>librocroller.so.1</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocsolver.so.0" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>librocsolver.so.0</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libroctx64.so.4" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libroctx64.so.4</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libswresample.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libswresample.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libswresample.so.6" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libswresample.so.6</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libswscale.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libswscale.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libswscale.so.9" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libswscale.so.9</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libwhisper.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libwhisper.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libwhisper.so.1" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libwhisper.so.1</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\CUDA-EULA.txt" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>CUDA-EULA.txt</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\CUDA-cuda-cudart-13-5-copyright.txt" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>CUDA-cuda-cudart-13-5-copyright.txt</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\CUDA-libcublas-13-5-copyright.txt" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>CUDA-libcublas-13-5-copyright.txt</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\FFmpeg-BUILD-INFO.txt" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>FFmpeg-BUILD-INFO.txt</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\FFmpeg-COPYING.LGPLv2.1" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>FFmpeg-COPYING.LGPLv2.1</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\FFmpeg-COPYING.LGPLv3" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>FFmpeg-COPYING.LGPLv3</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\FFmpeg-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>FFmpeg-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\GCC-libgomp1-copyright.txt" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>GCC-libgomp1-copyright.txt</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-amd-smi-lib-LICENSE.txt" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-amd-smi-lib-LICENSE.txt</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-amd-smi-lib-copyright" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-amd-smi-lib-copyright</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-amd_comgr-LICENSE.txt" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-amd_comgr-LICENSE.txt</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-composablekernel-LICENSE" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-composablekernel-LICENSE</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-hip-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-hip-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-hip-asan-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-hip-asan-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-hipblas-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-hipblas-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-hipblaslt-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-hipblaslt-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-hipcc-LICENSE.txt" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-hipcc-LICENSE.txt</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-hipfft-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-hipfft-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-hipfile-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-hipfile-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-hiprand-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-hiprand-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-hipsolver-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-hipsolver-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-hipsparse-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-hipsparse-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-hipsparselt-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-hipsparselt-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-hsa-amd-aqlprofile-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-hsa-amd-aqlprofile-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-miopen-hip-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-miopen-hip-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-opencl-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-opencl-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-opencl-asan-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-opencl-asan-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-origami-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-origami-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-rccl-LICENSE.txt" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-rccl-LICENSE.txt</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-rocblas-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-rocblas-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-rocdecode-LICENSE" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-rocdecode-LICENSE</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-rocdxg-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-rocdxg-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-rocfft-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-rocfft-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-rocjpeg-LICENSE" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-rocjpeg-LICENSE</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-rocm-core-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-rocm-core-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-rocminfo-License.txt" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-rocminfo-License.txt</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-rocprim-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-rocprim-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-rocprofiler-register-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-rocprofiler-register-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-rocprofiler-sdk-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-rocprofiler-sdk-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-rocprofiler-sdk-rocattach-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-rocprofiler-sdk-rocattach-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-rocprofiler-sdk-rocpd-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-rocprofiler-sdk-rocpd-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-rocprofiler-sdk-roctx-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-rocprofiler-sdk-roctx-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-rocprofiler-sdk-tests-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-rocprofiler-sdk-tests-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-rocr-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-rocr-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-rocrand-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-rocrand-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-rocroller-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-rocroller-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-rocshmem-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-rocshmem-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-rocsolver-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-rocsolver-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-rocsparse-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-rocsparse-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-roctracer-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-roctracer-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-roctracer-asan-LICENSE.md" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-roctracer-asan-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-rpp-LICENSE" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-rpp-LICENSE</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\ROCm-rpp-asan-LICENSE" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>ROCm-rpp-asan-LICENSE</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\whisper.cpp-LICENSE.txt" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>whisper.cpp-LICENSE.txt</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
                 <DeployFile LocalName="$(BDS)\Redist\iossimulator\libcgunwind.1.0.dylib" Class="DependencyModule">
                     <Platform Name="iOSSimulator">
                         <Overwrite>true</Overwrite>

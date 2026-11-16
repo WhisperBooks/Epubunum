@@ -85,6 +85,11 @@ type
     FFontFamily: string;
     { Backing field of @link(MonoFamily). }
     FMonoFamily: string;
+    { The text and mono typefaces, found once and registered under the
+      view's own family names (see @link(Fonts)). }
+    FFonts: ISkTypefaceFontProvider;
+    { FontFamily + #1 + MonoFamily that FFonts was made for. }
+    FFontsFor: string;
     { Backing field of @link(LineHeight). }
     FLineHeight: Single;
     { Backing field of @link(ParagraphSpacing). }
@@ -144,6 +149,21 @@ type
     function LayoutCurrent: Boolean;
     { Lays the items out for AWidth px. }
     procedure LayoutItems(AWidth: Single);
+    { The typefaces the paragraphs use: FontFamily (regular, bold, italic,
+      bold italic) and MonoFamily, each looked up ONCE and registered with
+      a font provider under the view's own family names. Without it every
+      paragraph asked the system's font manager again: on Linux each
+      fontconfig family match sorts every installed font's names, and a
+      chapter of a few thousand paragraphs took minutes - the reader
+      stopped responding (owner, Night Watch, 2026-11-16). Made again when
+      FontFamily or MonoFamily changes.
+      @returns(the provider) }
+    function Fonts: ISkTypefaceFontProvider;
+    { A paragraph style whose default text style uses the view's own
+      families (so nothing in a paragraph asks the system by name).
+      @param(AAlign  the text alignment)
+      @returns(the style) }
+    function NewParagraphStyle(AAlign: TSkTextAlign): ISkParagraphStyle;
     { The Skia paragraph of block ABlock, AWidth px wide. }
     function MakeParagraph(const ABlock: TEpubBlock; AWidth: Single; out AOffset: Integer): ISkParagraph;
     { The item showing block ABlock, -1 when none. }
@@ -272,6 +292,10 @@ const
   EM_SPACE = #$2003;
   { Default base font size, px. }
   DEFAULT_FONT_SIZE = 20;
+  { The family name the view registers its text typefaces under. }
+  TEXT_FAMILY = 'EpubView Text';
+  { The family name the view registers its monospaced typefaces under. }
+  MONO_FAMILY = 'EpubView Mono';
   { Pictures are never taller than this part of the view. }
   IMAGE_MAX_VIEW = 0.85;
   { Wheel notches to lines. }
@@ -628,6 +652,59 @@ begin
   Result := -1;
 end;
 
+function TEpubView.Fonts: ISkTypefaceFontProvider;
+
+  procedure Add(const AProvider: ISkTypefaceFontProvider; const AFamily, AAs: string);
+  const
+    WEIGHTS: array[0..1] of TSkFontWeight = (TSkFontWeight.Normal, TSkFontWeight.Bold);
+    SLANTS: array[0..1] of TSkFontSlant = (TSkFontSlant.Upright, TSkFontSlant.Italic);
+  var
+    W, S: Integer;
+    T: ISkTypeface;
+  begin
+    for W := 0 to 1 do
+      for S := 0 to 1 do
+      begin
+        T := TSkTypeface.MakeFromName(AFamily, TSkFontStyle.Create(WEIGHTS[W], TSkFontWidth.Normal, SLANTS[S]));
+        if T <> nil then
+          AProvider.RegisterTypeface(T, AAs);
+      end;
+  end;
+
+var
+  Key: string;
+  P: ISkTypefaceFontProvider;
+begin
+  Key := FFontFamily + #1 + FMonoFamily;
+  if (FFonts = nil) or (Key <> FFontsFor) then
+  begin
+    P := TSkTypefaceFontProvider.Create;
+    // '' = what the paragraphs used before: Skia's default "sans-serif"
+    // (an unknown name gives the system's default face, as then)
+    if FFontFamily = '' then
+      Add(P, 'sans-serif', TEXT_FAMILY)
+    else
+      Add(P, FFontFamily, TEXT_FAMILY);
+    Add(P, FMonoFamily, MONO_FAMILY);
+    FFonts := P;
+    FFontsFor := Key;
+  end;
+  Result := FFonts;
+end;
+
+function TEpubView.NewParagraphStyle(AAlign: TSkTextAlign): ISkParagraphStyle;
+var
+  TS: ISkTextStyle;
+begin
+  Result := TSkParagraphStyle.Create;
+  Result.TextAlign := AAlign;
+  TS := TSkTextStyle.Create;
+  TS.FontFamilies := [TEXT_FAMILY];
+  TS.FontSize := FFontSize;
+  TS.Color := FTextColor;
+  Result.TextStyle := TS;
+end;
+
 function TEpubView.MakeParagraph(const ABlock: TEpubBlock; AWidth: Single; out AOffset: Integer): ISkParagraph;
 var
   PS: ISkParagraphStyle;
@@ -645,20 +722,20 @@ var
     Result.Color := FTextColor;
     Result.FontSize := FFontSize * ASize;
     Result.HeightMultiplier := FLineHeight;
-    if FFontFamily <> '' then
-      Result.FontFamilies := [FFontFamily];
+    // the view's own family (Fonts): no lookup by name per paragraph
+    Result.FontFamilies := [TEXT_FAMILY];
   end;
 
 begin
-  PS := TSkParagraphStyle.Create;
   case ABlock.Align of
-    etaCenter: PS.TextAlign := TSkTextAlign.Center;
-    etaEnd: PS.TextAlign := TSkTextAlign.Right;
-    etaJustify: PS.TextAlign := TSkTextAlign.Justify;
+    etaCenter: PS := NewParagraphStyle(TSkTextAlign.Center);
+    etaEnd: PS := NewParagraphStyle(TSkTextAlign.Right);
+    etaJustify: PS := NewParagraphStyle(TSkTextAlign.Justify);
   else
-    PS.TextAlign := TSkTextAlign.Left;
+    PS := NewParagraphStyle(TSkTextAlign.Left);
   end;
-  Builder := TSkParagraphBuilder.Create(PS);
+  // the fonts found once; fallback (characters the font lacks) stays on
+  Builder := TSkParagraphBuilder.Create(PS, Fonts, True);
   AOffset := 0;
   Indent := Round(ABlock.TextIndent);
   if (Indent > 0) and (ABlock.Kind = ebkParagraph) and (ABlock.Align <> etaCenter) then
@@ -691,7 +768,7 @@ begin
     if ersLink in Run.Styles then
       TS.Color := FLinkColor;
     if (ersMono in Run.Styles) or (ABlock.Kind = ebkPreformatted) then
-      TS.FontFamilies := [FMonoFamily];
+      TS.FontFamilies := [MONO_FAMILY];
     Builder.PushStyle(TS);
     Builder.AddText(Copy(ABlock.Text, Run.Start + 1, Run.Length));
     Builder.Pop;
@@ -1017,14 +1094,12 @@ begin
   ACanvas.DrawLine(PointF(ARect.Left + FPageMargin, ARect.Top + 0.5), PointF(ARect.Right - FPageMargin,
     ARect.Top + 0.5), Paint);
   // the percentage, centred, in the text colour made fainter
-  PS := TSkParagraphStyle.Create;
-  PS.TextAlign := TSkTextAlign.Center;
-  Builder := TSkParagraphBuilder.Create(PS);
+  PS := NewParagraphStyle(TSkTextAlign.Center);
+  Builder := TSkParagraphBuilder.Create(PS, Fonts, True);
   TS := TSkTextStyle.Create;
   TS.Color := (FTextColor and $00FFFFFF) or $A0000000;
   TS.FontSize := Max(11, FFontSize * 0.65);
-  if FFontFamily <> '' then
-    TS.FontFamilies := [FFontFamily];
+  TS.FontFamilies := [TEXT_FAMILY];
   Builder.PushStyle(TS);
   Builder.AddText(Format('%d%%', [Trunc(P * 100)]));
   Builder.Pop;
