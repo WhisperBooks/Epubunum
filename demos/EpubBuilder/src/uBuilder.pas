@@ -113,6 +113,8 @@ type
     FPartOffset: Double;
     { Backing field of @link(Summary). }
     FSummary: TBuildSummary;
+    { Backing field of @link(Succeeded). }
+    FSucceeded: Boolean;
     { Sends AText to OnLog. }
     procedure Log(const AText: string);
     { Sends APercent to OnProgress. }
@@ -169,6 +171,9 @@ type
     property OnStatus: TProc<string> read FOnStatus write FOnStatus;
     { The build's figures (complete once it has ended). }
     property Summary: TBuildSummary read FSummary;
+    { True when the book was written: every step ran to its end (False
+      while it runs, and after a failure or Cancel). }
+    property Succeeded: Boolean read FSucceeded;
   end;
 
   { Where a job of the queue is. }
@@ -415,7 +420,12 @@ type
     procedure lbJobsDblClick(Sender: TObject);
     { Saves FJobs to AFileName (JSON). }
     procedure SaveQueue(const AFileName: string);
-    { Adds the jobs of AFileName to FJobs; returns how many. }
+    { Adds the jobs of AFileName to FJobs; returns how many. Left out,
+      with a line in the log: a job whose output is its own book, and a
+      job whose output a job of the queue writes already (both still to
+      build, or both done - the same file loaded twice). A job still to
+      build whose output exists is added with a line saying it will be
+      replaced (nothing is asked while the queue runs). }
     function LoadQueue(const AFileName: string): Integer;
     { Closing while a build runs asks first (No by default): the build
       would be stopped and its work so far lost. }
@@ -889,12 +899,14 @@ begin
         Status(Format('Part %d of %d "%s": transcribing (the words appear as they are heard) ...', [I + 1,
           FPartCount, AAudio.Parts[I].Title]));
         Part := FRun.Execute(Samples);
-        if (Part.ResultCode <> 0) or Part.Cancelled then
-        begin
-          if not Part.Cancelled then
-            Log(Format('Part %d failed: %s', [I + 1, Part.ErrorMessage]));
+        if Part.Cancelled then
           Break;
-        end;
+        // a part that failed ends the build: going on gave a book with
+        // part of its audio timed, reported as done, and kept the cut
+        // transcript "for next time" (review, zip 73)
+        if Part.ResultCode <> 0 then
+          raise EWhisperError.CreateFmt('Part %d of %d "%s" was not transcribed: %s', [I + 1, FPartCount,
+            AAudio.Parts[I].Title, Part.ErrorMessage]);
         // as WhisperConsole: take out loops and echoes, then a second pass
         // over the stretches left without words
         WhisperCleanTranscription(Part, Prompt);
@@ -1197,6 +1209,7 @@ begin
         Log('The book was EPUB 2: it is EPUB 3 now (overlays need it)');
       if Report.Warnings <> '' then
         Log('Warning: ' + Trim(Report.Warnings));
+      FSucceeded := True;
       Progress(100);
       Status('Done');
     except
@@ -2382,7 +2395,7 @@ var
   V: TJSONValue;
   Root, J: TJSONObject;
   Jobs, A: TJSONArray;
-  I, K: Integer;
+  I, K, Dup: Integer;
   Job: TBuildJob;
   St: string;
 begin
@@ -2425,6 +2438,29 @@ begin
         Job.State := jsCancelled
       else
         Job.State := jsWaiting;
+      // the checks Add to queue makes: a file is not asked, so it says
+      if SameFileName(ExpandFileName(Job.Output), ExpandFileName(Job.Book)) then
+      begin
+        LogLine(Format('Left out: %s - its output is the book itself.', [Job.Title]));
+        Continue;
+      end;
+      Dup := -1;
+      for K := 0 to High(FJobs) do
+        if SameFileName(ExpandFileName(FJobs[K].Output), ExpandFileName(Job.Output)) and
+          ((FJobs[K].State = jsDone) = (Job.State = jsDone)) then
+        begin
+          Dup := K;
+          Break;
+        end;
+      if Dup >= 0 then
+      begin
+        LogLine(Format('Left out: %s - job %d of the queue writes %s already.', [Job.Title, Dup + 1,
+          Job.Output]));
+        Continue;
+      end;
+      if (Job.State <> jsDone) and FileExists(Job.Output) then
+        LogLine(Format('Note: %s is there already and will be replaced by job %d (%s) - remove the job to ' +
+          'keep it.', [Job.Output, Length(FJobs) + 1, Job.Title]));
       FJobs := FJobs + [Job];
       Inc(Result);
     end;
@@ -2547,7 +2583,8 @@ begin
   // lines have been delivered before it
   Taken := WhisperTimeToStr(MilliSecondsBetween(Now, FStarted) div 10);
   LogLine(Format('Finished after %s', [Taken]));
-  Ok := pbBuild.Value >= 100;
+  // what the thread says, not what the progress bar shows
+  Ok := (Sender as TBuildThread).Succeeded;
   if Ok then
   begin
     LogLine('Open ' + FRunOut + ' in EpubReader.');

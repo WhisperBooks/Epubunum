@@ -39,7 +39,8 @@ uses
   System.SysUtils, System.Classes, System.SyncObjs;
 
 var
-  { Guards the file: lines come from several threads. }
+  { Guards the file: lines come from several threads. Made at start-up
+    and never freed (see the end of the unit). }
   Lock: TCriticalSection;
   { The log file, '' when not started. }
   LogName: string;
@@ -143,8 +144,13 @@ end;
 
 initialization
   Lock := TCriticalSection.Create;
+  // meant to stay (below): not a leak for ReportMemoryLeaksOnShutdown
+  RegisterExpectedMemoryLeak(Lock);
 
-finalization
-  FreeAndNil(Lock);
+// No finalization: the lock is never freed. A worker thread (whisper.cpp's
+// and ggml's lines come from theirs) can be inside DebugLog while the
+// program shuts down - between its "Lock = nil" test and Acquire - and a
+// freed lock there is an access violation on the way out. The process
+// ends anyway; the system takes the lock back.
 
 end.

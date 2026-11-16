@@ -14,7 +14,7 @@ the history, one per zip.
 | Repo | Pushed | = zip | Last zip number used |
 |---|---|---|---|
 | WhisperBooks/TWhisper | d669a06 | TWhisper-30 | 30 |
-| WhisperBooks/Epubunum | d242ae1 | EpubUnum-71 | 72 (this handover) |
+| WhisperBooks/Epubunum | e00fb17 | EpubUnum-72 | 73 (review fixes, below) |
 | G3DGames/TFFMpegAPI | 3edcfa3 | FFmpegAPI-12 | 12 (none this session) |
 | G3DGames/ffmpeg-dev | 4d7b7be | ffmpeg-dev-09 | 09 |
 | WhisperBooks/whisper-dev | 9fa21dc | whisper-dev-20 | 20 |
@@ -360,7 +360,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 57.
+Last number used: 73.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -1536,7 +1536,78 @@ three-argument TSkParagraphBuilder.Create - are from memory of its API.
 Later: lay out only the blocks near the view (Night Watch's document 6:
 31851 words).
 
+## Zip 73 (on top of e00fb17 = zip 72): review fixes
+A code review by reading of e00fb17 along the handover's focus list
+(owner, 2026-11-16: "Pr (code review)", then "y" to a zip with the first
+five). NOT COMPILED (no Delphi, no FPC in that session); pasdoc_check and
+project_check 0 problems.
+1. uBuilder, Transcribe: a part whose transcription fails (ResultCode
+   <> 0, not cancelled) now RAISES. It logged and left the loop, and
+   Execute went on: the cut transcript was saved "for next time", the
+   book written with part of its audio timed, the job reported done.
+2. lib/Epub.Writer (PACKAGE EpubUnum), SaveToFile: written to AFileName +
+   '.tmp', then the old file deleted and the new one renamed. The except
+   deleted AFileName on ANY failure - also one before a byte was written
+   ("No timed words to write") - so a failed rebuild cost the book made
+   before. A file that cannot be replaced (open in the reader on Windows)
+   raises and the old one stays.
+3. uBuilder, LoadQueue: the checks Add to queue makes - a job whose
+   output is its book, and one whose output a job of the queue writes
+   already (both still to build, or both done: a file loaded twice), are
+   left out with a log line; an output that exists gets a "will be
+   replaced" line (nothing can be asked while the queue runs).
+4. TBuildThread.Succeeded (set when the book is written); BuildDone uses
+   it instead of pbBuild.Value >= 100.
+5. uDebugLog: the lock is never freed (no finalization;
+   RegisterExpectedMemoryLeak for ReportMemoryLeaksOnShutdown). A worker
+   between "Lock = nil" and Acquire at shutdown used a freed lock.
+TO TEST: build EpubUnum (Epub.Writer), then the programs; EpubConsole
+--overlay over an existing output, and with timings that match nothing
+(the old output must still be there, no .tmp left); a queue file loaded
+twice; a job with a missing model / a part that fails (job FAILED, no
+transcript kept); close EpubBuilder during a build (no error on exit, no
+leak report).
+FOUND AND NOT FIXED (owner to decide):
+- Repo: CLAUDE.md says PRIVATE, an anonymous clone works - public, and
+  no LICENSE file.
+- TEpubView.Fonts: MakeFromName returning nil for every style registers
+  nothing under 'EpubView Text' -> every paragraph asks the system again
+  (the hang): fall back to TSkTypeface.MakeDefault. Characters the face
+  lacks still go to the system per paragraph (test Greek / CJK / symbols
+  on Linux). The em-space indent needs U+2003 in the font: a placeholder
+  of the indent's width instead. 'monospace' is no Windows family
+  (Consolas / Menlo per platform). MonoFamily, ParagraphSpacing,
+  PageMargin setters do not lay out again. Pictures are read and decoded
+  again on every layout.
+- uBuilder: Cancel reads FRun while the thread may free it; FormClose
+  sets OnLog / OnProgress / OnStatus to nil while the thread copies them
+  (leave them: WaitFor delivers the queued lines while the form lives);
+  the log listener is never removed; StartBuild checks FBuild but not
+  FQueueRunning (a dialog answered in the 50 ms between jobs); SaveQueue
+  writes in place (temp + rename); the report's verdict column is not
+  quoted, an error with a line break splits the Markdown bullet and the
+  job's note, no report after Cancel, ChapterMarks counts every part.
+- uMain: BuildChapters' K > ReadCount (30 read contents chapters and 31
+  audio files -> the marks, the book's titles lost: give a mark the
+  contents title when it is within a few words of a read entry);
+  ClipFromWord and ClipAt are linear (ClipAt scans every clip on each
+  tick in a gap between words); tmPlayTimer's Max(FClip, 0) can start
+  clip 0 when a file ends before a clip matched; extracted audio stays
+  until the reader closes (stored audio could be played in place with
+  FFmpeg's subfile: protocol).
+- tools: redist.sh package lists sonames from ldd - with real link
+  chains the versioned file stays in core and the cuda / rocm part gets
+  a dangling link (check with tar tzvf; dlopen'ed libraries land in
+  core); deploy_redist.py deploys libX.so and libX.so.N as two full
+  copies after scp (drop equal files by hash - may bring the set under
+  2 GiB).
+- Leftovers: remove EPUBREADER_NO_COVERS; EPUBREADER_FONT -> a "font"
+  setting or remove; deploy entries out of git (a --remove switch, a
+  project_check rule); a Windows default platform.
+
 ## Pushes checked
+- e00fb17 ("Claude push", 2026-11-16 21:25) = zip 72 (the handover);
+  cloned shallow for the review, not compared file by file.
 - d242ae1 (2026-11-16 21:18) = zips 64 - 71: every delivered file
   identical; the .dproj files carry deploy_redist.py's entries (115 / 16).
   whisper-dev 9fa21dc = its 19 - 20.

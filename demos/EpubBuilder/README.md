@@ -75,7 +75,10 @@ queue goes on with the jobs not done). **Remove**, **Up** and **Down**
 change the queue (not the job running); a double click puts a job's
 choices back into the window. **Save...** writes the queue to a JSON file
 and **Load...** adds the jobs of one, so a list of books can be prepared
-and run later. Each build's log is kept beside its output as
+and run later. Loading asks nothing, so it says what it did in the log: a
+job whose output is its own book, or whose output a job of the queue
+writes already, is left out; a job whose output is there already is added
+with a note that it will be replaced. Each build's log is kept beside its output as
 `<output>.log` (Create's too), and the list shows each job's state, the
 time it took or why it failed.
 

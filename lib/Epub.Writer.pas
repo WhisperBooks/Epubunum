@@ -169,9 +169,12 @@ type
     { Forgets the chapter marks. }
     procedure ClearAudioChapters;
     { Writes the book with its overlays to AFileName (not the book's own
-      file). A file left half written by an error is deleted.
+      file). The book is written to AFileName + '.tmp' and takes the name
+      AFileName only when it is complete: an error leaves a file that was
+      at AFileName before as it was, and no half written file.
       @raises(EEpubError when there is nothing to write, AFileName is the
-        book, or a tagged document does not check.) }
+        book, a tagged document does not check, or the file at AFileName
+        cannot be replaced (open in another program).) }
     procedure SaveToFile(const AFileName: string);
     { Clip per word (default) or per block. }
     property Level: TEpubOverlayLevel read FLevel write FLevel;
@@ -1715,9 +1718,11 @@ var
   FS: TFormatSettings;
   OpfDoc: TEpubXmlDoc;
   Metas: TEpubXmlNodeArray;
+  Tmp: string;
 begin
   if SameText(ExpandFileName(AFileName), ExpandFileName(FBook.FileName)) then
     raise EEpubError.CreateFmt('%s is the book being read: write the new book to another file', [AFileName]);
+  Tmp := AFileName + '.tmp';
   FReport := Default(TEpubWriteReport);
   Job := TSaveJob.Create(Self);
   try
@@ -1791,11 +1796,17 @@ begin
           Job.Report.Warnings := Job.Report.Warnings + Format('%s is %s: EPUB 3 readers are only required to ' +
             'play MP3 and AAC (MP4), so others may stay silent'#10, [FAudioPaths[I],
             AudioMediaType(FAudioPaths[I])]);
-      Job.WriteArchive(AFileName);
+      // to a file of its own, renamed when complete: a failure - before
+      // or while writing - must not cost the book that was there
+      Job.WriteArchive(Tmp);
+      if FileExists(AFileName) and not DeleteFile(AFileName) then
+        raise EEpubError.CreateFmt('%s cannot be replaced (is it open in another program?)', [AFileName]);
+      if not RenameFile(Tmp, AFileName) then
+        raise EEpubError.CreateFmt('%s cannot be renamed to %s', [Tmp, AFileName]);
       FReport := Job.Report;
     except
-      if FileExists(AFileName) then
-        DeleteFile(AFileName);
+      if FileExists(Tmp) then
+        DeleteFile(Tmp);
       raise;
     end;
   finally

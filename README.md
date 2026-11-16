@@ -95,6 +95,10 @@ finally
 end;
 ```
 
+`SaveToFile` writes to `book-synced.epub.tmp` and gives the book its name
+only when it is complete: an error leaves a file that was there before
+untouched, and no half written one.
+
 - **Word level** (default): every timed word gets `<span id="eu-wN">`
   (a word already alone in an element with an id keeps that id, so writing
   a book again adds nothing); **block level**: the paragraph, heading or
