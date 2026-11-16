@@ -288,7 +288,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 49.
+Last number used: 50.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -1147,6 +1147,36 @@ all compiled first time). Hints fixed: H2443 TJSONArray.GetValue not
 inlined - System.Generics.Collections added to both units' uses; H2219
 mnuBar never used on Windows - declared only under LINUX (not ANDROID),
 where it is used.
+
+## Zip 50 (on top of ab2c7d6): redistributables collected in Epubunum
+Owner: "The only applications that need running ATM are in epubunum -
+that's the only one that NEEDS a deploy so placing all redistributables
+there makes sense" (macOS / Linux deploys in view). redistributable_bin/
+(README tracked; the platform folders and libraries are ignored by the
+existing .gitignore) + tools/redist.sh (POSIX sh, LF - NEW SCRIPT: the
+owner sets the executable bit: git update-index --chmod=+x
+tools/redist.sh) and tools/redist.bat (CRLF):
+- collect WHISPER_DEV FFMPEG_DEV: this machine's platform (Linux64;
+  OSXARM64 / OSX64 by uname -m; Windows: Win64) from whisper-dev's dlls
+  (or a folder holding the libraries - TWhisper's redistributable_bin\Win64)
+  and ffmpeg-dev's dlls/<target>, plus licences/ (FFmpeg's LGPL texts,
+  LICENSE.md, BUILD-INFO.txt; whisper.cpp's LICENSE). Windows: robocopy /e
+  without debug\, so HIP's rocblas\library comes along.
+- deploy PLATFORM TARGET: Linux - next to the program, EpubReader.sh too
+  when EpubReader is there (chmod +x); macOS - TARGET.app's
+  Contents/Frameworks, each dylib codesigned (CODESIGN_ID or ad hoc),
+  licences in Contents/Resources/licences; Windows (redist.bat deploy
+  TARGET) - next to the .exe.
+TESTED here (Linux): collect from whisper-dev d8a2183 + ffmpeg-dev
+7566f9c builds -> 42 files + licences; deploy into a folder with the
+FPC-built WhisperConsole / FFmpegConsole: both load every library from
+there (layout check passed), EpubReader.sh copied, executable. macOS
+and Windows paths NOT run here.
+Push ab2c7d6 checked: = zips 42 - 49 (CR LF aside); EpubReader.dproj
+re-saved by the IDE (Cfg_2 blocks for OSX64 / OSXARM64 / Win64 -
+harmless, keep). TWhisper d669a06 = TWhisper-30, whisper-dev d8a2183 =
+whisper-dev-01, ffmpeg-dev 7566f9c = ffmpeg-dev-07, TFFMpegAPI 3edcfa3
+unchanged this session.
 
 ## Pushes checked
 - 4d7dfbe ("Claude push", 2026-11-15 22:58): the repo's head at the

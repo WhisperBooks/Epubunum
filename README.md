@@ -172,6 +172,23 @@ TFFMpegAPI's `FFmpegAPI`): build TWhisper's packages before it.
 Platforms: Win32 / Win64, macOS (x64, ARM), Linux64, Android64 for the
 packages; the demos are desktop. iOS can follow (pure Pascal).
 
+## Redistributables (deploying the programs)
+
+EpubReader and EpubBuilder need whisper.cpp's libraries (built by
+whisper-dev; the reader does not) and FFmpeg's (built by ffmpeg-dev) at
+run time. `tools/redist.sh` (Linux, macOS) and `tools\redist.bat`
+(Windows) collect both sets into `redistributable_bin/<platform>/` and
+deploy them next to a built program, or into a macOS app's
+`Contents/Frameworks` - see `redistributable_bin/README.md`.
+
+```
+tools/redist.sh collect ../whisper-dev ../ffmpeg-dev
+```
+
+```
+tools/redist.sh deploy Linux64 demos/EpubBuilder/Linux64/Release
+```
+
 ## SteamOS, Linux and Proton
 
 The reader carries TSteamAPI's platform fixes (unchanged copies, see
@@ -183,6 +200,8 @@ build under Proton, and on Linux a menu bar drawn by FMX instead of GTK's
 ## Layout
 
 - `lib/Epub.inc` - compiler and platform defines.
+- `redistributable_bin/` - the libraries the programs need, per platform
+  (not tracked; `tools/redist.sh` / `redist.bat` fill and deploy them).
 - `tools/gen_projects.py` - generates the .dproj files and the groupproj
   (missing files only; `--force` rewrites them). Once the IDE has saved a
   file, the IDE's version is authoritative.
