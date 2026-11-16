@@ -31,6 +31,16 @@ Next to the program, or on PATH:
 A Whisper model file (`ggml-large-v3-turbo.bin` is a good choice) is
 chosen in the window.
 
+## Debug log
+
+Every run writes `EpubBuilder-debug.log` next to the settings
+(`%APPDATA%\EpubBuilder` on Windows, `~/Library/Application Support/
+EpubBuilder` on macOS, `~/.config/EpubBuilder` on Linux; the window's log
+shows the path): the build's steps, the devices, whisper.cpp's and ggml's
+own lines, each written to the file at once. When the builder disappears
+without a message (a library crashed), the last lines say what it was
+doing. The previous run's log is kept as `EpubBuilder-debug.log.old`.
+
 ## Using it
 
 1. **Choose...** the EPUB. Its title and word count are shown; a
@@ -68,6 +78,17 @@ and **Load...** adds the jobs of one, so a list of books can be prepared
 and run later. Each build's log is kept beside its output as
 `<output>.log` (Create's too), and the list shows each job's state, the
 time it took or why it failed.
+
+When the queue has run, a **report** is written beside the queue file
+with its name (`books.json` gives `books.md` and `books.csv`; a queue
+never saved: `EpubBuilder-report-<date-time>` beside the first output):
+the Markdown file has a table - time, audio length, speed, matched %,
+verdict, EPUB size per book - and a section per book with every figure
+(transcription time, model, device, words exact / similar / moved /
+interpolated / not heard / not spoken, front and back matter, reading
+speed, clips, chapter marks); the CSV has all of them for a spreadsheet.
+The queue file is saved again after each job, so it always says which
+books are done.
 
 The book's language (its `dc:language`, e.g. `de`) is the language
 Whisper transcribes in - never translated - and the prompt that keeps

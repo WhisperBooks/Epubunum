@@ -288,7 +288,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 51.
+Last number used: 57.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -534,6 +534,36 @@ contributing components / systems" - reader first, then TFFMpegAPI etc.
   system usage". Deploy: EpubReader.exe, sk4d.dll, FFmpeg's avutil-60,
   swresample-6, avcodec-62, avformat-62 (+ swscale-9, avfilter-11 for
   the speed slider), the .epub (audio inside).
+- VIDEO IN BOOKS - GAME MANUALS (owner, 2026-11-16: "developers having
+  epub3 manuals for games ... the addition of video would allow for things
+  like playing the intro cut-scene or maybe used to illustrate some game
+  mechanics"; "a definite shall we do this"; after the Linux / macOS work
+  unless the owner moves it). EPUB 3 allows HTML5 <video> in content
+  documents; no core video type (MP4 H.264 + AAC is the safe choice, WebM
+  the other), video is exempt from fallbacks; media overlays stay audio
+  only (a video cannot drive the highlight). Apple Books / Thorium play
+  it, Kobo / Kindle conversions mostly do not. Today: TEpubWriter copies
+  videos unchanged; TEpubView shows only text and pictures. Steps:
+  1. Layout: <video> a block like <img> (Epub.Layout: kind, src, poster,
+     width / height or the video's own size).
+  2. View: the poster (or the first frame, decoded by FFmpeg) with a play
+     mark; a click plays.
+  3. Playing in place: TFFMpegAPI's video decoding (swscale side,
+     FHasVideo) into an ISkImage the view redraws; its sound through
+     TFFmpegAudioPlayer with the narration paused; controls (play /
+     pause, seek bar, full screen - cut-scenes, the Steam Deck). The real
+     work of the item.
+  4. Straight from the book: videos are stored (not deflated) in the
+     EPUB, so FFmpeg can read the entry in place (custom AVIOContext over
+     the zip's data range, TEpubZipReader.ReadRaw / the entry's offset)
+     instead of extracting to the temp folder as narration audio is now.
+     A TFFMpegAPI change.
+  5. Authoring note for developers: MP4 (H.264 + AAC), a poster image,
+     fallback text, sizes; nothing to change in the writer. Our FFmpeg is
+     LGPL: decoding H.264 is fine; encoding it is the developers' tool's
+     job (GPL x264 builds).
+  Fits the Steam side: a manual readable on the Deck, opened from the
+  game or Steam (TSteamAPI).
 - Say a sentence, then step through its words.
 - The current word shown large in a strip under the page.
 - Remember reader settings between runs (dark mode, step unit, text
@@ -1187,6 +1217,149 @@ Ubuntu 26.04 needed glibc 2.43.
 Push 6207694 checked: = zip 50 file by file; tools/redist.sh pushed as
 100644 - needs git update-index --chmod=+x tools/redist.sh (until then:
 sh tools/redist.sh ...).
+
+## Zip 52 (on top of 7a6a902): the queue's report
+Owner: "at the end it should output a report summarizing the job run.
+For each transcription all the numbers basically inc time taken size of
+final epub, quality score etc"; "JobQueues will have a filename so just
+call the report same name .md". TBuildSummary (audio length, files,
+parts, saved transcript, transcription time, model, device, language,
+heard words, TWhisperAlignStats, front / back matter words, matched %,
+short verdict, clips, left out, chapter marks, upgraded, error), filled
+by TBuildThread (Execute, LogResults) and read in BuildDone through
+TBuildThread.Summary into the job (+ Started, Seconds, OutputBytes from
+TFile.GetSize). RunNextJob's end -> WriteQueueReport: <queue file>.md
+(table: time, audio, speed, matched, verdict, EPUB MB; totals; a section
+per job with every figure) and <queue file>.csv (34 columns, '.'
+decimals, quoted texts); FQueueFile = the last loaded / saved queue file
+(none: EpubBuilder-report-<yyyy-mm-dd-hhnn> beside the first job's
+output). The queue file is saved after each job while the queue runs.
+Jobs loaded from a file and not run in this session: "Not run in this
+session". NOT COMPILED here (no Delphi).
+
+## Zip 54 (on top of 53): audiobook chapters chosen by a stricter test
+Owner, Night Watch rebuilt from its transcript (75 parts: Opening
+Credits, Chapter 1 - 73, Closing Credits - checked in the transcript JSON
+he sent; structure only): still no chapters in the reader. Cause (by
+reading): BuildChapters counted a contents entry as "read" when any clip
+fell between it and the next entry - Night Watch's front-matter entries
+reach across the whole narrated text to "About the Author", so two of
+them counted and the marks were not used. Now ReadAtStart: the entry's
+first clip within READ_START_WORDS (50) of its first word (a read
+heading). Merged mode keeps the entries not read at their start (title,
+copyright, about the author). Moby-Dick: its chapters start with their
+read headings - unchanged. NOT COMPILED here. TO TEST: Night Watch (the
+rebuilt EPUB - its build log must say "Chapter marks: 75"; inside the
+EPUB: OPS/.../epubunum-audio-chapters.xml): the contents list shows the
+75 marks among the front / back matter entries; Moby-Dick unchanged.
+
+## Zip 55 (on top of 54): the chapter choice, second fix
+Owner's screenshot (zip 54): Night Watch's contents list is Map, Begin
+Reading, About the Author, Praise, Other Books, Copyright, About the
+Publisher - still the contents list. "Begin Reading" is read at its start
+(1), and the Map page (a few words) was followed by the narration on the
+NEXT page within 50 words (2) -> ReadCount 2. Now: ReadAtStart also
+needs the first clip on the entry's own document; and the marks are used
+when K >= 2 and K > ReadCount (more audiobook chapters than read contents
+chapters - Night Watch 75 > 1; Moby-Dick's contents list is its read
+chapters, so it keeps it). FChapterSource shown in the status line when
+"debug": true ("chapters: audiobook marks (75), contents read 1" or
+"contents (N read), M audiobook mark(s)") - tells at once whether the
+marks are in the book. NOT COMPILED here.
+
+## Zip 56 (on top of 55): audiobook chapters - Chapter 1, paragraphs, rules
+Owner's screenshot (zip 55 works: "chapters: audiobook marks (75),
+contents read 3"): (1) the list went Opening Credits, Chapter 2 - the
+credits have no text, so their mark fell on Chapter 1's first word and
+the first entry was kept; (2) "A Chapter starts in the middle of text?"
+- the publisher split the recording at a pause inside a paragraph;
+(3) "It would be nice to have a HR ... between chapters". Now:
+- BuildChapters: a mark's word moves to the first word of its paragraph
+  (WordBlock / FUnitLayout; the audio plays from that word's clip, the
+  same recording); marks are added with FChapterToc -2 and, of two marks
+  on one word, the later one's title is kept (Chapter 1), then made -1;
+  their words go to View1.ChapterBreaks (cleared at the start).
+- TEpubView.ChapterBreaks (public, TArray<Integer> of book words; setter
+  lays out again): LayoutItems leaves 2 lines of room above a block whose
+  first word is one (BreakBefore; not at a document's top) and records
+  TEpubViewItem.RuleY; Draw draws a centred rule there (30 % of the width
+  at most 12 em, the text colour at ~45 % alpha).
+NOT COMPILED here. TO TEST: Night Watch - Chapter 1 in the list, each
+chapter starting at a paragraph, a rule above it; chapter buttons; Moby-
+Dick unchanged (no marks used, no rules).
+
+## Zip 57 (on top of 56): redist.sh collects ROCm's kernel folders
+tools/redist.sh collect copied only *.so* from whisper-dev's dlls/, so
+the rocblas/library and hipblaslt/library folders whisper-dev-02 bundles
+for HIP were left out (HIP fails without them). Now copied (Linux64);
+deploy already copies the whole platform folder. redist.bat used robocopy
+/e already.
+
+## Zip 58 (on top of 57): EpubReader's Linux hint
+uMain's implementation uses Posix.Unistd on POSIX: the cover cache's
+System.SysUtils.DeleteFile is inline there and gave H2443 on Linux64.
+(The same Linux64 build's E2003 on ChapterBreaks was a stale EpubUnumFMX
+Linux64 DCU, from before zip 56: rebuild the packages for Linux64.)
+
+## Zip 59 (on top of 58): debug log files
+demos/common/uDebugLog.pas (new; in EpubBuilder's and EpubReader's .dpr
+and .dproj): DebugLogOpen / DebugLog / DebugLogFile - one file per run
+next to the settings (<program>-debug.log, the previous run's as .old),
+time + thread id per line, opened, appended and closed for every line so a
+native crash (ggml abort, GPU runtime) loses nothing. Builder: every
+thread Log / Status line (straight away - the queued ones die with the
+process), whisper.cpp / ggml lines through TWhisperLib.AddLogListener
+(any thread), the devices, FFmpeg loading, model load / start of the
+transcription; the window's log shows the path. Reader: start up, sound,
+library and each cover, open, chapters, play / stop / clips, closing.
+Owner's Linux test that led to it: EpubBuilder (small.en, CUDA on a 4 GB
+card) aborted in ggml-cuda - "the provided PTX was compiled with an
+unsupported toolchain": the container build had only PTX for sm_75
+(ggml's default 75-virtual) and the driver is older than CUDA 13.5;
+whisper-dev-17 builds the release with CUDA_ALL (SASS for 75/86/89/120).
+EpubReader "not responding" on Linux: not found yet - the log is for it.
+
+## Zip 60 (on top of 59): time left from the transcription's rate; Play logged
+EpubBuilder's "about ... left" came from the time since the build started
+(book, audio, model loading included) and showed 14 - 20 h on the owner's
+GTX 1650 for a 20 min base run. Now measured from the first progress past
+5 % (FRateFrom / FRatePercent), shown after a minute and 1 % of progress;
+"estimating the time left ..." until then. EpubReader: Play's steps in
+the debug log (extracting the clip's audio from the book, with its size;
+opening it in the player; play) - the owner's Linux "not responding" came
+on pressing Play, after the book had loaded.
+
+## Zip 62 (on top of 61): Linux libraries in Delphi's deployment
+tools/deploy_redist.py (new): writes a DeployFile entry (Class File,
+Platform Linux64, RemoteDir .\ or the subfolder) for every file of
+redistributable_bin/Linux64 into EpubBuilder.dproj (all) and
+EpubReader.dproj (libav* / libsw* and licences/FFmpeg-*); EpubConsole
+needs none. Replaces only the entries whose LocalName starts with
+..\..\redistributable_bin\Linux64\ (a second run changes nothing); adds an
+empty <Deployment> when the project has none (EpubBuilder had none).
+Names: libX.so and libX.so.N; libX.so.N.M.P left out when a shorter name
+is there (works on a copied folder where links became files). Owner:
+"I want a proper deploy" - a Clean through PAServer empties scratch-dir.
+The generated entries are not in the delivered .dproj files: they depend
+on the owner's folder; he runs the script on Windows. Tested on a copy
+(twice: 42 / 16 entries, then the same 42 / 16 replaced; XML parses;
+project_check 0).
+
+## Zip 63 (on top of 62): release packages of the libraries
+tools/redist.sh package PLATFORM [VERSION] and tools\redist.bat package
+[VERSION] (-> tools/redist-package.ps1, new): core / cuda / rocm parts in
+redistributable_bin/packages/ (now in .gitignore), each with its licences
+and EpubUnum-libs-<part>.txt, plus SHA256SUMS-<platform>-<version>.txt.
+Linux: GPU parts by ldd of libggml-cuda.so / libggml-hip.so with
+LD_LIBRARY_PATH = the folder, minus the shared core (ggml-base, ggml,
+whisper, gomp); rocblas/ hipblaslt/ with rocm; licences/CUDA-* and ROCm-*
+with their part. Windows: by file name patterns. collect now also copies
+whisper-dev's dlls/licences/ (Linux; whisper-dev-18 collects the bundled
+libraries' Debian copyright files and the CUDA EULA) and, on Windows,
+%CUDA_PATH%\EULA.txt and %HIP_PATH%'s LICENSE / NOTICE files.
+Tested: redist.sh package on a fake folder built with gcc (real NEEDED
+chains): parts and links right. The PowerShell script is untested here
+(no PowerShell).
 
 ## Pushes checked
 - 4d7dfbe ("Claude push", 2026-11-15 22:58): the repo's head at the

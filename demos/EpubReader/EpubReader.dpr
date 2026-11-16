@@ -27,6 +27,7 @@ uses
   FmxWineCanvas in 'src\FmxWineCanvas.pas',
   // ... and Skia's raster / Vulkan canvas when TSAPI_FMX_CANVAS asks for it
   FmxSkiaCanvas in 'src\FmxSkiaCanvas.pas',
+  uDebugLog in '..\common\uDebugLog.pas',
   uMain in 'src\uMain.pas' {frmMain};
 
 {$R *.res}

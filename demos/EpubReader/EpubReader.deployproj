@@ -1,0 +1,115 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <Import Condition="Exists('$(BDS)\bin\CodeGear.Deployment.targets')" Project="$(BDS)\bin\CodeGear.Deployment.targets"/>
+    <ProjectExtensions>
+        <ProjectFileVersion>12</ProjectFileVersion>
+    </ProjectExtensions>
+    <PropertyGroup>
+        <DeviceId Condition="'$(Platform)'=='Android'"/>
+        <DeviceId Condition="'$(Platform)'=='Android64'"/>
+        <DeviceId Condition="'$(Platform)'=='iOSDevice64'"/>
+        <DeviceId Condition="'$(Platform)'=='iOSSimARM64'"/>
+    </PropertyGroup>
+    <ItemGroup Condition="'$(Platform)'=='WinARM64EC'"/>
+    <ItemGroup Condition="'$(Platform)'=='OSX64'"/>
+    <ItemGroup Condition="'$(Platform)'=='Win32'"/>
+    <ItemGroup Condition="'$(Platform)'=='Android64'"/>
+    <ItemGroup Condition="'$(Platform)'=='Android'"/>
+    <ItemGroup Condition="'$(Platform)'=='Win64'">
+        <DeployFile Include="$(BDS)\bin64\sk4d.dll" Condition="'$(Config)'=='Debug' And '$(SKIADIR)'==''">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>sk4d.dll</RemoteName>
+            <DeployClass>Skia</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
+        <DeployFile Include="$(BDS)\bin64\sk4d.dll" Condition="'$(Config)'=='Release' And '$(SKIADIR)'==''">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>sk4d.dll</RemoteName>
+            <DeployClass>Skia</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
+        <DeployFile Include="$(SKIADIR)\Binary\Shared\Win64\sk4d.dll" Condition="'$(Config)'=='Debug' And '$(SKIADIR)'!=''">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>sk4d.dll</RemoteName>
+            <DeployClass>Skia</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
+        <DeployFile Include="$(SKIADIR)\Binary\Shared\Win64\sk4d.dll" Condition="'$(Config)'=='Release' And '$(SKIADIR)'!=''">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>sk4d.dll</RemoteName>
+            <DeployClass>Skia</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
+    </ItemGroup>
+    <ItemGroup Condition="'$(Platform)'=='OSXARM64'"/>
+    <ItemGroup Condition="'$(Platform)'=='iOSDevice64'"/>
+    <ItemGroup Condition="'$(Platform)'=='iOSSimARM64'"/>
+    <ItemGroup Condition="'$(Platform)'=='Win64x'"/>
+    <ItemGroup Condition="'$(Platform)'=='Linux64'">
+        <DeployFile Include="Linux64\Debug\EpubReader" Condition="'$(Config)'=='Debug'">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>EpubReader</RemoteName>
+            <DeployClass>ProjectOutput</DeployClass>
+            <Operation>1</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
+        <DeployFile Include="$(SKIADIR)\Binary\Shared\Linux64\libsk4d.so" Condition="'$(Config)'=='Debug' And '$(SKIADIR)'!=''">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>libsk4d.so</RemoteName>
+            <DeployClass>Skia</DeployClass>
+            <Operation>1</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
+        <DeployFile Include="$(SKIADIR)\Binary\Shared\Linux64\libsk4d.so" Condition="'$(Config)'=='Release' And '$(SKIADIR)'!=''">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>libsk4d.so</RemoteName>
+            <DeployClass>Skia</DeployClass>
+            <Operation>1</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
+        <DeployFile Include="$(BDS)\binlinux64\libsk4d.so" Condition="'$(Config)'=='Debug' And '$(SKIADIR)'==''">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>libsk4d.so</RemoteName>
+            <DeployClass>Skia</DeployClass>
+            <Operation>1</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
+        <DeployFile Include="$(BDS)\binlinux64\libsk4d.so" Condition="'$(Config)'=='Release' And '$(SKIADIR)'==''">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>libsk4d.so</RemoteName>
+            <DeployClass>Skia</DeployClass>
+            <Operation>1</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
+    </ItemGroup>
+</Project>

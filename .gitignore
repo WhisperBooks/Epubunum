@@ -34,3 +34,5 @@ Android64/
 *.ppu
 *.a
 link.res
+# release archives made by tools/redist.sh package
+redistributable_bin/packages/

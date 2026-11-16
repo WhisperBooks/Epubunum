@@ -8,6 +8,11 @@ rem     fills redistributable_bin\Win64 from WHISPER_DEV\dlls (or
 rem     WHISPER_DEV itself when it holds the DLLs - TWhisper's
 rem     redistributable_bin\Win64 will do) and FFMPEG_DEV\dlls\windows-x64,
 rem     with their licence texts
+rem   tools\redist.bat package [VERSION]
+rem     packs redistributable_bin\Win64 for a release, in
+rem     redistributable_bin\packages: core, cuda and rocm .zip parts that
+rem     unpack into one folder, with their licences, and SHA256SUMS
+rem     (tools\redist-package.ps1; VERSION defaults to today's date)
 rem   tools\redist.bat deploy TARGET
 rem     copies redistributable_bin\Win64 next to a built program (TARGET:
 rem     its folder, e.g. demos\EpubBuilder\Win64\Release)
@@ -18,6 +23,7 @@ set "ROOT=%~dp0.."
 set "OUT=%ROOT%\redistributable_bin\Win64"
 if /i "%~1"=="collect" goto collect
 if /i "%~1"=="deploy" goto deploy
+if /i "%~1"=="package" goto package
 goto usage
 
 :collect
@@ -44,6 +50,14 @@ for %%f in (COPYING.LGPLv2.1 COPYING.LGPLv3 LICENSE.md BUILD-INFO.txt) do (
   if exist "%FDIR%\%%f" copy /y "%FDIR%\%%f" "%OUT%\licences\FFmpeg-%%f" >nul
 )
 if exist "%~2\whisper.cpp\LICENSE" copy /y "%~2\whisper.cpp\LICENSE" "%OUT%\licences\whisper.cpp-LICENSE.txt" >nul
+rem NVIDIA's licence with its runtime (cudart / cuBLAS: attachment A),
+rem AMD's HIP SDK licence texts with theirs
+if exist "%OUT%\ggml-cuda.dll" if exist "%CUDA_PATH%\EULA.txt" copy /y "%CUDA_PATH%\EULA.txt" "%OUT%\licences\CUDA-EULA.txt" >nul
+if exist "%OUT%\ggml-hip.dll" if defined HIP_PATH (
+  for %%f in ("%HIP_PATH%\*LICENSE*" "%HIP_PATH%\*NOTICE*") do (
+    if exist "%%~f" copy /y "%%~f" "%OUT%\licences\ROCm-%%~nxf" >nul
+  )
+)
 echo Collected in %OUT%
 exit /b 0
 
@@ -62,11 +76,16 @@ if errorlevel 8 goto failed
 echo Libraries copied next to the program in %~2
 exit /b 0
 
+:package
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0redist-package.ps1" %2
+exit /b %errorlevel%
+
 :failed
 echo Copying failed
 exit /b 1
 
 :usage
 echo tools\redist.bat collect WHISPER_DEV FFMPEG_DEV
+echo tools\redist.bat package [VERSION]
 echo tools\redist.bat deploy TARGET
 exit /b 1

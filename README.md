@@ -138,7 +138,10 @@ height, paragraph spacing, page margin and colours are properties. It lays out
 each block with Skia's paragraph engine (`TSkParagraph`) and draws the
 highlight from the paragraph's range rectangles. `ShowProgress` adds a
 strip under the text with how far through the book the view is
-(`Progress`, by words - the text size does not change it). When the component opens
+(`Progress`, by words - the text size does not change it).
+`ChapterBreaks` (book word indexes) draws a short centred rule, with room
+around it, above the paragraphs that start chapters the book itself does
+not mark (EpubReader: an audiobook's chapters). When the component opens
 another book the view notices (`TEpubUnum.BookSerial`): it draws an empty
 page until `ShowDocument` is called for the new book, and never the old
 book's text. A picture that cannot be read is left out; the text goes on.

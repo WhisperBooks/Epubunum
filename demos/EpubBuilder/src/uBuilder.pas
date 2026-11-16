@@ -18,9 +18,51 @@ uses
   FMX.ListBox, FMX.Edit, FMX.Memo, FMX.Memo.Types, FMX.ScrollBox, FMX.Controls.Presentation,
   Epub.Zip, Epub.Book, Epub.Layout, Epub.Writer,
   FFmpeg.API,
-  Whisper.Types, Whisper.API, Whisper.Audio, Whisper.Core, Whisper.Words, Whisper.Align, Whisper.AudioSet;
+  Whisper.Types, Whisper.API, Whisper.Audio, Whisper.Core, Whisper.Words, Whisper.Align, Whisper.AudioSet,
+  uDebugLog;
 
 type
+  { The figures of one build, for the queue's report (filled by the
+    thread as it goes; read in BuildDone). }
+  TBuildSummary = record
+    { Length of the audio, s. }
+    AudioSeconds: Double;
+    { Audio files. }
+    Files: Integer;
+    { Parts (chapters of the files, or the files). }
+    Parts: Integer;
+    { A saved transcript was used (no transcription). }
+    SavedTranscript: Boolean;
+    { Time the transcription took, s (0 with a saved transcript). }
+    TranscribeSeconds: Double;
+    { The model (file name; a saved transcript's own when it names one). }
+    Model: string;
+    { The device ('' = whisper.cpp's default). }
+    Device: string;
+    { The language transcribed ('' = not given). }
+    Language: string;
+    { Words Whisper heard. }
+    HeardWords: Integer;
+    { The aligner's figures. }
+    Stats: TWhisperAlignStats;
+    { Not spoken words that are front and back matter. }
+    EdgeWords: Integer;
+    { Share of the timed words matched to what was heard, %. }
+    Matched: Double;
+    { 'very good', 'good', 'usable', 'poor' ('' = not aligned). }
+    Verdict: string;
+    { Clips written. }
+    Clips: Integer;
+    { Timed words the writer left out. }
+    LeftOut: Integer;
+    { Chapter marks written. }
+    ChapterMarks: Integer;
+    { The book was EPUB 2 and is EPUB 3 now. }
+    Upgraded: Boolean;
+    { Why it failed ('' = it did not). }
+    Error: string;
+  end;
+
   { Builds one read-along EPUB on its own thread. Messages and progress
     reach the window through TThread.Queue. }
   TBuildThread = class(TThread)
@@ -69,6 +111,8 @@ type
     FPartCount: Integer;
     { Where the part being transcribed starts on the joined time line, s. }
     FPartOffset: Double;
+    { Backing field of @link(Summary). }
+    FSummary: TBuildSummary;
     { Sends AText to OnLog. }
     procedure Log(const AText: string);
     { Sends APercent to OnProgress. }
@@ -123,6 +167,8 @@ type
     property OnProgress: TProc<Double> read FOnProgress write FOnProgress;
     { Receives what is being done now. }
     property OnStatus: TProc<string> read FOnStatus write FOnStatus;
+    { The build's figures (complete once it has ended). }
+    property Summary: TBuildSummary read FSummary;
   end;
 
   { Where a job of the queue is. }
@@ -161,6 +207,14 @@ type
     State: TJobState;
     { What happened ('' = nothing yet): the time taken, or why it failed. }
     Note: string;
+    { When it started (0 = not run in this session). }
+    Started: TDateTime;
+    { Time it took, s. }
+    Seconds: Double;
+    { Size of the EPUB written, bytes (0 = none). }
+    OutputBytes: Int64;
+    { The build's figures (from this session's run). }
+    Summary: TBuildSummary;
   end;
 
   { The builder's window. }
@@ -170,6 +224,13 @@ type
     { Stops a build before the window goes. }
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
   private
+    { whisper.cpp's and ggml's log lines into the debug log (any thread).
+      @param(Sender  the library)
+      @param(ALevel  the line's level)
+      @param(AText  the line) }
+    procedure WhisperLog(Sender: TObject; ALevel: TWhisperLogLevel; const AText: string);
+  private
+    // (a new section: Delphi allows no field after a method in one)
     { The book's side. }
     layBook: TLayout;
     { The audio's side. }
@@ -215,6 +276,11 @@ type
     FBuild: TBuildThread;
     { When the build started. }
     FStarted: TDateTime;
+    { When the transcription's progress started to count (the first
+      progress past the 5 % of reading the book and the audio). }
+    FRateFrom: TDateTime;
+    { The progress at FRateFrom; -1 = not there yet. }
+    FRatePercent: Double;
     { The book of the build running (copied to FMadeBook when it ends well). }
     FRunBook: string;
     { The output of the build running (copied to FMadeOut when it ends well). }
@@ -265,6 +331,9 @@ type
     FLogging: Boolean;
     { Folder of the last queue file loaded or saved. }
     FQueueFolder: string;
+    { The queue's file (the last loaded or saved; '' = none yet): the
+      report takes its name, and it is saved again after each job. }
+    FQueueFile: string;
     { A label above AParent's next control. }
     function AddCaption(AParent: TFmxObject; const AText: string): TLabel;
     { A row in AParent: a caption, then a control filling it. }
@@ -321,6 +390,10 @@ type
     function JobText(AIndex: Integer): string;
     { Starts the next waiting job; ends the run when there is none. }
     procedure RunNextJob;
+    { Writes the queue's report: <queue file>.md (a table and a section
+      per job) and .csv (every figure, for a spreadsheet); a queue never
+      saved: EpubBuilder-report-<date-time> beside the first job's output. }
+    procedure WriteQueueReport;
     { tmQueue: RunNextJob. }
     procedure tmQueueTimer(Sender: TObject);
     { Add to queue. }
@@ -547,6 +620,7 @@ procedure TBuildThread.Log(const AText: string);
 var
   P: TProc<string>;
 begin
+  DebugLog(AText);
   P := FOnLog;
   if Assigned(P) then
     TThread.Queue(nil,
@@ -573,6 +647,7 @@ procedure TBuildThread.Status(const AText: string);
 var
   P: TProc<string>;
 begin
+  DebugLog('status: ' + AText);
   P := FOnStatus;
   if Assigned(P) then
     TThread.Queue(nil,
@@ -599,12 +674,14 @@ function TBuildThread.OpenFFmpeg: TFFmpegLibrary;
 var
   First: string;
 begin
+  DebugLog('FFmpeg: loading (the program''s folder / the system)');
   try
     Result := TFFmpegLibrary.Create('');
   except
     on E: EFFmpegError do
     begin
       First := E.Message;
+      DebugLog('FFmpeg: ' + First + ' - trying the whisper.cpp folder');
       if not TWhisperLib.IsLoaded then
         raise;
       try
@@ -766,7 +843,9 @@ begin
   if not WhisperEnableDtw(FModelFile, CP) then
     Log('The model header cannot be read for DTW: word times come from token time stamps');
   Log(Format('Loading %s ...', [ExtractFileName(FModelFile)]));
+  DebugLog(Format('model %s, device "%s", GPU %s', [FModelFile, FDevice, BoolToStr(CP.use_gpu, True)]));
   Model := TWhisperModel.Create(FModelFile, CP);
+  DebugLog('model loaded');
   Params := TWhisperParams.Create;
   try
     Log(Format('Model: %s on %s', [Model.Description, IfThen(FDevice = '', 'the default device', FDevice)]));
@@ -787,6 +866,7 @@ begin
     else
       Log(Format('Transcribing in %s, each 30 s window on its own; no prompt for this language yet, so the ' +
         'text may lack capitals and punctuation (the alignment does not need them)', [Params.Language]));
+    DebugLog('starting the transcription');
     FRun := TWhisperRun.Create(Model, Params);
     try
       FRun.IncludeWords := True;
@@ -878,6 +958,17 @@ begin
     Share := Matched * 100 / Timed
   else
     Share := 0;
+  FSummary.HeardWords := AHeard;
+  FSummary.Stats := AStats;
+  FSummary.Matched := Share;
+  if Share >= 98 then
+    FSummary.Verdict := 'very good'
+  else if Share >= 93 then
+    FSummary.Verdict := 'good'
+  else if Share >= 80 then
+    FSummary.Verdict := 'usable'
+  else
+    FSummary.Verdict := 'poor';
   if Share >= 98 then
     Verdict := 'very good'
   else if Share >= 93 then
@@ -912,6 +1003,7 @@ begin
   for I := 0 to High(ARegions) do
     if (ARegions[I].Match = wamNotSpoken) and ((ARegions[I].Last < FirstRead) or (ARegions[I].First > LastRead)) then
       Inc(Edges, ARegions[I].Last - ARegions[I].First + 1);
+  FSummary.EdgeWords := Edges;
   if Edges > 0 then
     Log(Format('  Of the not spoken words, %d are before the first or after the last word read: front and back ' +
       'matter, normal (not listed below; the text is still in the book).', [Edges]));
@@ -974,6 +1066,7 @@ var
   Writer: TEpubWriter;
   Report: TEpubWriteReport;
   I, N: Integer;
+  Started: TDateTime;
 begin
   Book := nil;
   FF := nil;
@@ -1012,6 +1105,11 @@ begin
       FTotalSeconds := 0;
       for I := 0 to High(Audio.Parts) do
         FTotalSeconds := FTotalSeconds + Audio.Parts[I].Duration;
+      FSummary.AudioSeconds := FTotalSeconds;
+      FSummary.Files := Audio.Files.Count;
+      FSummary.Parts := Length(Audio.Parts);
+      FSummary.Device := FDevice;
+      FSummary.Language := FLanguage;
       Log(Format('Audio: %d file(s), %d part(s), about %s', [Audio.Files.Count, Length(Audio.Parts),
         WhisperTimeToStr(Round(FTotalSeconds * 100))]));
       Progress(5);
@@ -1021,6 +1119,8 @@ begin
       // 3. the transcript: a saved one when it fits, else transcribed
       if ReadSaved(Audio.Parts, R, Parts) then
       begin
+        FSummary.SavedTranscript := True;
+        FSummary.Model := FSavedModel;
         if Pos(TRIMMED_MARK, WhisperLoadTextFile(FJsonFile)) = 0 then
         begin
           TrimSaved(R, Audio);
@@ -1033,7 +1133,10 @@ begin
       else
       begin
         Status('Loading the model ...');
+        Started := Now;
         R := Transcribe(Audio);
+        FSummary.TranscribeSeconds := MilliSecondsBetween(Now, Started) / 1000;
+        FSummary.Model := ExtractFileName(FModelFile);
         if Terminated then
         begin
           Log('Cancelled');
@@ -1080,6 +1183,11 @@ begin
       Status('Writing the book (the audio is copied in) ...');
       Writer.SaveToFile(FOutFile);
       Report := Writer.Report;
+      FSummary.Clips := Report.Clips;
+      FSummary.LeftOut := Report.Skipped;
+      FSummary.Upgraded := Report.Upgraded;
+      if Length(Parts) >= 2 then
+        FSummary.ChapterMarks := Length(Parts);
       Log(Format('Done: %d document(s), %d clip(s), %d timed word(s) left out', [Report.Documents,
         Report.Clips, Report.Skipped]));
       if Length(Parts) >= 2 then
@@ -1096,6 +1204,7 @@ begin
       begin
         Log('FAILED: ' + E.Message);
         Status('Failed: ' + E.Message);
+        FSummary.Error := E.Message;
       end;
     end;
   finally
@@ -1321,13 +1430,20 @@ var
   I: Integer;
 begin
   OnCloseQuery := FormCloseQuery;
+  // the debug log: next to the settings, started afresh at every run
+  DebugLogOpen(ChangeFileExt(SettingsFile, '-debug.log'));
   FJob := -1;
   FBuildLog := TStringList.Create;
   BuildWindow;
   cbDevice.Items.Add('Default (whisper.cpp chooses)');
   try
+    DebugLog('whisper.cpp: loading');
     Lib := TWhisperLib.Load;
+    // whisper.cpp's and ggml's own lines (every level), as they are written
+    Lib.AddLogListener(WhisperLog);
     FDevices := Lib.SelectableDevices;
+    for I := 0 to High(FDevices) do
+      DebugLog('device: ' + WhisperDeviceText(FDevices[I]));
     for I := 0 to High(FDevices) do
       cbDevice.Items.Add(WhisperDeviceText(FDevices[I]));
     LogLine(Format('whisper.cpp %s loaded from %s', [Lib.Version, Lib.LibraryFolder]));
@@ -1347,7 +1463,13 @@ begin
   cbDevice.ItemIndex := 0;
   LoadSettings;
   LogLine('Choose the EPUB, add its audio files in reading order, choose the model (ggml-*.bin), Create.');
+  LogLine('Debug log: ' + DebugLogFile);
   UpdateControls;
+end;
+
+procedure TfrmBuilder.WhisperLog(Sender: TObject; ALevel: TWhisperLogLevel; const AText: string);
+begin
+  DebugLog('whisper.cpp: ' + AText);
 end;
 
 procedure TfrmBuilder.LoadSettings;
@@ -1456,6 +1578,7 @@ end;
 
 procedure TfrmBuilder.LogLine(const AText: string);
 begin
+  DebugLog(AText);
   mmLog.Lines.Add(AText);
   mmLog.GoToTextEnd;
   if FLogging and (FBuildLog <> nil) then
@@ -1863,6 +1986,13 @@ begin
     begin
       pbBuild.Value := APercent;
       FPercent := APercent;
+      // the time left is measured from here: what came before (the book,
+      // the audio, loading the model) does not repeat
+      if (FRatePercent < 0) and (APercent > 5) then
+      begin
+        FRateFrom := Now;
+        FRatePercent := APercent;
+      end;
     end;
   FBuild.OnStatus :=
     procedure(AText: string)
@@ -1871,6 +2001,7 @@ begin
       ShowStatus;
     end;
   FPercent := 0;
+  FRatePercent := -1;
   FStatusText := 'Starting ...';
   tmStatus.Enabled := True;
   FBuild.OnTerminate := BuildDone;
@@ -1940,7 +2071,180 @@ begin
   LogLine('');
   LogLine(Format('=== Queue finished (%s): %d done, %d failed or cancelled ===', [FormatDateTime('yyyy-mm-dd ' +
     'hh:nn', Now), Done, Failed]));
+  WriteQueueReport;
   UpdateControls;
+end;
+
+{ ASeconds as h:mm:ss. }
+function HmsText(ASeconds: Double): string;
+var
+  S: Int64;
+begin
+  S := Round(ASeconds);
+  Result := Format('%d:%.2d:%.2d', [S div 3600, (S div 60) mod 60, S mod 60]);
+end;
+
+{ AText for a CSV field: in quotes, quotes doubled. }
+function CsvText(const AText: string): string;
+begin
+  Result := '"' + StringReplace(AText, '"', '""', [rfReplaceAll]) + '"';
+end;
+
+procedure TfrmBuilder.WriteQueueReport;
+const
+  STATE_TEXT: array[TJobState] of string = ('waiting', 'running', 'done', 'FAILED', 'cancelled');
+var
+  Md, Csv: TStringList;
+  I: Integer;
+  J: TBuildJob;
+  S: TBuildSummary;
+  Folder, Base, Speed, Mb: string;
+  FS: TFormatSettings;
+  TotalAudio, TotalTime: Double;
+  TotalBytes: Int64;
+
+  { ACount as 'N (P %)' of the book words. }
+  function Part(ACount, ABook: Integer): string;
+  begin
+    if ABook > 0 then
+      Result := Format('%d (%.1f %%)', [ACount, ACount * 100 / ABook], FS)
+    else
+      Result := IntToStr(ACount);
+  end;
+
+  { A figure for the CSV ('.' decimals). }
+  function Num(AValue: Double; ADecimals: Integer): string;
+  begin
+    Result := FloatToStrF(AValue, ffFixed, 15, ADecimals, FS);
+  end;
+
+begin
+  if Length(FJobs) = 0 then
+    Exit;
+  FS := TFormatSettings.Invariant;
+  // the queue file's name (books.json -> books.md, books.csv - owner);
+  // a queue never saved: beside the first job's output, dated
+  if FQueueFile <> '' then
+    Base := ChangeFileExt(FQueueFile, '')
+  else
+  begin
+    Folder := ExtractFilePath(ExpandFileName(FJobs[0].Output));
+    Base := TPath.Combine(Folder, 'EpubBuilder-report-' + FormatDateTime('yyyy-mm-dd-hhnn', Now));
+  end;
+  Md := TStringList.Create;
+  Csv := TStringList.Create;
+  try
+    TotalAudio := 0;
+    TotalTime := 0;
+    TotalBytes := 0;
+    Md.Add('# EpubBuilder queue report');
+    Md.Add('');
+    Md.Add(Format('%s - %d job(s)', [FormatDateTime('yyyy-mm-dd hh:nn', Now), Length(FJobs)]));
+    Md.Add('');
+    Md.Add('| # | Book | State | Time | Audio | Speed | Matched | Verdict | EPUB |');
+    Md.Add('|---|---|---|---|---|---|---|---|---|');
+    Csv.Add('job,title,state,started,seconds,audio_seconds,speed_x,saved_transcript,transcribe_seconds,model,' +
+      'device,language,files,parts,book_words,heard_words,exact,similar,moved,interpolated,not_heard,' +
+      'not_spoken,front_back_matter,matched_percent,verdict,words_per_second,clips,left_out,chapter_marks,' +
+      'upgraded_epub2,epub_bytes,book,output,note');
+    for I := 0 to High(FJobs) do
+    begin
+      J := FJobs[I];
+      S := J.Summary;
+      if (J.Seconds > 0) and (S.AudioSeconds > 0) then
+        Speed := Format('%.1fx', [S.AudioSeconds / J.Seconds], FS)
+      else
+        Speed := '-';
+      if J.OutputBytes > 0 then
+        Mb := Format('%.1f MB', [J.OutputBytes / 1048576], FS)
+      else
+        Mb := '-';
+      if J.State = jsDone then
+      begin
+        TotalAudio := TotalAudio + S.AudioSeconds;
+        TotalTime := TotalTime + J.Seconds;
+        TotalBytes := TotalBytes + J.OutputBytes;
+      end;
+      // the table row
+      Md.Add(Format('| %d | %s | %s | %s | %s | %s | %s | %s | %s |', [I + 1,
+        StringReplace(J.Title, '|', '/', [rfReplaceAll]), STATE_TEXT[J.State],
+        IfThen(J.Seconds > 0, HmsText(J.Seconds), '-'), IfThen(S.AudioSeconds > 0, HmsText(S.AudioSeconds), '-'),
+        Speed, IfThen(S.Verdict <> '', Format('%.1f %%', [S.Matched], FS), '-'), IfThen(S.Verdict <> '',
+        S.Verdict, '-'), Mb]));
+      // the CSV row: everything
+      Csv.Add(Format('%d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%s,%s,%s,%d,%d,%d,%s,%d,' +
+        '%s,%s,%s', [I + 1, CsvText(J.Title), STATE_TEXT[J.State], IfThen(J.Started > 0,
+        FormatDateTime('yyyy-mm-dd hh:nn:ss', J.Started), ''), Num(J.Seconds, 1), Num(S.AudioSeconds, 1),
+        IfThen(Speed = '-', '', Num(S.AudioSeconds / Max(J.Seconds, 0.001), 2)),
+        IfThen(S.SavedTranscript, 'yes', 'no'), Num(S.TranscribeSeconds, 1), CsvText(S.Model), CsvText(S.Device),
+        S.Language, S.Files, S.Parts, S.Stats.BookWords, S.HeardWords, S.Stats.Exact, S.Stats.Similar,
+        S.Stats.Moved, S.Stats.Interpolated, S.Stats.NotHeard, S.Stats.NotSpoken, S.EdgeWords,
+        Num(S.Matched, 2), S.Verdict, Num(S.Stats.WordsPerSecond, 2), S.Clips, S.LeftOut, S.ChapterMarks,
+        IfThen(S.Upgraded, 'yes', 'no'), J.OutputBytes, CsvText(J.Book), CsvText(J.Output),
+        CsvText(IfThen(S.Error <> '', S.Error, J.Note))]));
+    end;
+    Md.Add('');
+    if TotalTime > 0 then
+      Md.Add(Format('Built: %s of audio in %s (%.1fx), %.1f MB of EPUBs.', [HmsText(TotalAudio),
+        HmsText(TotalTime), TotalAudio / TotalTime, TotalBytes / 1048576], FS));
+    // a section per job: every figure, with what it means
+    for I := 0 to High(FJobs) do
+    begin
+      J := FJobs[I];
+      S := J.Summary;
+      Md.Add('');
+      Md.Add(Format('## %d. %s - %s', [I + 1, J.Title, STATE_TEXT[J.State]]));
+      Md.Add('');
+      Md.Add('- Book: `' + J.Book + '`');
+      Md.Add('- Output: `' + J.Output + '`' + IfThen(J.OutputBytes > 0, Format(' (%.1f MB)', [J.OutputBytes /
+        1048576], FS), ''));
+      if J.Started = 0 then
+      begin
+        Md.Add('- Not run in this session' + IfThen(J.Note <> '', ' (' + J.Note + ')', ''));
+        Continue;
+      end;
+      Md.Add(Format('- Started %s, took %s', [FormatDateTime('yyyy-mm-dd hh:nn', J.Started), HmsText(J.Seconds)]));
+      if S.Error <> '' then
+        Md.Add('- **Failed:** ' + S.Error);
+      if S.AudioSeconds > 0 then
+        Md.Add(Format('- Audio: %s in %d file(s), %d part(s); language %s', [HmsText(S.AudioSeconds), S.Files,
+          S.Parts, IfThen(S.Language = '', 'not given', S.Language)]));
+      if S.SavedTranscript then
+        Md.Add('- Transcript: the saved one' + IfThen(S.Model <> '', ' (made with ' + S.Model + ')', ''))
+      else if S.TranscribeSeconds > 0 then
+        Md.Add(Format('- Transcribed with %s on %s in %s (%.1fx)', [S.Model, IfThen(S.Device = '',
+          'the default device', S.Device), HmsText(S.TranscribeSeconds), S.AudioSeconds /
+          Max(S.TranscribeSeconds, 0.001)], FS));
+      if S.Verdict <> '' then
+      begin
+        Md.Add(Format('- Words: %d in the book, %d heard by Whisper', [S.Stats.BookWords, S.HeardWords]));
+        Md.Add('  - Exact: ' + Part(S.Stats.Exact, S.Stats.BookWords));
+        Md.Add('  - Similar: ' + Part(S.Stats.Similar, S.Stats.BookWords));
+        Md.Add('  - Moved (read elsewhere - footnotes): ' + Part(S.Stats.Moved, S.Stats.BookWords));
+        Md.Add('  - Interpolated: ' + Part(S.Stats.Interpolated, S.Stats.BookWords));
+        Md.Add('  - Not heard: ' + Part(S.Stats.NotHeard, S.Stats.BookWords));
+        Md.Add('  - Not spoken: ' + Part(S.Stats.NotSpoken, S.Stats.BookWords) + Format(', of them %d front / ' +
+          'back matter', [S.EdgeWords]));
+        Md.Add(Format('- **Matched: %.1f %% of the timed words - %s**; reading speed %.2f words/s', [S.Matched,
+          S.Verdict, S.Stats.WordsPerSecond], FS));
+      end;
+      if S.Clips > 0 then
+        Md.Add(Format('- Written: %d clips, %d timed word(s) left out, %d chapter mark(s)%s', [S.Clips,
+          S.LeftOut, S.ChapterMarks, IfThen(S.Upgraded, '; EPUB 2 made EPUB 3', '')]));
+      Md.Add('- Log: `' + J.Output + '.log`');
+    end;
+    try
+      Md.SaveToFile(Base + '.md', TEncoding.UTF8);
+      Csv.SaveToFile(Base + '.csv', TEncoding.UTF8);
+      LogLine('Report: ' + Base + '.md (and .csv with every figure)');
+    except
+      on E: Exception do
+        LogLine('The report was not written: ' + E.Message);
+    end;
+  finally
+    Md.Free;
+    Csv.Free;
+  end;
 end;
 
 procedure TfrmBuilder.tmQueueTimer(Sender: TObject);
@@ -2141,6 +2445,7 @@ begin
     if not D.Execute then
       Exit;
     FQueueFolder := ExtractFilePath(D.FileName);
+    FQueueFile := D.FileName;
     try
       N := LoadQueue(D.FileName);
       LogLine(Format('%d job(s) added from %s', [N, D.FileName]));
@@ -2169,10 +2474,14 @@ begin
     D.Filter := 'Build queues (*.json)|*.json';
     D.DefaultExt := 'json';
     D.InitialDir := FQueueFolder;
-    D.FileName := 'queue.json';
+    if FQueueFile <> '' then
+      D.FileName := ExtractFileName(FQueueFile)
+    else
+      D.FileName := 'queue.json';
     if not D.Execute then
       Exit;
     FQueueFolder := ExtractFilePath(D.FileName);
+    FQueueFile := D.FileName;
     try
       SaveQueue(D.FileName);
       LogLine(Format('The queue (%d job(s)) was saved to %s', [Length(FJobs), D.FileName]));
@@ -2245,9 +2554,15 @@ begin
     FMadeBook := FRunBook;
     FMadeOut := FRunOut;
   end;
-  // the job's place in the queue
+  // the job's place in the queue, and its figures for the report
   if (FJob >= 0) and (FJob <= High(FJobs)) then
   begin
+    FJobs[FJob].Started := FStarted;
+    FJobs[FJob].Seconds := MilliSecondsBetween(Now, FStarted) / 1000;
+    FJobs[FJob].Summary := (Sender as TBuildThread).Summary;
+    FJobs[FJob].OutputBytes := 0;
+    if Ok and FileExists(FRunOut) then
+      FJobs[FJob].OutputBytes := TFile.GetSize(FRunOut);
     if Ok then
     begin
       FJobs[FJob].State := jsDone;
@@ -2279,6 +2594,15 @@ begin
       LogLine('The log was not saved beside the output: ' + E.Message);
   end;
   FJob := -1;
+  // the queue file follows the run: closed or crashed overnight, it still
+  // says which books are done
+  if FQueueRunning and (FQueueFile <> '') then
+    try
+      SaveQueue(FQueueFile);
+    except
+      on E: Exception do
+        LogLine('The queue file was not updated: ' + E.Message);
+    end;
   // FreeOnTerminate: the thread frees itself once this handler returns
   FBuild := nil;
   tmStatus.Enabled := False;
@@ -2301,16 +2625,25 @@ end;
 
 procedure TfrmBuilder.ShowStatus;
 var
-  Taken, Left: Int64;
+  Taken, Since, Left: Int64;
   S: string;
 begin
   Taken := MilliSecondsBetween(Now, FStarted);
   S := Format('%s taken', [WhisperTimeToStr((Taken div 1000) * 100)]);
-  // the time left from the progress so far, once there is enough of it
-  if (FBuild <> nil) and (FPercent >= 7) and (FPercent < 100) then
+  // the time left from the transcription's own rate: only after a minute
+  // of it and 1 % of progress (counted from the start of the build, the
+  // loading made the first figures hours too high - owner, Night Watch on
+  // Linux: 14 - 20 h shown, 20 min taken)
+  if (FBuild <> nil) and (FPercent < 100) and (FRatePercent >= 0) then
   begin
-    Left := Round(Taken * (100 - FPercent) / FPercent);
-    S := S + Format(', about %s left', [WhisperTimeToStr((Left div 1000) * 100)]);
+    Since := MilliSecondsBetween(Now, FRateFrom);
+    if (Since >= 60000) and (FPercent - FRatePercent >= 1) then
+    begin
+      Left := Round(Since * (100 - FPercent) / (FPercent - FRatePercent));
+      S := S + Format(', about %s left', [WhisperTimeToStr((Left div 1000) * 100)]);
+    end
+    else
+      S := S + ', estimating the time left ...';
   end;
   if (FBuild <> nil) and (FJob >= 0) then
     S := Format('Job %d of %d: ', [FJob + 1, Length(FJobs)]) + S;

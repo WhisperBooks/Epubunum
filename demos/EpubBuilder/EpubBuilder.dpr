@@ -17,6 +17,7 @@ program EpubBuilder;
 uses
   System.StartUpCopy,
   FMX.Forms,
+  uDebugLog in '..\common\uDebugLog.pas',
   uBuilder in 'src\uBuilder.pas' {frmBuilder};
 
 {$R *.res}

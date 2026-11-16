@@ -74,6 +74,15 @@ Go to Footnote - a list of the book's notes. Any book opens where you
 left it - the sentence lit, and Play starts there. Books are matched by
 file name for now (a book moved to another folder keeps its place).
 
+## Debug log
+
+Every run writes `EpubReader-debug.log` next to `EpubReader.json`: start
+up, sound (FFmpeg and the sound output), the library and its covers,
+opening a book, chapters, play and stop - each line written to the file
+at once, with the time. When the reader stops responding or disappears,
+the last line says where. The previous run's log is kept as
+`EpubReader-debug.log.old`.
+
 ## Library
 
 Started without a book on the command line, the reader shows the
@@ -99,7 +108,10 @@ no chapters that are read aloud - Night Watch has no chapters at all,
 its audiobook has 75 - the chapter buttons and the contents list use
 those marks instead, together with the contents entries that are not
 read (title page, about the author) and the documents no chapter starts
-in, so front and back matter can still be reached.
+in, so front and back matter can still be reached. Such a chapter starts
+at the beginning of the paragraph the recording's chapter starts in (the
+audio from there too), and a short rule above it shows the break on the
+page.
 
 Under the text, a percentage shows how far through the book you are (by
 words, so the text size does not change it; page X of Y can follow if

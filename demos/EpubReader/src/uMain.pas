@@ -35,7 +35,7 @@ uses
   FMX.ListBox, FMX.Controls.Presentation, FMX.Objects, FMX.Menus, FMX.Edit, System.JSON,
   // TJSONArray's inline getters expand only with it (H2443)
   System.Generics.Collections,
-  Epub.Zip, Epub.Layout, Epub.Book, Epub.Components, Epub.FMX, Epub.FMX.View,
+  Epub.Zip, Epub.Layout, Epub.Book, Epub.Components, Epub.FMX, Epub.FMX.View, uDebugLog,
   // sound: DCUs of TFFMpegAPI's runtime package FFmpegAPI
   FFmpeg.API, FFmpeg.Player;
 
@@ -173,6 +173,8 @@ type
     { lbToc lists the chapters (item = chapter) instead of the book's
       contents: the chapters come from the audiobook's chapter marks. }
     FTocIsChapters: Boolean;
+    { Where the chapters came from (shown in the status line with "debug"). }
+    FChapterSource: string;
     { lbToc's selection is being set from code (no chapter jump). }
     FSyncingToc: Boolean;
     { Clip that Play starts from after a jump while paused, -1 = none (Play
@@ -417,6 +419,10 @@ implementation
 uses
   {$IFDEF MSWINDOWS}
   Winapi.Windows, Winapi.ShlObj, System.Win.Registry,
+  {$ENDIF}
+  {$IFDEF POSIX}
+  // System.SysUtils.DeleteFile's inline body expands only with it (H2443)
+  Posix.Unistd,
   {$ENDIF}
   System.Hash, System.UIConsts,
   FmxWineCanvas, FmxSkiaCanvas;
@@ -663,11 +669,14 @@ end;
 
 procedure TfrmMain.StartSound;
 begin
+  DebugLog('sound: loading FFmpeg');
   try
     // any FFmpeg 8 build - GPL or LGPL (owner): the licence is shown
     FFFmpeg := TFFmpegLibrary.Create('');
+    DebugLog('sound: ' + FFFmpeg.Description);
     FPlayer := TFFmpegAudioPlayer.Create(FFFmpeg);
     FSoundNote := FPlayer.OutputNote;
+    DebugLog('sound output: ' + FPlayer.Output.Description);
     {$IFDEF POSIX}
     WriteLn(ErrOutput, FFFmpeg.Description);
     WriteLn(ErrOutput, 'Sound output: ', FPlayer.Output.Description);
@@ -675,6 +684,7 @@ begin
   except
     on E: Exception do
     begin
+      DebugLog('sound: none - ' + E.Message);
       FreeAndNil(FPlayer);
       FreeAndNil(FFFmpeg);
       FSoundNote := 'No sound: ' + E.Message;
@@ -806,6 +816,7 @@ var
   Own: TEpubBook;
   I: Integer;
 begin
+  DebugLog('cover: ' + ABookFile);
   F := CoverFile(ABookFile);
   if FileExists(F) then
     Exit;
@@ -1173,6 +1184,7 @@ var
   Img: TImage;
   F: string;
 begin
+  DebugLog('library: showing');
   // the book stops (paused: Play resumes it once back on the page), and the
   // contents panel, which means nothing here, goes (owner)
   StopPlaying;
@@ -1252,6 +1264,7 @@ var
   end;
 
 begin
+  DebugLog('library: layout');
   N := Length(FCoverImages);
   if (N = 0) or not LibraryShowing then
     Exit;
@@ -1711,6 +1724,8 @@ end;
 
 procedure TfrmMain.FormCreate(Sender: TObject);
 begin
+  // the debug log: next to the settings, started afresh at every run
+  DebugLogOpen(ChangeFileExt(SettingsFile, '-debug.log'));
   FFindIndex := -1;
   FLearnFirst := -1;
   FLearnLast := -1;
@@ -1725,6 +1740,7 @@ begin
   BuildMenu;
   BuildLibrary;
   StartSound;
+  DebugLog('FMX canvas in use: ' + FmxCanvasClassName);
   // a new name every run (Random without Randomize gave the same one, so
   // two readers shared - and deleted - one folder)
   FAudioFolder := System.IOUtils.TPath.Combine(System.IOUtils.TPath.GetTempPath,
@@ -1746,6 +1762,7 @@ begin
   // dark mode, text size, speed, the recent books and their positions
   LoadSettings;
   UpdateControls;
+  DebugLog('window ready');
   // a book named on the command line (Open with), else the library: the
   // recent books' covers, the last one read large
   if ParamCount > 0 then
@@ -1756,6 +1773,7 @@ end;
 
 procedure TfrmMain.FormClose(Sender: TObject; var Action: TCloseAction);
 begin
+  DebugLog('closing');
   StopPlaying;
   // where the reader left off, and the settings
   RememberBook;
@@ -1898,6 +1916,7 @@ end;
 
 procedure TfrmMain.OpenBook(const AFileName: string);
 begin
+  DebugLog('open: ' + AFileName);
   StopPlaying;
   // the book being left: its position kept
   RememberBook;
@@ -1938,6 +1957,7 @@ var
   B: TEpubBook;
   I, F, L, First: Integer;
 begin
+  DebugLog('open: read, building the view');
   B := EpubUnum1.Book;
   Caption := 'EpubReader - ' + B.Title;
   if FLearn then
@@ -2007,6 +2027,7 @@ end;
 
 procedure TfrmMain.EpubUnum1OpenFailed(Sender: TObject; const AMessage: string);
 begin
+  DebugLog('open failed: ' + AMessage);
   lbToc.Clear;
   BuildNotesMenu;
   View1.Clear;
@@ -2057,6 +2078,7 @@ var
   Title: string;
   TocWord, TocIdx: TArray<Integer>;
   Starts: TArray<Boolean>;
+  Breaks: TArray<Integer>;
 
   { Adds a chapter (sorted in by AWord later). }
   procedure Add(AWord, AToc, ADoc: Integer; const ATitle: string);
@@ -2077,13 +2099,36 @@ var
     Result := (Clip >= 0) and (FClipFirst[Clip] < ALimit);
   end;
 
+  { True when the reading starts AT the chapter from word AWord: its first
+    clip within READ_START_WORDS of it (a read heading). A contents entry
+    for front matter (copyright page, dedication) can reach all the way
+    to the next entry across the whole narrated book: it has audio, but
+    is not a chapter that is read (Night Watch: its contents list is front
+    and back matter only - the audiobook's 75 marks were not used). }
+  function ReadAtStart(AWord, ALimit: Integer): Boolean;
+  const
+    READ_START_WORDS = 50;
+  var
+    Clip: Integer;
+  begin
+    Clip := ClipFromWord(AWord);
+    // on the entry's own page, too: a map page of a few words is followed
+    // by the narration on the next page (Night Watch's "Map")
+    Result := (Clip >= 0) and (FClipFirst[Clip] < ALimit) and (FClipFirst[Clip] - AWord <= READ_START_WORDS) and
+      (B.Words[FClipFirst[Clip]].Document = B.Words[AWord].Document);
+  end;
+
 begin
+  DebugLog('chapters: building');
   B := EpubUnum1.Book;
   FChapterWord := nil;
   FChapterToc := nil;
   FChapterDoc := nil;
   FChapterTitle := nil;
   FTocIsChapters := False;
+  FChapterSource := '';
+  Breaks := nil;
+  View1.ChapterBreaks := nil;
   if B = nil then
     Exit;
   Marks := B.AudioChapterWords;
@@ -2121,7 +2166,7 @@ begin
       Limit := TocWord[I + 1]
     else
       Limit := MaxInt;
-    if HasAudio(TocWord[I], Limit) then
+    if ReadAtStart(TocWord[I], Limit) then
       Inc(ReadCount);
   end;
   K := 0;
@@ -2129,7 +2174,12 @@ begin
     if Marks[I] >= 0 then
       Inc(K);
   N := 0;
-  if (ReadCount < 2) and (K >= 2) then
+  FChapterSource := Format('contents (%d read), %d audiobook mark(s)', [ReadCount, K]);
+  // the audiobook's marks when they give more chapters than the contents
+  // list has chapters that are read (Night Watch: 75 marks, its contents
+  // only front / back matter and "Begin Reading"); a book whose contents
+  // list is its read chapters keeps it (Moby-Dick)
+  if (K >= 2) and (K > ReadCount) then
   begin
     // the contents list has no chapters that are read (Night Watch: none
     // in the book, 75 in the audiobook): the audiobook's chapter marks,
@@ -2137,13 +2187,16 @@ begin
     // the author) and the documents no chapter starts in, so the front
     // and back matter can still be reached
     FTocIsChapters := True;
+    FChapterSource := Format('audiobook marks (%d), contents read %d', [K, ReadCount]);
     for I := 0 to High(TocWord) do
     begin
       if I < High(TocWord) then
         Limit := TocWord[I + 1]
       else
         Limit := MaxInt;
-      if not HasAudio(TocWord[I], Limit) then
+      // the entries not read at their start: title page, copyright, about
+      // the author - kept, so front and back matter can be reached
+      if not ReadAtStart(TocWord[I], Limit) then
         Add(TocWord[I], TocIdx[I], B.Toc[TocIdx[I]].Document, Trim(B.Toc[TocIdx[I]].Title));
     end;
     for I := 0 to High(Marks) do
@@ -2152,7 +2205,17 @@ begin
         Title := Trim(B.AudioChapters[I].Title);
         if Title = '' then
           Title := 'Part ' + IntToStr(I + 1);
-        Add(Marks[I], -1, B.Words[Marks[I]].Document, Title);
+        // the recording's split is often inside a paragraph (a pause the
+        // publisher cut at): the chapter starts with that paragraph - its
+        // audio a few seconds earlier, the same recording
+        W := Marks[I];
+        C := WordBlock(W);
+        if (C >= 0) and (Length(FUnitLayout.Blocks[C].Words) > 0) then
+          W := FUnitLayout.Blocks[C].Words[0].Word + B.Documents[B.Words[Marks[I]].Document].FirstWord;
+        // -2: a mark (made -1 below); of two marks on one word the later
+        // one is kept (Opening Credits has no text of its own: its mark
+        // falls on Chapter 1's first word)
+        Add(W, -2, B.Words[W].Document, Title);
       end;
     // documents in which no chapter starts and nothing is read
     SetLength(Starts, Length(B.Documents));
@@ -2185,15 +2248,30 @@ begin
     end;
     K := 0;
     for I := 0 to N - 1 do
-      if (K = 0) or (FChapterWord[I] > FChapterWord[K - 1]) then
+    begin
+      if (K > 0) and (FChapterWord[I] = FChapterWord[K - 1]) then
       begin
-        FChapterWord[K] := FChapterWord[I];
-        FChapterToc[K] := FChapterToc[I];
-        FChapterDoc[K] := FChapterDoc[I];
-        FChapterTitle[K] := FChapterTitle[I];
-        Inc(K);
+        // one word, two entries: the first kept, except a mark after a
+        // mark (the later one is the chapter the words belong to)
+        if (FChapterToc[I] = -2) and (FChapterToc[K - 1] = -2) then
+          FChapterTitle[K - 1] := FChapterTitle[I];
+        Continue;
       end;
+      FChapterWord[K] := FChapterWord[I];
+      FChapterToc[K] := FChapterToc[I];
+      FChapterDoc[K] := FChapterDoc[I];
+      FChapterTitle[K] := FChapterTitle[I];
+      Inc(K);
+    end;
     N := K;
+    // the chapter breaks the view draws: the marks, not the book's own
+    // entries or documents
+    for I := 0 to N - 1 do
+      if FChapterToc[I] = -2 then
+      begin
+        Breaks := Breaks + [FChapterWord[I]];
+        FChapterToc[I] := -1;
+      end;
   end
   else
   begin
@@ -2209,6 +2287,7 @@ begin
   SetLength(FChapterToc, N);
   SetLength(FChapterDoc, N);
   SetLength(FChapterTitle, N);
+  View1.ChapterBreaks := Breaks;
 end;
 
 function TfrmMain.ChapterOfWord(AWord: Integer): Integer;
@@ -2503,6 +2582,7 @@ var
   Target: string;
   I, First: Integer;
 begin
+  DebugLog(Format('clip %d: opening its audio', [AClip]));
   Result := False;
   B := EpubUnum1.Book;
   if (B = nil) or (FPlayer = nil) or (AClip < 0) or (AClip > High(B.Clips)) then
@@ -2530,15 +2610,20 @@ begin
       if not TFile.Exists(Target) then
       begin
         ForceDirectories(FAudioFolder);
+        DebugLog(Format('clip %d: extracting %s to %s', [AClip, C.AudioPath, Target]));
         B.Zip.Extract(C.AudioPath, Target);
+        DebugLog(Format('clip %d: extracted, %d bytes', [AClip, TFile.GetSize(Target)]));
       end;
+      DebugLog(Format('clip %d: opening it in the player', [AClip]));
       FPlayer.Open(Target);
+      DebugLog(Format('clip %d: open', [AClip]));
       FAudioPath := C.AudioPath;
     end;
     Result := True;
   except
     on E: Exception do
     begin
+      DebugLog(Format('clip %d: %s', [AClip, E.Message]));
       FSoundNote := E.Message;
       UpdateControls;
     end;
@@ -2828,6 +2913,7 @@ var
   B: TEpubBook;
   C: TEpubClip;
 begin
+  DebugLog(Format('clip %d: starting', [AClip]));
   B := EpubUnum1.Book;
   if (B = nil) or (AClip < 0) or (AClip > High(B.Clips)) then
     Exit;
@@ -2852,10 +2938,13 @@ begin
   // Play reads on: Learn to read's unit is left
   FLearnFirst := -1;
   try
+    DebugLog(Format('clip %d: play from %.3f s', [AClip, C.ClipBegin]));
     FPlayer.Play(C.ClipBegin);
+    DebugLog(Format('clip %d: playing', [AClip]));
   except
     on E: Exception do
     begin
+      DebugLog(Format('clip %d: %s', [AClip, E.Message]));
       FSoundNote := E.Message;
       UpdateControls;
       Exit;
@@ -2869,6 +2958,7 @@ end;
 
 procedure TfrmMain.StopPlaying;
 begin
+  DebugLog('stop playing');
   tmPlay.Enabled := False;
   if FPlaying and (FPlayer <> nil) then
     FPlayer.Pause;
@@ -2881,6 +2971,7 @@ var
   B: TEpubBook;
   C: Integer;
 begin
+  DebugLog('play / pause clicked');
   B := EpubUnum1.Book;
   if (B = nil) or (Length(B.Clips) = 0) or LibraryShowing then
     Exit;
@@ -3078,6 +3169,9 @@ begin
     S := S + ' - ' + FSoundNote;
   if FOpenWithNote <> '' then
     S := S + ' - ' + FOpenWithNote;
+  // "debug": true in the settings - where the chapters came from
+  if FDebug and (B <> nil) and (FChapterSource <> '') then
+    S := S + ' - chapters: ' + FChapterSource;
   if FLearn then
     S := 'LEARN TO READ - ' + S;
   lblStatus.Text := S;

@@ -47,6 +47,9 @@ type
     Width: Single;
     { Height, px. }
     Height: Single;
+    { A chapter break is drawn above it: the rule's middle, px from the
+      document's top (0 = none). }
+    RuleY: Single;
   end;
   { The laid-out blocks. }
   TEpubViewItemArray = array of TEpubViewItem;
@@ -100,6 +103,8 @@ type
     FNoteColor: TAlphaColor;
     { Backing field of @link(ShowProgress). }
     FShowProgress: Boolean;
+    { Backing field of @link(ChapterBreaks). }
+    FChapterBreaks: TArray<Integer>;
     { First highlighted word (book index), -1 = none. }
     FHighFirst: Integer;
     { Last highlighted word. }
@@ -151,6 +156,11 @@ type
     function TextHeight: Single;
     { Shows or hides the progress strip. }
     procedure SetShowProgress(const AValue: Boolean);
+    { Sets the chapter breaks; lays out again. }
+    procedure SetChapterBreaks(const AValue: TArray<Integer>);
+    { True when block ABlock of the shown document starts at a word of
+      ChapterBreaks. }
+    function BreakBefore(ABlock: Integer): Boolean;
     { Draws the progress strip in ARect. }
     procedure DrawFooter(const ACanvas: ISkCanvas; const ARect: TRectF);
   protected
@@ -206,6 +216,11 @@ type
       end of the last document. By words, so the text size does not
       change it. }
     function Progress: Single;
+    { Words (book indexes) that start a chapter the book itself does not
+      mark - an audiobook's chapters: the paragraph starting with one gets
+      a short centred rule above it, with room around it (none at the very
+      top of a document). Empty = none. }
+    property ChapterBreaks: TArray<Integer> read FChapterBreaks write SetChapterBreaks;
   published
     { The book component whose book is shown. }
     property Epub: TCustomEpub read FEpub write SetEpub;
@@ -718,6 +733,12 @@ begin
     end;
     if Blk.Kind = ebkHeading then
       Y := Y + FFontSize * FParagraphSpacing;   // room above a heading
+    // a chapter break (an audiobook's chapter): a rule in a gap above
+    if (Y > FPageMargin) and BreakBefore(I) then
+    begin
+      Item.RuleY := Y + FFontSize * FLineHeight;
+      Y := Y + 2 * FFontSize * FLineHeight;
+    end;
     Item.X := X;
     Item.Top := Y;
     Item.Width := W;
@@ -819,6 +840,18 @@ begin
       if Top + Item.Height < ADest.Top then
         Continue;
       Blk := FLayout.Blocks[Item.Block];
+      // a chapter break above the block: a short centred rule
+      if Item.RuleY > 0 then
+      begin
+        Paint.Color := (FTextColor and $00FFFFFF) or $70000000;
+        Paint.Style := TSkPaintStyle.Stroke;
+        Paint.StrokeWidth := 1;
+        Y := ADest.Top + Item.RuleY - FScroll;
+        R.Left := ADest.Left + ADest.Width / 2 - Min(ADest.Width * 0.15, FFontSize * 6);
+        R.Right := ADest.Left + ADest.Width / 2 + Min(ADest.Width * 0.15, FFontSize * 6);
+        ACanvas.DrawLine(PointF(R.Left, Y), PointF(R.Right, Y), Paint);
+        Paint.Style := TSkPaintStyle.Fill;
+      end;
       // a note (footnote, endnote, aside - marked so, or the target of a
       // footnote marker's link: the book's word roles): its own background
       if (TAlphaColorRec(FNoteColor).A > 0) and ((Blk.Role = ewrNote) or ((Length(Blk.Words) > 0) and
@@ -888,6 +921,31 @@ begin
   finally
     ACanvas.Restore;
   end;
+end;
+
+procedure TEpubView.SetChapterBreaks(const AValue: TArray<Integer>);
+begin
+  FChapterBreaks := Copy(AValue);
+  Relayout;
+end;
+
+function TEpubView.BreakBefore(ABlock: Integer): Boolean;
+var
+  B: TEpubBook;
+  W, I: Integer;
+  Blk: TEpubBlock;
+begin
+  Result := False;
+  B := Book;
+  if (B = nil) or (Length(FChapterBreaks) = 0) or (FLayout = nil) then
+    Exit;
+  Blk := FLayout.Blocks[ABlock];
+  if Length(Blk.Words) = 0 then
+    Exit;
+  W := Blk.Words[0].Word + B.Documents[FDocument].FirstWord;
+  for I := 0 to High(FChapterBreaks) do
+    if FChapterBreaks[I] = W then
+      Exit(True);
 end;
 
 function TEpubView.FooterHeight: Single;

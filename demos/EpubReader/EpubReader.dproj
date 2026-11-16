@@ -7,8 +7,7 @@
         <MainSource>EpubReader.dpr</MainSource>
         <Base>True</Base>
         <Config Condition="'$(Config)'==''">Debug</Config>
-        <Platform Condition="'$(Platform)'==''">Win64</Platform>
-        <ProjectName Condition="'$(ProjectName)'==''">EpubReader</ProjectName>
+        <Platform Condition="'$(Platform)'==''">Linux64</Platform>
         <TargetedPlatforms>135298</TargetedPlatforms>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Base' or '$(Base)'!=''">
@@ -246,6 +245,7 @@
         <DCCReference Include="src\FmxLinuxGtkGlobal.pas"/>
         <DCCReference Include="src\FmxWineCanvas.pas"/>
         <DCCReference Include="src\FmxSkiaCanvas.pas"/>
+        <DCCReference Include="..\common\uDebugLog.pas"/>
         <DCCReference Include="src\uMain.pas">
             <Form>frmMain</Form>
             <FormType>fmx</FormType>
@@ -360,6 +360,12 @@
                         <RemoteDir>.\</RemoteDir>
                         <Operation>0</Operation>
                         <RemoteName>sk4d.dll</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="Linux64\Debug\EpubReader" Configuration="Debug" Class="ProjectOutput">
+                    <Platform Name="Linux64">
+                        <RemoteName>EpubReader</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
