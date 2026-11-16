@@ -4,128 +4,171 @@ Read README.md first, then this file. Keep both up to date with every change.
 The rules follow TWhisper's and TFFMpegAPI's CLAUDE.md (same owner, same
 conventions); where this file is silent, theirs apply.
 
-## Handover - READ THIS FIRST (latest: session 6, 2026-11-15 evening)
-Written at the owner's request so the next session reads it first; the
-sections further down hold the detail and the history.
-
-This is the summary and the to-do list for all four repositories (the
-same text is in TWhisper's and Epubunum's CLAUDE.md).
+## Handover - READ THIS FIRST (latest: session 7, 2026-11-16 evening)
+Written at the owner's request ("write a session handover ... so I can
+get a code review done"). The sections further down hold the detail and
+the history, one per zip.
 
 ### Repositories and where they stand
 
 | Repo | Pushed | = zip | Last zip number used |
 |---|---|---|---|
-| WhisperBooks/TWhisper | 59cc978 | TWhisper-28 | 28 |
-| WhisperBooks/Epubunum | 5717238 | EpubUnum-37 | 37 |
-| G3DGames/TFFMpegAPI | 105ffe7 | FFmpegAPI-11 | 11 |
-| G3DGames/ffmpeg-dev | 2b0ba17 | ffmpeg-dev-06 | 06 |
+| WhisperBooks/TWhisper | d669a06 | TWhisper-30 | 30 |
+| WhisperBooks/Epubunum | d242ae1 | EpubUnum-71 | 72 (this handover) |
+| G3DGames/TFFMpegAPI | 3edcfa3 | FFmpegAPI-12 | 12 (none this session) |
+| G3DGames/ffmpeg-dev | 4d7b7be | ffmpeg-dev-09 | 09 |
+| WhisperBooks/whisper-dev | 9fa21dc | whisper-dev-20 | 20 |
+| TSteamAPI | ea0a132 | (owner's; read only here) | - |
 
-All four pushes were checked file by file against the deliveries (CR LF
-and BOM aside). The only difference: demos/EpubBuilder/EpubBuilder.dproj
-in Epubunum was re-saved by the IDE (platform blocks, TargetedPlatforms;
-harmless - keep the pushed one). TWhisper's 5e029a8 had EpubUnum-34's
-files unpacked into it by mistake (EpubUnum's CLAUDE.md over TWhisper's,
-demos/EpubReader/...); fixed in 59cc978 and re-checked. Nothing is
-pending: every delivered zip is pushed. This handover itself came in
-TWhisper-29, EpubUnum-38 and FFmpegAPI-12 (CLAUDE.md only), so the
-last numbers used are now 29, 38 and 12.
+Checked 2026-11-16 21:18 against the deliveries, file by file (CR LF /
+BOM aside): everything matches. The IDE re-saved the four EpubUnum .dproj
+files (default platform now Linux64 - the owner's IDE; ProjectName lines
+dropped from the packages; *.deployproj files added). EpubBuilder.dproj
+and EpubReader.dproj now carry deploy entries from tools/deploy_redist.py
+(115 / 16, the run WITHOUT the ROCm kernel folders) - on a machine without
+redistributable_bin/Linux64 Deploy reports those files missing.
 
-### Standing rules (owner) - unchanged, repeated because they matter
+### Standing rules (owner)
 
 - Never commit or push, and never offer to.
 - Zips: only files changed since the previous zip, paths from the repo
   root, named TWhisper-NN-topic.zip / EpubUnum-NN-topic.zip /
-  FFmpegAPI-NN-topic.zip / ffmpeg-dev-NN-topic.zip; numbers never
-  reused (a corrected zip gets the next number and says what it
-  replaces); every delivery says what it goes on top of.
+  FFmpegAPI-NN-topic.zip / ffmpeg-dev-NN-topic.zip /
+  whisper-dev-NN-topic.zip; numbers never reused (a corrected zip gets
+  the next number and says what it replaces); every delivery says what it
+  goes on top of.
 - Every delivery ends with either "NO PACKAGE REBUILD" or: a blank line,
   `=====> PACKAGE REBUILD NEEDED <=====`, a blank line, then the packages
   in build order, the units changed, what to rebuild after.
   TWhisper: WhisperAPI -> WhisperAPIFMX -> dclWhisperAPIFMX.
   EpubUnum: EpubUnum -> EpubUnumFMX -> dclEpubUnumFMX.
+  ONLY when a package unit changed (owner, 2026-11-16: program-only
+  changes are "NO PACKAGE REBUILD"; rebuilding the program goes without
+  saying).
 - ASCII sources; PasDoc on every declaration; run tools/pasdoc_check.py
   and tools/project_check.py before delivering (both repos).
 - .dproj files: do not change platform lines or the default platform;
-  never run gen_projects.py --force on existing projects (without
-  --force it only creates missing files - that is how EpubBuilder.dproj
-  was made). Group projects are edited by hand.
+  never run gen_projects.py --force on existing projects. Group projects
+  are edited by hand. (deploy_redist.py edits only its own DeployFile
+  entries.)
 - README code blocks paste as-is: comments on their own line, no
   <placeholders>.
 - Never offer DRM removal; refuse protected files with a clear message.
 - Copyrighted test books stay local - never committed, uploaded or
   quoted. Night Watch (Pratchett, English and German) is one: the owner
-  sends logs only.
+  sends logs only (their "worth a look" lines quote a few words - do not
+  repeat them).
 - No absolute paths, user names, machine names or e-mail addresses in
   tracked files.
 - Answer simple questions directly and briefly first.
 - When the owner's message arrives mid-task, address it in the same turn.
+- In uMain, names Winapi.Windows also has (TBitmap, DeleteFile) are
+  written qualified (FMX.Graphics.TBitmap).
+- Shell scripts need the executable bit in git (`git update-index
+  --chmod=+x`); check after a push.
 
-### What exists now
+### Session 7 in brief - what changed (for the review)
 
-Pipeline (files): EpubConsole --words -> WhisperConsole (transcribe,
---json) / --from-json --align-words --timings -> EpubConsole --overlay.
-In one program: **EpubBuilder** (Epubunum demos/EpubBuilder, links
-TWhisper + EpubUnum + TFFMpegAPI): EPUB left, audio list right, model /
-device / output, Create; keeps `<output>.transcript.json` so a re-align
-needs no transcription; explained results with a verdict; settings in
-EpubBuilder.ini (model, device by name, options, folders).
+EpubUnum (zips 39 - 71):
+- lib/Epub.Book.pas, lib/Epub.Writer.pas: audiobook chapter marks in the
+  book (epubunum-audio-chapters.xml, item eu-audio-chapters; epubcheck
+  0/0); the writer's marker meta epubunum:writer (WrittenBy) so a built
+  book is recognised.
+- fmx/Epub.FMX.View.pas (PACKAGE): progress footer (ShowProgress);
+  ChapterBreaks (a rule between audiobook chapters); zip 71 Fonts - one
+  TSkTypefaceFontProvider per view, every paragraph builder uses it
+  (fixes the Linux hang; compiled and working on Linux, Windows look
+  not re-checked).
+- demos/EpubReader/src/uMain.pas: Library (cover grid, cover cache
+  beside the settings, text covers, current book large), File >
+  Library; Linux menu bar; chapter choice from the toc or the audio's
+  marks (BuildChapters - ReadAtStart, K > ReadCount, paragraph snapping,
+  zips 54 - 56); debug log calls; Posix.Unistd on POSIX; test switches
+  EPUBREADER_NO_COVERS=1 and EPUBREADER_FONT=<family> (decide: keep or
+  remove).
+- demos/EpubBuilder/src/uBuilder.pas: overwrite question; built-book
+  warning; front / back matter out of "worth a look"; chapter marks from
+  the m4b's parts; saved transcript off by default and refused for
+  another model; close guard; JOB QUEUE (Add To Queue, Run Queue,
+  Load / Save, per-build .log, queue report <queue>.md + .csv, 34
+  columns); debug log (thread lines written at once, whisper.cpp / ggml
+  lines through a log listener); time left from the transcription's own
+  rate.
+- demos/common/uDebugLog.pas (new): <program>-debug.log beside the
+  settings, .old kept, each line opened / appended / closed.
+- tools/: redist.sh (collect / deploy / package - core, cuda, rocm
+  .tar.gz with licences and SHA256SUMS, GPU parts found with ldd),
+  redist.bat + redist-package.ps1 (Win64; the .ps1 is UNTESTED - no
+  PowerShell here), deploy_redist.py (DeployFile entries; --skip).
+whisper-dev (01 - 20): RUNPATH $ORIGIN, -ffile-prefix-map, libgomp
+copied; cmake/bundle_linux.cmake - CUDA / ROCm runtimes bundled by real
+path, patchelf $ORIGIN on them and the backends, rocBLAS / hipBLASLt
+kernels for the HIP targets (files or per-GPU folders), licences (Debian
+copyright files, CUDA EULA, ROCm component texts); CUDA_ALL without sm_50
+for CUDA 13; HIP on when ROCm is installed; ROCm 7.x root
+(core-NN) found; build.sh deletes CMakeCache.txt each configure;
+container-build/ (Ubuntu 22.04 = glibc 2.35, Kitware CMake, patchelf,
+CUDA 13.5, LunarG Vulkan SDK, ROCm 7.16 via amdgpu-install 31.60 jammy +
+the amdrocm-*-dev packages; build.sh: same-path mount, Podman keep-id,
+SDK check before compiling, CUDA_ALL=ON by default; README for people
+without Docker).
+ffmpeg-dev (07 - 09): /usr/local prefix with DESTDIR staging, BUILD_ROOT,
+container pointer. TWhisper (30): --from-json without parts fix; Linux
+notes.
 
-**EpubReader**: menu (File: Open, Recently Opened (10), Go to Footnote -
-only with "debug": true; Edit: Find / next / previous; View: Dark mode,
-Learn to read, text size), settings in EpubReader.json (dark, textSize,
-speed, recent with reading positions, debug), opens the last book read
-where it was left, centred smooth line following, speed slider 0.5-1.5x
-(applied when the slider rests), Learn to read (green, Phrase / Sentence
-/ Paragraph; Play repeats the unit; click = the unit the word is in),
-punctuation not lit, footnotes shaded (marked notes, or the paragraph a
-marker link points to), Open with registration (Windows HKCU, Linux
-.desktop), icon.
+### Suggested review focus
 
-**TWhisper** this session: edge pairs (front / back matter not timed),
-Roman numerals as numbers, short words given room, word edges trimmed of
-silence from the audio (the next sentence no longer lit during a pause),
-benchmark times a chosen stretch of speech (not within 30 s of either
-end), shared helpers for the builder (WhisperWordFileTimes etc.).
+1. Epub.FMX.View.Fonts: the Skia4Delphi calls, behaviour on Windows
+   (same faces as before?), FontFamily / MonoFamily changes, fallback.
+   Then: lay out only the blocks near the view (Night Watch's document 6
+   has 31851 words; every layout is still the whole document).
+2. uBuilder's job queue and thread hand-over (TThread.Queue callbacks
+   after the form or the job list changed; the queue file saved after each
+   job; the report's columns).
+3. uMain.BuildChapters (three rounds of fixes in one evening).
+4. uDebugLog: the lock is freed in finalization while a worker thread
+   could still log at shutdown; per-line open / close cost with chatty
+   ggml output.
+5. bundle_linux.cmake and container-build/build.sh (shell quoting,
+   Docker vs Podman, what happens without patchelf / dpkg).
+6. redist.sh package (ldd on our own libraries, tar of a name list),
+   deploy_redist.py (regex edit of the .dproj XML).
+7. Leftovers to decide: the two EPUBREADER_* switches; the deploy
+   entries in git; Linux64 as the projects' default platform.
 
-### Results to remember
+### Results this session
 
-- Moby-Dick (LibriVox, Stewart Wills, 24 h 38 m, 5 m4b): 81x on the 5090
-  laptop; 209652 exact of 213817 book words. Against the IDPF human sync
-  of ch 1-2: clip starts mean |error| 0.21 s (the human times are
-  rounded to 0.25-0.5 s).
-- Aladdin through EpubBuilder: 26.5 s for 34:32 (78x) once the builder
-  used TWhisper's book settings (no previous-text context, punctuated
-  prompt in every window); 99.8 % matched.
-- Night Watch (English, professional reader, 14:41, 75 parts): 97.8 %;
-  441 moved words = the footnotes, timed where they are read.
-- Benchmark on the 5090 (turbo, Aladdin, 30 s): chosen stretch CUDA0
-  122.0x, Vulkan0 128.8x; the old first-30-s figures were ~20 % high.
+| Night Watch (14 h 41 min, 75 parts) | Time | x real time | Exact | Verdict |
+|---|---|---|---|---|
+| base.en, GTX 1650 4 GB, Linux, CUDA0 | 34:54 | 25 | 91.2 % | 95.6 % |
+| base.en, GTX 1650, Linux, Vulkan1 | 27:57 | 32 | 91.1 % | 95.7 % |
+| base.en, RTX 5090 laptop, Windows | 15:57 | 55 | 91.1 % | 95.4 % |
+| turbo, GTX 1650, Linux, Vulkan1 | running at handover, about an hour | | | |
+Linux loses nothing in quality. On the 1650 Vulkan beats CUDA for base.
+German Night Watch: a German colleague: "Feels like a real speaker.
+Nothing to complain."
 
-### Open - Windows (owner to test or answer)
+### Open / next
 
-1. Test the pause fix in the reader on a book rebuilt after TWhisper-28
-   (the next sentence must not light while the narrator pauses).
-2. Test German Night Watch through the builder (book language -> German
-   prompt, transcribe only). Expected weak spot: chapter numbers (the
-   aligner's number words are English).
-3. Night Watch's contents list has no chapters: check the chapter
-   buttons, which fall back to the book's 24 documents.
-4. Unanswered offers: (a) Create asks before replacing an EPUB this
-   book's last build did not make; (b) leave front / back matter out of
-   the builder's "worth a look" list; (c) Find matches a punctuation-only
-   query (`*`) literally.
-5. Small: --overlay drops audio no overlay plays (moby-dick-mo.epub's
-   9 MB mp4); a drawn menu bar that follows dark mode (the native one
-   stays light); the Settings menu (later).
+- Steam: a beta branch (steps given 2026-11-16); the reader under Steam
+  Linux Runtime 3.0 (sniper) as a non-Steam game - COPY
+  ~/.fmxlinux/libfmux-1.0dev.so beside the program (the programs load
+  it from the home folder now; a Steam Machine has none); then the
+  builder; the GPU backends as free DLC ("Shall we do this").
+- Deploy test 2 and the 2 GiB paclient limit (Later tests 4).
+- The aligner front edge (Later tests 6, TWhisper).
+- Lazy layout in TEpubView (review focus 1).
+- macOS: AudioQueue output in TFFMpegAPI, Metal; Info.plist types.
 
 ### Later tests (owner, 2026-11-16: "stick that in 'later tests' - bit
 busy testing base functionality")
 
 1. WHERE THE TIME GOES PER WINDOW. On the owner's GTX 1650 (Linux,
-   Night Watch, 14 h 41 min) base.en took 34 min 54 s on CUDA0 and about
-   31 min on Vulkan1, and large-v3-turbo was "quite close" - so the
-   model's size is not what sets the time: a fixed cost per 30 s window
-   is. First suspect DTW (word times, after every window, largely CPU -
+   Night Watch, 14 h 41 min) base.en took 34 min 54 s on CUDA0 and
+   27 min 57 s on Vulkan1; the RTX 5090 (Windows) 15 min 57 s - only 2.2x
+   the 1650, so for SMALL models a fixed cost per 30 s window dominates.
+   (large-v3-turbo is NOT close to base on the 1650: about an hour against
+   28 min - the first "quite close" came from the old time-left estimate.) First suspect DTW (word times, after every window, largely CPU -
    EpubBuilder held ~75 % of a core, GPU ~60 % with base); then token
    choice / bookkeeping, then host <-> GPU copies. Recipe (EpubBuilder
    cannot do part of a book):
@@ -148,58 +191,54 @@ busy testing base functionality")
    folders (115 files, 1760 MB, longest name 50) it deploys. Test 2:
    deploy_redist.py --skip "^lib(cublas|cudart|ggml-cuda)" (kernels in,
    under 2 GiB): deploys = the 2 GiB total, fails = the kernels' names.
-5. EpubReader "not responding" (Linux): the log shows it in making the
-   book's cover (zip 68 logs each step; EPUBREADER_NO_COVERS=1 skips).
-
-### Next - other operating systems (agreed order: Linux, then macOS)
-
-- **Linux (incl. Steam Machine, Steam Deck):** a Linux build of TWhisper
-  and its first test (whisper-dev builds the libraries); then the
-  Steam Machine HIP re-run with --bench (chosen stretch, greedy) for a
-  like-for-like comparison with the 5090; first runs of the reader
-  (FMXLinux; TSteamAPI's platform units and EpubReader.sh already in)
-  and of the builder; FFmpeg linux-x64 from ffmpeg-dev. Steam Deck:
-  Steam Input through TSteamAPI (needs its source in the session) and a
-  1280x800 layout.
-- **macOS:** TFFMpegAPI has no macOS audio output yet (AudioQueue) - the
-  reader is silent there until it does; TWhisper with Metal (untested);
-  Info.plist CFBundleDocumentTypes for "Open with".
-- **Android:** later.
+5. DONE (zip 71): EpubReader "not responding" on Linux was Skia asking
+   fontconfig for the family once per paragraph; fonts are now looked up
+   once per view. Owner: "Otherwise its fine now".
+6. Aligner front edge (owner deferred, 2026-11-16): with base.en the
+   first 3 words of Chapter 1 were not highlighted (turbo's book was
+   right): unmatched words before the first match count as front matter.
+   Fix in TWhisper's aligner: words before the first match INSIDE a part
+   that has audio are spoken - time them between the part's start and the
+   first match (interpolated); only words before the first part's audio
+   stay unhighlighted.
 
 ### Plans agreed or parked (detail in the CLAUDE.md files)
 
+- GPU backends as free Steam DLC; video in books (game manuals) - both
+  in "Shall we do this" below.
 - Volunteer transcribers (design only): a job server, workers poll,
-  LibriVox section files as jobs, transcripts back, the server aligns;
-  workers report their own benchmark (HIP / Vulkan / CUDA / Metal),
-  6 GB+ GPU memory. TWhisper CLAUDE.md, plans.
-- Audio outside the book: timings beside the original EPUB (+3: the
-  complete EPUB), timings naming LibriVox's downloads, an edition check.
-  Epubunum CLAUDE.md, "Shall we do this".
-- Builder: progress per word stretch is fine; later - go to the
-  suspicious stretches from the results (needs the reader inside the
-  builder or the other way round); long files without chapters could be
-  split into 30 min pieces (memory: 64 KB per second of audio).
-- German / other-language number words in TWhisper's aligner, if the
-  German run shows heading misses.
-- Parked: English sentence -> German sentence and audio between two
-  synced EPUBs (sentence alignment feasible, phrase level needs a
-  translation model).
+  LibriVox section files as jobs. TWhisper CLAUDE.md, plans.
+- Audio outside the book: timings beside the original EPUB, LibriVox
+  downloads by URL, an edition check. "Shall we do this".
+- Builder: go to the suspicious stretches from the results; "transcribe
+  only the first N minutes" (offered).
+- German / other-language number words in TWhisper's aligner.
+- Parked: sentence alignment between an English and a German book.
 
 ### Working notes for the next session
 
-- Nothing compiles Delphi / FMX in the session: lib/ and the consoles
-  were built with FPC 3.0 to test; the reader, the builder and the FMX
-  view were reviewed by reading only - the owner's Delphi build is their
-  first compile, so expect the occasional compile fix.
-- Tests used here, worth setting up again when needed: epubcheck 5.2.1
-  on every overlay EPUB; a check that every clip equals its timing and
-  ClipAt finds it; a check that only markup was inserted into the
-  documents; --from-json re-alignment of the owner's moby.json (fast
-  regression test of the aligner: 209652 exact, 213544 timed words with
-  the current word list).
-- The owner's machine: Windows, RTX 5090 laptop + Intel iGPU; whisper.cpp
-  and FFmpeg 8.1.3 LGPL in TWhisper's redistributable_bin\Win64 (on
-  PATH); model ggml-large-v3-turbo.bin.
+- Nothing compiles Delphi / FMX here: lib/ and the consoles build with
+  FPC 3.0 (set up in the session from fpc-lambda, with a
+  TStringBuilder stand-in for TWhisper); the owner's Delphi build is the first compile of anything
+  FMX - expect the odd fix (zip 61 was one).
+- The owner's machines: Windows, RTX 5090 laptop (CUDA 13.5, Delphi 13,
+  PAServer client); a Linux test laptop: Ubuntu 26.04 (glibc 2.43,
+  uutils coreutils - `tail -n 6`, not `tail -6`), GTX 1650 4 GB, driver
+  580 (CUDA 13.0: only compiled SASS works, no PTX from 13.5), Docker,
+  PAServer scratch-dir/<profile>/<program>. A Clean through PAServer
+  empties the program's folder (libraries too) - hence deploy_redist.py.
+- Linux libraries: build in whisper-dev's container (whisper-dev, then
+  `container-build/build.sh ../ffmpeg-dev`), then `sh tools/redist.sh
+  collect ../whisper-dev ../ffmpeg-dev` in Epubunum; to Windows with
+  `scp -r` (links become copies; fine), then deploy_redist.py.
+- Debug logs: ~/.config/EpubReader/EpubReader-debug.log,
+  ~/.config/EpubBuilder/EpubBuilder-debug.log (.old = the run before).
+  A hung program: `sudo DEBUGINFOD_URLS= gdb -nx -batch -ex "set
+  debuginfod enabled off" -p <pid> -ex "thread apply 1 bt 30"`
+  (without the debuginfod switches gdb sits downloading symbols).
+- Tests worth setting up again: epubcheck 5.2.1 on every overlay EPUB;
+  every clip = its timing and ClipAt finds it; --from-json re-alignment
+  of moby.json (209652 exact) as the aligner's regression test.
 
 ## Project
 EpubUnum (github.com/WhisperBooks/Epubunum, PRIVATE - WhisperBooks' own,
@@ -1498,6 +1537,9 @@ Later: lay out only the blocks near the view (Night Watch's document 6:
 31851 words).
 
 ## Pushes checked
+- d242ae1 (2026-11-16 21:18) = zips 64 - 71: every delivered file
+  identical; the .dproj files carry deploy_redist.py's entries (115 / 16).
+  whisper-dev 9fa21dc = its 19 - 20.
 - 01a4b4e ("Claude push", 2026-11-16 18:14) = zips 52 - 63: every
   delivered file identical (CR LF / BOM aside) except the four .dproj
   files the IDE re-saved: default platform now Linux64 (owner's IDE),

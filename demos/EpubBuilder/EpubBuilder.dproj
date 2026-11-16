@@ -252,6 +252,21 @@
                 <Platform value="Win64">True</Platform>
             </Platforms>
             <Deployment Version="5">
+                <DeployFile LocalName="$(BDS)\Redist\iossimulator\libcgunwind.1.0.dylib" Class="DependencyModule">
+                    <Platform Name="iOSSimulator">
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="$(BDS)\Redist\iossimulator\libpcre.dylib" Class="DependencyModule">
+                    <Platform Name="iOSSimulator">
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="$(BDS)\Redist\osx32\libcgunwind.1.0.dylib" Class="DependencyModule">
+                    <Platform Name="OSX32">
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
                 <DeployFile LocalName="..\..\redistributable_bin\Linux64\libLLVM.so.24.0git" Class="File">
                     <Platform Name="Linux64">
                         <RemoteDir>.\</RemoteDir>
@@ -273,13 +288,6 @@
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavcodec.so" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libavcodec.so</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
                 <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavcodec.so.62" Class="File">
                     <Platform Name="Linux64">
                         <RemoteDir>.\</RemoteDir>
@@ -287,10 +295,10 @@
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavfilter.so" Class="File">
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavcodec.so" Class="File">
                     <Platform Name="Linux64">
                         <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libavfilter.so</RemoteName>
+                        <RemoteName>libavcodec.so</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
@@ -301,10 +309,10 @@
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavformat.so" Class="File">
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavfilter.so" Class="File">
                     <Platform Name="Linux64">
                         <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libavformat.so</RemoteName>
+                        <RemoteName>libavfilter.so</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
@@ -315,10 +323,10 @@
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavutil.so" Class="File">
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavformat.so" Class="File">
                     <Platform Name="Linux64">
                         <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libavutil.so</RemoteName>
+                        <RemoteName>libavformat.so</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
@@ -326,6 +334,13 @@
                     <Platform Name="Linux64">
                         <RemoteDir>.\</RemoteDir>
                         <RemoteName>libavutil.so.60</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavutil.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libavutil.so</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
@@ -357,17 +372,17 @@
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-base.so" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libggml-base.so</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
                 <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-base.so.0" Class="File">
                     <Platform Name="Linux64">
                         <RemoteDir>.\</RemoteDir>
                         <RemoteName>libggml-base.so.0</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-base.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-base.so</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
@@ -490,17 +505,17 @@
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml.so" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libggml.so</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
                 <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml.so.0" Class="File">
                     <Platform Name="Linux64">
                         <RemoteDir>.\</RemoteDir>
                         <RemoteName>libggml.so.0</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml.so</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
@@ -637,13 +652,6 @@
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libswresample.so" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libswresample.so</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
                 <DeployFile LocalName="..\..\redistributable_bin\Linux64\libswresample.so.6" Class="File">
                     <Platform Name="Linux64">
                         <RemoteDir>.\</RemoteDir>
@@ -651,10 +659,10 @@
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libswscale.so" Class="File">
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libswresample.so" Class="File">
                     <Platform Name="Linux64">
                         <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libswscale.so</RemoteName>
+                        <RemoteName>libswresample.so</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
@@ -665,10 +673,10 @@
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libwhisper.so" Class="File">
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libswscale.so" Class="File">
                     <Platform Name="Linux64">
                         <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libwhisper.so</RemoteName>
+                        <RemoteName>libswscale.so</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
@@ -676,6 +684,13 @@
                     <Platform Name="Linux64">
                         <RemoteDir>.\</RemoteDir>
                         <RemoteName>libwhisper.so.1</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libwhisper.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libwhisper.so</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
@@ -1054,21 +1069,6 @@
                     <Platform Name="Linux64">
                         <RemoteDir>.\licences\</RemoteDir>
                         <RemoteName>whisper.cpp-LICENSE.txt</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="$(BDS)\Redist\iossimulator\libcgunwind.1.0.dylib" Class="DependencyModule">
-                    <Platform Name="iOSSimulator">
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="$(BDS)\Redist\iossimulator\libpcre.dylib" Class="DependencyModule">
-                    <Platform Name="iOSSimulator">
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="$(BDS)\Redist\osx32\libcgunwind.1.0.dylib" Class="DependencyModule">
-                    <Platform Name="OSX32">
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
