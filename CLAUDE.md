@@ -288,7 +288,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 50.
+Last number used: 51.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -1177,6 +1177,16 @@ re-saved by the IDE (Cfg_2 blocks for OSX64 / OSXARM64 / Win64 -
 harmless, keep). TWhisper d669a06 = TWhisper-30, whisper-dev d8a2183 =
 whisper-dev-01, ffmpeg-dev 7566f9c = ffmpeg-dev-07, TFFMpegAPI 3edcfa3
 unchanged this session.
+
+## Zip 51 (on top of 6207694 = zip 50): Linux libraries from the container
+redistributable_bin/README.md: Linux libraries are built in whisper-dev's
+container-build (Ubuntu 22.04, glibc 2.35 - whisper-dev-04/05; Docker or
+Podman, documented in whisper-dev's container-build/README.md), so the
+deployed set runs on every Linux with glibc 2.35+; a host build on
+Ubuntu 26.04 needed glibc 2.43.
+Push 6207694 checked: = zip 50 file by file; tools/redist.sh pushed as
+100644 - needs git update-index --chmod=+x tools/redist.sh (until then:
+sh tools/redist.sh ...).
 
 ## Pushes checked
 - 4d7dfbe ("Claude push", 2026-11-15 22:58): the repo's head at the

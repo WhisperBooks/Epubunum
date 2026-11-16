@@ -14,7 +14,12 @@ folders and `.dll` / `.so` / `.dylib` files).
 | `OSXARM64`, `OSX64` | a Mac (that architecture) | `tools/redist.sh collect WHISPER_DEV FFMPEG_DEV` |
 
 WHISPER_DEV and FFMPEG_DEV are the two repositories' folders, after their
-`build` scripts have run. On Windows, TWhisper's `redistributable_bin\Win64`
+`build` scripts have run. **For Linux, build both in whisper-dev's
+container** (`container-build/build.sh` and `container-build/build.sh
+../ffmpeg-dev`, Docker or Podman - whisper-dev's
+`container-build/README.md`): libraries built straight on a new
+distribution do not load on older ones; from the container they run on
+every Linux with glibc 2.35 or newer. On Windows, TWhisper's `redistributable_bin\Win64`
 also does as WHISPER_DEV. Each platform folder also gets `licences/`:
 FFmpeg's LGPL texts and its build's configure line, and whisper.cpp's MIT
 licence - they go with the libraries.
