@@ -11,8 +11,10 @@ interface
 
 uses
   System.SysUtils, System.Types, System.UITypes, System.Classes, System.Math, System.StrUtils,
-  System.DateUtils, System.IOUtils, System.IniFiles,
-  FMX.Types, FMX.Controls, FMX.Forms, FMX.Dialogs, FMX.DialogService, FMX.StdCtrls, FMX.Layouts,
+  System.DateUtils, System.IOUtils, System.IniFiles, System.JSON,
+  // TJSONArray's inline getters expand only with it (H2443)
+  System.Generics.Collections,
+  FMX.Types, FMX.Controls, FMX.Forms, FMX.Dialogs, FMX.DialogService, FMX.DialogService.Sync, FMX.StdCtrls, FMX.Layouts,
   FMX.ListBox, FMX.Edit, FMX.Memo, FMX.Memo.Types, FMX.ScrollBox, FMX.Controls.Presentation,
   Epub.Zip, Epub.Book, Epub.Layout, Epub.Writer,
   FFmpeg.API,
@@ -39,6 +41,11 @@ type
     FChapters: Boolean;
     { Read FJsonFile instead of transcribing when it fits the audio. }
     FReuse: Boolean;
+    { The saved transcript's model (file name; '' = not recorded: made
+      before the builder recorded it), read by ReadSaved. }
+    FSavedModel: string;
+    { When the saved transcript was made ('' = not recorded). }
+    FSavedMade: string;
     { The book's language ('de'; '' = not given): the language Whisper is
       told, and the prompt's. }
     FLanguage: string;
@@ -89,8 +96,11 @@ type
     { Takes the silence off the word edges of a transcript saved before
       that was done (TWhisper zip 28), part by part from the audio. }
     procedure TrimSaved(var AResult: TWhisperTranscription; AAudio: TWhisperAudioSet);
-    { Saves AResult as FJsonFile, marked as having trimmed word edges. }
-    procedure SaveTranscript(const AResult: TWhisperTranscription; const AParts: TWhisperAudioPartArray);
+    { Saves AResult as FJsonFile, marked as having trimmed word edges, with
+      the model that made it (file name) and when (AMade, 'yyyy-mm-dd
+      hh:nn'): a later run reuses it only with the same model. }
+    procedure SaveTranscript(const AResult: TWhisperTranscription; const AParts: TWhisperAudioPartArray;
+      const AModel, AMade: string);
     { Transcribes every part of AAudio into one transcription (the joined
       time line), as WhisperConsole does: clean, second pass over gaps. }
     function Transcribe(AAudio: TWhisperAudioSet): TWhisperTranscription;
@@ -113,6 +123,44 @@ type
     property OnProgress: TProc<Double> read FOnProgress write FOnProgress;
     { Receives what is being done now. }
     property OnStatus: TProc<string> read FOnStatus write FOnStatus;
+  end;
+
+  { Where a job of the queue is. }
+  TJobState = (
+    { Not run yet (or to run again). }
+    jsWaiting,
+    { Being built now. }
+    jsRunning,
+    { Built. }
+    jsDone,
+    { Stopped by an error. }
+    jsFailed,
+    { Stopped by Cancel. }
+    jsCancelled);
+
+  { One book to build: everything Create would use, taken from the window
+    when the job was added. }
+  TBuildJob = record
+    { The EPUB. }
+    Book: string;
+    { Its title (for the list). }
+    Title: string;
+    { The audio files, in reading order. }
+    Audio: TArray<string>;
+    { The model file. }
+    Model: string;
+    { The device by name ('' = whisper.cpp's default). }
+    Device: string;
+    { The EPUB to write. }
+    Output: string;
+    { Chapters of a file are parts. }
+    Chapters: Boolean;
+    { Use a saved transcript when it fits. }
+    Reuse: Boolean;
+    { Where it is. }
+    State: TJobState;
+    { What happened ('' = nothing yet): the time taken, or why it failed. }
+    Note: string;
   end;
 
   { The builder's window. }
@@ -175,6 +223,10 @@ type
     FMadeBook: string;
     { The EPUB that build wrote: Create replaces it without asking. }
     FMadeOut: string;
+    { The chosen book's TEpubBook.WrittenBy ('' = not made by EpubUnum). }
+    FBookWrittenBy: string;
+    { The chosen book's media overlay clips (0 = no synced audio yet). }
+    FBookClips: Integer;
     { Devices whisper.cpp can use (cbDevice's items after 'Default'). }
     FDevices: TWhisperDeviceArray;
     { Why whisper.cpp is not there ('' when it is). }
@@ -183,6 +235,36 @@ type
     FBookFolder: string;
     { Folder the last audio was added from. }
     FAudioFolder: string;
+    { The chosen book's title. }
+    FBookTitle: string;
+    { The job queue: left of the book. }
+    layQueue: TLayout;
+    { Between the queue and the book. }
+    splQueue: TSplitter;
+    { The jobs. }
+    lbJobs: TListBox;
+    { Runs the waiting jobs one after the other. }
+    btnRunQueue: TButton;
+    { Adds the window's book, audio and settings to the queue. }
+    btnAddJob: TButton;
+    { Starts the next job once the last one's thread has gone. }
+    tmQueue: TTimer;
+    { The queue. }
+    FJobs: TArray<TBuildJob>;
+    { The job being built (index in FJobs), -1 = none (Create's build). }
+    FJob: Integer;
+    { Run Queue is on: when a job ends the next waiting one starts. }
+    FQueueRunning: Boolean;
+    { Cancel was pressed for the build running. }
+    FCancelled: Boolean;
+    { The log lines of the build running, saved beside its output
+      (<output>.log) when it ends - an overnight queue leaves a log per
+      book. }
+    FBuildLog: TStringList;
+    { LogLine also writes to FBuildLog (a build is running). }
+    FLogging: Boolean;
+    { Folder of the last queue file loaded or saved. }
+    FQueueFolder: string;
     { A label above AParent's next control. }
     function AddCaption(AParent: TFmxObject; const AText: string): TLabel;
     { A row in AParent: a caption, then a control filling it. }
@@ -219,10 +301,60 @@ type
     { Checks the choices; asks before replacing an EPUB this program did
       not just make from this book; then StartBuild. }
     procedure btnCreateClick(Sender: TObject);
-    { Starts the build on a TBuildThread (ADevice: '' = whisper.cpp's default). }
+    { Starts the build of the window's choices (ADevice: '' =
+      whisper.cpp's default). }
     procedure StartBuild(const ADevice: string);
+    { Starts building AJob on a TBuildThread (AIndex: its place in FJobs,
+      -1 for Create's build). }
+    procedure StartJob(const AJob: TBuildJob; AIndex: Integer);
+    { The window's choices as a job (ADevice: the device's name). }
+    function JobFromWindow(const ADevice: string): TBuildJob;
+    { Checks the window's choices (as Create does: the output, a model,
+      the questions about a built book and an existing output), then
+      builds now (AQueue False) or adds a job (True). }
+    procedure CheckThen(AQueue: Boolean);
+    { Adds AJob to the queue (an output already waiting in it: refused). }
+    procedure AddJob(const AJob: TBuildJob);
+    { Fills lbJobs from FJobs (keeps the selection). }
+    procedure ShowJobs;
+    { A job's line in lbJobs. }
+    function JobText(AIndex: Integer): string;
+    { Starts the next waiting job; ends the run when there is none. }
+    procedure RunNextJob;
+    { tmQueue: RunNextJob. }
+    procedure tmQueueTimer(Sender: TObject);
+    { Add to queue. }
+    procedure btnAddJobClick(Sender: TObject);
+    { Run queue: every job not done (failed and cancelled ones again). }
+    procedure btnRunQueueClick(Sender: TObject);
+    { Removes the selected job (not the one running). }
+    procedure btnJobRemoveClick(Sender: TObject);
+    { Moves the selected job up. }
+    procedure btnJobUpClick(Sender: TObject);
+    { Moves it down. }
+    procedure btnJobDownClick(Sender: TObject);
+    { Adds the jobs of a queue file. }
+    procedure btnJobLoadClick(Sender: TObject);
+    { Saves the queue to a file. }
+    procedure btnJobSaveClick(Sender: TObject);
+    { A double click on a job puts its choices into the window (to change
+      and add again, or to Create). }
+    procedure lbJobsDblClick(Sender: TObject);
+    { Saves FJobs to AFileName (JSON). }
+    procedure SaveQueue(const AFileName: string);
+    { Adds the jobs of AFileName to FJobs; returns how many. }
+    function LoadQueue(const AFileName: string): Integer;
+    { Closing while a build runs asks first (No by default): the build
+      would be stopped and its work so far lost. }
+    procedure FormCloseQuery(Sender: TObject; var CanClose: Boolean);
+    { Asks before replacing an EPUB this program did not just make from
+      this book (or one a waiting job will write), then StartBuild /
+      AddJob (AQueue). }
+    procedure CheckOutputThen(const ADevice: string; AQueue: Boolean);
     { Stop it. }
     procedure btnCancelClick(Sender: TObject);
+    { "Use a saved transcript" changed: Create may need a model now. }
+    procedure chkReuseChange(Sender: TObject);
     { The build thread ended (any way). }
     procedure BuildDone(Sender: TObject);
     { The model, device, options and folders of the last session. }
@@ -266,6 +398,10 @@ const
   { Marks a saved transcript whose word edges were trimmed of silence
     (WhisperTrimWordSilence); one without it is trimmed once when used. }
   TRIMMED_MARK = '"word_edges": "trimmed"';
+  { Key of a saved transcript naming the model that made it (file name). }
+  MODEL_KEY = 'builder_model';
+  { Key of a saved transcript saying when it was made. }
+  MADE_KEY = 'builder_made';
   { Shortest stretch of not-matched words listed in the results. }
   REGION_MIN_WORDS = 3;
   { Most stretches listed. }
@@ -337,6 +473,37 @@ begin
 end;
 
 { The transcript file kept for AOutFile. }
+{ AText as the inside of a JSON string ('\' and '"' escaped). }
+function JsonText(const AText: string): string;
+begin
+  Result := StringReplace(AText, '\', '\\', [rfReplaceAll]);
+  Result := StringReplace(Result, '"', '\"', [rfReplaceAll]);
+end;
+
+{ The string value of key AKey near the start of a saved transcript
+  (the builder's own keys come first; '' when not there). }
+function SavedKey(const AJson, AKey: string): string;
+var
+  Head: string;
+  P, E: Integer;
+begin
+  Result := '';
+  Head := Copy(AJson, 1, 2000);
+  P := Pos('"' + AKey + '": "', Head);
+  if P = 0 then
+    Exit;
+  P := P + Length(AKey) + 5;
+  E := P;
+  while (E <= Length(Head)) and (Head[E] <> '"') do
+  begin
+    if Head[E] = '\' then
+      Inc(E);
+    Inc(E);
+  end;
+  Result := StringReplace(StringReplace(Copy(Head, P, E - P), '\"', '"', [rfReplaceAll]), '\\', '\',
+    [rfReplaceAll]);
+end;
+
 function TranscriptFileOf(const AOutFile: string): string;
 begin
   Result := ChangeFileExt(AOutFile, '') + TRANSCRIPT_SUFFIX;
@@ -454,14 +621,34 @@ function TBuildThread.ReadSaved(const AParts: TWhisperAudioPartArray; out AResul
   out ASavedParts: TWhisperAudioPartArray): Boolean;
 var
   I: Integer;
+  Json: string;
 begin
   Result := False;
   AResult := Default(TWhisperTranscription);
   ASavedParts := nil;
-  if not FReuse or not FileExists(FJsonFile) then
+  FSavedModel := '';
+  FSavedMade := '';
+  if not FReuse then
     Exit;
+  if not FileExists(FJsonFile) then
+  begin
+    Log('No saved transcript for this output (' + ExtractFileName(FJsonFile) + '): transcribing');
+    Exit;
+  end;
   try
-    AResult := WhisperTranscriptionFromJson(WhisperLoadTextFile(FJsonFile), ASavedParts);
+    Json := WhisperLoadTextFile(FJsonFile);
+    FSavedModel := SavedKey(Json, MODEL_KEY);
+    FSavedMade := SavedKey(Json, MADE_KEY);
+    // another model: a reason to transcribe again, so the old words are
+    // not trusted (owner)
+    if (FModelFile <> '') and (FSavedModel <> '') and
+      not SameText(ExtractFileName(FSavedModel), ExtractFileName(FModelFile)) then
+    begin
+      Log(Format('The saved transcript was made with %s, and %s is chosen: transcribing again',
+        [FSavedModel, ExtractFileName(FModelFile)]));
+      Exit;
+    end;
+    AResult := WhisperTranscriptionFromJson(Json, ASavedParts);
   except
     on E: Exception do
     begin
@@ -484,8 +671,13 @@ begin
     end;
   if Length(AResult.Words) = 0 then
     Exit;
-  Log(Format('Using the transcript an earlier run kept: %s (%d words) - untick "Use a saved transcript" to ' +
-    'transcribe again', [FJsonFile, Length(AResult.Words)]));
+  if FSavedModel = '' then
+    Log(Format('USING THE SAVED TRANSCRIPT %s (%d words; made before the builder recorded the model and ' +
+      'the date) - untick "Use a saved transcript" to transcribe again', [FJsonFile, Length(AResult.Words)]))
+  else
+    Log(Format('USING THE SAVED TRANSCRIPT %s (%d words), made %s with %s - untick "Use a saved ' +
+      'transcript" to transcribe again', [FJsonFile, Length(AResult.Words), IfThen(FSavedMade = '',
+      '(date not recorded)', FSavedMade), FSavedModel]));
   Result := True;
 end;
 
@@ -534,16 +726,22 @@ begin
   end;
 end;
 
-procedure TBuildThread.SaveTranscript(const AResult: TWhisperTranscription; const AParts: TWhisperAudioPartArray);
+procedure TBuildThread.SaveTranscript(const AResult: TWhisperTranscription; const AParts: TWhisperAudioPartArray;
+  const AModel, AMade: string);
 var
-  Json: string;
+  Json, Keys: string;
   P: Integer;
 begin
   Json := WhisperTranscriptionToJson(AResult, AParts);
-  // a key of its own after the opening brace (the reader ignores keys it
+  // keys of its own after the opening brace (the reader ignores keys it
   // does not know)
+  Keys := sLineBreak + '  ' + TRIMMED_MARK + ',';
+  if AModel <> '' then
+    Keys := Keys + sLineBreak + '  "' + MODEL_KEY + '": "' + JsonText(AModel) + '",';
+  if AMade <> '' then
+    Keys := Keys + sLineBreak + '  "' + MADE_KEY + '": "' + JsonText(AMade) + '",';
   P := Pos('{', Json);
-  Insert(sLineBreak + '  ' + TRIMMED_MARK + ',', Json, P + 1);
+  Insert(Keys, Json, P + 1);
   WhisperSaveTextFile(FJsonFile, Json);
 end;
 
@@ -828,7 +1026,8 @@ begin
           TrimSaved(R, Audio);
           if Terminated then
             Exit;
-          SaveTranscript(R, Parts);
+          // still the words of its own model and date
+          SaveTranscript(R, Parts, FSavedModel, FSavedMade);
         end;
       end
       else
@@ -841,7 +1040,7 @@ begin
           Exit;
         end;
         Parts := Audio.Parts;
-        SaveTranscript(R, Parts);
+        SaveTranscript(R, Parts, ExtractFileName(FModelFile), FormatDateTime('yyyy-mm-dd hh:nn', Now));
         Log(Format('Transcript kept for next time: %s (%d words)', [FJsonFile, Length(R.Words)]));
       end;
       Progress(90);
@@ -863,6 +1062,8 @@ begin
 
       // 5. the book with overlays and the audio inside
       Writer := TEpubWriter.Create(Book);
+      // marked as ours: choosing this book again is warned about
+      Writer.WrittenBy := 'EpubBuilder';
       for I := 0 to Files.Count - 1 do
         Writer.AddAudioFile(Files[I]);
       // the recording's chapters (or its files) as chapter marks: the
@@ -994,11 +1195,18 @@ begin
   chkReuse.Position.X := 100000;
   chkReuse.Width := 420;
   chkReuse.Text := 'Use a saved transcript (re-align in seconds, no new transcription)';
-  chkReuse.IsChecked := True;
+  // off at every start: reusing old words is a choice made for one build
+  // (owner: "if re-transcribing there is obviously a reason"); not kept in
+  // the settings
+  chkReuse.IsChecked := False;
+  chkReuse.OnChange := chkReuseChange;
 
   Buttons := AddRow(layBottom, '');
   btnCreate := AddButton(Buttons, 'Create', btnCreateClick, TAlignLayout.Left, 120);
+  btnAddJob := AddButton(Buttons, 'Add to queue', btnAddJobClick, TAlignLayout.Left, 120);
+  btnAddJob.Position.X := 100000;
   btnCancel := AddButton(Buttons, 'Cancel', btnCancelClick, TAlignLayout.Left, 120);
+  btnCancel.Position.X := 200000;
   pbBuild := TProgressBar.Create(Self);
   pbBuild.Parent := Buttons;
   pbBuild.Align := TAlignLayout.Client;
@@ -1024,9 +1232,48 @@ begin
   mmLog.ReadOnly := True;
   mmLog.WordWrap := True;
 
-  // the book: left
+  // the job queue: leftmost (owner: "a 3rd column ... on the left ... with
+  // a Run Queue at the bottom of it")
+  ClientWidth := Max(ClientWidth, 1300);
+  layQueue := TLayout.Create(Self);
+  layQueue.Parent := Self;
+  layQueue.Position.X := 0;
+  layQueue.Align := TAlignLayout.Left;
+  layQueue.Width := 300;
+  AddCaption(layQueue, 'Job queue');
+  Row := AddRow(layQueue, '');
+  Row.Position.Y := 30;
+  AddButton(Row, 'Load...', btnJobLoadClick, TAlignLayout.Left, 64);
+  AddButton(Row, 'Save...', btnJobSaveClick, TAlignLayout.Left, 64);
+  AddButton(Row, 'Remove', btnJobRemoveClick, TAlignLayout.Left, 64);
+  AddButton(Row, 'Up', btnJobUpClick, TAlignLayout.Left, 40);
+  AddButton(Row, 'Down', btnJobDownClick, TAlignLayout.Left, 48);
+  btnRunQueue := TButton.Create(Self);
+  btnRunQueue.Parent := layQueue;
+  btnRunQueue.Align := TAlignLayout.Bottom;
+  btnRunQueue.Height := 36;
+  btnRunQueue.Margins.Rect := RectF(GAP, GAP, GAP, GAP);
+  btnRunQueue.Text := 'Run queue';
+  btnRunQueue.OnClick := btnRunQueueClick;
+  lbJobs := TListBox.Create(Self);
+  lbJobs.Parent := layQueue;
+  lbJobs.Align := TAlignLayout.Client;
+  lbJobs.Margins.Rect := RectF(GAP, GAP, GAP, 0);
+  lbJobs.OnDblClick := lbJobsDblClick;
+  splQueue := TSplitter.Create(Self);
+  splQueue.Parent := Self;
+  splQueue.Position.X := 1;
+  splQueue.Align := TAlignLayout.Left;
+  splQueue.Width := 5;
+  tmQueue := TTimer.Create(Self);
+  tmQueue.Enabled := False;
+  tmQueue.Interval := 50;
+  tmQueue.OnTimer := tmQueueTimer;
+
+  // the book: left of the audio
   layBook := TLayout.Create(Self);
   layBook.Parent := Self;
+  layBook.Position.X := 2;
   layBook.Align := TAlignLayout.Left;
   layBook.Width := 470;
   AddCaption(layBook, 'Book (EPUB)');
@@ -1073,6 +1320,9 @@ var
   Lib: TWhisperLib;
   I: Integer;
 begin
+  OnCloseQuery := FormCloseQuery;
+  FJob := -1;
+  FBuildLog := TStringList.Create;
   BuildWindow;
   cbDevice.Items.Add('Default (whisper.cpp chooses)');
   try
@@ -1086,7 +1336,12 @@ begin
     begin
       FWhisperNote := E.Message;
       LogLine('whisper.cpp is not available: ' + E.Message);
+      {$IFDEF MSWINDOWS}
       LogLine('Put TWhisper''s redistributable_bin libraries next to the program or on PATH.');
+      {$ELSE}
+      LogLine('Put whisper-dev''s dlls (libwhisper.so, libggml*.so, libgomp.so.1) and ffmpeg-dev''s ' +
+        'dlls/linux-x64 libraries next to the program, or on LD_LIBRARY_PATH.');
+      {$ENDIF}
     end;
   end;
   cbDevice.ItemIndex := 0;
@@ -1115,7 +1370,6 @@ begin
         if SameText(FDevices[I].Name, Device) then
           cbDevice.ItemIndex := I + 1;
       chkChapters.IsChecked := Ini.ReadBool('Build', 'Chapters', True);
-      chkReuse.IsChecked := Ini.ReadBool('Build', 'UseSavedTranscript', True);
       FBookFolder := Ini.ReadString('Folders', 'Book', '');
       FAudioFolder := Ini.ReadString('Folders', 'Audio', '');
     finally
@@ -1141,7 +1395,8 @@ begin
       else
         Ini.WriteString('Build', 'Device', '');
       Ini.WriteBool('Build', 'Chapters', chkChapters.IsChecked);
-      Ini.WriteBool('Build', 'UseSavedTranscript', chkReuse.IsChecked);
+      // no longer kept (off at every start)
+      Ini.DeleteKey('Build', 'UseSavedTranscript');
       Ini.WriteString('Folders', 'Book', FBookFolder);
       Ini.WriteString('Folders', 'Audio', FAudioFolder);
       Ini.UpdateFile;
@@ -1152,6 +1407,31 @@ begin
     on E: Exception do
       LogLine('Settings not saved (' + E.Message + ')');
   end;
+end;
+
+procedure TfrmBuilder.FormCloseQuery(Sender: TObject; var CanClose: Boolean);
+var
+  Queue: string;
+  I, N: Integer;
+begin
+  if FBuild = nil then
+    Exit;
+  // the answer is needed now: the synchronous dialog (desktop platforms)
+  Queue := '';
+  if FQueueRunning then
+  begin
+    N := 0;
+    for I := 0 to High(FJobs) do
+      if FJobs[I].State = jsWaiting then
+        Inc(N);
+    Queue := Format(' The queue stops too: %d more job(s) waiting (Save... keeps them).', [N]);
+  end;
+  CanClose := TDialogServiceSync.MessageDialog(Format('A build is running (%.0f %%: %s).' + sLineBreak +
+    sLineBreak + 'Closing stops it, and its work so far is lost - a transcription is kept only when all its ' +
+    'parts are done.%s' + sLineBreak + sLineBreak + 'Stop the build and close?', [FPercent, FStatusText, Queue]),
+    TMsgDlgType.mtWarning, [TMsgDlgBtn.mbYes, TMsgDlgBtn.mbNo], TMsgDlgBtn.mbNo, 0) = mrYes;
+  if not CanClose then
+    LogLine('Still building.');
 end;
 
 procedure TfrmBuilder.FormClose(Sender: TObject; var Action: TCloseAction);
@@ -1171,27 +1451,39 @@ begin
     FBuild.WaitFor;
     FreeAndNil(FBuild);
   end;
+  FreeAndNil(FBuildLog);
 end;
 
 procedure TfrmBuilder.LogLine(const AText: string);
 begin
   mmLog.Lines.Add(AText);
   mmLog.GoToTextEnd;
+  if FLogging and (FBuildLog <> nil) then
+    FBuildLog.Add(AText);
 end;
 
 procedure TfrmBuilder.UpdateControls;
 var
-  Busy: Boolean;
+  Busy, Ready, Waiting: Boolean;
+  I: Integer;
 begin
-  Busy := FBuild <> nil;
-  btnCreate.Enabled := not Busy and (FWhisperNote = '') and (edBook.Text <> '') and (lbAudio.Count > 0) and
-    (edOut.Text <> '') and ((edModel.Text <> '') or chkReuse.IsChecked);
-  btnCancel.Enabled := Busy;
-  layBook.Enabled := not Busy;
-  layAudio.Enabled := not Busy;
-  edModel.Enabled := not Busy;
-  cbDevice.Enabled := not Busy;
-  edOut.Enabled := not Busy;
+  Busy := (FBuild <> nil) or FQueueRunning;
+  Ready := (FWhisperNote = '') and (edBook.Text <> '') and (lbAudio.Count > 0) and (edOut.Text <> '') and
+    ((edModel.Text <> '') or chkReuse.IsChecked);
+  // the window stays usable while building: books are added to the queue
+  // while it runs (owner)
+  btnCreate.Enabled := not Busy and Ready;
+  btnAddJob.Enabled := Ready;
+  btnCancel.Enabled := FBuild <> nil;
+  Waiting := False;
+  for I := 0 to High(FJobs) do
+    if FJobs[I].State <> jsDone then
+      Waiting := True;
+  btnRunQueue.Enabled := not Busy and Waiting;
+  if FQueueRunning then
+    btnRunQueue.Text := 'Queue running ...'
+  else
+    btnRunQueue.Text := 'Run queue';
 end;
 
 procedure TfrmBuilder.ShowBook(const AFileName: string);
@@ -1200,9 +1492,18 @@ var
   Audio: TStringList;
 begin
   mmBook.Lines.Clear;
+  FBookTitle := '';
+  FBookWrittenBy := '';
+  FBookClips := 0;
   try
     Book := TEpubBook.Create(AFileName);
     try
+      FBookWrittenBy := Book.WrittenBy;
+      FBookTitle := Book.Title;
+      FBookClips := Length(Book.Clips);
+      if FBookWrittenBy <> '' then
+        mmBook.Lines.Add(Format('ALREADY A READ-ALONG BOOK (made by %s): choose the original EPUB to build ' +
+          'from', [FBookWrittenBy]));
       mmBook.Lines.Add('Title: ' + Book.Title);
       if Book.Language <> '' then
         mmBook.Lines.Add('Language: ' + Book.Language);
@@ -1387,15 +1688,27 @@ begin
 end;
 
 procedure TfrmBuilder.btnCreateClick(Sender: TObject);
-var
-  Device: string;
 begin
+  CheckThen(False);
+end;
+
+procedure TfrmBuilder.btnAddJobClick(Sender: TObject);
+begin
+  CheckThen(True);
+end;
+
+procedure TfrmBuilder.CheckThen(AQueue: Boolean);
+var
+  Device, Msg: string;
+  Q: Boolean;
+begin
+  Q := AQueue;
   if SameFileName(ExpandFileName(edOut.Text), ExpandFileName(edBook.Text)) then
   begin
     LogLine('The output must not be the book itself: choose another output file.');
     Exit;
   end;
-  if (edModel.Text = '') and not FileExists(TranscriptFileOf(edOut.Text)) then
+  if (edModel.Text = '') and not (chkReuse.IsChecked and FileExists(TranscriptFileOf(edOut.Text))) then
   begin
     LogLine('Choose a model: there is no saved transcript to use.');
     Exit;
@@ -1403,6 +1716,51 @@ begin
   Device := '';
   if cbDevice.ItemIndex > 0 then
     Device := FDevices[cbDevice.ItemIndex - 1].Name;
+  // a book that is already a read-along one (made by this program, or with
+  // synced audio of its own): asked first, No by default (owner: "I
+  // accidentally tried re-encoding an already built epub")
+  if (FBookWrittenBy <> '') or (FBookClips > 0) then
+  begin
+    if FBookWrittenBy <> '' then
+      Msg := Format('%s was made by %s: it is already a read-along book.' + sLineBreak + sLineBreak +
+        'Building from it again gives a copy of a copy - choose the original EPUB instead.' + sLineBreak +
+        sLineBreak + 'Build from it anyway?', [ExtractFileName(edBook.Text), FBookWrittenBy])
+    else
+      Msg := Format('%s already has synced audio (%d clips).' + sLineBreak + sLineBreak +
+        'The new book gets its own; the old audio stays in it.' + sLineBreak + sLineBreak +
+        'Build from it anyway?', [ExtractFileName(edBook.Text), FBookClips]);
+    TDialogService.MessageDialog(Msg, TMsgDlgType.mtWarning, [TMsgDlgBtn.mbYes, TMsgDlgBtn.mbNo],
+      TMsgDlgBtn.mbNo, 0,
+      procedure(const AResult: TModalResult)
+      begin
+        if AResult = mrYes then
+          CheckOutputThen(Device, Q)
+        else
+          LogLine('Not started: choose the original EPUB (Choose... above the book).');
+      end);
+    Exit;
+  end;
+  CheckOutputThen(Device, Q);
+end;
+
+procedure TfrmBuilder.CheckOutputThen(const ADevice: string; AQueue: Boolean);
+var
+  Device: string;
+  Q: Boolean;
+  I: Integer;
+begin
+  // local copies for the dialog's anonymous method to capture
+  Device := ADevice;
+  Q := AQueue;
+  // a job waiting in the queue writes this output already
+  for I := 0 to High(FJobs) do
+    if (FJobs[I].State in [jsWaiting, jsRunning]) and SameFileName(ExpandFileName(FJobs[I].Output),
+      ExpandFileName(edOut.Text)) then
+    begin
+      LogLine(Format('Job %d of the queue writes %s already: choose another output file (or remove that ' +
+        'job).', [I + 1, edOut.Text]));
+      Exit;
+    end;
   // an EPUB already there: replaced without asking only when this program
   // made it from this book (a re-align); anything else asks first
   if FileExists(edOut.Text) and not (SameFileName(ExpandFileName(edOut.Text), FMadeOut) and
@@ -1414,13 +1772,21 @@ begin
       procedure(const AResult: TModalResult)
       begin
         if AResult = mrYes then
-          StartBuild(Device)
+        begin
+          if Q then
+            AddJob(JobFromWindow(Device))
+          else
+            StartBuild(Device);
+        end
         else
-          LogLine('Not started: ' + edOut.Text + ' is kept. Choose another output file to keep both.');
+          LogLine('Not done: ' + edOut.Text + ' is kept. Choose another output file to keep both.');
       end);
     Exit;
   end;
-  StartBuild(Device);
+  if Q then
+    AddJob(JobFromWindow(Device))
+  else
+    StartBuild(Device);
 end;
 
 procedure TfrmBuilder.StartBuild(const ADevice: string);
@@ -1430,12 +1796,63 @@ begin
     Exit;
   SaveSettings;
   mmLog.Lines.Clear;
+  StartJob(JobFromWindow(ADevice), -1);
+end;
+
+function TfrmBuilder.JobFromWindow(const ADevice: string): TBuildJob;
+var
+  I: Integer;
+begin
+  Result := Default(TBuildJob);
+  Result.Book := edBook.Text;
+  Result.Title := FBookTitle;
+  if Result.Title = '' then
+    Result.Title := ChangeFileExt(ExtractFileName(edBook.Text), '');
+  SetLength(Result.Audio, lbAudio.Count);
+  for I := 0 to lbAudio.Count - 1 do
+    Result.Audio[I] := lbAudio.Items[I];
+  Result.Model := edModel.Text;
+  Result.Device := ADevice;
+  Result.Output := edOut.Text;
+  Result.Chapters := chkChapters.IsChecked;
+  Result.Reuse := chkReuse.IsChecked;
+  Result.State := jsWaiting;
+end;
+
+procedure TfrmBuilder.StartJob(const AJob: TBuildJob; AIndex: Integer);
+var
+  Audio: TStringList;
+  I: Integer;
+begin
+  if FBuild <> nil then
+    Exit;
   pbBuild.Value := 0;
   FStarted := Now;
-  FRunBook := ExpandFileName(edBook.Text);
-  FRunOut := ExpandFileName(edOut.Text);
-  FBuild := TBuildThread.Create(edBook.Text, lbAudio.Items, edModel.Text, ADevice, edOut.Text,
-    chkChapters.IsChecked, chkReuse.IsChecked);
+  FRunBook := ExpandFileName(AJob.Book);
+  FRunOut := ExpandFileName(AJob.Output);
+  FJob := AIndex;
+  FCancelled := False;
+  // this build's lines, saved beside its output when it ends
+  FBuildLog.Clear;
+  FLogging := True;
+  if AIndex >= 0 then
+  begin
+    FJobs[AIndex].State := jsRunning;
+    FJobs[AIndex].Note := '';
+    ShowJobs;
+    LogLine('');
+    LogLine(Format('=== Job %d of %d: %s -> %s (%s) ===', [AIndex + 1, Length(FJobs), AJob.Title,
+      ExtractFileName(AJob.Output), FormatDateTime('yyyy-mm-dd hh:nn', Now)]));
+  end;
+  Audio := TStringList.Create;
+  try
+    for I := 0 to High(AJob.Audio) do
+      Audio.Add(AJob.Audio[I]);
+    FBuild := TBuildThread.Create(AJob.Book, Audio, AJob.Model, AJob.Device, AJob.Output, AJob.Chapters,
+      AJob.Reuse);
+  finally
+    Audio.Free;
+  end;
   FBuild.OnLog :=
     procedure(AText: string)
     begin
@@ -1462,30 +1879,423 @@ begin
   FBuild.Start;
 end;
 
+procedure TfrmBuilder.AddJob(const AJob: TBuildJob);
+begin
+  SaveSettings;
+  FJobs := FJobs + [AJob];
+  ShowJobs;
+  lbJobs.ItemIndex := High(FJobs);
+  LogLine(Format('Added to the queue as job %d: %s -> %s', [Length(FJobs), AJob.Title,
+    ExtractFileName(AJob.Output)]));
+  UpdateControls;
+end;
+
+function TfrmBuilder.JobText(AIndex: Integer): string;
+const
+  STATE_TEXT: array[TJobState] of string = ('waiting', 'RUNNING', 'done', 'FAILED', 'cancelled');
+begin
+  Result := Format('%d. %s - %s', [AIndex + 1, FJobs[AIndex].Title, STATE_TEXT[FJobs[AIndex].State]]);
+  if FJobs[AIndex].Note <> '' then
+    Result := Result + ' (' + FJobs[AIndex].Note + ')';
+end;
+
+procedure TfrmBuilder.ShowJobs;
+var
+  I, Sel: Integer;
+begin
+  Sel := lbJobs.ItemIndex;
+  lbJobs.BeginUpdate;
+  try
+    lbJobs.Clear;
+    for I := 0 to High(FJobs) do
+      lbJobs.Items.Add(JobText(I));
+  finally
+    lbJobs.EndUpdate;
+  end;
+  if Sel < lbJobs.Count then
+    lbJobs.ItemIndex := Sel;
+end;
+
+procedure TfrmBuilder.RunNextJob;
+var
+  I, Done, Failed: Integer;
+begin
+  if (FBuild <> nil) or not FQueueRunning then
+    Exit;
+  for I := 0 to High(FJobs) do
+    if FJobs[I].State = jsWaiting then
+    begin
+      StartJob(FJobs[I], I);
+      Exit;
+    end;
+  // nothing left
+  FQueueRunning := False;
+  Done := 0;
+  Failed := 0;
+  for I := 0 to High(FJobs) do
+    if FJobs[I].State = jsDone then
+      Inc(Done)
+    else if FJobs[I].State in [jsFailed, jsCancelled] then
+      Inc(Failed);
+  LogLine('');
+  LogLine(Format('=== Queue finished (%s): %d done, %d failed or cancelled ===', [FormatDateTime('yyyy-mm-dd ' +
+    'hh:nn', Now), Done, Failed]));
+  UpdateControls;
+end;
+
+procedure TfrmBuilder.tmQueueTimer(Sender: TObject);
+begin
+  tmQueue.Enabled := False;
+  RunNextJob;
+end;
+
+procedure TfrmBuilder.btnRunQueueClick(Sender: TObject);
+var
+  I, N: Integer;
+begin
+  if (FBuild <> nil) or FQueueRunning then
+    Exit;
+  // failed and cancelled jobs run again; done ones are skipped
+  N := 0;
+  for I := 0 to High(FJobs) do
+  begin
+    if FJobs[I].State in [jsFailed, jsCancelled, jsRunning] then
+      FJobs[I].State := jsWaiting;
+    if FJobs[I].State = jsWaiting then
+      Inc(N);
+  end;
+  ShowJobs;
+  if N = 0 then
+  begin
+    LogLine('Nothing in the queue to run: add books with "Add to queue", or load a queue.');
+    Exit;
+  end;
+  mmLog.Lines.Clear;
+  LogLine(Format('=== Queue: %d job(s) to build (%s) ===', [N, FormatDateTime('yyyy-mm-dd hh:nn', Now)]));
+  FQueueRunning := True;
+  RunNextJob;
+end;
+
+procedure TfrmBuilder.btnJobRemoveClick(Sender: TObject);
+var
+  I: Integer;
+begin
+  I := lbJobs.ItemIndex;
+  if (I < 0) or (I > High(FJobs)) then
+    Exit;
+  if I = FJob then
+  begin
+    LogLine('The job running cannot be removed: Cancel stops it.');
+    Exit;
+  end;
+  Delete(FJobs, I, 1);
+  if FJob > I then
+    Dec(FJob);
+  ShowJobs;
+  lbJobs.ItemIndex := Min(I, High(FJobs));
+  UpdateControls;
+end;
+
+procedure TfrmBuilder.btnJobUpClick(Sender: TObject);
+var
+  I: Integer;
+  T: TBuildJob;
+begin
+  I := lbJobs.ItemIndex;
+  if (I < 1) or (I > High(FJobs)) then
+    Exit;
+  T := FJobs[I - 1];
+  FJobs[I - 1] := FJobs[I];
+  FJobs[I] := T;
+  // the job running keeps its index
+  if FJob = I then
+    FJob := I - 1
+  else if FJob = I - 1 then
+    FJob := I;
+  ShowJobs;
+  lbJobs.ItemIndex := I - 1;
+end;
+
+procedure TfrmBuilder.btnJobDownClick(Sender: TObject);
+var
+  I: Integer;
+  T: TBuildJob;
+begin
+  I := lbJobs.ItemIndex;
+  if (I < 0) or (I >= High(FJobs)) then
+    Exit;
+  T := FJobs[I + 1];
+  FJobs[I + 1] := FJobs[I];
+  FJobs[I] := T;
+  if FJob = I then
+    FJob := I + 1
+  else if FJob = I + 1 then
+    FJob := I;
+  ShowJobs;
+  lbJobs.ItemIndex := I + 1;
+end;
+
+procedure TfrmBuilder.SaveQueue(const AFileName: string);
+const
+  STATE_NAME: array[TJobState] of string = ('waiting', 'waiting', 'done', 'failed', 'cancelled');
+var
+  Root, J: TJSONObject;
+  Jobs, A: TJSONArray;
+  I, K: Integer;
+begin
+  Root := TJSONObject.Create;
+  try
+    Root.AddPair('epubBuilderQueue', TJSONNumber.Create(1));
+    Jobs := TJSONArray.Create;
+    Root.AddPair('jobs', Jobs);
+    for I := 0 to High(FJobs) do
+    begin
+      J := TJSONObject.Create;
+      J.AddPair('book', FJobs[I].Book);
+      J.AddPair('title', FJobs[I].Title);
+      A := TJSONArray.Create;
+      for K := 0 to High(FJobs[I].Audio) do
+        A.Add(FJobs[I].Audio[K]);
+      J.AddPair('audio', A);
+      J.AddPair('model', FJobs[I].Model);
+      J.AddPair('device', FJobs[I].Device);
+      J.AddPair('output', FJobs[I].Output);
+      J.AddPair('chapters', TJSONBool.Create(FJobs[I].Chapters));
+      J.AddPair('useSavedTranscript', TJSONBool.Create(FJobs[I].Reuse));
+      // the job running is saved as waiting (it has not ended)
+      J.AddPair('state', STATE_NAME[FJobs[I].State]);
+      J.AddPair('note', FJobs[I].Note);
+      Jobs.AddElement(J);
+    end;
+    TFile.WriteAllText(AFileName, Root.Format(2), TEncoding.UTF8);
+  finally
+    Root.Free;
+  end;
+end;
+
+function TfrmBuilder.LoadQueue(const AFileName: string): Integer;
+var
+  V: TJSONValue;
+  Root, J: TJSONObject;
+  Jobs, A: TJSONArray;
+  I, K: Integer;
+  Job: TBuildJob;
+  St: string;
+begin
+  Result := 0;
+  V := TJSONObject.ParseJSONValue(TFile.ReadAllText(AFileName, TEncoding.UTF8));
+  try
+    if not (V is TJSONObject) then
+      raise Exception.Create('not a queue file (no JSON object)');
+    Root := TJSONObject(V);
+    if not Root.TryGetValue<TJSONArray>('jobs', Jobs) then
+      raise Exception.Create('not a queue file (no "jobs")');
+    for I := 0 to Jobs.Count - 1 do
+    begin
+      if not (Jobs.Items[I] is TJSONObject) then
+        Continue;
+      J := TJSONObject(Jobs.Items[I]);
+      Job := Default(TBuildJob);
+      J.TryGetValue<string>('book', Job.Book);
+      J.TryGetValue<string>('title', Job.Title);
+      J.TryGetValue<string>('model', Job.Model);
+      J.TryGetValue<string>('device', Job.Device);
+      J.TryGetValue<string>('output', Job.Output);
+      J.TryGetValue<Boolean>('chapters', Job.Chapters);
+      J.TryGetValue<Boolean>('useSavedTranscript', Job.Reuse);
+      J.TryGetValue<string>('note', Job.Note);
+      if J.TryGetValue<TJSONArray>('audio', A) then
+        for K := 0 to A.Count - 1 do
+          Job.Audio := Job.Audio + [A.Items[K].Value];
+      if (Job.Book = '') or (Job.Output = '') or (Length(Job.Audio) = 0) then
+        Continue;
+      if Job.Title = '' then
+        Job.Title := ChangeFileExt(ExtractFileName(Job.Book), '');
+      St := '';
+      J.TryGetValue<string>('state', St);
+      if St = 'done' then
+        Job.State := jsDone
+      else if St = 'failed' then
+        Job.State := jsFailed
+      else if St = 'cancelled' then
+        Job.State := jsCancelled
+      else
+        Job.State := jsWaiting;
+      FJobs := FJobs + [Job];
+      Inc(Result);
+    end;
+  finally
+    V.Free;
+  end;
+end;
+
+procedure TfrmBuilder.btnJobLoadClick(Sender: TObject);
+var
+  D: TOpenDialog;
+  N: Integer;
+begin
+  D := TOpenDialog.Create(Self);
+  try
+    D.Filter := 'Build queues (*.json)|*.json|All files (*.*)|*.*';
+    D.InitialDir := FQueueFolder;
+    if not D.Execute then
+      Exit;
+    FQueueFolder := ExtractFilePath(D.FileName);
+    try
+      N := LoadQueue(D.FileName);
+      LogLine(Format('%d job(s) added from %s', [N, D.FileName]));
+    except
+      on E: Exception do
+        LogLine('The queue file cannot be read: ' + E.Message);
+    end;
+  finally
+    D.Free;
+  end;
+  ShowJobs;
+  UpdateControls;
+end;
+
+procedure TfrmBuilder.btnJobSaveClick(Sender: TObject);
+var
+  D: TSaveDialog;
+begin
+  if Length(FJobs) = 0 then
+  begin
+    LogLine('The queue is empty: nothing to save.');
+    Exit;
+  end;
+  D := TSaveDialog.Create(Self);
+  try
+    D.Filter := 'Build queues (*.json)|*.json';
+    D.DefaultExt := 'json';
+    D.InitialDir := FQueueFolder;
+    D.FileName := 'queue.json';
+    if not D.Execute then
+      Exit;
+    FQueueFolder := ExtractFilePath(D.FileName);
+    try
+      SaveQueue(D.FileName);
+      LogLine(Format('The queue (%d job(s)) was saved to %s', [Length(FJobs), D.FileName]));
+    except
+      on E: Exception do
+        LogLine('The queue was not saved: ' + E.Message);
+    end;
+  finally
+    D.Free;
+  end;
+end;
+
+procedure TfrmBuilder.lbJobsDblClick(Sender: TObject);
+var
+  I, K: Integer;
+  Job: TBuildJob;
+begin
+  I := lbJobs.ItemIndex;
+  if (I < 0) or (I > High(FJobs)) then
+    Exit;
+  Job := FJobs[I];
+  ShowBook(Job.Book);
+  lbAudio.Clear;
+  for K := 0 to High(Job.Audio) do
+    lbAudio.Items.Add(Job.Audio[K]);
+  edOut.Text := Job.Output;
+  if Job.Model <> '' then
+    edModel.Text := Job.Model;
+  cbDevice.ItemIndex := 0;
+  for K := 0 to High(FDevices) do
+    if SameText(FDevices[K].Name, Job.Device) then
+      cbDevice.ItemIndex := K + 1;
+  chkChapters.IsChecked := Job.Chapters;
+  chkReuse.IsChecked := Job.Reuse;
+  LogLine(Format('Job %d put into the window: change it and Add to queue (then remove the old one), or ' +
+    'Create.', [I + 1]));
+  UpdateControls;
+end;
+
+
+procedure TfrmBuilder.chkReuseChange(Sender: TObject);
+begin
+  UpdateControls;
+end;
+
 procedure TfrmBuilder.btnCancelClick(Sender: TObject);
 begin
   if FBuild <> nil then
   begin
     LogLine('Cancelling ...');
+    FCancelled := True;
     FBuild.Cancel;
   end;
 end;
 
 procedure TfrmBuilder.BuildDone(Sender: TObject);
+var
+  Ok: Boolean;
+  Taken: string;
+  I: Integer;
 begin
   // OnTerminate runs on the main thread after Execute: the queued log
   // lines have been delivered before it
-  LogLine(Format('Finished after %s', [WhisperTimeToStr(MilliSecondsBetween(Now, FStarted) div 10)]));
-  if pbBuild.Value >= 100 then
+  Taken := WhisperTimeToStr(MilliSecondsBetween(Now, FStarted) div 10);
+  LogLine(Format('Finished after %s', [Taken]));
+  Ok := pbBuild.Value >= 100;
+  if Ok then
   begin
-    LogLine('Open ' + edOut.Text + ' in EpubReader.');
+    LogLine('Open ' + FRunOut + ' in EpubReader.');
     FMadeBook := FRunBook;
     FMadeOut := FRunOut;
   end;
+  // the job's place in the queue
+  if (FJob >= 0) and (FJob <= High(FJobs)) then
+  begin
+    if Ok then
+    begin
+      FJobs[FJob].State := jsDone;
+      FJobs[FJob].Note := Taken;
+    end
+    else if FCancelled then
+      FJobs[FJob].State := jsCancelled
+    else
+    begin
+      FJobs[FJob].State := jsFailed;
+      // why, in the list (the thread's last "FAILED: ..." line)
+      FJobs[FJob].Note := 'see ' + ExtractFileName(FRunOut) + '.log';
+      for I := FBuildLog.Count - 1 downto 0 do
+        if StartsText('FAILED: ', FBuildLog[I]) then
+        begin
+          FJobs[FJob].Note := Copy(FBuildLog[I], 9, 100);
+          Break;
+        end;
+    end;
+  end;
+  // this build's lines beside its output: an overnight queue leaves a
+  // log per book
+  FLogging := False;
+  try
+    FBuildLog.SaveToFile(FRunOut + '.log', TEncoding.UTF8);
+    LogLine('Log kept: ' + FRunOut + '.log');
+  except
+    on E: Exception do
+      LogLine('The log was not saved beside the output: ' + E.Message);
+  end;
+  FJob := -1;
   // FreeOnTerminate: the thread frees itself once this handler returns
   FBuild := nil;
   tmStatus.Enabled := False;
   ShowStatus;
+  ShowJobs;
+  // the queue goes on (from a timer: this thread object is still being
+  // finished); Cancel stops the whole run
+  if FQueueRunning then
+  begin
+    if FCancelled then
+    begin
+      FQueueRunning := False;
+      LogLine('Queue stopped (Cancel). Run queue builds the jobs not done.');
+    end
+    else
+      tmQueue.Enabled := True;
+  end;
   UpdateControls;
 end;
 
@@ -1502,6 +2312,8 @@ begin
     Left := Round(Taken * (100 - FPercent) / FPercent);
     S := S + Format(', about %s left', [WhisperTimeToStr((Left div 1000) * 100)]);
   end;
+  if (FBuild <> nil) and (FJob >= 0) then
+    S := Format('Job %d of %d: ', [FJob + 1, Length(FJobs)]) + S;
   lblStatus.Text := S + ' - ' + FStatusText;
 end;
 

@@ -33,6 +33,8 @@ uses
   System.SysUtils, System.Types, System.UITypes, System.Classes, System.IOUtils, System.Math,
   FMX.Types, FMX.Controls, FMX.Forms, FMX.Graphics, FMX.Dialogs, FMX.StdCtrls, FMX.Layouts,
   FMX.ListBox, FMX.Controls.Presentation, FMX.Objects, FMX.Menus, FMX.Edit, System.JSON,
+  // TJSONArray's inline getters expand only with it (H2443)
+  System.Generics.Collections,
   Epub.Zip, Epub.Layout, Epub.Book, Epub.Components, Epub.FMX, Epub.FMX.View,
   // sound: DCUs of TFFMpegAPI's runtime package FFmpegAPI
   FFmpeg.API, FFmpeg.Player;
@@ -191,6 +193,14 @@ type
     FOpenWithNote: string;
     { The menu bar: File (Open, Recently Opened, Exit), View. }
     mnuMain: TMainMenu;
+    {$IF Defined(LINUX) and not Defined(ANDROID)}
+    { Linux: the menu bar drawn by FMX instead (mnuMain stays nil): GTK's
+      native bar shows only the first letter of each item (TSteamAPI,
+      docs/fmx-menu-bug-fix.md). The menu is made in code, so it is made
+      on this bar directly - nothing to copy, unlike TSteamAPI's
+      FmxLinuxMenu. Declared on Linux only (H2219 elsewhere). }
+    mnuBar: TMenuBar;
+    {$ENDIF}
     { File > Recently Opened (filled by BuildRecentMenu). }
     miRecent: TMenuItem;
     { The library: the recent books' covers, over the page (File >
@@ -311,6 +321,9 @@ type
     procedure LearnStep(ADirection: Integer);
     { Makes the menu bar. }
     procedure BuildMenu;
+    { The OS menu bar shows the items' changes (nothing to do on Linux,
+      where FMX draws the bar). }
+    procedure RefreshMenu;
     { Fills File > Recently Opened from FRecent. }
     procedure BuildRecentMenu;
     { A Recently Opened item: opens its book (Tag = index in FRecent). }
@@ -702,7 +715,7 @@ end;
   title's own (the same title always gets the same colour). }
 procedure SaveTextCover(const AFile, ATitle, AAuthor: string);
 var
-  Bmp: TBitmap;
+  Bmp: FMX.Graphics.TBitmap;
   Hue: Cardinal;
   I, H: Integer;
 begin
@@ -710,7 +723,7 @@ begin
   Hue := 0;
   for I := 1 to Length(ATitle) do
     Hue := (Hue * 31 + Ord(ATitle[I])) mod 360;
-  Bmp := TBitmap.Create(TEXT_COVER_WIDTH, H);
+  Bmp := FMX.Graphics.TBitmap.Create(TEXT_COVER_WIDTH, H);
   try
     if Bmp.Canvas.BeginScene then
     try
@@ -751,12 +764,12 @@ end;
 procedure SaveImageCover(const ABytes: TBytes; const AFile: string);
 var
   S: TBytesStream;
-  Src, Dst: TBitmap;
+  Src, Dst: FMX.Graphics.TBitmap;
   Scale: Single;
   W, H: Integer;
 begin
   S := TBytesStream.Create(ABytes);
-  Src := TBitmap.Create;
+  Src := FMX.Graphics.TBitmap.Create;
   try
     Src.LoadFromStream(S);
     if (Src.Width = 0) or (Src.Height = 0) then
@@ -764,7 +777,7 @@ begin
     Scale := Min(1, COVER_HEIGHT / Src.Height);
     W := Max(1, Round(Src.Width * Scale));
     H := Max(1, Round(Src.Height * Scale));
-    Dst := TBitmap.Create(W, H);
+    Dst := FMX.Graphics.TBitmap.Create(W, H);
     try
       if Dst.Canvas.BeginScene then
       try
@@ -941,16 +954,32 @@ procedure TfrmMain.BuildMenu;
   begin
     Result := TMenuItem.Create(Self);
     Result.Parent := AParent;
+    // the key after a tab: the native menus show it at the right; FMX's own
+    // bar (Linux) would draw the tab, so it gets spaces
+    {$IF Defined(LINUX) and not Defined(ANDROID)}
+    Result.Text := StringReplace(AText, #9, '    ', []);
+    {$ELSE}
     Result.Text := AText;
+    {$ENDIF}
     Result.OnClick := AOnClick;
   end;
 
 var
   M: TMenuItem;
+  Bar: TFmxObject;
 begin
+  {$IF Defined(LINUX) and not Defined(ANDROID)}
+  mnuBar := TMenuBar.Create(Self);
+  mnuBar.Parent := Self;
+  mnuBar.Position.Y := -1;   // above the tool bar
+  mnuBar.Align := TAlignLayout.Top;
+  Bar := mnuBar;
+  {$ELSE}
   mnuMain := TMainMenu.Create(Self);
   mnuMain.Parent := Self;
-  M := Item(mnuMain, '&File', nil);
+  Bar := mnuMain;
+  {$ENDIF}
+  M := Item(Bar, '&File', nil);
   Item(M, '&Open...'#9'Ctrl+O', btnOpenClick);
   Item(M, 'Li&brary', miLibraryClick);
   miRecent := Item(M, '&Recently Opened', nil);
@@ -960,11 +989,11 @@ begin
   miNotes.Visible := False;
   Item(M, '-', nil);
   Item(M, 'E&xit', miExitClick);
-  M := Item(mnuMain, '&Edit', nil);
+  M := Item(Bar, '&Edit', nil);
   Item(M, '&Find...'#9'Ctrl+F', miFindClick);
   Item(M, 'Find &next'#9'F3', miFindNextClick);
   Item(M, 'Find &previous'#9'Shift+F3', miFindPreviousClick);
-  M := Item(mnuMain, '&View', nil);
+  M := Item(Bar, '&View', nil);
   miDark := Item(M, '&Dark mode'#9'D', btnDarkClick);
   miLearn := Item(M, '&Learn to read'#9'L', btnLearnClick);
   Item(M, '-', nil);
@@ -973,7 +1002,15 @@ begin
   BuildRecentMenu;
   // a menu made in code reaches the window (Windows' / macOS' own menu
   // bar) only when it is recreated - without this there was no menu
-  mnuMain.RecreateOSMenu;
+  RefreshMenu;
+end;
+
+procedure TfrmMain.RefreshMenu;
+begin
+  // a menu made in code reaches the window (Windows' / macOS' own menu
+  // bar) only when it is recreated
+  if mnuMain <> nil then
+    mnuMain.RecreateOSMenu;
 end;
 
 procedure TfrmMain.BuildRecentMenu;
@@ -1005,7 +1042,7 @@ begin
     M.OnClick := miClearRecentClick;
   end;
   miRecent.Enabled := Length(FRecent) > 0;
-  mnuMain.RecreateOSMenu;
+  RefreshMenu;
 end;
 
 procedure TfrmMain.BuildNotesMenu;
@@ -1063,7 +1100,7 @@ begin
     end;
   end;
   miNotes.Enabled := Length(FNoteWords) > 0;
-  mnuMain.RecreateOSMenu;
+  RefreshMenu;
 end;
 
 procedure TfrmMain.miNoteClick(Sender: TObject);
@@ -1136,6 +1173,11 @@ var
   Img: TImage;
   F: string;
 begin
+  // the book stops (paused: Play resumes it once back on the page), and the
+  // contents panel, which means nothing here, goes (owner)
+  StopPlaying;
+  lbToc.Visible := False;
+  Splitter1.Visible := False;
   // the open book first, with where it is
   RememberBook;
   for I := 0 to High(FCoverImages) do
@@ -1187,6 +1229,10 @@ begin
   for I := 0 to High(FCoverImages) do
     FCoverImages[I].Free;
   FCoverImages := nil;
+  // the contents panel back, left of the page as before
+  lbToc.Visible := True;
+  Splitter1.Visible := True;
+  Splitter1.Position.X := lbToc.Position.X + lbToc.Width;
   UpdateControls;
 end;
 
@@ -1348,6 +1394,13 @@ end;
 
 procedure TfrmMain.miFindClick(Sender: TObject);
 begin
+  // finding is in the open book: back to its page first
+  if LibraryShowing then
+  begin
+    if EpubUnum1.Book = nil then
+      Exit;
+    HideLibrary;
+  end;
   layFind.Visible := True;
   edFind.SetFocus;
   edFind.SelectAll;
@@ -1747,6 +1800,10 @@ begin
     Key := 0;
     Exit;
   end;
+  // the library: the reader's keys (P, D, L, [ ] ...) wait for the page;
+  // Ctrl+O still opens a book
+  if LibraryShowing and not ((ssCtrl in Shift) and ((KeyChar = 'o') or (KeyChar = 'O') or (Key = Ord('O')))) then
+    Exit;
   if (KeyChar = 'p') or (KeyChar = 'P') then
   begin
     btnPlayClick(nil);
@@ -2420,7 +2477,7 @@ begin
   FLearn := not FLearn;
   btnLearn.IsPressed := FLearn;
   miLearn.IsChecked := FLearn;
-  mnuMain.RecreateOSMenu;
+  RefreshMenu;
   FLearnFirst := -1;
   FLearnLast := -1;
   if FLearn then
@@ -2598,7 +2655,7 @@ procedure TfrmMain.btnDarkClick(Sender: TObject);
 begin
   FDark := not FDark;
   miDark.IsChecked := FDark;
-  mnuMain.RecreateOSMenu;
+  RefreshMenu;
   ApplyTheme;
 end;
 
@@ -2825,7 +2882,7 @@ var
   C: Integer;
 begin
   B := EpubUnum1.Book;
-  if (B = nil) or (Length(B.Clips) = 0) then
+  if (B = nil) or (Length(B.Clips) = 0) or LibraryShowing then
     Exit;
   if FLearn then
   begin
@@ -2995,9 +3052,10 @@ var
   S: string;
 begin
   B := EpubUnum1.Book;
-  btnPrev.Enabled := (B <> nil) and (Length(FChapterWord) > 0);
-  btnNext.Enabled := (B <> nil) and (ChapterOfWord(CurrentWord) < High(FChapterWord));
-  btnPlay.Enabled := (B <> nil) and (Length(B.Clips) > 0);
+  btnPrev.Enabled := (B <> nil) and (Length(FChapterWord) > 0) and not LibraryShowing;
+  btnNext.Enabled := (B <> nil) and (ChapterOfWord(CurrentWord) < High(FChapterWord)) and not LibraryShowing;
+  // nothing plays while the library shows
+  btnPlay.Enabled := (B <> nil) and (Length(B.Clips) > 0) and not LibraryShowing;
   btnPrevClip.Enabled := btnPlay.Enabled;
   btnNextClip.Enabled := btnPlay.Enabled;
   if FPlaying then

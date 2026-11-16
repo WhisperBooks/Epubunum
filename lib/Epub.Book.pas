@@ -163,6 +163,10 @@ const
   EPUB_AUDIO_CHAPTERS_ID = 'eu-audio-chapters';
   { Namespace of the audio chapters file's elements. }
   EPUB_AUDIO_CHAPTERS_NS = 'https://github.com/WhisperBooks/Epubunum/ns/audio-chapters';
+  { Name of the package meta (@code(<meta name="epubunum:writer"
+    content="EpubBuilder"/>)) that TEpubWriter writes into every book it
+    makes: what made it (@link(TEpubBook.WrittenBy)). }
+  EPUB_WRITER_META = 'epubunum:writer';
 
 type
 
@@ -211,6 +215,8 @@ type
     FMediaDuration: Double;
     { Backing field of @link(AudioChapters). }
     FAudioChapters: TEpubAudioChapterArray;
+    { Backing field of @link(WrittenBy). }
+    FWrittenBy: string;
     { The clip ClipAt found last (where the next search starts). }
     FLastClip: Integer;
     { Per document: its ids sorted (Objects = index into its Ids), made by
@@ -353,6 +359,12 @@ type
     { The narration's chapter marks (empty: none were written - a book
       not made by TEpubWriter, or made without marks). }
     property AudioChapters: TEpubAudioChapterArray read FAudioChapters;
+    { What made this book when TEpubWriter did (its EPUB_WRITER_META:
+      'EpubBuilder', 'EpubConsole', ...; 'EpubUnum' for a book written
+      before the meta existed but carrying the audio chapters file); ''
+      for any other book. A book made so already has its synced audio:
+      building one from it again is a copy of a copy. }
+    property WrittenBy: string read FWrittenBy;
   end;
 
 { A SMIL clock value in seconds: '1:02:03.5', '02:03.5', '12.5s', '500ms',
@@ -459,6 +471,9 @@ begin
   ReadPackage;
   ReadOverlays;
   ReadAudioChapters;
+  // written by TEpubWriter before the meta existed (zips 40 - 44)
+  if (FWrittenBy = '') and (ItemOf(EPUB_AUDIO_CHAPTERS_ID) >= 0) then
+    FWrittenBy := 'EpubUnum';
 end;
 
 destructor TEpubBook.Destroy;
@@ -580,6 +595,8 @@ begin
         Prop := List[I].Attr('property');
         if SameText(List[I].Attr('name'), 'cover') then
           CoverId := List[I].Attr('content')
+        else if List[I].Attr('name') = EPUB_WRITER_META then
+          FWrittenBy := Trim(List[I].Attr('content'))
         else if (Prop = 'media:active-class') then
           FActiveClass := Trim(List[I].InnerText)
         else if (Prop = 'media:duration') and (List[I].Attr('refines') = '') then

@@ -46,10 +46,28 @@ chosen in the window.
    is transcribed, the words as they are heard, with their time in the
    recording - and the time taken and (once there is enough to go on)
    the time left, updated every second. The log keeps a line per step and
-   per part; **Cancel** stops at the next check. If the output EPUB is
+   per part; **Cancel** stops at the next check. Closing the window while
+   a build runs asks first (No by default): the build would stop and its
+   work so far be lost. If the output EPUB is
    already there, Create asks before replacing it - unless this run of
    the builder made it from the same book (building again, e.g. from the
    saved transcript, does not ask).
+
+## Job queue (many books, overnight)
+
+The left column is the **job queue**. Instead of **Create**, press **Add
+to queue**: the book, its audio, the model, device, output and the two
+options are added as a job (the same questions as Create are asked then,
+not while the queue runs). **Run queue** builds the jobs one after the
+other - failed and cancelled ones again, done ones not - and books can be
+added while it runs. **Cancel** stops the job running and the queue (Run
+queue goes on with the jobs not done). **Remove**, **Up** and **Down**
+change the queue (not the job running); a double click puts a job's
+choices back into the window. **Save...** writes the queue to a JSON file
+and **Load...** adds the jobs of one, so a list of books can be prepared
+and run later. Each build's log is kept beside its output as
+`<output>.log` (Create's too), and the list shows each job's state, the
+time it took or why it failed.
 
 The book's language (its `dc:language`, e.g. `de`) is the language
 Whisper transcribes in - never translated - and the prompt that keeps
@@ -59,6 +77,11 @@ one). A multilingual model is needed for other languages
 (`ggml-large-v3-turbo.bin` is; the `.en` models are English only).
 Choosing another book empties the audio list and sets a new output name.
 
+A book EpubBuilder (or EpubConsole) made is marked so in its package:
+choosing it shows "ALREADY A READ-ALONG BOOK", and Create asks before
+building from it (No by default) - choose the original EPUB instead. A
+book with synced audio of its own (made elsewhere) is asked about too.
+
 The results after a build list the longest stretches worth a look.
 Front and back matter - text not read before the first or after the last
 word that is (title pages, a licence, about the author) - is counted but
@@ -67,16 +90,22 @@ not listed: it is normal, and still in the book. The recording's parts
 the files) are written into the book as chapter marks, which EpubReader
 steps by when the book's contents list has no chapters that are read.
 
-The model, the device (by name), the two options and the last book and
-audio folders are remembered between sessions, in
+The model, the device (by name), "Chapters of a file are parts" and the
+last book and audio folders are remembered between sessions (**Use a
+saved transcript** is not: it is off at every start), in
 `%APPDATA%\EpubBuilder\EpubBuilder.ini` on Windows,
 `~/Library/Application Support/EpubBuilder/EpubBuilder.ini` on macOS and
 `~/.config/EpubBuilder/EpubBuilder.ini` (or under `$XDG_CONFIG_HOME`) on
 Linux. Delete the file to start afresh.
 
 The transcript is kept beside the output as
-`<output>.transcript.json`. With **Use a saved transcript** ticked, a
-second **Create** with the same audio reads it instead of transcribing
-again: re-aligning a whole audiobook then takes seconds (after a TWhisper
-update, for example). It is the same JSON as WhisperConsole `--json`, so
+`<output>.transcript.json`, with the model that made it and when. With
+**Use a saved transcript** ticked (off at every start - reusing old words
+is a choice for one build), a second **Create** with the same audio reads
+it instead of transcribing again: re-aligning a whole audiobook then takes
+seconds (after a TWhisper update, for example). It is used only for the
+same output name, the same audio files and parts, and the same model -
+another model chosen means a new transcription - and the log says, in
+capitals, which transcript was used, when it was made and with which
+model. It is the same JSON as WhisperConsole `--json`, so
 `WhisperConsole --from-json` reads it too.

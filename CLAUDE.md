@@ -288,7 +288,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 41.
+Last number used: 49.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -989,6 +989,164 @@ documents before + this document's words x (scroll / content height),
 does not move it (page X of Y would). Truncated, so 100% only at the end
 of the last document. NOT COMPILED here (no Delphi / Skia). TO TEST:
 scroll, text size, a chapter jump, the last page of the book, dark mode.
+
+## Zip 42 (on top of d8ce181 = zips 39-41 + the .sh files made executable)
+- FIX (owner's dcc64, zip 40): E2003 'Create' / 'Canvas' ... in
+  SaveTextCover / SaveImageCover - TBitmap was Winapi.Windows' record
+  (the implementation uses clause names Winapi.Windows after FMX.Graphics,
+  so it wins). Now FMX.Graphics.TBitmap. RULE: in uMain, any name that
+  Winapi.Windows also has (TBitmap, DeleteFile, ...) must be qualified.
+- LINUX MENU (Linux port, session 7): FMX's TMainMenu becomes GTK's native
+  bar on Linux, which shows only first letters (TSteamAPI
+  docs/fmx-menu-bug-fix.md). The reader's menu is made in code, so on
+  Linux (not Android) BuildMenu makes it on an FMX TMenuBar (mnuBar, Align
+  Top, above layTop) and mnuMain stays nil; RefreshMenu replaces every
+  mnuMain.RecreateOSMenu (does nothing without mnuMain). Item text: the
+  tab before a key becomes spaces on Linux (FMX would draw the tab).
+  READMEs: the "no main menu" notes replaced; Linux FFmpeg names.
+- Push d8ce181 checked: = zips 39-41 file by file (CR LF aside), the
+  session 6 handover file removed, EpubReader.sh 100755 (ffmpeg-dev
+  789b8e9: build.sh 100755).
+
+## Zip 43 (on top of 42): the library stops the book, hides the sidebar
+Owner: "If I'm reading a book and select File -> Library the book keeps
+playing - not good. Also the Library shows the sidebar which is
+meaningless in that view". ShowLibrary: StopPlaying (paused - Play
+resumes once back), lbToc and Splitter1 hidden; HideLibrary shows them
+again (Splitter1 placed right of lbToc). While the library shows: Play,
+chapter and step buttons disabled, btnPlayClick does nothing, the
+reader's keys wait (Esc and Ctrl+O still work), Edit > Find goes back to
+the open book's page first (nothing without a book).
+
+## Linux port (session 7) - zip 44 (on top of 43)
+Libraries, consoles and the pipeline were built and run on Linux here
+(detail: TWhisper CLAUDE.md, "Linux port (session 7)"): whisper-dev and
+ffmpeg-dev build on Linux (whisper-dev fixed: RUNPATH $ORIGIN, libgomp
+bundled - its zip whisper-dev-01), EpubUnum lib/ + EpubConsole built with
+FPC 3.0 (zips 40-41's lib changes included), audio chapter marks written
+and read back on Moby-Dick (epubcheck 0 / 0), WhisperConsole --from-json
+-> --timings -> EpubConsole --overlay on Linux (epubcheck 0 / 0),
+FFmpegConsole --play: libpulse-simple.so.0 loads; no server here, so the
+silent output with its clock (speed 1.3 too). Delphi side (not compiled
+here): the reader's Linux menu (zip 42), and EpubBuilder's "not
+available" hint names the Linux libraries and LD_LIBRARY_PATH (zip 44).
+.dproj files: Linux64 is already a target of every package (not the
+design packages) and program; the reader deploys libsk4d.so for Linux64.
+NOT deployed by the .dproj (copy by hand / PAServer deployment): FFmpeg's
+.so files, whisper-dev's dlls, EpubReader.sh.
+OWNER'S LINUX STEPS (first Linux box, then the Steam Machine / Deck):
+1. ffmpeg-dev: ./build.sh -> dlls/linux-x64. whisper-dev: install Vulkan
+   (Ubuntu: libvulkan-dev glslc spirv-headers; HIP: ROCm + ROCM_PATH),
+   ./build.sh -> dlls/ (check: readelf -d dlls/libwhisper.so | grep
+   RUNPATH shows $ORIGIN).
+2. Delphi: Linux64 SDK through PAServer; build the packages for Linux64
+   (EpubUnum, EpubUnumFMX; WhisperAPI; FFmpegAPI), then WhisperConsole
+   --check and --bench with both library folders next to it.
+3. EpubReader Linux64: the .so files of both folders + EpubReader.sh
+   (executable) next to it; run it from a terminal (stderr markers):
+   menu bar with full names, library covers, sound through PipeWire /
+   PulseAudio, Open with (~/.local/share/applications/epubreader.desktop).
+4. EpubBuilder Linux64: same folders; Aladdin end to end (Vulkan0).
+5. SteamOS: EpubReader.sh as the launch command in Steam Linux Runtime
+   3.0 (sniper); Game mode full screen; the drawn menu bar.
+
+## Zip 45 (on top of 44): built books are marked; the builder asks
+Owner: "add some tag to the processed epubs marking them as already
+processed by builder allowing the user to not proceed. I accidentally
+tried re-encoding an already built epub". lib: EPUB_WRITER_META =
+'epubunum:writer'; TEpubWriter.WrittenBy (default 'EpubUnum') written as
+<meta name="epubunum:writer" content="..."/> in the package metadata
+(EPUB 2-style name / content meta: epubcheck 5.2.1 0 / 0; any earlier one
+removed, so one per book); TEpubBook.WrittenBy reads it, and is
+'EpubUnum' for a book with the audio chapters item but no meta (zips
+40 - 44). EpubBuilder writes 'EpubBuilder', EpubConsole --overlay
+'EpubConsole'. EpubBuilder: ShowBook keeps FBookWrittenBy / FBookClips and
+says "ALREADY A READ-ALONG BOOK (made by ...)"; Create: a book made here
+(or with clips of its own) -> a warning dialog, No by default, before the
+output check (CheckOutputThenBuild, split out of btnCreateClick). TESTED
+(FPC, Linux): IDPF Moby-Dick '' (40 clips), EpubConsole's result
+'EpubConsole', a zip-40 book 'EpubUnum', written twice -> one meta.
+Seen in that test, not new: a book written by --overlay and written
+again gets 15 new ids (3643 reused) - zip 09 said 0; the 15 are probably
+words whose span was moved inside punctuation in zip 15. Harmless.
+
+## Zip 46 (on top of 45): saved transcripts - opt-in, model checked
+Owner: a proper build "with a saved transcript ... needed to transcribe
+again. Maybe remove the option ... trusting the old results seems
+potentially dangerous"; agreed instead (owner: "Missed the different
+model point - very valid"): (1) chkReuse off at every start and no longer
+in EpubBuilder.ini (the key is deleted on save; chkReuse.OnChange ->
+UpdateControls); (2) the log says in capitals which transcript was used,
+when it was made, with which model; a missing one is logged too ("No
+saved transcript for this output (...)" - the cause of the owner's
+re-transcription is likely another output name); (3) SaveTranscript
+writes "builder_model" (the model's file name) and "builder_made"
+('yyyy-mm-dd hh:nn') after the opening brace (TrimSaved's re-save keeps
+the saved values); ReadSaved refuses a transcript whose model differs
+from the one chosen (file names compared); one without the key (made
+before zip 46) is used, with a note. Create without a model needs the box
+ticked AND the transcript there. NOT COMPILED here (no Delphi).
+
+## Zip 47 (on top of 46): closing during a build asks
+Owner: "an OnClose trap to make sure you don't accidentally close the app
+half-way thru a build". FormCloseQuery (assigned in FormCreate - the .fmx
+is unchanged): with FBuild running, TDialogServiceSync.MessageDialog
+(FMX.DialogService.Sync; desktop platforms) shows the progress and the
+step, says the work is lost (the transcript is saved only when every
+part is done), Yes / No with No the default; No logs "Still building.".
+Yes -> FormClose as before (cancel, wait, free). NOT COMPILED here.
+
+## Zip 48 (on top of 47): EpubBuilder job queue
+Owner: "a jobs list ... queue many books for transcription and leave it
+running overnight ... add to the queue while it was running ... Load/Save
+a Queue ... an Add To Queue button ... a 3rd column ... on the left ...
+the Job Queue with a Run Queue at the bottom of it". uBuilder only:
+- TBuildJob (book, title, audio, model, device by name, output,
+  chapters, reuse, State jsWaiting / jsRunning / jsDone / jsFailed /
+  jsCancelled, Note) in FJobs; layQueue (Align Left, Position.X 0, 300 px,
+  window at least 1300 wide) + splQueue: caption, Load... / Save... /
+  Remove / Up / Down, lbJobs, btnRunQueue (Align Bottom). btnAddJob
+  ("Add to queue") beside Create.
+- Create and Add to queue share CheckThen(AQueue) -> CheckOutputThen
+  (ADevice, AQueue): the built-book and existing-output questions are
+  asked when adding, never while the queue runs; an output a waiting /
+  running job writes already is refused. JobFromWindow takes the window's
+  choices. StartBuild = SaveSettings + log cleared + StartJob(job, -1);
+  StartJob(AJob, AIndex) starts any build (FJob = the queue index, -1 =
+  Create's).
+- Run queue: failed / cancelled -> waiting, FQueueRunning, RunNextJob
+  (first waiting job; none -> "Queue finished: N done, M failed or
+  cancelled"). BuildDone sets the job's state and note (time taken, or
+  the thread's last "FAILED: " line), saves the build's lines (FBuildLog,
+  LogLine writes to it while FLogging) to <output>.log - Create's builds
+  too - and starts the next job through tmQueue (50 ms: the ending
+  thread is still being finished); Cancel (FCancelled) stops the run.
+- The window stays enabled while building (UpdateControls no longer
+  disables the sides / settings): Create only when nothing runs, Add to
+  queue whenever the choices are complete, Run queue when not busy and a
+  job is not done ("Queue running ..." while it runs).
+- Remove / Up / Down keep FJob on the job running (it cannot be removed).
+  Double click: the job's choices back into the window (ShowBook, audio,
+  output, model, device, options).
+- Queue file (JSON, System.JSON): {"epubBuilderQueue": 1, "jobs": [{book,
+  title, audio[], model, device, output, chapters, useSavedTranscript,
+  state ("waiting" for the running one), note}]}. Load ADDS the file's
+  jobs (done ones stay done); entries without book / output / audio are
+  skipped.
+- Closing while the queue runs: the question also says how many jobs
+  wait (Save... keeps them).
+NOT COMPILED here (no Delphi / FMX). TO TEST: two short books queued,
+Run queue, a third added while it runs; Cancel in the middle and Run
+queue again; Save, close, Load, Run; a failing job (a missing audio
+file) - the queue goes on, its note says why.
+
+## Zip 49 (on top of 48): hints of the owner's first build of 42 - 48
+Owner's Win64 build of EpubBuilder and EpubReader with zips 42 - 48: NO
+ERRORS (the queue, library, Linux menu, built-book marker, close guard
+all compiled first time). Hints fixed: H2443 TJSONArray.GetValue not
+inlined - System.Generics.Collections added to both units' uses; H2219
+mnuBar never used on Windows - declared only under LINUX (not ANDROID),
+where it is used.
 
 ## Pushes checked
 - 4d7dfbe ("Claude push", 2026-11-15 22:58): the repo's head at the

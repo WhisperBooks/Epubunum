@@ -110,6 +110,11 @@ end;
   words, and every other file, are copied unchanged (not even unpacked).
 - A book without an active class gets a small style sheet with a
   highlight rule, so other readers show the highlight too.
+- **Marked as made here**: `<meta name="epubunum:writer" content="...">`
+  in the package (`WrittenBy`, default `EpubUnum`; EpubBuilder and
+  EpubConsole write their names). `TEpubBook.WrittenBy` reads it back, so a
+  program can tell a book it already made (EpubBuilder warns before
+  building from one).
 - **Audio chapter marks** (`AddAudioChapter(Title, Audio, Start)`): an
   audiobook's chapters, written to `epubunum-audio-chapters.xml` (manifest
   id `eu-audio-chapters`, EpubUnum's own format - other readers ignore
@@ -172,8 +177,8 @@ packages; the demos are desktop. iOS can follow (pure Pascal).
 The reader carries TSteamAPI's platform fixes (unchanged copies, see
 `demos/EpubReader/README.md`): GTK made global in Steam's Linux runtime,
 the ICU launcher script for SteamOS, the Wine canvas switch for a Windows
-build under Proton, and no main menu (FMX's GTK menu bar shows only first
-letters; SteamOS runs windows full screen).
+build under Proton, and on Linux a menu bar drawn by FMX instead of GTK's
+(which shows only first letters).
 
 ## Layout
 
@@ -195,4 +200,3 @@ python3 tools/project_check.py     # projects, packages and build order agree
 - Sentence-level overlays (a sentence can cross inline markup: needs
   splitting into several spans).
 - Paged (rather than scrolled) view; fonts embedded in books; SVG pictures.
-- Audio playback on Linux (FMX's TMediaPlayer there is untested).

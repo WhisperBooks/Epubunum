@@ -19,7 +19,9 @@
     in document order.
   - The package: SMIL and audio items in the manifest, media-overlay on
     the documents' items, media:duration (each overlay and the total),
-    media:active-class, media:narrator, dcterms:modified.
+    media:active-class, media:narrator, dcterms:modified, and
+    @code(<meta name="epubunum:writer">) naming what made the book
+    (@link(TEpubWriter.WrittenBy); @link(TEpubBook.WrittenBy) reads it).
   - When the book has no media:active-class: a small style sheet with a
     highlight rule for the active class, linked from the tagged documents,
     so other readers show the highlight too.
@@ -132,6 +134,8 @@ type
     FHighlightColor: string;
     { Backing field of @link(Narrator). }
     FNarrator: string;
+    { Backing field of @link(WrittenBy). }
+    FWrittenBy: string;
     { Backing field of @link(Report). }
     FReport: TEpubWriteReport;
     { Folder of the package document, with a trailing '/' ('' at the root). }
@@ -182,6 +186,10 @@ type
     property HighlightColor: string read FHighlightColor write FHighlightColor;
     { media:narrator ('' = keep the book's). }
     property Narrator: string read FNarrator write FNarrator;
+    { What makes the book (the program's name, 'EpubUnum' by default),
+      written as the package meta EPUB_WRITER_META - replacing the book's -
+      so a program can tell a book it made (@link(TEpubBook.WrittenBy)). }
+    property WrittenBy: string read FWrittenBy write FWrittenBy;
     { What the last SaveToFile did. }
     property Report: TEpubWriteReport read FReport;
   end;
@@ -653,6 +661,7 @@ begin
   FIdPrefix := 'eu-';
   FActiveClass := '-epub-media-overlay-active';
   FHighlightColor := '#ffff66';
+  FWrittenBy := 'EpubUnum';
 end;
 
 destructor TEpubWriter.Destroy;
@@ -1488,7 +1497,8 @@ begin
       begin
         Prop := E.Attr('property');
         Refines := E.Attr('refines');
-        if (Prop = 'dcterms:modified') or ((Prop = 'media:narrator') and (W.FNarrator <> '')) then
+        if (Prop = 'dcterms:modified') or ((Prop = 'media:narrator') and (W.FNarrator <> '')) or
+          (E.Attr('name') = EPUB_WRITER_META) then
           RemoveElement(E)
         else if Prop = 'media:duration' then
         begin
@@ -1588,6 +1598,8 @@ begin
     if not HasActiveClass then
       Metas := Metas + '<meta property="media:active-class">' + EpubXmlEscape(W.FActiveClass) + '</meta>'#10;
     Metas := Metas + '<meta property="dcterms:modified">' + ModifiedNow + '</meta>'#10;
+    // what made the book (TEpubBook.WrittenBy): a program can tell its own
+    Metas := Metas + '<meta name="' + EPUB_WRITER_META + '" content="' + EpubXmlEscape(W.FWrittenBy) + '"/>'#10;
     AppendChildren(Meta, Metas);
     // manifest: overlays on the documents' items, then the new items
     Items := '';

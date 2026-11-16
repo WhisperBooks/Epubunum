@@ -218,6 +218,7 @@ begin
   FS.DecimalSeparator := '.';
   Started := Now;
   W := TEpubWriter.Create(ABook);
+  W.WrittenBy := 'EpubConsole';
   Lines := TStringList.Create;
   Parts := TStringList.Create;
   try

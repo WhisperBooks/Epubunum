@@ -142,9 +142,13 @@ copies** of TSteamAPI's (github.com/G3DGames/TSteamAPI, `docs/`):
 - **Windows build under Wine / Proton:** `FmxWineCanvas` avoids the white
   window (Wine's Direct2D); `TSAPI_FMX_CANVAS=skia %command%` switches FMX
   to Skia's raster canvas (much faster there).
-- **No main menu** on purpose: FMX's GTK menu bar on Linux shows only first
-  letters (TSteamAPI's `FmxLinuxMenu` fixes it if a menu is ever added), and
-  SteamOS runs every main window full screen.
+- **The menu on Linux** is FMX's own `TMenuBar` (drawn in the window), not
+  the native GTK menu bar, which shows only the first letter of each item
+  (TSteamAPI's `docs/fmx-menu-bug-fix.md`). The reader makes its menu in
+  code, so on Linux it is made on the `TMenuBar` directly (no copying, as
+  TSteamAPI's `FmxLinuxMenu` needs for a designed menu); Windows and macOS
+  keep the native bar. SteamOS runs every main window full screen: the
+  drawn bar stays inside it.
 
 ## Sound
 
@@ -156,7 +160,12 @@ highlight. Put FFmpeg 8's shared libraries (`avutil-60.dll`,
 `swresample-6.dll`, `avcodec-62.dll`, `avformat-62.dll`, and for the speed
 slider `swscale-9.dll` and `avfilter-11.dll`) next to the program or on
 PATH; a GPL or an LGPL build will do, and its licence is
-written to the log. Without FFmpeg the book still reads, without sound;
+written to the log. On Linux the same six as `libavutil.so.60`,
+`libswresample.so.6`, `libavcodec.so.62`, `libavformat.so.62`,
+`libswscale.so.9` and `libavfilter.so.11` - ffmpeg-dev's
+`dlls/linux-x64` - next to the program (they find each other there), or
+on `LD_LIBRARY_PATH`; the sound goes through `libpulse-simple.so.0`
+(PulseAudio, or PipeWire's pulse server - SteamOS has it). Without FFmpeg the book still reads, without sound;
 without a sound device it plays silently and the highlight still follows.
 macOS sound comes later.
 
