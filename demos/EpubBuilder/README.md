@@ -46,7 +46,10 @@ chosen in the window.
    is transcribed, the words as they are heard, with their time in the
    recording - and the time taken and (once there is enough to go on)
    the time left, updated every second. The log keeps a line per step and
-   per part; **Cancel** stops at the next check.
+   per part; **Cancel** stops at the next check. If the output EPUB is
+   already there, Create asks before replacing it - unless this run of
+   the builder made it from the same book (building again, e.g. from the
+   saved transcript, does not ask).
 
 The book's language (its `dc:language`, e.g. `de`) is the language
 Whisper transcribes in - never translated - and the prompt that keeps
@@ -55,6 +58,14 @@ Spanish, Italian, Dutch so far; other languages are transcribed without
 one). A multilingual model is needed for other languages
 (`ggml-large-v3-turbo.bin` is; the `.en` models are English only).
 Choosing another book empties the audio list and sets a new output name.
+
+The results after a build list the longest stretches worth a look.
+Front and back matter - text not read before the first or after the last
+word that is (title pages, a licence, about the author) - is counted but
+not listed: it is normal, and still in the book. The recording's parts
+(chapters of an M4B with **Chapters of a file are parts** ticked, else
+the files) are written into the book as chapter marks, which EpubReader
+steps by when the book's contents list has no chapters that are read.
 
 The model, the device (by name), the two options and the last book and
 audio folders are remembered between sessions, in

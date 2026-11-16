@@ -12,7 +12,7 @@ interface
 uses
   System.SysUtils, System.Types, System.UITypes, System.Classes, System.Math, System.StrUtils,
   System.DateUtils, System.IOUtils, System.IniFiles,
-  FMX.Types, FMX.Controls, FMX.Forms, FMX.Dialogs, FMX.StdCtrls, FMX.Layouts,
+  FMX.Types, FMX.Controls, FMX.Forms, FMX.Dialogs, FMX.DialogService, FMX.StdCtrls, FMX.Layouts,
   FMX.ListBox, FMX.Edit, FMX.Memo, FMX.Memo.Types, FMX.ScrollBox, FMX.Controls.Presentation,
   Epub.Zip, Epub.Book, Epub.Layout, Epub.Writer,
   FFmpeg.API,
@@ -81,9 +81,11 @@ type
       out ASavedParts: TWhisperAudioPartArray): Boolean;
     { Logs the alignment's figures with what each means, a verdict, and
       the longest stretches worth a listen (ASplit: the aligner's words,
-      ARegions from WhisperAlignRegions). }
+      AAligned their times, ARegions from WhisperAlignRegions). Front and
+      back matter - not spoken before the first or after the last word
+      read - is counted but not listed. }
     procedure LogResults(const AStats: TWhisperAlignStats; AHeard: Integer; const ASplit: TWhisperStringArray;
-      const ARegions: TWhisperAlignRegionArray);
+      const AAligned: TWhisperAlignedWordArray; const ARegions: TWhisperAlignRegionArray);
     { Takes the silence off the word edges of a transcript saved before
       that was done (TWhisper zip 28), part by part from the audio. }
     procedure TrimSaved(var AResult: TWhisperTranscription; AAudio: TWhisperAudioSet);
@@ -165,6 +167,14 @@ type
     FBuild: TBuildThread;
     { When the build started. }
     FStarted: TDateTime;
+    { The book of the build running (copied to FMadeBook when it ends well). }
+    FRunBook: string;
+    { The output of the build running (copied to FMadeOut when it ends well). }
+    FRunOut: string;
+    { The book of the last build that finished in this run of the program. }
+    FMadeBook: string;
+    { The EPUB that build wrote: Create replaces it without asking. }
+    FMadeOut: string;
     { Devices whisper.cpp can use (cbDevice's items after 'Default'). }
     FDevices: TWhisperDeviceArray;
     { Why whisper.cpp is not there ('' when it is). }
@@ -206,8 +216,11 @@ type
     procedure btnModelClick(Sender: TObject);
     { Choose where the EPUB goes. }
     procedure btnOutClick(Sender: TObject);
-    { Start the build. }
+    { Checks the choices; asks before replacing an EPUB this program did
+      not just make from this book; then StartBuild. }
     procedure btnCreateClick(Sender: TObject);
+    { Starts the build on a TBuildThread (ADevice: '' = whisper.cpp's default). }
+    procedure StartBuild(const ADevice: string);
     { Stop it. }
     procedure btnCancelClick(Sender: TObject);
     { The build thread ended (any way). }
@@ -630,9 +643,10 @@ begin
 end;
 
 procedure TBuildThread.LogResults(const AStats: TWhisperAlignStats; AHeard: Integer;
-  const ASplit: TWhisperStringArray; const ARegions: TWhisperAlignRegionArray);
+  const ASplit: TWhisperStringArray; const AAligned: TWhisperAlignedWordArray;
+  const ARegions: TWhisperAlignRegionArray);
 var
-  Timed, Matched, I, K, Shown, Edges: Integer;
+  Timed, Matched, I, K, Shown, Edges, FirstRead, LastRead, Listed: Integer;
   Share: Double;
   Quote, Where, Verdict: string;
   Regions: TWhisperAlignRegionArray;
@@ -675,27 +689,53 @@ begin
   else
     Verdict := 'poor - is this the right recording for this book (or the right order of files)?';
   Log(Format('  Verdict: %.1f %% of the timed words were matched to what was heard: %s.', [Share, Verdict]));
-  // not spoken at the very start and end is front and back matter (a
-  // title page, a licence): normal. Inside the book it is text the
-  // recording leaves out - or audio missing from the list.
+  // not spoken before the first or after the last word read is front and
+  // back matter (a title page, a licence, about the author): normal.
+  // Inside the book it is text the recording leaves out - or audio missing
+  // from the list. Words read count by their place in the book: exact or
+  // similar (moved words - footnotes read where they are called - may sit
+  // after the back matter and do not count).
+  FirstRead := -1;
+  LastRead := -1;
+  for I := 0 to High(AAligned) do
+    if AAligned[I].Match in [wamExact, wamSimilar] then
+    begin
+      if FirstRead < 0 then
+        FirstRead := I;
+      LastRead := I;
+    end;
+  if FirstRead < 0 then
+  begin
+    // nothing read: no front or back matter to tell apart
+    FirstRead := 0;
+    LastRead := High(AAligned);
+  end;
   Edges := 0;
   for I := 0 to High(ARegions) do
-    if (ARegions[I].Match = wamNotSpoken) and ((ARegions[I].First = 0) or (ARegions[I].Last = High(ASplit))) then
+    if (ARegions[I].Match = wamNotSpoken) and ((ARegions[I].Last < FirstRead) or (ARegions[I].First > LastRead)) then
       Inc(Edges, ARegions[I].Last - ARegions[I].First + 1);
   if Edges > 0 then
     Log(Format('  Of the not spoken words, %d are before the first or after the last word read: front and back ' +
-      'matter, normal.', [Edges]));
+      'matter, normal (not listed below; the text is still in the book).', [Edges]));
   if AStats.NotSpoken - Edges > AStats.BookWords div 10 then
     Log(Format('  %d words inside the book are not in the recording: check that every audio file is in the ' +
       'list, in order.', [AStats.NotSpoken - Edges]));
-  // the longest stretches first (a copy: shown ones are marked in it)
+  // the longest stretches first (a copy: shown ones are marked in it);
+  // front and back matter left out - still in the book, only not listed
   Regions := Copy(ARegions, 0, Length(ARegions));
-  if Length(Regions) = 0 then
+  for I := 0 to High(Regions) do
+    if (Regions[I].Match = wamNotSpoken) and ((Regions[I].Last < FirstRead) or (Regions[I].First > LastRead)) then
+      Regions[I].Last := Regions[I].First - 1;
+  Listed := 0;
+  for I := 0 to High(Regions) do
+    if Regions[I].Last >= Regions[I].First then
+      Inc(Listed);
+  if Listed = 0 then
     Exit;
   Log(Format('  Stretches of %d or more words worth a look (longest first, at most %d):', [REGION_MIN_WORDS,
     REGIONS_SHOWN]));
   Shown := 0;
-  while Shown < Min(REGIONS_SHOWN, Length(Regions)) do
+  while Shown < Min(REGIONS_SHOWN, Listed) do
   begin
     K := -1;
     for I := 0 to High(Regions) do
@@ -814,7 +854,7 @@ begin
       Split := WhisperSplitBookWords(Given, Map);
       Aligned := WhisperAlignText(Split, R.Words, Stats);
       Joined := WhisperJoinAligned(Aligned, Map, Length(Given));
-      LogResults(Stats, Length(R.Words), Split, WhisperAlignRegions(Aligned, REGION_MIN_WORDS));
+      LogResults(Stats, Length(R.Words), Split, Aligned, WhisperAlignRegions(Aligned, REGION_MIN_WORDS));
       Files := WhisperPartFiles(Parts);
       Times := WhisperWordFileTimes(Joined, Parts, Files);
       Progress(93);
@@ -825,6 +865,14 @@ begin
       Writer := TEpubWriter.Create(Book);
       for I := 0 to Files.Count - 1 do
         Writer.AddAudioFile(Files[I]);
+      // the recording's chapters (or its files) as chapter marks: the
+      // reader steps by them when the book's contents list does not give
+      // chapters that are read (Night Watch: none in the book, 75 in the
+      // audiobook). One part alone marks nothing.
+      if Length(Parts) >= 2 then
+        for I := 0 to High(Parts) do
+          if Files.IndexOf(Parts[I].FileName) >= 0 then
+            Writer.AddAudioChapter(Parts[I].Title, Files.IndexOf(Parts[I].FileName), Parts[I].Start);
       for I := 0 to High(Times) do
         Writer.AddWord(Numbers[Times[I].Word], Times[I].FileIndex, Times[I].StartTime, Times[I].EndTime);
       Log(Format('Writing %s ...', [FOutFile]));
@@ -833,6 +881,9 @@ begin
       Report := Writer.Report;
       Log(Format('Done: %d document(s), %d clip(s), %d timed word(s) left out', [Report.Documents,
         Report.Clips, Report.Skipped]));
+      if Length(Parts) >= 2 then
+        Log(Format('Chapter marks: %d (the recording''s parts; EpubReader steps by them when the book''s ' +
+          'contents list has no chapters that are read)', [Length(Parts)]));
       if Report.Upgraded then
         Log('The book was EPUB 2: it is EPUB 3 now (overlays need it)');
       if Report.Warnings <> '' then
@@ -1352,11 +1403,38 @@ begin
   Device := '';
   if cbDevice.ItemIndex > 0 then
     Device := FDevices[cbDevice.ItemIndex - 1].Name;
+  // an EPUB already there: replaced without asking only when this program
+  // made it from this book (a re-align); anything else asks first
+  if FileExists(edOut.Text) and not (SameFileName(ExpandFileName(edOut.Text), FMadeOut) and
+    SameFileName(ExpandFileName(edBook.Text), FMadeBook)) then
+  begin
+    TDialogService.MessageDialog(Format('%s already exists.' + sLineBreak + sLineBreak +
+      'Replace it with the book this build makes?', [edOut.Text]), TMsgDlgType.mtConfirmation,
+      [TMsgDlgBtn.mbYes, TMsgDlgBtn.mbNo], TMsgDlgBtn.mbNo, 0,
+      procedure(const AResult: TModalResult)
+      begin
+        if AResult = mrYes then
+          StartBuild(Device)
+        else
+          LogLine('Not started: ' + edOut.Text + ' is kept. Choose another output file to keep both.');
+      end);
+    Exit;
+  end;
+  StartBuild(Device);
+end;
+
+procedure TfrmBuilder.StartBuild(const ADevice: string);
+begin
+  // the dialog may have let a build start meanwhile
+  if FBuild <> nil then
+    Exit;
   SaveSettings;
   mmLog.Lines.Clear;
   pbBuild.Value := 0;
   FStarted := Now;
-  FBuild := TBuildThread.Create(edBook.Text, lbAudio.Items, edModel.Text, Device, edOut.Text,
+  FRunBook := ExpandFileName(edBook.Text);
+  FRunOut := ExpandFileName(edOut.Text);
+  FBuild := TBuildThread.Create(edBook.Text, lbAudio.Items, edModel.Text, ADevice, edOut.Text,
     chkChapters.IsChecked, chkReuse.IsChecked);
   FBuild.OnLog :=
     procedure(AText: string)
@@ -1399,7 +1477,11 @@ begin
   // lines have been delivered before it
   LogLine(Format('Finished after %s', [WhisperTimeToStr(MilliSecondsBetween(Now, FStarted) div 10)]));
   if pbBuild.Value >= 100 then
+  begin
     LogLine('Open ' + edOut.Text + ' in EpubReader.');
+    FMadeBook := FRunBook;
+    FMadeOut := FRunOut;
+  end;
   // FreeOnTerminate: the thread frees itself once this handler returns
   FBuild := nil;
   tmStatus.Enabled := False;

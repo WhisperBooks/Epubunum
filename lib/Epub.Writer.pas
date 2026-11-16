@@ -27,6 +27,9 @@
     a nav document made from the table of contents, opf:role / opf:file-as
     turned into refines metadata, other opf: attributes and extra dc:date
     elements dropped, the HTML5 doctype in the documents.
+  - Chapter marks of the narration (@link(TEpubWriter.AddAudioChapter)),
+    when given, in the audio chapters file (EpubUnum's own XML, manifest
+    id @link(EPUB_AUDIO_CHAPTERS_ID)).
   A document's overlay is replaced as a whole: its clips are the timed
   words given for it. Documents without timed words are copied unchanged.
 
@@ -69,6 +72,18 @@ type
   { Timed words. }
   TEpubTimedWordArray = array of TEpubTimedWord;
 
+  { A chapter mark of the narration given to the writer. }
+  TEpubChapterMark = record
+    { Title. }
+    Title: string;
+    { The audio file (index from AddAudioFile / AddBookAudio). }
+    Audio: Integer;
+    { Start in that file, s. }
+    Start: Double;
+  end;
+  { Chapter marks in narration order. }
+  TEpubChapterMarkArray = array of TEpubChapterMark;
+
   { What the last @link(TEpubWriter.SaveToFile) did. }
   TEpubWriteReport = record
     { Documents given an overlay. }
@@ -105,6 +120,8 @@ type
     FAudioPaths: TStringList;
     { Audio files: file on disk ('' for one already in the book). }
     FAudioFiles: TStringList;
+    { Chapter marks given (AddAudioChapter). }
+    FChapters: TEpubChapterMarkArray;
     { Backing field of @link(Level). }
     FLevel: TEpubOverlayLevel;
     { Backing field of @link(IdPrefix). }
@@ -138,6 +155,15 @@ type
     procedure AddWord(AWord, AAudio: Integer; AClipBegin, AClipEnd: Double);
     { Forgets the timed words (the audio files stay). }
     procedure ClearWords;
+    { Adds a chapter mark of the narration: chapter ATitle of the
+      recording starts at AStart seconds of audio file AAudio. Give them
+      in narration order. Written to the book's audio chapters file
+      (@link(EPUB_AUDIO_CHAPTERS_ID), EpubUnum's own: other readers ignore
+      it), which @link(TEpubBook.AudioChapters) reads; it replaces the
+      book's marks. With none given, the book's marks are kept as they are. }
+    procedure AddAudioChapter(const ATitle: string; AAudio: Integer; AStart: Double);
+    { Forgets the chapter marks. }
+    procedure ClearAudioChapters;
     { Writes the book with its overlays to AFileName (not the book's own
       file). A file left half written by an error is deleted.
       @raises(EEpubError when there is nothing to write, AFileName is the
@@ -697,6 +723,23 @@ begin
   FTimedCount := 0;
 end;
 
+procedure TEpubWriter.AddAudioChapter(const ATitle: string; AAudio: Integer; AStart: Double);
+begin
+  if (AAudio < 0) or (AAudio >= FAudioPaths.Count) then
+    raise EEpubError.CreateFmt('Chapter mark "%s": there is no audio file %d', [ATitle, AAudio]);
+  SetLength(FChapters, Length(FChapters) + 1);
+  FChapters[High(FChapters)].Title := ATitle;
+  FChapters[High(FChapters)].Audio := AAudio;
+  if AStart < 0 then
+    AStart := 0;
+  FChapters[High(FChapters)].Start := AStart;
+end;
+
+procedure TEpubWriter.ClearAudioChapters;
+begin
+  FChapters := nil;
+end;
+
 { Sorts timed words by word index (merge sort: stable, so the first of
   two entries for one word wins). }
 procedure SortTimed(var A: TEpubTimedWordArray; ACount: Integer);
@@ -771,6 +814,10 @@ type
     HasActiveClass: Boolean;
     { The style sheet added for the highlight ('' = none). }
     CssPath: string;
+    { The audio chapters file written ('' = none). }
+    ChaptersPath: string;
+    { It is new: the manifest gets an item for it. }
+    ChaptersNew: Boolean;
     { Per document: the overlay's SMIL path ('' = untouched). }
     SmilPaths: array of string;
     { Per document: the SMIL manifest item id. }
@@ -805,6 +852,10 @@ type
     function SmilText(ADoc: Integer; const ASmilPath: string; const APars: TParArray): string;
     { Makes a nav document from the table of contents; returns its path. }
     function MakeNav: string;
+    { Writes the chapter marks given (W.FChapters) into the audio chapters
+      file: the book's own when it has one, else a new one (ChaptersPath,
+      ChaptersNew). }
+    procedure WriteChapters;
     { Rewrites the package document. }
     procedure UpdatePackage(const ANavPath: string);
     { Writes the archive. }
@@ -1280,6 +1331,47 @@ begin
   end;
 end;
 
+procedure TSaveJob.WriteChapters;
+var
+  I: Integer;
+  SB: TStringList;
+begin
+  if Length(W.FChapters) = 0 then
+    Exit;
+  // a book written before keeps its file (same path, same item)
+  ChaptersPath := '';
+  for I := 0 to High(Book.Items) do
+    if Book.Items[I].Id = EPUB_AUDIO_CHAPTERS_ID then
+      ChaptersPath := Book.Items[I].Path;
+  if ChaptersPath = '' then
+  begin
+    if ItemIds.IndexOf(EPUB_AUDIO_CHAPTERS_ID) >= 0 then
+    begin
+      // the id names something else of the book: the marks are left out
+      Report.Warnings := Report.Warnings + Format('The book uses the id %s for something else: the %d ' +
+        'chapter marks are not written'#10, [EPUB_AUDIO_CHAPTERS_ID, Length(W.FChapters)]);
+      Exit;
+    end;
+    ChaptersPath := FreePath(W.PackageFolder + 'epubunum-audio-chapters.xml');
+    ItemIds.Add(EPUB_AUDIO_CHAPTERS_ID);
+    ChaptersNew := True;
+  end;
+  SB := TStringList.Create;
+  try
+    SB.Add('<?xml version="1.0" encoding="UTF-8"?>');
+    SB.Add('<audio-chapters xmlns="' + EPUB_AUDIO_CHAPTERS_NS + '" version="1">');
+    for I := 0 to High(W.FChapters) do
+      SB.Add('  <chapter audio="' + EpubXmlEscape(EpubRelativeHref(ChaptersPath,
+        W.FAudioPaths[W.FChapters[I].Audio])) + '" begin="' + EpubClockText(W.FChapters[I].Start) +
+        '" title="' + EpubXmlEscape(W.FChapters[I].Title) + '"/>');
+    SB.Add('</audio-chapters>');
+    SB.LineBreak := #10;
+    PutFile(ChaptersPath, SB.Text);
+  finally
+    SB.Free;
+  end;
+end;
+
 procedure TSaveJob.UpdatePackage(const ANavPath: string);
 var
   Opf, Text, Prop, Refines, Id, Role, FileAs, Metas, Items: string;
@@ -1542,6 +1634,9 @@ begin
     if CssPath <> '' then
       Items := Items + '<item id="' + EpubXmlEscape(FreeItemId('eu-overlay-css')) + '" href="' +
         EpubXmlEscape(EpubRelativeHref(Book.PackagePath, CssPath)) + '" media-type="text/css"/>'#10;
+    if ChaptersNew then
+      Items := Items + '<item id="' + EPUB_AUDIO_CHAPTERS_ID + '" href="' +
+        EpubXmlEscape(EpubRelativeHref(Book.PackagePath, ChaptersPath)) + '" media-type="application/xml"/>'#10;
     if ANavPath <> '' then
       Items := Items + '<item id="' + EpubXmlEscape(FreeItemId('eu-nav')) + '" href="' +
         EpubXmlEscape(EpubRelativeHref(Book.PackagePath, ANavPath)) +
@@ -1677,6 +1772,7 @@ begin
         if J = 0 then
           NavPath := Job.MakeNav;
       end;
+      Job.WriteChapters;
       Job.UpdatePackage(NavPath);
       for I := 0 to FAudioPaths.Count - 1 do
         if (AudioMediaType(FAudioPaths[I]) <> 'audio/mpeg') and (AudioMediaType(FAudioPaths[I]) <> 'audio/mp4') then

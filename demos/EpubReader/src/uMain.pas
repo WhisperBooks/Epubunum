@@ -166,6 +166,11 @@ type
     FChapterToc: TArray<Integer>;
     { Chapters: their document. }
     FChapterDoc: TArray<Integer>;
+    { Chapters: their title ('' = none: a document without contents entry). }
+    FChapterTitle: TArray<string>;
+    { lbToc lists the chapters (item = chapter) instead of the book's
+      contents: the chapters come from the audiobook's chapter marks. }
+    FTocIsChapters: Boolean;
     { lbToc's selection is being set from code (no chapter jump). }
     FSyncingToc: Boolean;
     { Clip that Play starts from after a jump while paused, -1 = none (Play
@@ -188,6 +193,18 @@ type
     mnuMain: TMainMenu;
     { File > Recently Opened (filled by BuildRecentMenu). }
     miRecent: TMenuItem;
+    { The library: the recent books' covers, over the page (File >
+      Library; shown at start-up when no book is named). }
+    recLibrary: TRectangle;
+    { The library's line when it has no books. }
+    lblLibrary: TLabel;
+    { The library's covers (Tag = index in FRecent; the first, the
+      current book, is drawn large). }
+    FCoverImages: TArray<TImage>;
+    { Opens the clicked cover's book once the click is over. }
+    tmLibrary: TTimer;
+    { The book tmLibrary opens (index in FRecent). }
+    FLibraryOpen: Integer;
     { File > Go to Footnote (filled by BuildNotesMenu; disabled when the
       book has none). }
     miNotes: TMenuItem;
@@ -304,6 +321,32 @@ type
     procedure miNoteClick(Sender: TObject);
     { File > Recently Opened > Clear the list. }
     procedure miClearRecentClick(Sender: TObject);
+    { Opens book AIndex of FRecent; one no longer there is taken off the
+      list (with a message). }
+    procedure OpenRecent(AIndex: Integer);
+    { Makes the library (hidden). }
+    procedure BuildLibrary;
+    { Shows the library: a cover per recent book (made and cached when
+      missing), the current one large. }
+    procedure ShowLibrary;
+    { Hides it (the page shows again). }
+    procedure HideLibrary;
+    { The library is showing. }
+    function LibraryShowing: Boolean;
+    { Places the covers: a grid as large as fits, the first cover over
+      2 x 2 tiles, centred both ways. }
+    procedure LayoutLibrary;
+    { recLibrary was resized: LayoutLibrary. }
+    procedure recLibraryResized(Sender: TObject);
+    { The page under the library must not scroll. }
+    procedure recLibraryMouseWheel(Sender: TObject; Shift: TShiftState; WheelDelta: Integer;
+      var Handled: Boolean);
+    { A cover was clicked: its book (the open one: back to it). }
+    procedure CoverClick(Sender: TObject);
+    { File > Library. }
+    procedure miLibraryClick(Sender: TObject);
+    { Opens book FLibraryOpen. }
+    procedure tmLibraryTimer(Sender: TObject);
     { File > Exit. }
     procedure miExitClick(Sender: TObject);
     { Makes the find bar (hidden). }
@@ -362,6 +405,7 @@ uses
   {$IFDEF MSWINDOWS}
   Winapi.Windows, Winapi.ShlObj, System.Win.Registry,
   {$ENDIF}
+  System.Hash, System.UIConsts,
   FmxWineCanvas, FmxSkiaCanvas;
 
 const
@@ -414,6 +458,15 @@ const
   { Previous goes to the sentence before when the one being read started
     less than this long ago, s. }
   BACK_GRACE = 1.5;
+  { Library: height of a cached cover, px (smaller pictures are kept as
+    they are). }
+  COVER_HEIGHT = 600;
+  { Library: width of a made (text) cover, px. }
+  TEXT_COVER_WIDTH = 400;
+  { Library: a tile's height / width (a book's shape). }
+  COVER_ASPECT = 1.5;
+  { Library: space between tiles and round the grid, px. }
+  COVER_GAP = 16;
   { Dark mode: page. }
   DARK_PAGE = $FF1E1E1E;
   { Dark mode: text. }
@@ -636,6 +689,155 @@ begin
   Result := System.IOUtils.TPath.Combine(System.IOUtils.TPath.Combine(Base, 'EpubReader'), 'EpubReader.json');
 end;
 
+{ The cached cover of book ABookFile: covers\<MD5 of the file name>.png
+  beside the settings file. By the file NAME, as the recent list matches
+  books (a moved book keeps its cover); the user may replace the picture. }
+function CoverFile(const ABookFile: string): string;
+begin
+  Result := System.IOUtils.TPath.Combine(System.IOUtils.TPath.Combine(ExtractFilePath(SettingsFile), 'covers'),
+    THashMD5.GetHashString(LowerCase(ExtractFileName(ABookFile))) + '.png');
+end;
+
+{ Writes a made cover to AFile: ATitle and AAuthor on a colour of the
+  title's own (the same title always gets the same colour). }
+procedure SaveTextCover(const AFile, ATitle, AAuthor: string);
+var
+  Bmp: TBitmap;
+  Hue: Cardinal;
+  I, H: Integer;
+begin
+  H := Round(TEXT_COVER_WIDTH * COVER_ASPECT);
+  Hue := 0;
+  for I := 1 to Length(ATitle) do
+    Hue := (Hue * 31 + Ord(ATitle[I])) mod 360;
+  Bmp := TBitmap.Create(TEXT_COVER_WIDTH, H);
+  try
+    if Bmp.Canvas.BeginScene then
+    try
+      Bmp.Canvas.Clear(HSLtoRGB(Hue / 360, 0.45, 0.30));
+      // a frame
+      Bmp.Canvas.Stroke.Kind := TBrushKind.Solid;
+      Bmp.Canvas.Stroke.Color := TAlphaColors.White;
+      Bmp.Canvas.Stroke.Thickness := 4;
+      Bmp.Canvas.DrawRect(RectF(18, 18, TEXT_COVER_WIDTH - 18, H - 18), 0, 0, AllCorners, 0.5);
+      // the title, smaller when long; the author under it
+      Bmp.Canvas.Fill.Kind := TBrushKind.Solid;
+      Bmp.Canvas.Fill.Color := TAlphaColors.White;
+      Bmp.Canvas.Font.Style := [TFontStyle.fsBold];
+      if Length(ATitle) <= 24 then
+        Bmp.Canvas.Font.Size := 40
+      else if Length(ATitle) <= 60 then
+        Bmp.Canvas.Font.Size := 32
+      else
+        Bmp.Canvas.Font.Size := 24;
+      Bmp.Canvas.FillText(RectF(44, 60, TEXT_COVER_WIDTH - 44, H * 0.64), ATitle, True, 1, [], TTextAlign.Center,
+        TTextAlign.Center);
+      Bmp.Canvas.Font.Style := [];
+      Bmp.Canvas.Font.Size := 24;
+      Bmp.Canvas.FillText(RectF(44, H * 0.68, TEXT_COVER_WIDTH - 44, H - 50), AAuthor, True, 1, [],
+        TTextAlign.Center, TTextAlign.Leading);
+    finally
+      Bmp.Canvas.EndScene;
+    end;
+    Bmp.SaveToFile(AFile);
+  finally
+    Bmp.Free;
+  end;
+end;
+
+{ Writes the picture ABytes (the book's cover image) to AFile as PNG, at
+  most COVER_HEIGHT high. @raises(an exception when it is not a picture
+  FMX reads - an SVG cover, say.) }
+procedure SaveImageCover(const ABytes: TBytes; const AFile: string);
+var
+  S: TBytesStream;
+  Src, Dst: TBitmap;
+  Scale: Single;
+  W, H: Integer;
+begin
+  S := TBytesStream.Create(ABytes);
+  Src := TBitmap.Create;
+  try
+    Src.LoadFromStream(S);
+    if (Src.Width = 0) or (Src.Height = 0) then
+      raise EEpubError.Create('The cover image is empty');
+    Scale := Min(1, COVER_HEIGHT / Src.Height);
+    W := Max(1, Round(Src.Width * Scale));
+    H := Max(1, Round(Src.Height * Scale));
+    Dst := TBitmap.Create(W, H);
+    try
+      if Dst.Canvas.BeginScene then
+      try
+        Dst.Canvas.DrawBitmap(Src, RectF(0, 0, Src.Width, Src.Height), RectF(0, 0, W, H), 1, False);
+      finally
+        Dst.Canvas.EndScene;
+      end;
+      Dst.SaveToFile(AFile);
+    finally
+      Dst.Free;
+    end;
+  finally
+    Src.Free;
+    S.Free;
+  end;
+end;
+
+{ Makes the cached cover of ABookFile when there is none: the book's own
+  picture, else a made one with its title and author. ABook: the book when
+  it is open (nil: opened here, without its text, when the file is there).
+  ATitle: the title to use when the book cannot be read. Errors leave no
+  cover (the library shows the title instead). }
+procedure EnsureCover(const ABookFile: string; ABook: TEpubBook; const ATitle: string);
+var
+  F, Title, Author: string;
+  Own: TEpubBook;
+  I: Integer;
+begin
+  F := CoverFile(ABookFile);
+  if FileExists(F) then
+    Exit;
+  Own := nil;
+  try
+    try
+      ForceDirectories(ExtractFilePath(F));
+      if (ABook = nil) and FileExists(ABookFile) then
+        try
+          Own := TEpubBook.Create(ABookFile);
+          ABook := Own;
+        except
+          // not readable now: a made cover from what the list knows
+          ABook := nil;
+        end;
+      Title := ATitle;
+      Author := '';
+      if ABook <> nil then
+      begin
+        if ABook.Title <> '' then
+          Title := ABook.Title;
+        for I := 0 to ABook.Creators.Count - 1 do
+          if I = 0 then
+            Author := ABook.Creators[I]
+          else
+            Author := Author + ', ' + ABook.Creators[I];
+        if ABook.CoverPath <> '' then
+          try
+            SaveImageCover(ABook.ReadResource(ABook.CoverPath), F);
+            Exit;
+          except
+            // a picture FMX cannot read: a made cover
+          end;
+      end;
+      if Title = '' then
+        Title := ChangeFileExt(ExtractFileName(ABookFile), '');
+      SaveTextCover(F, Title, Author);
+    except
+      // no cover: the library shows the title
+    end;
+  finally
+    Own.Free;
+  end;
+end;
+
 { Puts the reader in the system's "Open with" list for .epub files, for
   this user only (no administrator rights; the default program is left as
   it is - Windows lets only the user choose that, in "Open with > Always").
@@ -750,6 +952,7 @@ begin
   mnuMain.Parent := Self;
   M := Item(mnuMain, '&File', nil);
   Item(M, '&Open...'#9'Ctrl+O', btnOpenClick);
+  Item(M, 'Li&brary', miLibraryClick);
   miRecent := Item(M, '&Recently Opened', nil);
   // a debugging aid: only with "debug": true in the settings file
   miNotes := Item(M, 'Go to &Footnote', nil);
@@ -849,8 +1052,8 @@ begin
       // where it is: its chapter
       Where := '';
       C := ChapterOfWord(W);
-      if (C >= 0) and (FChapterToc[C] >= 0) then
-        Where := Trim(B.Toc[FChapterToc[C]].Title) + ': ';
+      if (C >= 0) and (FChapterTitle[C] <> '') then
+        Where := FChapterTitle[C] + ': ';
       M := TMenuItem.Create(Self);
       M.Parent := miNotes;
       M.Text := Format('%d. %s%s', [Length(FNoteWords), Where, Trim(Text)]);
@@ -873,20 +1076,228 @@ begin
 end;
 
 procedure TfrmMain.miRecentItemClick(Sender: TObject);
+begin
+  OpenRecent((Sender as TMenuItem).Tag);
+end;
+
+procedure TfrmMain.OpenRecent(AIndex: Integer);
+begin
+  if (AIndex < 0) or (AIndex > High(FRecent)) then
+    Exit;
+  if not FileExists(FRecent[AIndex].FileName) then
+  begin
+    ShowMessage('The book is no longer there: ' + FRecent[AIndex].FileName);
+    Delete(FRecent, AIndex, 1);
+    BuildRecentMenu;
+    if LibraryShowing then
+      ShowLibrary;
+    Exit;
+  end;
+  OpenBook(FRecent[AIndex].FileName);
+end;
+
+procedure TfrmMain.BuildLibrary;
+begin
+  // over the page, its size: where the text will be
+  recLibrary := TRectangle.Create(Self);
+  recLibrary.Parent := View1;
+  recLibrary.Align := TAlignLayout.Client;
+  recLibrary.Stroke.Kind := TBrushKind.None;
+  recLibrary.Fill.Kind := TBrushKind.Solid;
+  recLibrary.Fill.Color := View1.BackgroundColor;
+  recLibrary.HitTest := True;
+  recLibrary.Visible := False;
+  recLibrary.OnResized := recLibraryResized;
+  recLibrary.OnMouseWheel := recLibraryMouseWheel;
+  lblLibrary := TLabel.Create(Self);
+  lblLibrary.Parent := recLibrary;
+  lblLibrary.Align := TAlignLayout.Client;
+  lblLibrary.StyledSettings := lblLibrary.StyledSettings - [TStyledSetting.FontColor, TStyledSetting.Size];
+  lblLibrary.TextSettings.Font.Size := 16;
+  lblLibrary.TextSettings.FontColor := View1.TextColor;
+  lblLibrary.TextSettings.HorzAlign := TTextAlign.Center;
+  lblLibrary.TextSettings.VertAlign := TTextAlign.Center;
+  lblLibrary.Text := 'No books yet: File > Open... (Ctrl+O) to read one.';
+  lblLibrary.HitTest := False;
+  tmLibrary := TTimer.Create(Self);
+  tmLibrary.Enabled := False;
+  tmLibrary.Interval := 1;
+  tmLibrary.OnTimer := tmLibraryTimer;
+end;
+
+function TfrmMain.LibraryShowing: Boolean;
+begin
+  Result := (recLibrary <> nil) and recLibrary.Visible;
+end;
+
+procedure TfrmMain.ShowLibrary;
+var
+  I: Integer;
+  Img: TImage;
+  F: string;
+begin
+  // the open book first, with where it is
+  RememberBook;
+  for I := 0 to High(FCoverImages) do
+    FCoverImages[I].Free;
+  FCoverImages := nil;
+  for I := 0 to High(FRecent) do
+  begin
+    EnsureCover(FRecent[I].FileName, nil, FRecent[I].Title);
+    Img := TImage.Create(Self);
+    Img.Parent := recLibrary;
+    Img.WrapMode := TImageWrapMode.Fit;
+    Img.HitTest := True;
+    Img.Cursor := crHandPoint;
+    Img.Tag := I;
+    Img.Hint := FRecent[I].Title;
+    if Img.Hint = '' then
+      Img.Hint := ExtractFileName(FRecent[I].FileName);
+    Img.ShowHint := True;
+    Img.OnClick := CoverClick;
+    F := CoverFile(FRecent[I].FileName);
+    if FileExists(F) then
+      try
+        Img.Bitmap.LoadFromFile(F);
+      except
+        // a damaged cache file: made again next time
+        System.SysUtils.DeleteFile(F);
+      end;
+    // a book no longer there: faint (a click takes it off the list)
+    if not FileExists(FRecent[I].FileName) then
+      Img.Opacity := 0.35;
+    FCoverImages := FCoverImages + [Img];
+  end;
+  lblLibrary.Visible := Length(FRecent) = 0;
+  recLibrary.Fill.Color := View1.BackgroundColor;
+  lblLibrary.TextSettings.FontColor := View1.TextColor;
+  recLibrary.Visible := True;
+  recLibrary.BringToFront;
+  LayoutLibrary;
+  UpdateControls;
+end;
+
+procedure TfrmMain.HideLibrary;
 var
   I: Integer;
 begin
-  I := (Sender as TMenuItem).Tag;
+  if not LibraryShowing then
+    Exit;
+  recLibrary.Visible := False;
+  for I := 0 to High(FCoverImages) do
+    FCoverImages[I].Free;
+  FCoverImages := nil;
+  UpdateControls;
+end;
+
+procedure TfrmMain.LayoutLibrary;
+var
+  N, Cols, Rows, BestCols, BestRows, C, K, Row, Col, Free2: Integer;
+  AreaW, AreaH, W, BestW, X0, Y0, TileH: Single;
+
+  { Rows needed for ACols columns: the first cover over 2 x 2 tiles at
+    the top left, the others round it, row by row. }
+  function RowsFor(ACols: Integer): Integer;
+  var
+    Rest: Integer;
+  begin
+    Rest := Max(0, (N - 1) - 2 * (ACols - 2));
+    Result := 2 + (Rest + ACols - 1) div ACols;
+  end;
+
+begin
+  N := Length(FCoverImages);
+  if (N = 0) or not LibraryShowing then
+    Exit;
+  AreaW := recLibrary.Width;
+  AreaH := recLibrary.Height;
+  // the column count that gives the largest tiles
+  BestW := 0;
+  BestCols := 2;
+  BestRows := RowsFor(2);
+  for C := 2 to N + 3 do
+  begin
+    Rows := RowsFor(C);
+    W := Min((AreaW - (C + 1) * COVER_GAP) / C, ((AreaH - (Rows + 1) * COVER_GAP) / Rows) / COVER_ASPECT);
+    if W > BestW then
+    begin
+      BestW := W;
+      BestCols := C;
+      BestRows := Rows;
+    end;
+  end;
+  if BestW <= 1 then
+    Exit;
+  Cols := BestCols;
+  Rows := BestRows;
+  W := BestW;
+  TileH := W * COVER_ASPECT;
+  // the grid centred both ways
+  X0 := (AreaW - (Cols * W + (Cols - 1) * COVER_GAP)) / 2;
+  Y0 := (AreaH - (Rows * TileH + (Rows - 1) * COVER_GAP)) / 2;
+  // the current book: 2 x 2 tiles
+  FCoverImages[0].SetBounds(X0, Y0, 2 * W + COVER_GAP, 2 * TileH + COVER_GAP);
+  // the others: beside it in the first two rows, then full rows
+  Free2 := 2 * (Cols - 2);
+  for K := 0 to N - 2 do
+  begin
+    if K < Free2 then
+    begin
+      Row := K div (Cols - 2);
+      Col := 2 + K mod (Cols - 2);
+    end
+    else
+    begin
+      Row := 2 + (K - Free2) div Cols;
+      Col := (K - Free2) mod Cols;
+    end;
+    FCoverImages[K + 1].SetBounds(X0 + Col * (W + COVER_GAP), Y0 + Row * (TileH + COVER_GAP), W, TileH);
+  end;
+end;
+
+procedure TfrmMain.recLibraryResized(Sender: TObject);
+begin
+  LayoutLibrary;
+end;
+
+procedure TfrmMain.recLibraryMouseWheel(Sender: TObject; Shift: TShiftState; WheelDelta: Integer;
+  var Handled: Boolean);
+begin
+  Handled := True;
+end;
+
+procedure TfrmMain.CoverClick(Sender: TObject);
+var
+  I: Integer;
+begin
+  I := (Sender as TImage).Tag;
   if (I < 0) or (I > High(FRecent)) then
     Exit;
-  if not FileExists(FRecent[I].FileName) then
+  // the open book: back to it, where it was
+  if (EpubUnum1.Book <> nil) and (FBookFile <> '') and
+    SameFileName(ExpandFileName(FRecent[I].FileName), FBookFile) then
   begin
-    ShowMessage('The book is no longer there: ' + FRecent[I].FileName);
-    Delete(FRecent, I, 1);
-    BuildRecentMenu;
+    HideLibrary;
     Exit;
   end;
-  OpenBook(FRecent[I].FileName);
+  // opened from a timer: the click must not free its own image (the book
+  // opening ends in HideLibrary)
+  FLibraryOpen := I;
+  tmLibrary.Enabled := True;
+end;
+
+procedure TfrmMain.tmLibraryTimer(Sender: TObject);
+begin
+  tmLibrary.Enabled := False;
+  OpenRecent(FLibraryOpen);
+end;
+
+procedure TfrmMain.miLibraryClick(Sender: TObject);
+begin
+  if LibraryShowing then
+    HideLibrary
+  else
+    ShowLibrary;
 end;
 
 procedure TfrmMain.miClearRecentClick(Sender: TObject);
@@ -1254,9 +1665,12 @@ begin
   FSeekClip := -1;
   FUnitDoc := -1;
   lbToc.OnApplyStyleLookup := TocApplyStyle;
+  // how far through the book, under the text
+  View1.ShowProgress := True;
   BuildToolBar;
   BuildFindBar;
   BuildMenu;
+  BuildLibrary;
   StartSound;
   // a new name every run (Random without Randomize gave the same one, so
   // two readers shared - and deleted - one folder)
@@ -1279,11 +1693,12 @@ begin
   // dark mode, text size, speed, the recent books and their positions
   LoadSettings;
   UpdateControls;
-  // a book named on the command line (Open with), else the last one read
+  // a book named on the command line (Open with), else the library: the
+  // recent books' covers, the last one read large
   if ParamCount > 0 then
     OpenBook(ParamStr(1))
-  else if (Length(FRecent) > 0) and FileExists(FRecent[0].FileName) then
-    OpenBook(FRecent[0].FileName);
+  else
+    ShowLibrary;
 end;
 
 procedure TfrmMain.FormClose(Sender: TObject; var Action: TCloseAction);
@@ -1325,6 +1740,13 @@ begin
   // typing in the find box is text, not the reader's keys (P, D, L, R ...)
   if (edFind <> nil) and edFind.IsFocused then
     Exit;
+  // Esc in the library: back to the open book
+  if (Key = vkEscape) and LibraryShowing and (EpubUnum1.Book <> nil) then
+  begin
+    HideLibrary;
+    Key := 0;
+    Exit;
+  end;
   if (KeyChar = 'p') or (KeyChar = 'P') then
   begin
     btnPlayClick(nil);
@@ -1439,6 +1861,8 @@ begin
   FChapterWord := nil;
   FChapterToc := nil;
   FChapterDoc := nil;
+  FChapterTitle := nil;
+  FTocIsChapters := False;
   EpubUnum1.Active := False;
   EpubUnum1.FileName := AFileName;
   EpubUnum1.Active := True;   // OnOpen or OnOpenFailed follows
@@ -1486,6 +1910,21 @@ begin
       FClipLast[I] := -1;
     end;
   BuildChapters;
+  if FTocIsChapters then
+  begin
+    // the contents list holds no chapters that are read: the chapters
+    // (audiobook marks, with the book's unread pages) are the list
+    lbToc.BeginUpdate;
+    try
+      lbToc.Clear;
+      for I := 0 to High(FChapterTitle) do
+        lbToc.Items.Add(FChapterTitle[I]);
+    finally
+      lbToc.EndUpdate;
+    end;
+    if FDark then
+      ApplyTheme;
+  end;
   BuildNotesMenu;
   // the first linear document with words
   First := 0;
@@ -1498,6 +1937,9 @@ begin
   View1.ShowDocument(First);
   // this book now: first in Recently Opened, and back where it was left
   FBookFile := ExpandFileName(EpubUnum1.FileName);
+  // its cover for the library (made once, cached)
+  EnsureCover(FBookFile, B, B.Title);
+  HideLibrary;
   I := RecentIndex(FBookFile);
   if (I >= 0) and (FRecent[I].Word >= 0) then
     RestoreWord(FRecent[I].Word);
@@ -1527,6 +1969,12 @@ begin
     Exit;
   B := EpubUnum1.Book;
   I := lbToc.ItemIndex;
+  if FTocIsChapters then
+  begin
+    if (B <> nil) and (I >= 0) and (I <= High(FChapterWord)) then
+      GoChapter(I);
+    Exit;
+  end;
   if (B = nil) or (I < 0) or (I > High(B.Toc)) or (B.Toc[I].Document < 0) then
     Exit;
   // the chapter of this entry (entries at one place share a chapter)
@@ -1541,21 +1989,55 @@ begin
 end;
 
 procedure TfrmMain.BuildChapters;
+const
+  { Words of a document's start used as its title. }
+  DOC_TITLE_WORDS = 6;
 var
   B: TEpubBook;
-  I, K, W, N: Integer;
+  I, K, W, N, C, Limit, ReadCount: Integer;
   Doc: TEpubDocument;
+  Marks: TEpubWordIndexArray;
+  Title: string;
+  TocWord, TocIdx: TArray<Integer>;
+  Starts: TArray<Boolean>;
+
+  { Adds a chapter (sorted in by AWord later). }
+  procedure Add(AWord, AToc, ADoc: Integer; const ATitle: string);
+  begin
+    FChapterWord[N] := AWord;
+    FChapterToc[N] := AToc;
+    FChapterDoc[N] := ADoc;
+    FChapterTitle[N] := ATitle;
+    Inc(N);
+  end;
+
+  { True when the chapter from word AWord to ALimit (excluded) has audio. }
+  function HasAudio(AWord, ALimit: Integer): Boolean;
+  var
+    Clip: Integer;
+  begin
+    Clip := ClipFromWord(AWord);
+    Result := (Clip >= 0) and (FClipFirst[Clip] < ALimit);
+  end;
+
 begin
   B := EpubUnum1.Book;
   FChapterWord := nil;
   FChapterToc := nil;
   FChapterDoc := nil;
+  FChapterTitle := nil;
+  FTocIsChapters := False;
   if B = nil then
     Exit;
-  SetLength(FChapterWord, Length(B.Toc) + Length(B.Documents));
+  Marks := B.AudioChapterWords;
+  SetLength(FChapterWord, Length(B.Toc) + Length(B.Documents) + Length(Marks));
   SetLength(FChapterToc, Length(FChapterWord));
   SetLength(FChapterDoc, Length(FChapterWord));
-  N := 0;
+  SetLength(FChapterTitle, Length(FChapterWord));
+  // the contents' entries in reading order; an entry at the place of the
+  // one before (a part and its first chapter) is that chapter
+  TocWord := nil;
+  TocIdx := nil;
   for I := 0 to High(B.Toc) do
   begin
     if B.Toc[I].Document < 0 then
@@ -1569,28 +2051,107 @@ begin
           W := Doc.Ids[K].FirstWord;
           Break;
         end;
-    // in reading order only; an entry at the place of the one before
-    // (a part and its first chapter) is that chapter
-    if (N > 0) and (W <= FChapterWord[N - 1]) then
+    if (Length(TocWord) > 0) and (W <= TocWord[High(TocWord)]) then
       Continue;
-    FChapterWord[N] := W;
-    FChapterToc[N] := I;
-    FChapterDoc[N] := B.Toc[I].Document;
-    Inc(N);
+    TocWord := TocWord + [W];
+    TocIdx := TocIdx + [I];
   end;
-  if N = 0 then
-    // no contents: the linear documents with words
-    for I := 0 to High(B.Documents) do
-      if B.Documents[I].Linear and (B.Documents[I].WordCount > 0) then
+  // how many of them are read aloud
+  ReadCount := 0;
+  for I := 0 to High(TocWord) do
+  begin
+    if I < High(TocWord) then
+      Limit := TocWord[I + 1]
+    else
+      Limit := MaxInt;
+    if HasAudio(TocWord[I], Limit) then
+      Inc(ReadCount);
+  end;
+  K := 0;
+  for I := 0 to High(Marks) do
+    if Marks[I] >= 0 then
+      Inc(K);
+  N := 0;
+  if (ReadCount < 2) and (K >= 2) then
+  begin
+    // the contents list has no chapters that are read (Night Watch: none
+    // in the book, 75 in the audiobook): the audiobook's chapter marks,
+    // with the contents' entries that are not read (title page, about
+    // the author) and the documents no chapter starts in, so the front
+    // and back matter can still be reached
+    FTocIsChapters := True;
+    for I := 0 to High(TocWord) do
+    begin
+      if I < High(TocWord) then
+        Limit := TocWord[I + 1]
+      else
+        Limit := MaxInt;
+      if not HasAudio(TocWord[I], Limit) then
+        Add(TocWord[I], TocIdx[I], B.Toc[TocIdx[I]].Document, Trim(B.Toc[TocIdx[I]].Title));
+    end;
+    for I := 0 to High(Marks) do
+      if Marks[I] >= 0 then
       begin
-        FChapterWord[N] := B.Documents[I].FirstWord;
-        FChapterToc[N] := -1;
-        FChapterDoc[N] := I;
-        Inc(N);
+        Title := Trim(B.AudioChapters[I].Title);
+        if Title = '' then
+          Title := 'Part ' + IntToStr(I + 1);
+        Add(Marks[I], -1, B.Words[Marks[I]].Document, Title);
       end;
+    // documents in which no chapter starts and nothing is read
+    SetLength(Starts, Length(B.Documents));
+    for I := 0 to N - 1 do
+      Starts[FChapterDoc[I]] := True;
+    for I := 0 to High(B.Documents) do
+      if B.Documents[I].Linear and (B.Documents[I].WordCount > 0) and not Starts[I] and
+        not HasAudio(B.Documents[I].FirstWord, B.Documents[I].FirstWord + B.Documents[I].WordCount) then
+      begin
+        Title := '';
+        for K := B.Documents[I].FirstWord to Min(B.Documents[I].FirstWord + DOC_TITLE_WORDS,
+          B.Documents[I].FirstWord + B.Documents[I].WordCount) - 1 do
+          Title := Title + ' ' + B.Words[K].Text;
+        if B.Documents[I].WordCount > DOC_TITLE_WORDS then
+          Title := Title + ' ...';
+        Add(B.Documents[I].FirstWord, -1, I, Trim(Title));
+      end;
+    // in reading order (stable: of two at one word the first added stays)
+    for I := 1 to N - 1 do
+    begin
+      K := I;
+      while (K > 0) and (FChapterWord[K - 1] > FChapterWord[K]) do
+      begin
+        W := FChapterWord[K]; FChapterWord[K] := FChapterWord[K - 1]; FChapterWord[K - 1] := W;
+        C := FChapterToc[K]; FChapterToc[K] := FChapterToc[K - 1]; FChapterToc[K - 1] := C;
+        C := FChapterDoc[K]; FChapterDoc[K] := FChapterDoc[K - 1]; FChapterDoc[K - 1] := C;
+        Title := FChapterTitle[K]; FChapterTitle[K] := FChapterTitle[K - 1]; FChapterTitle[K - 1] := Title;
+        Dec(K);
+      end;
+    end;
+    K := 0;
+    for I := 0 to N - 1 do
+      if (K = 0) or (FChapterWord[I] > FChapterWord[K - 1]) then
+      begin
+        FChapterWord[K] := FChapterWord[I];
+        FChapterToc[K] := FChapterToc[I];
+        FChapterDoc[K] := FChapterDoc[I];
+        FChapterTitle[K] := FChapterTitle[I];
+        Inc(K);
+      end;
+    N := K;
+  end
+  else
+  begin
+    for I := 0 to High(TocWord) do
+      Add(TocWord[I], TocIdx[I], B.Toc[TocIdx[I]].Document, Trim(B.Toc[TocIdx[I]].Title));
+    if N = 0 then
+      // no contents: the linear documents with words
+      for I := 0 to High(B.Documents) do
+        if B.Documents[I].Linear and (B.Documents[I].WordCount > 0) then
+          Add(B.Documents[I].FirstWord, -1, I, '');
+  end;
   SetLength(FChapterWord, N);
   SetLength(FChapterToc, N);
   SetLength(FChapterDoc, N);
+  SetLength(FChapterTitle, N);
 end;
 
 function TfrmMain.ChapterOfWord(AWord: Integer): Integer;
@@ -1669,7 +2230,12 @@ begin
   if FChapterToc[AChapter] >= 0 then
     View1.ShowFragment(FChapterDoc[AChapter], B.Toc[FChapterToc[AChapter]].Fragment)
   else
-    View1.ShowDocument(FChapterDoc[AChapter]);
+  begin
+    // an audiobook mark can be inside the document shown
+    if FChapterDoc[AChapter] <> View1.Document then
+      View1.ShowDocument(FChapterDoc[AChapter]);
+    View1.ScrollToWord(FChapterWord[AChapter]);
+  end;
   SyncToc(FChapterWord[AChapter]);
   // the audio follows: the chapter's first clip - one inside the chapter
   // (a chapter without audio does not jump to a later chapter's)
@@ -1696,11 +2262,20 @@ var
   K: Integer;
 begin
   K := ChapterOfWord(AWord);
-  if (K < 0) or (FChapterToc[K] < 0) or (lbToc.ItemIndex = FChapterToc[K]) then
-    Exit;
+  if FTocIsChapters then
+  begin
+    if (K < 0) or (lbToc.ItemIndex = K) then
+      Exit;
+  end
+  else
+  begin
+    if (K < 0) or (FChapterToc[K] < 0) or (lbToc.ItemIndex = FChapterToc[K]) then
+      Exit;
+    K := FChapterToc[K];
+  end;
   FSyncingToc := True;
   try
-    lbToc.ItemIndex := FChapterToc[K];
+    lbToc.ItemIndex := K;
   finally
     FSyncingToc := False;
   end;
@@ -2054,6 +2629,12 @@ begin
       View1.HighlightColor := $FFFFE08A;
     View1.LinkColor := $FF1A5FB4;
     View1.NoteColor := $FFEDE6D6;
+  end;
+  // the library has the page's colours
+  if recLibrary <> nil then
+  begin
+    recLibrary.Fill.Color := View1.BackgroundColor;
+    lblLibrary.TextSettings.FontColor := View1.TextColor;
   end;
   // Learn to read: the green band behind the tool bar
   recLearn.Visible := FLearn;
@@ -2423,7 +3004,9 @@ begin
     SetIcon(btnPlay, ICON_PAUSE)
   else
     SetIcon(btnPlay, ICON_PLAY);
-  if B = nil then
+  if LibraryShowing then
+    S := 'Library - click a cover to read (Esc: back to the open book)'
+  else if B = nil then
     S := 'No book open'
   else
   begin

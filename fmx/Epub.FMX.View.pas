@@ -98,6 +98,8 @@ type
     FLinkColor: TAlphaColor;
     { Backing field of @link(NoteColor). }
     FNoteColor: TAlphaColor;
+    { Backing field of @link(ShowProgress). }
+    FShowProgress: Boolean;
     { First highlighted word (book index), -1 = none. }
     FHighFirst: Integer;
     { Last highlighted word. }
@@ -143,6 +145,14 @@ type
     function ItemOfBlock(ABlock: Integer): Integer;
     { Lays out again (font or size change). }
     procedure Relayout;
+    { Height of the progress strip at the bottom, px (0 when not shown). }
+    function FooterHeight: Single;
+    { Height the text is shown in: the view less the progress strip. }
+    function TextHeight: Single;
+    { Shows or hides the progress strip. }
+    procedure SetShowProgress(const AValue: Boolean);
+    { Draws the progress strip in ARect. }
+    procedure DrawFooter(const ACanvas: ISkCanvas; const ARect: TRectF);
   protected
     { Draws the visible blocks and the highlight. }
     procedure Draw(const ACanvas: ISkCanvas; const ADest: TRectF; const AOpacity: Single); override;
@@ -190,6 +200,12 @@ type
     property ScrollPos: Single read FScroll write SetScrollPos;
     { Height of the whole document, px. }
     property ContentHeight: Single read FContentHeight;
+    { How far through the book the view is, 0 .. 1 (-1 when nothing is
+      shown): the words of the documents before this one plus the share
+      of this one's words above the top of the view (by height); 1 at the
+      end of the last document. By words, so the text size does not
+      change it. }
+    function Progress: Single;
   published
     { The book component whose book is shown. }
     property Epub: TCustomEpub read FEpub write SetEpub;
@@ -219,6 +235,9 @@ type
       ewrNote: aside, epub:type / class footnote, endnote, note), so they
       can be told from the text; transparent (claNull) = not marked. }
     property NoteColor: TAlphaColor index 4 read GetColor write SetColor;
+    { A strip at the bottom of the view with how far through the book it
+      is (@link(Progress), as a percentage); the text scrolls above it. }
+    property ShowProgress: Boolean read FShowProgress write SetShowProgress default False;
     { A word was clicked. }
     property OnWordClick: TEpubWordEvent read FOnWordClick write FOnWordClick;
     { Another document is shown. }
@@ -380,8 +399,8 @@ const
   { Ticks of the smooth scroll, ms. }
   TICK_MS = 15;
 begin
-  ATarget := Max(0, Min(ATarget, FContentHeight - Height));
-  if not Visible or (Abs(ATarget - FScroll) > Height * 1.5) then
+  ATarget := Max(0, Min(ATarget, FContentHeight - TextHeight));
+  if not Visible or (Abs(ATarget - FScroll) > TextHeight * 1.5) then
   begin
     ScrollPos := ATarget;
     Exit;
@@ -455,7 +474,7 @@ var
 begin
   // a scroll by the user (wheel, keys) or from code ends a smooth one
   StopScrolling;
-  V := Min(AValue, FContentHeight - Height);
+  V := Min(AValue, FContentHeight - TextHeight);
   V := Max(V, 0);
   if SameValue(V, FScroll) then
     Exit;
@@ -559,23 +578,23 @@ begin
   if ACenter then
   begin
     if WordLine(AWord, LineTop, LineHeight) then
-      SmoothScrollTo(LineTop + LineHeight / 2 - Height / 2)
+      SmoothScrollTo(LineTop + LineHeight / 2 - TextHeight / 2)
     else
-      SmoothScrollTo(FItems[K].Top + FItems[K].Height / 2 - Height / 2);
+      SmoothScrollTo(FItems[K].Top + FItems[K].Height / 2 - TextHeight / 2);
     Exit;
   end;
   Top := FItems[K].Top;
-  Bottom := Top + Min(FItems[K].Height, Height / 2);
+  Bottom := Top + Min(FItems[K].Height, TextHeight / 2);
   // keep it in the upper two thirds; scroll only when it left that
-  if (Top < FScroll) or (Bottom > FScroll + Height * 2 / 3) then
-    ScrollPos := Top - Height / 4;
+  if (Top < FScroll) or (Bottom > FScroll + TextHeight * 2 / 3) then
+    ScrollPos := Top - TextHeight / 4;
 end;
 
 procedure TEpubView.Page(ADown: Boolean);
 var
   Step: Single;
 begin
-  Step := Height - 2 * FFontSize * FLineHeight;
+  Step := TextHeight - 2 * FFontSize * FLineHeight;
   if Step < FFontSize then
     Step := FFontSize;
   if ADown then
@@ -768,7 +787,7 @@ var
   Blk: TEpubBlock;
   Boxes: TArray<TSkTextBox>;
   B: TEpubBook;
-  R: TRectF;
+  R, TextRect: TRectF;
 begin
   Paint := TSkPaint.Create;
   Paint.AntiAlias := True;
@@ -778,19 +797,24 @@ begin
   B := Book;
   if (B = nil) or not LayoutCurrent then
     Exit;   // no book, or a layout of the book before: an empty page
+  // the text above the progress strip
+  TextRect := ADest;
+  TextRect.Bottom := ADest.Bottom - FooterHeight;
   if not SameValue(FLaidOutWidth, ADest.Width) then
   begin
     LayoutItems(ADest.Width);
-    FScroll := Max(0, Min(FScroll, FContentHeight - ADest.Height));
+    FScroll := Max(0, Min(FScroll, FContentHeight - TextRect.Height));
   end;
+  if FShowProgress then
+    DrawFooter(ACanvas, RectF(ADest.Left, TextRect.Bottom, ADest.Right, ADest.Bottom));
   ACanvas.Save;
   try
-    ACanvas.ClipRect(ADest);
+    ACanvas.ClipRect(TextRect);
     for I := 0 to High(FItems) do
     begin
       Item := FItems[I];
       Top := ADest.Top + Item.Top - FScroll;
-      if Top > ADest.Bottom then
+      if Top > TextRect.Bottom then
         Break;
       if Top + Item.Height < ADest.Top then
         Continue;
@@ -866,6 +890,91 @@ begin
   end;
 end;
 
+function TEpubView.FooterHeight: Single;
+begin
+  if FShowProgress then
+    Result := Round(Max(11, FFontSize * 0.65) * 2)
+  else
+    Result := 0;
+end;
+
+function TEpubView.TextHeight: Single;
+begin
+  Result := Max(1, Height - FooterHeight);
+end;
+
+procedure TEpubView.SetShowProgress(const AValue: Boolean);
+begin
+  if AValue = FShowProgress then
+    Exit;
+  FShowProgress := AValue;
+  FScroll := Max(0, Min(FScroll, FContentHeight - TextHeight));
+  Redraw;
+end;
+
+function TEpubView.Progress: Single;
+var
+  B: TEpubBook;
+  Doc: TEpubDocument;
+  Share: Single;
+  Total: Integer;
+begin
+  Result := -1;
+  B := Book;
+  if (B = nil) or not LayoutCurrent or (FDocument < 0) or (FDocument > High(B.Documents)) then
+    Exit;
+  Total := B.WordCount;
+  if Total = 0 then
+    Exit;
+  Doc := B.Documents[FDocument];
+  // the share of the document above the top of the view; at its end, all
+  if (FContentHeight <= TextHeight) or (FScroll >= FContentHeight - TextHeight - 1) then
+    Share := 1
+  else
+    Share := FScroll / FContentHeight;
+  Result := Min(1, (Doc.FirstWord + Share * Doc.WordCount) / Total);
+  // the first words of the book: 0, not a fraction of a percent above
+  if (Doc.FirstWord = 0) and (FScroll < 1) and (FContentHeight > TextHeight) then
+    Result := 0;
+end;
+
+procedure TEpubView.DrawFooter(const ACanvas: ISkCanvas; const ARect: TRectF);
+var
+  P: Single;
+  PS: ISkParagraphStyle;
+  TS: ISkTextStyle;
+  Builder: ISkParagraphBuilder;
+  Para: ISkParagraph;
+  Paint: ISkPaint;
+begin
+  P := Progress;
+  if P < 0 then
+    Exit;
+  // a hairline between the text and the strip
+  Paint := TSkPaint.Create;
+  Paint.AntiAlias := True;
+  Paint.Style := TSkPaintStyle.Stroke;
+  Paint.StrokeWidth := 1;
+  Paint.Color := (FTextColor and $00FFFFFF) or $30000000;
+  ACanvas.DrawLine(PointF(ARect.Left + FPageMargin, ARect.Top + 0.5), PointF(ARect.Right - FPageMargin,
+    ARect.Top + 0.5), Paint);
+  // the percentage, centred, in the text colour made fainter
+  PS := TSkParagraphStyle.Create;
+  PS.TextAlign := TSkTextAlign.Center;
+  Builder := TSkParagraphBuilder.Create(PS);
+  TS := TSkTextStyle.Create;
+  TS.Color := (FTextColor and $00FFFFFF) or $A0000000;
+  TS.FontSize := Max(11, FFontSize * 0.65);
+  if FFontFamily <> '' then
+    TS.FontFamilies := [FFontFamily];
+  Builder.PushStyle(TS);
+  Builder.AddText(Format('%d%%', [Trunc(P * 100)]));
+  Builder.Pop;
+  Para := Builder.Build;
+  Para.Layout(ARect.Width);
+  Para.Paint(ACanvas, ARect.Left, ARect.Top + (ARect.Height - Para.Height) / 2);
+end;
+
 function TEpubView.WordAt(X, Y: Single): Integer;
 var
   I, K, P: Integer;
@@ -877,6 +986,9 @@ begin
   Result := -1;
   B := Book;
   if (B = nil) or not LayoutCurrent then
+    Exit;
+  // the progress strip has no words (the text under it is hidden)
+  if Y > TextHeight then
     Exit;
   DocY := Y + FScroll;
   for I := 0 to High(FItems) do

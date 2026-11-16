@@ -288,7 +288,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 38.
+Last number used: 41.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -886,7 +886,115 @@ To come: remember settings (model, device, folders), a summary of the
 not-spoken stretches, open the result in EpubReader, integrate in the
 reader later (owner).
 
+## Session 7 (2026-11-16) - zip 39, on top of 4d7dfbe (= zip 38)
+Owner's answers to the session 6 handover:
+- Pause fix (TWhisper-28 word edges): "works well". Maybe later: a small
+  repeat before a pause (to decide what exactly).
+- German Night Watch: built, being checked; Leviathan Wakes as a second
+  book.
+- Night Watch's contents list has no chapters (the book has none) and
+  the reader shows no useful chapter steps: BuildChapters uses the Toc
+  whenever it has an entry with a document, so the fallback to the
+  documents never runs (the Toc holds front / back matter only). OPEN:
+  what a chapter step should be in such a book (see the session notes).
+- Create asks before replacing (offer (a), agreed): zip 39.
+- Find on '*': debugging only, nothing to do (offer (c) dropped).
+- Offer (b) explained again (front / back matter in the results' "worth
+  a look" list): awaiting an answer.
+Zip 39: EpubBuilder, btnCreateClick - when the output EPUB exists, a
+TDialogService.MessageDialog (Yes / No, No default) asks before
+replacing it, unless this run of the builder made that file from the
+same book (FMadeBook / FMadeOut, set from FRunBook / FRunOut when a build
+reaches 100 %), so building again from the saved transcript does not
+ask. The build start moved to StartBuild (it does nothing if a build is
+already running). NOT COMPILED here (no Delphi).
+
+## Zip 40 (on top of 39): audiobook chapters, library, front / back matter
+Owner, 2026-11-16: "Use the audiobook's 75 chapter marks"; "ignore Front
+and Back but make sure you can get to them by scrolling etc."; covers:
+"turn the Recently Read menu into a pre-book-load display of the covers
+... cache the images in a directory under settings.json ... current book
+taking up several grid tiles ... Center horizontally+vertically using
+max grid area. In the event of no cover just create one as a text image -
+the user can be allowed to change them later"; then "Add a File ->
+Library menu item that takes you to the Library selection screen (temp
+fix)".
+- AUDIO CHAPTER MARKS. lib: TEpubWriter.AddAudioChapter(Title, Audio,
+  Start) / ClearAudioChapters -> TSaveJob.WriteChapters writes
+  <package folder>/epubunum-audio-chapters.xml (manifest id
+  EPUB_AUDIO_CHAPTERS_ID = 'eu-audio-chapters', media-type
+  application/xml, not in the spine; root audio-chapters in namespace
+  EPUB_AUDIO_CHAPTERS_NS, a chapter element per mark: audio = href
+  relative to the file, begin = clock value, title). A book written
+  before keeps its file and item (replaced in place); no marks given:
+  the book's file is copied as it is; the id used by something else:
+  marks left out with a warning. TEpubBook.AudioChapters (read at open;
+  a damaged file gives none) and AudioChapterWords (first word of the
+  first clip of that audio at the mark - 0.25 s early allowed - one
+  pass). Marks are audio places, not text: they survive re-alignment.
+  NOT RUN: epubcheck on a book with the new item (application/xml,
+  unreferenced - expected at most a usage note; TO CHECK).
+- EpubBuilder: the parts (Audio.Parts or the saved transcript's) as
+  marks when there are 2 or more (an M4B's chapters with "Chapters of a
+  file are parts", else one per file); logged.
+- EpubReader BuildChapters: the contents' chapters as before; when fewer
+  than 2 of them have audio and the book has 2 or more marks with words,
+  FTocIsChapters: chapters = marks + contents entries without audio +
+  linear documents with words, no audio and no chapter start (title: the
+  first 6 words), sorted, one per word; lbToc then lists these
+  (FChapterTitle; item = chapter), lbTocChange / SyncToc follow. GoChapter
+  for a mark: ShowDocument only when another document, then ScrollToWord.
+  Go to Footnote's labels use FChapterTitle.
+- FRONT / BACK MATTER (builder results): not-spoken stretches before the
+  first or after the last exact / similar word (moved words - footnotes
+  after the back matter - do not count) are counted as edges and left
+  out of "worth a look". Was: only stretches touching word 0 or the last
+  word (missed Night Watch's back matter).
+- LIBRARY (reader): recLibrary (TRectangle, child of View1, Align Client,
+  page colours, eats the mouse wheel) with a TImage per FRecent entry;
+  shown at start-up when no book is on the command line (the last book is
+  no longer opened by itself), by File > Library (toggles), hidden when a
+  book opens or by Esc / the open book's own cover. Grid: the column
+  count giving the largest tiles (aspect 1.5, gap 16), the first entry
+  (current / last read) over 2 x 2 tiles at the top left, the others
+  beside it then in full rows, centred. A click opens through tmLibrary
+  (1 ms; the click must not free its own image). Covers: CoverFile =
+  covers\<MD5 of the lower-case file name>.png beside EpubReader.json
+  (by file name, as RecentIndex); EnsureCover makes a missing one at
+  open (and for list entries, opening the book without text): the
+  cover image scaled to <= 600 px high, else (none / SVG / unreadable)
+  SaveTextCover (title + authors on an HSL colour from the title's hash,
+  400 x 600). Replace / delete files there to change / remake. File >
+  Recently Opened is still there (owner may want it gone).
+NOT COMPILED here (no Delphi; this session also had no FPC - lib changes
+are unbuilt): the owner's build is the first. TO TEST: German / English
+Night Watch rebuilt (saved transcript) -> 75 chapters in the contents
+list and the chapter buttons, title / about-the-author pages reachable;
+Moby-Dick and Aladdin unchanged (contents chapters); the library at
+start-up, resize, dark mode, click / Esc; a book without a cover.
+
+## Zip 41 (on top of 40): progress under the text
+Owner, 2026-11-16: "a progress indicator at the bottom of a book's
+displayed text ... just a percentage for now but if we get pagination
+later then page X of Y would be nicer ... depends on the text render
+size". TEpubView.ShowProgress (published, default False; the reader sets
+True): a strip FooterHeight high (2 x max(11, FontSize x 0.65) px) at the
+bottom with a hairline and the percentage centred (text colour, fainter);
+the text is clipped above it, and every scroll calculation uses
+TextHeight (Height less the strip): SetScrollPos / SmoothScrollTo
+clamps, ScrollToWord, Page, Draw's clamp; WordAt ignores the strip.
+TEpubView.Progress (public, 0..1, -1 when nothing shown): words of the
+documents before + this document's words x (scroll / content height),
+1 at a document's end, 0 at the very start - BY WORDS, so the text size
+does not move it (page X of Y would). Truncated, so 100% only at the end
+of the last document. NOT COMPILED here (no Delphi / Skia). TO TEST:
+scroll, text size, a chapter jump, the last page of the book, dark mode.
+
 ## Pushes checked
+- 4d7dfbe ("Claude push", 2026-11-15 22:58): the repo's head at the
+  start of session 7, after 5717238 = zip 37; taken as zip 38 (the
+  handover). Clone is shallow: not compared file by file.
+- 5717238 = zip 37 (session 6 check, see the handover).
 - 7723030 ("Claude push", 2026-11-15 21:12) = zips 15 - 32: every file
   identical to the deliveries (CR LF / BOM aside) except
   demos/EpubBuilder/EpubBuilder.dproj, re-saved by the IDE (its platform

@@ -20,11 +20,12 @@ deploys Skia's library (`sk4d.dll`, `libsk4d.so`, ...) next to the program.
 | | |
 |---|---|
 | File > Open, Ctrl+O | choose a book |
+| File > Library | the covers of the last 10 books (again: back to the page) |
 | File > Recently Opened | the last 10 books, each reopened where you left off |
 | File > Exit | close (the place in the book is kept) |
 | Edit > Find, Ctrl+F | the find bar: words or the start of a word, anywhere in the book; Enter / F3 next, Shift+Enter / Shift+F3 previous, Esc closes. A match is lit and Play starts there |
 | Contents list | jump to a chapter - the audio follows |
-| bar + double triangle | previous / next chapter (contents entries; documents when there are none); the audio moves to the chapter's first clip - playing on when playing, else Play starts there. Previous goes to the start of the chapter being read, pressed at its start to the one before |
+| bar + double triangle | previous / next chapter (contents entries; documents when there are none; the audiobook's chapters when the contents list has no chapters that are read - see below); the audio moves to the chapter's first clip - playing on when playing, else Play starts there. Previous goes to the start of the chapter being read, pressed at its start to the one before |
 | triangle + bar | previous / next sentence or paragraph (the drop-down beside them), whatever the clips are (a word-level book has one per word). Previous: the start of the sentence being read; within 1.5 s of that start, the one before |
 | moon, D | dark mode (page, window, contents; the buttons keep the platform style) |
 | Play / Pause, P | play or pause the book's audio (books with media overlays) |
@@ -69,10 +70,40 @@ Windows, `~/Library/Application Support/EpubReader` on macOS,
 `~/.config/EpubReader` on Linux): dark mode, text size, speed, and the
 last 10 books with the place you left each one. `"debug": true` (set by
 hand in the file; false otherwise) shows debugging aids such as File >
-Go to Footnote - a list of the book's notes. Started without a book
-on the command line it opens the last book read; any book opens where
-you left it - the sentence lit, and Play starts there. Books are matched
-by file name for now (a book moved to another folder keeps its place).
+Go to Footnote - a list of the book's notes. Any book opens where you
+left it - the sentence lit, and Play starts there. Books are matched by
+file name for now (a book moved to another folder keeps its place).
+
+## Library
+
+Started without a book on the command line, the reader shows the
+**library** where the page goes: the covers of the last 10 books, the
+current one (the last read) large, the grid as big as the window allows
+and centred. Click a cover to read that book; with a book open, its own
+cover or Esc goes back to it. File > Library shows it at any time. A
+book that is no longer there is shown faint (a click takes it off the
+list).
+
+Covers are cached as PNG in a `covers` folder beside `EpubReader.json`,
+named by a hash of the book's file name, at most 600 px high: the book's
+own cover picture, or - when it has none, or one the reader cannot draw
+(SVG) - a made cover with the title and author on a colour of the
+title's own. Replace a file there to change a book's cover; delete it to
+have it made again.
+
+## Chapters from the audiobook
+
+A book made by EpubBuilder carries the recording's chapter marks (an M4B's
+chapters, or one mark per audio file). When the book's contents list has
+no chapters that are read aloud - Night Watch has no chapters at all,
+its audiobook has 75 - the chapter buttons and the contents list use
+those marks instead, together with the contents entries that are not
+read (title page, about the author) and the documents no chapter starts
+in, so front and back matter can still be reached.
+
+Under the text, a percentage shows how far through the book you are (by
+words, so the text size does not change it; page X of Y can follow if
+the view gets pages).
 
 While the book is read aloud the line being read stays in the middle of
 the window and the text scrolls up smoothly under it, a line at a time

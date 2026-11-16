@@ -139,6 +139,33 @@ type
   { Clips in reading order. }
   TEpubClipArray = array of TEpubClip;
 
+  { One chapter mark of the narration - an audiobook's chapter, or one of
+    its files - as @link(TEpubWriter.AddAudioChapter) writes them. It
+    marks a place in the audio, not in the text: the text is the first
+    clip from there on (@link(TEpubBook.AudioChapterWords)). }
+  TEpubAudioChapter = record
+    { The chapter's title as the recording names it. }
+    Title: string;
+    { Full path of the audio file inside the archive. }
+    AudioPath: string;
+    { Start in that file, s. }
+    Start: Double;
+  end;
+  { Chapter marks in narration order. }
+  TEpubAudioChapterArray = array of TEpubAudioChapter;
+
+  { Word indexes (into @link(TEpubBook.Words)). }
+  TEpubWordIndexArray = array of Integer;
+
+const
+  { Manifest id of the audio chapters file (EpubUnum's own XML, not part
+    of EPUB: other readers ignore it). }
+  EPUB_AUDIO_CHAPTERS_ID = 'eu-audio-chapters';
+  { Namespace of the audio chapters file's elements. }
+  EPUB_AUDIO_CHAPTERS_NS = 'https://github.com/WhisperBooks/Epubunum/ns/audio-chapters';
+
+type
+
   { An EPUB book. }
   TEpubBook = class
   private
@@ -182,6 +209,8 @@ type
     FActiveClass: string;
     { Backing field of @link(MediaDuration). }
     FMediaDuration: Double;
+    { Backing field of @link(AudioChapters). }
+    FAudioChapters: TEpubAudioChapterArray;
     { The clip ClipAt found last (where the next search starts). }
     FLastClip: Integer;
     { Per document: its ids sorted (Objects = index into its Ids), made by
@@ -205,6 +234,9 @@ type
     procedure ReadOverlays;
     { Sets FClipsOrdered (and forgets FLastClip). }
     procedure CheckClipOrder;
+    { Reads the audio chapters file (item EPUB_AUDIO_CHAPTERS_ID), when
+      there is one; a damaged one gives no marks. }
+    procedure ReadAudioChapters;
     { Index of the document with APath, -1 when none. }
     function DocumentOf(const APath: string): Integer;
     { Index of the manifest item with AId, -1 when none. }
@@ -271,6 +303,11 @@ type
     function ClipWords(AClip: Integer; out AFirst, ALast: Integer): Boolean;
     { The audio files of the overlays, in reading order (no repeats). }
     function AudioFiles: TStringList;
+    { For each of @link(AudioChapters): the first word of the first clip
+      in its audio file that starts at the mark or later (a word started
+      just before the mark counts: 0.25 s); -1 when no clip does. One pass
+      over the clips. }
+    function AudioChapterWords: TEpubWordIndexArray;
     { Full archive path of AHref as written in document ABase (relative
       paths resolved, '%20' decoded, fragment dropped). }
     class function ResolvePath(const ABase, AHref: string): string; static;
@@ -313,6 +350,9 @@ type
     property ActiveClass: string read FActiveClass;
     { Total audio length from media:duration, s (0 when not given). }
     property MediaDuration: Double read FMediaDuration;
+    { The narration's chapter marks (empty: none were written - a book
+      not made by TEpubWriter, or made without marks). }
+    property AudioChapters: TEpubAudioChapterArray read FAudioChapters;
   end;
 
 { A SMIL clock value in seconds: '1:02:03.5', '02:03.5', '12.5s', '500ms',
@@ -418,6 +458,7 @@ begin
   CheckProtection;
   ReadPackage;
   ReadOverlays;
+  ReadAudioChapters;
 end;
 
 destructor TEpubBook.Destroy;
@@ -794,6 +835,83 @@ begin
   end;
   SetLength(FClips, N);
   CheckClipOrder;
+end;
+
+procedure TEpubBook.ReadAudioChapters;
+var
+  I, N: Integer;
+  Path: string;
+  D: TEpubXmlDoc;
+  List: TEpubXmlNodeArray;
+  Start: Double;
+begin
+  FAudioChapters := nil;
+  I := ItemOf(EPUB_AUDIO_CHAPTERS_ID);
+  if I < 0 then
+    Exit;
+  Path := FItems[I].Path;
+  if not FZip.Exists(Path) then
+    Exit;
+  try
+    D := TEpubXmlDoc.Create(FZip.ReadText(Path));
+    try
+      List := D.Root.FindAll('chapter');
+      SetLength(FAudioChapters, Length(List));
+      N := 0;
+      for I := 0 to High(List) do
+      begin
+        Start := EpubClockValue(List[I].Attr('begin'));
+        if (List[I].Attr('audio') = '') or (Start < 0) then
+          Continue;
+        FAudioChapters[N].Title := Trim(List[I].Attr('title'));
+        FAudioChapters[N].AudioPath := ResolvePath(Path, List[I].Attr('audio'));
+        FAudioChapters[N].Start := Start;
+        Inc(N);
+      end;
+      SetLength(FAudioChapters, N);
+    finally
+      D.Free;
+    end;
+  except
+    // the marks are a convenience: a damaged file must not stop the book
+    FAudioChapters := nil;
+  end;
+end;
+
+function TEpubBook.AudioChapterWords: TEpubWordIndexArray;
+const
+  // a word that starts just before the mark still opens the chapter
+  EARLY = 0.25;
+var
+  M, C, First, Last: Integer;
+begin
+  Result := nil;
+  SetLength(Result, Length(FAudioChapters));
+  C := 0;
+  for M := 0 to High(FAudioChapters) do
+  begin
+    Result[M] := -1;
+    // the marks follow the narration, and so do the clips (in reading
+    // order): the search goes on from the last mark's clip; when it finds
+    // nothing it starts again from the top for this mark
+    while (C <= High(FClips)) and not ((FClips[C].ClipBegin >= FAudioChapters[M].Start - EARLY) and
+      SameText(FClips[C].AudioPath, FAudioChapters[M].AudioPath)) do
+      Inc(C);
+    if C > High(FClips) then
+    begin
+      C := 0;
+      while (C <= High(FClips)) and not ((FClips[C].ClipBegin >= FAudioChapters[M].Start - EARLY) and
+        SameText(FClips[C].AudioPath, FAudioChapters[M].AudioPath)) do
+        Inc(C);
+      if C > High(FClips) then
+      begin
+        C := 0;
+        Continue;
+      end;
+    end;
+    if ClipWords(C, First, Last) then
+      Result[M] := First;
+  end;
 end;
 
 procedure TEpubBook.CheckClipOrder;

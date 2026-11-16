@@ -62,6 +62,9 @@ end;
   expects to hear (Hobbit: 509 fewer unspoken words, the same exact matches).
 - **Media overlays**: `Clips` (text element, audio file, clip begin / end),
   `ClipAt`, `ClipWords`, `AudioFiles`, `ActiveClass`, `MediaDuration`.
+- **Audio chapter marks** (books written by `TEpubWriter` with
+  `AddAudioChapter`): `AudioChapters` (title, audio file, start) and
+  `AudioChapterWords` (the first word read at each mark).
 - **Layout for a renderer**: `DocumentLayout(Doc)` gives the blocks with
   their runs and word spans; `BlockOfWord` finds a word's block. Character
   offsets are 0-based UTF-16 (what Skia's paragraph ranges use).
@@ -107,6 +110,11 @@ end;
   words, and every other file, are copied unchanged (not even unpacked).
 - A book without an active class gets a small style sheet with a
   highlight rule, so other readers show the highlight too.
+- **Audio chapter marks** (`AddAudioChapter(Title, Audio, Start)`): an
+  audiobook's chapters, written to `epubunum-audio-chapters.xml` (manifest
+  id `eu-audio-chapters`, EpubUnum's own format - other readers ignore
+  it). They mark places in the audio, not the text, so they survive any
+  re-alignment.
 - **EPUB 2 books become EPUB 3** (overlays are EPUB 3 only): version 3.0,
   a nav document made from the NCX, `opf:role` / `opf:file-as` turned into
   `refines` metadata, extra `dc:date` dropped, the HTML5 doctype with named
@@ -123,7 +131,9 @@ Link it to a `TEpubUnum` (`Epub` property), call `ShowDocument` or
 narration; `OnWordClick` gives the word under a click. Text size, line
 height, paragraph spacing, page margin and colours are properties. It lays out
 each block with Skia's paragraph engine (`TSkParagraph`) and draws the
-highlight from the paragraph's range rectangles. When the component opens
+highlight from the paragraph's range rectangles. `ShowProgress` adds a
+strip under the text with how far through the book the view is
+(`Progress`, by words - the text size does not change it). When the component opens
 another book the view notices (`TEpubUnum.BookSerial`): it draws an empty
 page until `ShowDocument` is called for the new book, and never the old
 book's text. A picture that cannot be read is left out; the text goes on.
