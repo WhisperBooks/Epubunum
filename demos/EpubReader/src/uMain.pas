@@ -427,7 +427,7 @@ uses
   // System.SysUtils.DeleteFile's inline body expands only with it (H2443)
   Posix.Unistd,
   {$ENDIF}
-  System.Hash, System.UIConsts,
+  System.Hash, System.UIConsts, System.Skia,
   FmxWineCanvas, FmxSkiaCanvas, uSteam;
 
 const
@@ -815,6 +815,58 @@ begin
     Src.Free;
     S.Free;
   end;
+end;
+
+{ The faces Skia finds for a few family names, and where fontconfig would
+  look, into the debug log: inside Steam's Linux runtime the reader crashed
+  (access violation reading address 0, in a library) on the first page
+  laid out with Skia (owner, Steam Deck, 2026-11-17) - is there a face at
+  all? }
+procedure LogFontProbe;
+const
+  NAMES: array[0..5] of string = ('sans-serif', 'serif', 'monospace', 'DejaVu Sans', 'Noto Sans',
+    'Liberation Sans');
+  {$IFDEF POSIX}
+  FOLDERS: array[0..4] of string = ('/etc/fonts', '/usr/share/fonts', '/run/host/fonts',
+    '/run/host/user-fonts', '/run/host/local-fonts');
+  {$ENDIF}
+var
+  I: Integer;
+  T: ISkTypeface;
+  Name, Line: string;
+begin
+  Line := '';
+  for I := -1 to High(NAMES) do
+  begin
+    if I < 0 then
+      Name := GetEnvironmentVariable('EPUBREADER_FONT')
+    else
+      Name := NAMES[I];
+    if Name = '' then
+      Continue;
+    try
+      T := TSkTypeface.MakeFromName(Name, TSkFontStyle.Create(TSkFontWeight.Normal, TSkFontWidth.Normal,
+        TSkFontSlant.Upright));
+      if T = nil then
+        Line := Line + Format('%s -> NONE; ', [Name])
+      else
+        Line := Line + Format('%s -> %s; ', [Name, T.FamilyName]);
+    except
+      on E: Exception do
+        Line := Line + Format('%s -> %s: %s; ', [Name, E.ClassName, E.Message]);
+    end;
+  end;
+  DebugLog('fonts: ' + Line);
+  {$IFDEF POSIX}
+  Line := '';
+  for I := 0 to High(FOLDERS) do
+    if DirectoryExists(FOLDERS[I]) then
+      Line := Line + FOLDERS[I] + ' yes; '
+    else
+      Line := Line + FOLDERS[I] + ' NO; ';
+  DebugLog('fonts: folders ' + Line + 'FONTCONFIG_FILE=' + GetEnvironmentVariable('FONTCONFIG_FILE') +
+    ' FONTCONFIG_PATH=' + GetEnvironmentVariable('FONTCONFIG_PATH'));
+  {$ENDIF}
 end;
 
 { Makes the cached cover of ABookFile when there is none: the book's own
@@ -1785,6 +1837,7 @@ begin
   BuildLibrary;
   StartSound;
   DebugLog('FMX canvas in use: ' + FmxCanvasClassName);
+  LogFontProbe;
   // a new name every run (Random without Randomize gave the same one, so
   // two readers shared - and deleted - one folder)
   FAudioFolder := System.IOUtils.TPath.Combine(System.IOUtils.TPath.GetTempPath,
@@ -2080,13 +2133,20 @@ begin
   FBookFile := ExpandFileName(EpubUnum1.FileName);
   // its cover for the library (made once, cached)
   EnsureCover(FBookFile, B, B.Title);
+  // each step logged: the Steam Deck crash comes after the cover (2026-11-17)
+  DebugLog('open: cover done, hiding the library');
   HideLibrary;
   I := RecentIndex(FBookFile);
   if (I >= 0) and (FRecent[I].Word >= 0) then
+  begin
+    DebugLog(Format('open: back to word %d (lays the page out)', [FRecent[I].Word]));
     RestoreWord(FRecent[I].Word);
+  end;
+  DebugLog('open: remembering the book');
   RememberBook;
   View1.SetFocus;
   UpdateControls;
+  DebugLog('open: done (the page is drawn next)');
 end;
 
 procedure TfrmMain.EpubUnum1OpenFailed(Sender: TObject; const AMessage: string);

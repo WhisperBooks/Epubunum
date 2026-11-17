@@ -248,6 +248,15 @@
             <Overwrite>True</Overwrite>
             <Required>True</Required>
         </DeployFile>
+        <DeployFile Include="src\EpubReader.sh" Condition="'$(Config)'=='SteamDebug'">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>EpubReader.sh</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
         <DeployFile Include="..\..\redistributable_bin\Linux64\licences\FFmpeg-BUILD-INFO.txt">
             <RemoteDir>EpubReader\licences\</RemoteDir>
             <RemoteName>FFmpeg-BUILD-INFO.txt</RemoteName>
@@ -399,6 +408,15 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
+        <DeployFile Include="src\EpubReader.sh" Condition="'$(Config)'=='Steam'">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>EpubReader.sh</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
         <DeployFile Include="$(BDS)\binlinux64\libsk4d.so" Condition="'$(Config)'=='Steam' And '$(SKIADIR)'==''">
             <RemoteDir>EpubReader\</RemoteDir>
             <RemoteName>libsk4d.so</RemoteName>
@@ -440,6 +458,24 @@
         <DeployFile Include="..\..\redistributable_bin\Linux64\libavformat.so.62">
             <RemoteDir>EpubReader\</RemoteDir>
             <RemoteName>libavformat.so.62</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="src\EpubReader.sh" Condition="'$(Config)'=='Debug'">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>EpubReader.sh</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="src\EpubReader.sh" Condition="'$(Config)'=='Release'">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>EpubReader.sh</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>

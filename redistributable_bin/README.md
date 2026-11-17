@@ -128,3 +128,24 @@ three of its folders here, under `steam/`:
 Debug and Release builds neither use nor deploy it. Like everything else
 here, it is never committed (Valve's licence covers it, not this
 repository's).
+
+### macOS through Delphi's Deploy (PAServer)
+
+The same as Linux, for the Mac bundles - Deploy then puts the libraries
+into each `.app` itself (after a Clean too), before the bundle is signed:
+
+1. On the Mac: build whisper-dev and ffmpeg-dev, then
+   `sh tools/redist.sh collect ../whisper-dev ../ffmpeg-dev` - it fills
+   `redistributable_bin/OSXARM64`.
+2. Copy that folder into the same place in the repository on the Windows
+   machine.
+3. On Windows: `python tools/deploy_redist.py --platform OSXARM64`. It
+   writes deploy entries into `Contents/Frameworks` (libraries) and
+   `Contents/Resources/licences` (licence texts): EpubBuilder whisper.cpp
+   with the CPU and Metal backends (no Vulkan, CUDA or HIP) and FFmpeg,
+   EpubReader FFmpeg only. The Linux64 entries are left as they are.
+4. Reopen the projects in Delphi, Deploy.
+
+`tools/redist.sh deploy OSXARM64 <app>` (above) is then only needed for a
+build made outside Delphi.
+

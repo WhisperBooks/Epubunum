@@ -14,7 +14,7 @@ the history, one per zip.
 | Repo | Pushed | = zip | Last zip number used |
 |---|---|---|---|
 | WhisperBooks/TWhisper | d669a06 | TWhisper-30 | 31 (review fixes) |
-| WhisperBooks/Epubunum | 4b560d1 | EpubUnum-83 | 80 (77 calibration, 78 Steam builds, 79 libraries copied by the builds, 80 - 83 fixes from the first Steam build, 84 EpubBuilder's Linux launcher) |
+| WhisperBooks/Epubunum | 4b560d1 | EpubUnum-83 | 80 (77 calibration, 78 Steam builds, 79 libraries copied by the builds, 80 - 83 fixes from the first Steam build, 84 EpubBuilder's Linux launcher, 85 Mac libraries through Deploy, 86 Deck crash diagnostics) |
 | G3DGames/TFFMpegAPI | 3edcfa3 | FFmpegAPI-12 | 13 (review fixes) |
 | G3DGames/ffmpeg-dev | 4d7b7be | ffmpeg-dev-09 | 09 |
 | WhisperBooks/whisper-dev | 9fa21dc | whisper-dev-20 | 21 (review fixes; its own CLAUDE.md) |
@@ -360,7 +360,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 84.
+Last number used: 86.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -1933,6 +1933,54 @@ without it).
 - STEAMWORKS (owner): each app's Linux launch command = <program>.sh.
   Whether PAServer's deploy keeps the executable bit is not known here:
   if the script arrives without it, chmod +x (redist.sh deploy does).
+
+## Zip 85 (on top of 84): the Mac libraries through Delphi's Deploy
+Owner, 2026-11-17: Mac set up (repositories in /Volumes/SN770/src - the
+home folder is tiny; PAServer's scratch dir can go there with
+paserver -scratchdir=...); "mac has no dlls" - Deploy put no libraries in
+the .app (only redist.sh deploy, on the Mac, did). Signing (owner): his
+Developer ID taken out of the Steam configuration for now - Steam needs
+no notarization; ad hoc everywhere (a Developer ID app with the hardened
+runtime would refuse ad-hoc / Valve-signed libraries: library validation).
+- tools/deploy_redist.py --platform Linux64 (default) | OSXARM64 | OSX64:
+  macOS entries go to Contents\Frameworks\ (libraries) and
+  Contents\Resources\licences\ (licence texts); EpubBuilder there = no
+  *vulkan* / *cuda* / *hip* file (CPU + Metal), EpubReader = FFmpeg
+  (lib(av|sw|postproc)*.so|dylib + licences/FFmpeg-*) on every platform.
+  Versioned dylib names (libX.N.M.P.dylib) dropped when libX.N.dylib /
+  libX.dylib are there. Each platform's entries replaced on their own.
+  TESTED here on a dummy OSXARM64 folder: 13 / 5 entries, Linux64's 115
+  untouched, a second run replaces, BOM kept, XML valid.
+- Owner's flow: Mac collect -> copy redistributable_bin/OSXARM64 to the
+  Windows checkout -> deploy_redist.py --platform OSXARM64 -> reopen,
+  Deploy. Delphi then signs (ad hoc) a bundle that already holds them.
+
+## Zip 86 (on top of 85): Steam Deck crash - diagnostics
+First Steam builds (owner, 2026-11-17): WINDOWS known; MAC runs and
+loads, no sound (TFFMpegAPI has no AudioQueue - known); STEAM DECK
+(EpubReader, Steam Runtime 3 sniper, SteamOS 3.9.5): the Steam handover
+works (RestartIfNecessary: "Steam is already running ... forwarded"),
+GTK fix and launcher ran, Steam API up, PulseAudio output up, the book
+read (24 documents, 113836 words, 112772 clips), chapters built, cover
+cached - then "Access violation ... accessing address 0000000000000000"
+in a library, twice, both runs' logs ending at "cover: <book>" (the
+cover existed: EnsureCover returned at once). Next in EpubUnum1Opened:
+HideLibrary, RestoreWord (ScrollToWord: the first Skia layout of
+document 6 - 31851 words), RememberBook, then the first paint. Prime
+suspect: Skia's font lookup inside the container (fontconfig there
+finding no face -> a nil typeface in libsk4d), the review's open item
+(no MakeDefault fallback in TEpubView.Fonts).
+- uMain: LogFontProbe at start-up - MakeFromName for EPUBREADER_FONT,
+  sans-serif, serif, monospace, DejaVu Sans, Noto Sans, Liberation Sans
+  (family found or NONE), and on POSIX whether /etc/fonts,
+  /usr/share/fonts, /run/host/fonts, /run/host/user-fonts,
+  /run/host/local-fonts exist, FONTCONFIG_FILE / _PATH. The open sequence
+  after the cover logs each step ("open: cover done ...", "back to word
+  N", "remembering", "done (the page is drawn next)").
+- NEXT, by the log: no face -> bundle a font (OFL / Bitstream Vera
+  licence: Noto Sans or DejaVu Sans) and TSkTypeface.MakeFromFile in
+  TEpubView.Fonts as the last resort; a face found -> the crash is
+  elsewhere (layout of the 31851-word document? the first paint?).
 
 ## Pushes checked
 - 4b560d1 ("Latest", 2026-11-17 13:29) = zips 77 - 83 (46e03e3 before
