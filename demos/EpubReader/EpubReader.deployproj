@@ -10,12 +10,28 @@
         <DeviceId Condition="'$(Platform)'=='iOSSimARM64'"/>
     </PropertyGroup>
     <ItemGroup Condition="'$(Platform)'=='WinARM64EC'"/>
-    <ItemGroup Condition="'$(Platform)'=='OSX64'"/>
-    <ItemGroup Condition="'$(Platform)'=='Win32'"/>
-    <ItemGroup Condition="'$(Platform)'=='Android64'"/>
-    <ItemGroup Condition="'$(Platform)'=='Android'"/>
-    <ItemGroup Condition="'$(Platform)'=='Win64'">
-        <DeployFile Include="$(BDS)\bin64\sk4d.dll" Condition="'$(Config)'=='Debug' And '$(SKIADIR)'==''">
+    <ItemGroup Condition="'$(Platform)'=='OSX64'">
+        <DeployFile Include="..\..\redistributable_bin\steam\osx\libsteam_api.dylib" Condition="'$(Config)'=='Steam'">
+            <RemoteDir>EpubReader.app\Contents\MacOS\</RemoteDir>
+            <RemoteName>libsteam_api.dylib</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\steam\osx\libsteam_api.dylib" Condition="'$(Config)'=='SteamDebug'">
+            <RemoteDir>EpubReader.app\Contents\MacOS\</RemoteDir>
+            <RemoteName>libsteam_api.dylib</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+    </ItemGroup>
+    <ItemGroup Condition="'$(Platform)'=='Win32'">
+        <DeployFile Include="$(SKIADIR)\Binary\Shared\Win32\sk4d.dll" Condition="'$(Config)'=='Steam' And '$(SKIADIR)'!=''">
             <RemoteDir>EpubReader\</RemoteDir>
             <RemoteName>sk4d.dll</RemoteName>
             <DeployClass>Skia</DeployClass>
@@ -25,7 +41,91 @@
             <Overwrite>True</Overwrite>
             <Required>True</Required>
         </DeployFile>
-        <DeployFile Include="$(BDS)\bin64\sk4d.dll" Condition="'$(Config)'=='Release' And '$(SKIADIR)'==''">
+        <DeployFile Include="$(SKIADIR)\Binary\Shared\Win32\sk4d.dll" Condition="'$(Config)'=='Debug' And '$(SKIADIR)'!=''">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>sk4d.dll</RemoteName>
+            <DeployClass>Skia</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
+        <DeployFile Include="$(SKIADIR)\Binary\Shared\Win32\sk4d.dll" Condition="'$(Config)'=='Release' And '$(SKIADIR)'!=''">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>sk4d.dll</RemoteName>
+            <DeployClass>Skia</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
+        <DeployFile Include="$(BDS)\bin\sk4d.dll" Condition="'$(Config)'=='Steam' And '$(SKIADIR)'==''">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>sk4d.dll</RemoteName>
+            <DeployClass>Skia</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
+        <DeployFile Include="$(BDS)\bin\sk4d.dll" Condition="'$(Config)'=='Debug' And '$(SKIADIR)'==''">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>sk4d.dll</RemoteName>
+            <DeployClass>Skia</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
+        <DeployFile Include="$(BDS)\bin\sk4d.dll" Condition="'$(Config)'=='Release' And '$(SKIADIR)'==''">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>sk4d.dll</RemoteName>
+            <DeployClass>Skia</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
+        <DeployFile Include="$(SKIADIR)\Binary\Shared\Win32\sk4d.dll" Condition="'$(Config)'=='SteamDebug' And '$(SKIADIR)'!=''">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>sk4d.dll</RemoteName>
+            <DeployClass>Skia</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
+        <DeployFile Include="$(BDS)\bin\sk4d.dll" Condition="'$(Config)'=='SteamDebug' And '$(SKIADIR)'==''">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>sk4d.dll</RemoteName>
+            <DeployClass>Skia</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
+    </ItemGroup>
+    <ItemGroup Condition="'$(Platform)'=='Android64'"/>
+    <ItemGroup Condition="'$(Platform)'=='Android'"/>
+    <ItemGroup Condition="'$(Platform)'=='Win64'">
+        <DeployFile Include="$(BDS)\bin64\sk4d.dll" Condition="'$(Config)'=='SteamDebug' And '$(SKIADIR)'==''">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>sk4d.dll</RemoteName>
+            <DeployClass>Skia</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
+        <DeployFile Include="$(SKIADIR)\Binary\Shared\Win64\sk4d.dll" Condition="'$(Config)'=='Steam' And '$(SKIADIR)'!=''">
             <RemoteDir>EpubReader\</RemoteDir>
             <RemoteName>sk4d.dll</RemoteName>
             <DeployClass>Skia</DeployClass>
@@ -55,12 +155,80 @@
             <Overwrite>True</Overwrite>
             <Required>True</Required>
         </DeployFile>
+        <DeployFile Include="$(BDS)\bin64\sk4d.dll" Condition="'$(Config)'=='Debug' And '$(SKIADIR)'==''">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>sk4d.dll</RemoteName>
+            <DeployClass>Skia</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
+        <DeployFile Include="$(BDS)\bin64\sk4d.dll" Condition="'$(Config)'=='Release' And '$(SKIADIR)'==''">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>sk4d.dll</RemoteName>
+            <DeployClass>Skia</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
+        <DeployFile Include="$(BDS)\bin64\sk4d.dll" Condition="'$(Config)'=='Steam' And '$(SKIADIR)'==''">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>sk4d.dll</RemoteName>
+            <DeployClass>Skia</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
+        <DeployFile Include="$(SKIADIR)\Binary\Shared\Win64\sk4d.dll" Condition="'$(Config)'=='SteamDebug' And '$(SKIADIR)'!=''">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>sk4d.dll</RemoteName>
+            <DeployClass>Skia</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
     </ItemGroup>
-    <ItemGroup Condition="'$(Platform)'=='OSXARM64'"/>
+    <ItemGroup Condition="'$(Platform)'=='OSXARM64'">
+        <DeployFile Include="..\..\redistributable_bin\steam\osx\libsteam_api.dylib" Condition="'$(Config)'=='SteamDebug'">
+            <RemoteDir>EpubReader.app\Contents\MacOS\</RemoteDir>
+            <RemoteName>libsteam_api.dylib</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\steam\osx\libsteam_api.dylib" Condition="'$(Config)'=='Steam'">
+            <RemoteDir>EpubReader.app\Contents\MacOS\</RemoteDir>
+            <RemoteName>libsteam_api.dylib</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+    </ItemGroup>
     <ItemGroup Condition="'$(Platform)'=='iOSDevice64'"/>
     <ItemGroup Condition="'$(Platform)'=='iOSSimARM64'"/>
     <ItemGroup Condition="'$(Platform)'=='Win64x'"/>
     <ItemGroup Condition="'$(Platform)'=='Linux64'">
+        <DeployFile Include="..\..\redistributable_bin\steam\linux64\libsteam_api.so" Condition="'$(Config)'=='Steam'">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>libsteam_api.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
         <DeployFile Include="..\..\redistributable_bin\Linux64\libavformat.so">
             <RemoteDir>EpubReader\</RemoteDir>
             <RemoteName>libavformat.so</RemoteName>
@@ -69,6 +237,16 @@
             <LocalCommand/>
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="$(BDS)\binlinux64\libsk4d.so" Condition="'$(Config)'=='SteamDebug' And '$(SKIADIR)'==''">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>libsk4d.so</RemoteName>
+            <DeployClass>Skia</DeployClass>
+            <Operation>1</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
         </DeployFile>
         <DeployFile Include="..\..\redistributable_bin\Linux64\licences\FFmpeg-BUILD-INFO.txt">
             <RemoteDir>EpubReader\licences\</RemoteDir>
@@ -107,6 +285,16 @@
             <Overwrite>True</Overwrite>
             <Required>True</Required>
         </DeployFile>
+        <DeployFile Include="Linux64\Steam\EpubReader" Condition="'$(Config)'=='Steam'">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>EpubReader</RemoteName>
+            <DeployClass>ProjectOutput</DeployClass>
+            <Operation>1</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
         <DeployFile Include="$(SKIADIR)\Binary\Shared\Linux64\libsk4d.so" Condition="'$(Config)'=='Debug' And '$(SKIADIR)'!=''">
             <RemoteDir>EpubReader\</RemoteDir>
             <RemoteName>libsk4d.so</RemoteName>
@@ -127,14 +315,15 @@
             <Overwrite>True</Overwrite>
             <Required>True</Required>
         </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\Linux64\libavfilter.so">
+        <DeployFile Include="$(SKIADIR)\Binary\Shared\Linux64\libsk4d.so" Condition="'$(Config)'=='Steam' And '$(SKIADIR)'!=''">
             <RemoteDir>EpubReader\</RemoteDir>
-            <RemoteName>libavfilter.so</RemoteName>
-            <DeployClass>File</DeployClass>
-            <Operation>0</Operation>
+            <RemoteName>libsk4d.so</RemoteName>
+            <DeployClass>Skia</DeployClass>
+            <Operation>1</Operation>
             <LocalCommand/>
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
+            <Required>True</Required>
         </DeployFile>
         <DeployFile Include="..\..\redistributable_bin\Linux64\libavcodec.so">
             <RemoteDir>EpubReader\</RemoteDir>
@@ -145,9 +334,9 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\FFmpeg-LICENSE.md">
-            <RemoteDir>EpubReader\licences\</RemoteDir>
-            <RemoteName>FFmpeg-LICENSE.md</RemoteName>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libavfilter.so">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>libavfilter.so</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
@@ -183,24 +372,6 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\Linux64\libavfilter.so.11">
-            <RemoteDir>EpubReader\</RemoteDir>
-            <RemoteName>libavfilter.so.11</RemoteName>
-            <DeployClass>File</DeployClass>
-            <Operation>0</Operation>
-            <LocalCommand/>
-            <RemoteCommand/>
-            <Overwrite>True</Overwrite>
-        </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\Linux64\libavformat.so.62">
-            <RemoteDir>EpubReader\</RemoteDir>
-            <RemoteName>libavformat.so.62</RemoteName>
-            <DeployClass>File</DeployClass>
-            <Operation>0</Operation>
-            <LocalCommand/>
-            <RemoteCommand/>
-            <Overwrite>True</Overwrite>
-        </DeployFile>
         <DeployFile Include="..\..\redistributable_bin\Linux64\licences\FFmpeg-COPYING.LGPLv3">
             <RemoteDir>EpubReader\licences\</RemoteDir>
             <RemoteName>FFmpeg-COPYING.LGPLv3</RemoteName>
@@ -213,6 +384,62 @@
         <DeployFile Include="..\..\redistributable_bin\Linux64\libavutil.so">
             <RemoteDir>EpubReader\</RemoteDir>
             <RemoteName>libavutil.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\steam\linux64\libsteam_api.so" Condition="'$(Config)'=='SteamDebug'">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>libsteam_api.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="$(BDS)\binlinux64\libsk4d.so" Condition="'$(Config)'=='Steam' And '$(SKIADIR)'==''">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>libsk4d.so</RemoteName>
+            <DeployClass>Skia</DeployClass>
+            <Operation>1</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
+        <DeployFile Include="$(SKIADIR)\Binary\Shared\Linux64\libsk4d.so" Condition="'$(Config)'=='SteamDebug' And '$(SKIADIR)'!=''">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>libsk4d.so</RemoteName>
+            <DeployClass>Skia</DeployClass>
+            <Operation>1</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\FFmpeg-LICENSE.md">
+            <RemoteDir>EpubReader\licences\</RemoteDir>
+            <RemoteName>FFmpeg-LICENSE.md</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libavfilter.so.11">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>libavfilter.so.11</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libavformat.so.62">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>libavformat.so.62</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>

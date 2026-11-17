@@ -229,11 +229,19 @@ backends.
 
 ## SteamOS, Linux and Proton
 
-The reader carries TSteamAPI's platform fixes (unchanged copies, see
-`demos/EpubReader/README.md`): GTK made global in Steam's Linux runtime,
-the ICU launcher script for SteamOS, the Wine canvas switch for a Windows
-build under Proton, and on Linux a menu bar drawn by FMX instead of GTK's
-(which shows only first letters).
+Both programs carry TSteamAPI's platform fixes (unchanged copies, see
+`demos/EpubReader/README.md`): GTK made global in Steam's Linux runtime
+(`FmxLinuxGtkGlobal`), the ICU launcher script for SteamOS
+(`EpubReader.sh`, `EpubBuilder.sh` - identical but for the name; each
+starts the program it is named after), the Wine canvas switch for a
+Windows build under Proton (`FmxWineCanvas`), and on Linux a menu bar
+drawn by FMX instead of GTK's (which shows only first letters).
+
+On Linux the **launcher script is what Steam starts**: set each app's
+Linux launch command on the Steamworks site to `EpubReader.sh` /
+`EpubBuilder.sh`, not the program. Delphi's Deploy puts the script next
+to the program in every configuration, and `tools/redist.sh deploy`
+copies it too (made executable). Keep it LF and executable in git.
 
 ## Layout
 

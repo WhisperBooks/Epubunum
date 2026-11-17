@@ -313,6 +313,34 @@
                 <Platform value="Win64">True</Platform>
             </Platforms>
             <Deployment Version="5">
+                <DeployFile LocalName="src\EpubReader.sh" Configuration="Debug" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>EpubReader.sh</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="src\EpubReader.sh" Configuration="Release" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>EpubReader.sh</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="src\EpubReader.sh" Configuration="Steam" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>EpubReader.sh</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="src\EpubReader.sh" Configuration="SteamDebug" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>EpubReader.sh</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
                 <DeployFile LocalName="$(BDS)\Redist\iossimulator\libcgunwind.1.0.dylib" Class="DependencyModule">
                     <Platform Name="iOSSimulator">
                         <Overwrite>true</Overwrite>

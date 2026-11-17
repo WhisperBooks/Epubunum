@@ -17,6 +17,13 @@ program EpubBuilder;
 uses
   System.StartUpCopy,
   FMX.Forms,
+  // Linux inside Steam's runtime: GTK made globally visible before any form
+  // (FMX crashes there without it - TSteamAPI's fmx-steamos-gtk3-bug.md);
+  // an unchanged copy of TSteamAPI's, as EpubReader's
+  FmxLinuxGtkGlobal in 'src\FmxLinuxGtkGlobal.pas',
+  // Windows build under Wine / Proton: FMX draws with GDI+, because Wine's
+  // Direct2D leaves FMX windows white; a no-op on Windows and elsewhere
+  FmxWineCanvas in 'src\FmxWineCanvas.pas',
   uDebugLog in '..\common\uDebugLog.pas',
   // Steam: only in the Steam / SteamDebug configurations (STEAMBUILD)
   uSteam in '..\common\uSteam.pas',

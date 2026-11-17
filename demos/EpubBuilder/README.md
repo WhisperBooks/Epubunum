@@ -79,6 +79,15 @@ Every build's log (and the queue report) starts with the machine
 the device in full. "Default" is shown as the device whisper.cpp takes,
 with whether the calibration found it fastest for the model.
 
+## Linux and Steam's runtime
+
+Like EpubReader, EpubBuilder carries TSteamAPI's `FmxLinuxGtkGlobal` (FMX
+crashes in Steam's Linux runtime without it) and `FmxWineCanvas` (a
+Windows build under Proton), and ships `EpubBuilder.sh`, the ICU launcher
+script: on Linux, Steam starts `EpubBuilder.sh`, which starts
+`EpubBuilder` next to it. Deploy puts the script there in every
+configuration.
+
 ## Debug log
 
 Every run writes `EpubBuilder-debug.log` next to the settings

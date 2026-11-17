@@ -14,7 +14,7 @@ the history, one per zip.
 | Repo | Pushed | = zip | Last zip number used |
 |---|---|---|---|
 | WhisperBooks/TWhisper | d669a06 | TWhisper-30 | 31 (review fixes) |
-| WhisperBooks/Epubunum | 20fc7ce | EpubUnum-76 | 80 (77 calibration, 78 Steam builds, 79 libraries copied by the builds, 80 - 83 fixes from the first Steam build) |
+| WhisperBooks/Epubunum | 4b560d1 | EpubUnum-83 | 80 (77 calibration, 78 Steam builds, 79 libraries copied by the builds, 80 - 83 fixes from the first Steam build, 84 EpubBuilder's Linux launcher) |
 | G3DGames/TFFMpegAPI | 3edcfa3 | FFmpegAPI-12 | 13 (review fixes) |
 | G3DGames/ffmpeg-dev | 4d7b7be | ffmpeg-dev-09 | 09 |
 | WhisperBooks/whisper-dev | 9fa21dc | whisper-dev-20 | 21 (review fixes; its own CLAUDE.md) |
@@ -360,7 +360,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 83.
+Last number used: 84.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -1913,7 +1913,38 @@ compiled for POSIX since), H2443 RenameFile wants Posix.Stdio.
   defined(FPC)} - FPC builds of lib/ unchanged. NOT COMPILED here (no
   FPC / Delphi in this session).
 
+## Zip 84 (on top of 4b560d1 = zip 83): EpubBuilder's Linux launcher
+Owner: "Linux has no shell file - check TSteamAPI demos". TSteamAPI: every
+program Steam may start on Linux ships <program>.sh (the ICU launcher,
+identical but for its name - it starts the program named after it),
+deployed by its .dproj on Linux64 (DeployFile src\<program>.sh), and
+FmxLinuxGtkGlobal in the .dpr (FMX crashes in Steam Linux Runtime 3.0
+without it).
+- NEW demos/EpubBuilder/src/EpubBuilder.sh (= EpubReader.sh, LF, mode
+  755 - OWNER: git update-index --chmod=+x after adding it, the rule),
+  src/FmxLinuxGtkGlobal.pas + src/FmxWineCanvas.pas (unchanged copies of
+  TSteamAPI's, = EpubReader's: md5 checked) in EpubBuilder.dpr / .dproj.
+  No FmxSkiaCanvas (the builder draws nothing with Skia) and no
+  FmxLinuxMenu (its menu is already an FMX TMenuBar on Linux).
+- Both .dproj (edited on the IDE-saved 4b560d1 versions): DeployFile
+  src\<program>.sh for Linux64 in Debug, Release, Steam, SteamDebug
+  (EpubReader's script was only copied by redist.sh deploy before).
+- tools/redist.sh deploy Linux64 copies EpubBuilder.sh too (chmod +x).
+- STEAMWORKS (owner): each app's Linux launch command = <program>.sh.
+  Whether PAServer's deploy keeps the executable bit is not known here:
+  if the script arrives without it, chmod +x (redist.sh deploy does).
+
 ## Pushes checked
+- 4b560d1 ("Latest", 2026-11-17 13:29) = zips 77 - 83 (46e03e3 before
+  it): every delivered file identical (CR LF / BOM aside) except the two
+  .dproj files, re-saved by the IDE - STEAMBUILD in Steam and
+  SteamDebug, the postbuild call (with $(PROJECTDIR)) in all four Win64
+  configurations, the libsteam_api deploy entries: all kept; the empty
+  Cfg_3_Win64 / Cfg_4_Win64 groups dropped, declarations moved (fine).
+  Default configuration now Steam (IDE: the last active one - a
+  command-line build without a configuration is a Steam build). Owner
+  added media/.gitignore (*.m4a, *.m4b). .bat files: stored LF,
+  checked out CRLF (.gitattributes). project_check, pasdoc_check 0.
 - 20fc7ce ("Claude push", 2026-11-17 09:27) = zips 74 - 76 (CLAUDE.md
   only); 2b69310 (2026-11-16 21:36) = zip 73 (the review fixes: all five
   in the source). pasdoc_check, project_check 0 problems. Shallow clone,

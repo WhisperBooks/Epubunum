@@ -233,6 +233,8 @@
         <DelphiCompile Include="$(MainSource)">
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
+        <DCCReference Include="src\FmxLinuxGtkGlobal.pas"/>
+        <DCCReference Include="src\FmxWineCanvas.pas"/>
         <DCCReference Include="..\common\uDebugLog.pas"/>
         <DCCReference Include="..\common\uSteam.pas"/>
         <DCCReference Include="..\common\uMachine.pas"/>
@@ -283,6 +285,34 @@
                 <Platform value="Win64">True</Platform>
             </Platforms>
             <Deployment Version="5">
+                <DeployFile LocalName="src\EpubBuilder.sh" Configuration="Debug" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>EpubBuilder.sh</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="src\EpubBuilder.sh" Configuration="Release" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>EpubBuilder.sh</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="src\EpubBuilder.sh" Configuration="Steam" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>EpubBuilder.sh</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="src\EpubBuilder.sh" Configuration="SteamDebug" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>EpubBuilder.sh</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
                 <DeployFile LocalName="$(BDS)\Redist\iossimulator\libcgunwind.1.0.dylib" Class="DependencyModule">
                     <Platform Name="iOSSimulator">
                         <Overwrite>true</Overwrite>

@@ -21,8 +21,8 @@
 #   tools/redist.sh deploy PLATFORM TARGET
 #     copies redistributable_bin/PLATFORM/ to a built program: TARGET is
 #     the program's folder (Linux: next to it - the libraries find each
-#     other there through $ORIGIN; EpubReader.sh goes along when
-#     EpubReader is there) or its .app (macOS: the libraries into
+#     other there through $ORIGIN; EpubReader.sh / EpubBuilder.sh go
+#     along with their programs) or its .app (macOS: the libraries into
 #     Contents/Frameworks, signed - ad hoc, or with the identity in
 #     CODESIGN_ID - and the licences into Contents/Resources/licences;
 #     by the .app's name: EpubReader FFmpeg only, EpubBuilder the CPU
@@ -94,10 +94,13 @@ deploy() {
   case $1 in
     Linux64)
       cp -a "$SRC"/. "$TARGET"/
-      if [ -f "$TARGET/EpubReader" ]; then
-        cp "$ROOT/demos/EpubReader/src/EpubReader.sh" "$TARGET/"
-        chmod +x "$TARGET/EpubReader.sh"
-      fi
+      # each program's launcher (the ICU fix for Steam's Linux runtime)
+      for prog in EpubReader EpubBuilder; do
+        if [ -f "$TARGET/$prog" ]; then
+          cp "$ROOT/demos/$prog/src/$prog.sh" "$TARGET/"
+          chmod +x "$TARGET/$prog.sh"
+        fi
+      done
       echo "Libraries copied next to the program in $TARGET"
       ;;
     OSX64|OSXARM64)
