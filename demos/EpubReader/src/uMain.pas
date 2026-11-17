@@ -1067,10 +1067,15 @@ begin
   mnuBar.Parent := Self;
   mnuBar.Position.Y := -1;   // above the tool bar
   mnuBar.Align := TAlignLayout.Top;
+  // Big Picture: no menu bar (the items are still made - code uses them)
+  mnuBar.Visible := not SteamBigPicture;
   Bar := mnuBar;
   {$ELSE}
   mnuMain := TMainMenu.Create(Self);
-  mnuMain.Parent := Self;
+  // Big Picture: no menu bar - the menu is not put on the form (its items
+  // are still made: code uses them); keys and the tool bar do the rest
+  if not SteamBigPicture then
+    mnuMain.Parent := Self;
   Bar := mnuMain;
   {$ENDIF}
   M := Item(Bar, '&File', nil);
@@ -1103,7 +1108,7 @@ procedure TfrmMain.RefreshMenu;
 begin
   // a menu made in code reaches the window (Windows' / macOS' own menu
   // bar) only when it is recreated
-  if mnuMain <> nil then
+  if (mnuMain <> nil) and (mnuMain.Parent <> nil) then
     mnuMain.RecreateOSMenu;
 end;
 

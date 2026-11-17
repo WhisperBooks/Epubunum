@@ -4,7 +4,63 @@ Read README.md first, then this file. Keep both up to date with every change.
 The rules follow TWhisper's and TFFMpegAPI's CLAUDE.md (same owner, same
 conventions); where this file is silent, theirs apply.
 
-## Handover - READ THIS FIRST (latest: session 7, 2026-11-16 evening)
+## Handover - READ THIS FIRST (latest: session 8, 2026-11-17 evening)
+
+### Session 8 (2026-11-17) - where it stopped
+Written at the owner's request (21:39: "write up a claude.md session
+handover for that and we'll try next time").
+
+Pushes, checked file by file (CR LF / BOM aside):
+- Epubunum 827bed1 = zips 91 + 92 (+ IDE re-saves). NOT PUSHED: zip 93
+  (Big Picture full screen - CONFIRMED by the owner on Windows 21:27:
+  "Full Screen no menu / taskbar") and zip 94 (this handover). 93's
+  files: demos/common/uSteam.pas, demos/EpubReader/src/uMain.pas,
+  CLAUDE.md.
+- TFFMpegAPI 0795d19 = FFmpegAPI-14 (macOS AudioQueue sound - CONFIRMED:
+  play / pause, jumps, speed slider, end of an audio file).
+- TSteamAPI 7953ab9 = BigPicture1. NOT PUSHED: FullScreen2 (= FullScreen1
+  + its handover). TSteamAPI's own CLAUDE.md has its half of the plan
+  below.
+
+Done this session (sections "Zip 77" - "Zip 93" below): calibration,
+Steam builds (Reader 5639840, Builder 5639910), libraries next to the
+programs, the Deck crash (FreeType) fixed, build stamp, Mac sound, and
+the first stage of the big-screen work: the screen: line in both
+programs' logs (TSteamAPI's SteamScreenInfo), Per Monitor v2 DPI
+awareness (Windows), Big Picture maximise applied once the form exists,
+then real full screen without EpubReader's menu.
+
+NEXT TIME - BIG PICTURE SWITCHED WHILE RUNNING (owner's observation:
+switching Steam into / out of Big Picture leaves the program as it was;
+SDK 1.65 has no callback for it):
+1. TSteamAPI polls IsSteamInBigPictureMode about once a second and logs
+   every change. Owner runs EpubReader (Steam build), switches modes,
+   sends the debug log (uSteam already puts Steam's later lines in it).
+2. Only if Steam reports the switch: TSteamAPI's OnBigPictureChanged and
+   the window following both ways (TSteamAPI's CLAUDE.md). Here: uSteam
+   passes the event on (SteamBigPicture must then read the live value);
+   EpubReader re-parents mnuMain (Parent := Self / nil, RecreateOSMenu)
+   or shows / hides mnuBar on Linux; EpubBuilder keeps its menu.
+
+THEN (owner's plan, 2026-11-17; decided: EpubReader now, EpubBuilder
+later; screen detection and the pad menu as TSteamAPI units; automatic
+switch with an override setting):
+- Screen logs still wanted: Deck Game Mode and Desktop Mode, the Mac
+  (first compile of Steamworks.FMX.Screen's macOS / Linux code).
+- EpubReader's big-screen interface: tool bar, contents, library sized by
+  UiScale; a setting (Auto / on / off, and a size override).
+- The pad overlay menu (VirtualGamepad's, made a TSteamAPI unit) and
+  EpubReader's pad controls: hold Start for the menu (Library, Contents,
+  Text size, Dark mode, Speed, Exit); D-pad / stick scroll and pages, A
+  play / pause, shoulders sentence back / on, triggers chapter; library
+  as a grid of covers. Needs a Steam Input action manifest for EpubReader
+  (TSteamAPI's gen_input_mapping.py) and the partner site's Steam Input
+  setting. In Big Picture Exit is only Steam / Alt+F4 until then.
+- Offered earlier, not asked for yet: offer to calibrate when an
+  uncalibrated model is chosen; deploy_redist.py --core for the Linux
+  Steam depot; the FreeType launcher lines in TSteamAPI's own .sh files.
+
+### Session 7 (2026-11-16 evening)
 Written at the owner's request ("write a session handover ... so I can
 get a code review done"). The sections further down hold the detail and
 the history, one per zip.
@@ -14,11 +70,11 @@ the history, one per zip.
 | Repo | Pushed | = zip | Last zip number used |
 |---|---|---|---|
 | WhisperBooks/TWhisper | d669a06 | TWhisper-30 | 31 (review fixes) |
-| WhisperBooks/Epubunum | 8e306df | EpubUnum-86 | 80 (77 calibration, 78 Steam builds, 79 libraries copied by the builds, 80 - 83 fixes from the first Steam build, 84 EpubBuilder's Linux launcher, 85 Mac libraries through Deploy, 86 Deck crash diagnostics, 87 build stamp, 88 crash place in the log, 89 FreeType for Steam's Linux runtime) |
-| G3DGames/TFFMpegAPI | 3edcfa3 | FFmpegAPI-12 | 13 (review fixes) |
+| WhisperBooks/Epubunum | 827bed1 | EpubUnum-92 | 94 (93 Big Picture full screen and 94 this handover NOT pushed; 90 screen log, 91 DPI awareness, 92 Big Picture late maximise; 77 calibration, 78 Steam builds, 79 libraries copied by the builds, 80 - 83 fixes from the first Steam build, 84 EpubBuilder's Linux launcher, 85 Mac libraries through Deploy, 86 Deck crash diagnostics, 87 build stamp, 88 crash place in the log, 89 FreeType for Steam's Linux runtime) |
+| G3DGames/TFFMpegAPI | 0795d19 | FFmpegAPI-14 | 14 (macOS sound) |
 | G3DGames/ffmpeg-dev | 4d7b7be | ffmpeg-dev-09 | 09 |
 | WhisperBooks/whisper-dev | 9fa21dc | whisper-dev-20 | 21 (review fixes; its own CLAUDE.md) |
-| TSteamAPI | ea0a132 | (owner's; read only here) | - |
+| G3DGames/TSteamAPI | 7953ab9 | BigPicture1 | FullScreen2 NOT pushed (zips named by topic + number: Screen1-3, BigPicture1, FullScreen1-2; Screen4 declined) |
 
 Checked 2026-11-16 21:18 against the deliveries, file by file (CR LF /
 BOM aside): everything matches. The IDE re-saved the four EpubUnum .dproj
@@ -360,7 +416,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 92.
+Last number used: 94.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -2104,6 +2160,24 @@ starts TSteamAPI in the .dpr, before any form. Fixed in TSteamAPI (zip
 BigPicture1: the timer applies it once the main form exists, and logs a
 line). uSteam: Steam's lines go straight into the debug log once it is
 open (before: kept as SteamNotes only, so that later line was lost).
+
+## Zip 93 (on top of 827bed1 = zips 91 + 92): Big Picture full screen
+Owner 20:53, zip 92 + TSteamAPI BigPicture1: the late maximise works
+("the main form exists now - TfrmMain maximised"), but "Windows still had
+taskbar, caption, menu etc"; his SRDelphiFMX (LenticularDemoFMX /
+StereoModel) does real full screen on Windows. TSteamAPI zip FullScreen1:
+bpwFullScreen on Windows = that method. Here:
+- uSteam: BigPictureWindow := bpwFullScreen; SteamBigPicture (known from
+  SteamStartup on, before any form).
+- EpubReader BuildMenu: in Big Picture the TMainMenu is made but NOT put
+  on the form (its items still exist - code uses miRecent, miDark, ...);
+  Linux: mnuBar hidden. RefreshMenu only for a menu on the form. Without
+  the menu: Library / Recently Opened / Find / Learn / Exit have keys or
+  the library; Exit only through Steam (or Alt+F4) until the pad menu.
+- EpubBuilder keeps its menu (re-calibration is only there; its big-screen
+  interface comes later) - full screen with a menu bar.
+Pushes checked: 827bed1 = zips 91 + 92 (+ IDE re-saves of EpubConsole and
+the two package .dproj: OSX Cfg_2 groups added by the IDE - fine).
 
 ## Pushes checked
 - a6ea67b ("SteamOS good") = zips 87 - 89: identical (CR LF aside) but

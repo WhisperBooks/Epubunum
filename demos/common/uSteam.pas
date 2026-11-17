@@ -47,6 +47,13 @@ function SteamBuild: Boolean;
   @returns(the answer) }
 function SteamRunning: Boolean;
 
+{ True when Steam runs in Big Picture (desktop Big Picture or Game Mode)
+  - known from SteamStartup on, before any form. The window is made full
+  screen by TSteamAPI (BigPictureWindow bpwFullScreen); the forms leave
+  out what Big Picture has no use for (EpubReader: the menu bar).
+  @returns(the answer; False outside a Steam build) }
+function SteamBigPicture: Boolean;
+
 { One line for the logs: 'not a Steam build', or 'Steam build, AppID N:
   Steam running' / '... not running (why)'.
   @returns(the line) }
@@ -151,6 +158,9 @@ begin
   // launches the program itself
   GSteam.RestartIfNecessary := True;
   {$ENDIF}
+  // Big Picture: full screen - no caption, frame or taskbar (maximised
+  // kept all three, owner 2026-11-17)
+  GSteam.BigPictureWindow := bpwFullScreen;
   GSteam.OnLog := GHost.SteamLog;
   GSteam.OnInitFailed := GHost.SteamInitFailed;
   GSteam.OnRestartRequired := GHost.SteamRestart;
@@ -181,6 +191,15 @@ function SteamRunning: Boolean;
 begin
   {$IFDEF STEAMBUILD}
   Result := (GSteam <> nil) and GSteam.IsRunning;
+  {$ELSE}
+  Result := False;
+  {$ENDIF}
+end;
+
+function SteamBigPicture: Boolean;
+begin
+  {$IFDEF STEAMBUILD}
+  Result := (GSteam <> nil) and GSteam.IsRunning and GSteam.InBigPicture;
   {$ELSE}
   Result := False;
   {$ENDIF}
