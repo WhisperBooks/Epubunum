@@ -75,6 +75,9 @@ type
     { An exception nothing handled: into the debug log with the library it
       happened in (DebugLogException), then shown as before. }
     procedure AppException(Sender: TObject; E: Exception);
+    { The first time the window is shown: the display it is on into the
+      debug log (SteamScreenText). }
+    procedure FormShow(Sender: TObject);
     { Stops the audio and removes the temporary files. }
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
     { Keys: P, Ctrl+O, Ctrl+Plus / Ctrl+Minus, D, L (Learn to read), R (say
@@ -196,6 +199,8 @@ type
     FSoundNote: string;
     { What RegisterOpenWith did at start-up, shown until a book opens. }
     FOpenWithNote: string;
+    { The display was logged (FormShow). }
+    FScreenLogged: Boolean;
     { The menu bar: File (Open, Recently Opened, Exit), View. }
     mnuMain: TMainMenu;
     {$IF Defined(LINUX) and not Defined(ANDROID)}
@@ -825,6 +830,7 @@ end;
   (access violation reading address 0, in a library) on the first page
   laid out with Skia (owner, Steam Deck, 2026-11-17) - is there a face at
   all? }
+{$IFDEF LINUX}
 procedure LogFontProbe;
 const
   NAMES: array[0..5] of string = ('sans-serif', 'serif', 'monospace', 'DejaVu Sans', 'Noto Sans',
@@ -871,6 +877,7 @@ begin
     ' FONTCONFIG_PATH=' + GetEnvironmentVariable('FONTCONFIG_PATH'));
   {$ENDIF}
 end;
+{$ENDIF}
 
 { Makes the cached cover of ABookFile when there is none: the book's own
   picture, else a made one with its title and author. ABook: the book when
@@ -1814,6 +1821,20 @@ begin
   Application.ShowException(E);
 end;
 
+procedure TfrmMain.FormShow(Sender: TObject);
+begin
+  if FScreenLogged then
+    Exit;
+  FScreenLogged := True;
+  // once the window is on its display (big-screen work, 2026-11-17: the
+  // numbers from every machine first)
+  TThread.ForceQueue(nil,
+    procedure
+    begin
+      DebugLog(SteamScreenText(Self));
+    end);
+end;
+
 procedure TfrmMain.FormCreate(Sender: TObject);
 var
   Line: string;
@@ -1822,6 +1843,7 @@ begin
   DebugLogOpen(ChangeFileExt(SettingsFile, '-debug.log'));
   // a crash in a library (Steam Deck, 2026-11-17): logged with where it was
   Application.OnException := AppException;
+  OnShow := FormShow;
   // Steam (started in the .dpr, before the log was open)
   DebugLog(SteamText);
   for Line in SteamNotes do
@@ -1848,7 +1870,10 @@ begin
   BuildLibrary;
   StartSound;
   DebugLog('FMX canvas in use: ' + FmxCanvasClassName);
+  // Linux only: fontconfig's (macOS and Windows find their fonts without it)
+  {$IFDEF LINUX}
   LogFontProbe;
+  {$ENDIF}
   // a new name every run (Random without Randomize gave the same one, so
   // two readers shared - and deleted - one folder)
   FAudioFolder := System.IOUtils.TPath.Combine(System.IOUtils.TPath.GetTempPath,

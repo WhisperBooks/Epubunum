@@ -31,7 +31,7 @@ unit uSteam;
 interface
 
 uses
-  System.SysUtils, System.Classes;
+  System.SysUtils, System.Classes, FMX.Forms;
 
 { Starts Steam in a Steam build (nothing in another).
   @param(AAppID  the program's Steam AppID)
@@ -52,6 +52,14 @@ function SteamRunning: Boolean;
   @returns(the line) }
 function SteamText: string;
 
+{ The display AForm is on, for the logs: its size in units, pixels and
+  mm, Big Picture, Steam hardware and the UI scale TSteamAPI suggests
+  (Steamworks.FMX.Screen). Call it once the form is shown.
+  @param(AForm the form)
+  @returns(one line; 'screen: not measured (not a Steam build)' without
+    STEAMBUILD) }
+function SteamScreenText(AForm: TCommonCustomForm): string;
+
 { What SteamStartup and Steam said before the program's log was open
   (one line each; the forms write them into their logs).
   @returns(the lines) }
@@ -61,7 +69,7 @@ implementation
 
 {$IFDEF STEAMBUILD}
 uses
-  Steamworks.Core, Steamworks.Components, Steamworks.FMX;
+  Steamworks.Core, Steamworks.Components, Steamworks.FMX, Steamworks.FMX.Screen;
 
 type
   { Receives TSteamAPI's events (they are methods of an object). }
@@ -184,6 +192,20 @@ begin
   {$ENDIF}
   else
     Result := Format('Steam build, AppID %d: Steam not running', [GAppID]);
+end;
+
+function SteamScreenText(AForm: TCommonCustomForm): string;
+begin
+  {$IFDEF STEAMBUILD}
+  try
+    Result := SteamScreenInfo(AForm).Text;
+  except
+    on E: Exception do
+      Result := 'screen: not measured (' + E.ClassName + ': ' + E.Message + ')';
+  end;
+  {$ELSE}
+  Result := 'screen: not measured (not a Steam build)';
+  {$ENDIF}
 end;
 
 function SteamNotes: TArray<string>;

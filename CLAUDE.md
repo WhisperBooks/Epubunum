@@ -360,7 +360,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 89.
+Last number used: 90.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -1935,8 +1935,8 @@ without it).
   if the script arrives without it, chmod +x (redist.sh deploy does).
 
 ## Zip 85 (on top of 84): the Mac libraries through Delphi's Deploy
-Owner, 2026-11-17: Mac set up (repositories in /Volumes/SN770/src - the
-home folder is tiny; PAServer's scratch dir can go there with
+Owner, 2026-11-17: Mac set up (repositories on an external drive - the
+home folder's disk is small; PAServer's scratch dir can go there with
 paserver -scratchdir=...); "mac has no dlls" - Deploy put no libraries in
 the .app (only redist.sh deploy, on the Mac, did). Signing (owner): his
 Developer ID taken out of the Steam configuration for now - Steam needs
@@ -2057,7 +2057,36 @@ redistributable_bin/Linux64 to Windows, deploy_redist.py (Linux64), then
 the depot; the Deck test with the depot's files (not the hand-edited
 script).
 
+## Zip 90 (on top of a6ea67b = zip 89): the display, in the logs
+Owner, 2026-11-17: Big Picture / handhelds need a big-screen interface -
+VirtualGamepad's pad overlay menu (hold a button; up / down / accept /
+cancel), touch, keyboard and mouse still working - and sizes from the
+screen's real size (handhelds, big monitors, TVs). Decided (owner):
+EpubReader now, EpubBuilder later; screen detection and the pad menu as
+NEW TSteamAPI units; automatic switch (Big Picture, Deck, small screen)
+with a setting to override. Stage 1 (this zip + TSteamAPI zip Screen1):
+measure and log only, so the numbers from every machine come before any
+layout uses them.
+- demos/common/uSteam.pas: SteamScreenText(Form) - TSteamAPI's
+  SteamScreenInfo(Form).Text in a Steam build (size in units / pixels /
+  mm and where the mm came from, Big Picture, Steam hardware, big-screen
+  yes / no, UI scale, viewing distance); 'not measured (not a Steam
+  build)' otherwise. FMX.Forms in its interface uses.
+- EpubReader uMain: FormShow (OnShow set in FormCreate) logs it once, when
+  the window is on its display (ForceQueue). LogFontProbe Linux only (on
+  the Mac it printed NONE for every name - fontconfig's names - while the
+  text drew fine).
+- EpubBuilder uBuilder: FormShow logs it before the calibration question.
+Mac sound (FFmpegAPI-14, AudioQueue) CONFIRMED by the owner 18:25 - 18:34:
+play / pause, jumps, speed slider, the end of an audio file.
+NEEDS TSteamAPI zip Screen1 (Steamworks.FMX.Screen) in SteamworksFMX for
+the Steam configurations; Debug / Release do not use it.
+
 ## Pushes checked
+- a6ea67b ("SteamOS good") = zips 87 - 89: identical (CR LF aside) but
+  the IDE-saved EpubReader / EpubBuilder .dproj - buildstamp PreBuild
+  (repeated per configuration by the IDE), postbuild, the .sh deploy
+  entries, libsteam_api, STEAMBUILD: all kept.
 - 8e306df ("Latest", after 46d2adc = zip 84) = zips 84 - 86 + demos/
   restored (the owner deleted demos/ on Windows; sent whole):
   identical (CR LF / BOM aside) but the IDE-saved .dproj / .deployproj -

@@ -2913,6 +2913,8 @@ begin
   TThread.ForceQueue(nil,
     procedure
     begin
+      // the display it is on (big-screen work, 2026-11-17: numbers first)
+      DebugLog(SteamScreenText(Self));
       CheckCalibrationAtStart;
     end);
 end;
