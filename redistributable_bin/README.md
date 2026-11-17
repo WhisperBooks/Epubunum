@@ -10,7 +10,7 @@ folders and `.dll` / `.so` / `.dylib` files).
 | Folder | Filled on | With |
 |---|---|---|
 | `Win64` | Windows | `tools\redist.bat collect WHISPER_DEV FFMPEG_DEV` (or just `tools\redist.bat collect WHISPER_DEV` when that folder holds FFmpeg's DLLs too, as TWhisper's `redistributable_bin\Win64` does) |
-| `Linux64` | Linux x86-64 | `tools/redist.sh collect WHISPER_DEV FFMPEG_DEV` |
+| `Linux64` | Linux x86-64 | `tools/redist.sh collect WHISPER_DEV FFMPEG_DEV` (also fetches FreeType 2.11.1 + brotli from an `ubuntu:22.04` container for Steam's Linux runtime - needs docker or podman) |
 | `OSXARM64`, `OSX64` | a Mac (that architecture) | `tools/redist.sh collect WHISPER_DEV FFMPEG_DEV` |
 
 WHISPER_DEV and FFMPEG_DEV are the two repositories' folders, after their

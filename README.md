@@ -229,13 +229,19 @@ backends.
 
 ## SteamOS, Linux and Proton
 
-Both programs carry TSteamAPI's platform fixes (unchanged copies, see
+Both programs carry TSteamAPI's platform fixes (see
 `demos/EpubReader/README.md`): GTK made global in Steam's Linux runtime
 (`FmxLinuxGtkGlobal`), the ICU launcher script for SteamOS
 (`EpubReader.sh`, `EpubBuilder.sh` - identical but for the name; each
 starts the program it is named after), the Wine canvas switch for a
 Windows build under Proton (`FmxWineCanvas`), and on Linux a menu bar
 drawn by FMX instead of GTK's (which shows only first letters).
+
+The launcher has one addition of ours: Skia crashes with Steam Linux
+Runtime 3's FreeType (2.10.4), so the programs ship FreeType 2.11.1 next
+to them (`tools/redist.sh collect` fetches it from an Ubuntu 22.04
+container) and the script puts their folder first on `LD_LIBRARY_PATH`
+when it is there.
 
 On Linux the **launcher script is what Steam starts**: set each app's
 Linux launch command on the Steamworks site to `EpubReader.sh` /

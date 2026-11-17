@@ -9,7 +9,9 @@
 #     fills redistributable_bin/<platform>/ for this machine (Linux64;
 #     OSXARM64 or OSX64 on a Mac) from WHISPER_DEV/dlls (or WHISPER_DEV
 #     itself when it holds the libraries) and FFMPEG_DEV/dlls/<target>,
-#     with their licence texts
+#     with their licence texts; on Linux also FreeType 2.11.1 from an
+#     ubuntu:22.04 container (docker / podman) for Steam's Linux runtime,
+#     whose FreeType 2.10.4 crashes Skia
 #   tools/redist.sh package PLATFORM [VERSION]
 #     packs redistributable_bin/PLATFORM for a release, in
 #     redistributable_bin/packages/: Linux64 in three parts that unpack
@@ -52,6 +54,33 @@ ffmpeg_target() {
   esac
 }
 
+# FreeType for Steam Linux Runtime 3 (EpubUnum, 2026-11-17): Skia (libsk4d)
+# links the system's libfreetype.so.6, and the runtime's - 2.10.4 - makes
+# it crash on the first page it draws (an access violation in
+# libfreetype.so.6.17.4); Ubuntu 22.04's 2.11.1, next to the program and
+# first on LD_LIBRARY_PATH (EpubReader.sh / EpubBuilder.sh), was tested on
+# the Steam Deck and works. Taken from an ubuntu:22.04 container (glibc
+# 2.35, as the other Linux libraries), with brotli (FreeType needs it) and
+# both licence texts. Needs docker or podman; without either: a warning.
+freetype_for_runtime() {
+  OUT=$1
+  RUN=$(command -v docker || command -v podman || true)
+  if [ -z "$RUN" ]; then
+    echo "Warning: no docker / podman - no FreeType for Steam's Linux runtime in $OUT"
+    echo "  (EpubReader crashes there on the first page without it)"
+    return 0
+  fi
+  "$RUN" run --rm -v "$OUT:/out:z" ubuntu:22.04 sh -c '
+    apt-get update -qq && apt-get install -y -qq libfreetype6 > /dev/null &&
+    L=/usr/lib/x86_64-linux-gnu &&
+    cp -L $L/libfreetype.so.6 $L/libbrotlidec.so.1 $L/libbrotlicommon.so.1 /out/ &&
+    cp /usr/share/doc/libfreetype6/copyright /out/licences/FreeType-copyright.txt &&
+    cp /usr/share/doc/libbrotli1/copyright /out/licences/brotli-copyright.txt &&
+    chmod a+r /out/libfreetype.so.6 /out/libbrotli*.so.1 /out/licences/FreeType-* /out/licences/brotli-*' \
+    || { echo "Warning: FreeType for Steam's Linux runtime not fetched"; return 0; }
+  echo "FreeType 2.11.1 (Ubuntu 22.04) for Steam's Linux runtime: libfreetype.so.6, libbrotli*.so.1"
+}
+
 collect() {
   [ $# -eq 2 ] || usage
   PLATFORM=$(host_platform)
@@ -82,6 +111,7 @@ collect() {
     [ -f "$FDIR/$f" ] && cp "$FDIR/$f" "$OUT/licences/FFmpeg-$f"
   done
   [ -f "$1/whisper.cpp/LICENSE" ] && cp "$1/whisper.cpp/LICENSE" "$OUT/licences/whisper.cpp-LICENSE.txt"
+  [ "$PLATFORM" = Linux64 ] && freetype_for_runtime "$OUT"
   echo "$(ls "$OUT" | grep -c -v licences) files in $OUT"
 }
 

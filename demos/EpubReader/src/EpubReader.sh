@@ -13,6 +13,9 @@
 # runtime itself (both libraries present), so Delphi picks a matching pair.
 # Where there is no such pair (a normal desktop), it changes nothing.
 #
+# It also puts the program's folder first on LD_LIBRARY_PATH when a
+# libfreetype.so.6 is there (see the end).
+#
 # Use: ship it next to the program and make it the game's Linux launch
 # command, named <program>.sh - it starts <program>. Named <program>
 # itself, it starts <program>.bin (for testing without changing Steam's
@@ -43,6 +46,16 @@ if [ -n "$best" ]; then
     export LD_LIBRARY_PATH="$dir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     echo "launcher: ICU $best for Delphi's runtime ($dir)" >&2
   fi
+fi
+
+# EpubUnum's addition (not in TSteamAPI's copy yet): the libraries next to
+# the program first, when it ships its own FreeType. Skia (libsk4d) uses
+# the system's libfreetype.so.6, and Steam Linux Runtime 3's (2.10.4)
+# crashes it on the first page it draws; a newer one next to the program
+# is only used when it is found first - before GTK loads the runtime's.
+if [ -e "$here/libfreetype.so.6" ]; then
+  export LD_LIBRARY_PATH="$here${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+  echo "launcher: $here first on LD_LIBRARY_PATH (its own FreeType)" >&2
 fi
 
 exec "$prog" "$@"

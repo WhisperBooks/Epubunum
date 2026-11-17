@@ -14,7 +14,7 @@ the history, one per zip.
 | Repo | Pushed | = zip | Last zip number used |
 |---|---|---|---|
 | WhisperBooks/TWhisper | d669a06 | TWhisper-30 | 31 (review fixes) |
-| WhisperBooks/Epubunum | 8e306df | EpubUnum-86 | 80 (77 calibration, 78 Steam builds, 79 libraries copied by the builds, 80 - 83 fixes from the first Steam build, 84 EpubBuilder's Linux launcher, 85 Mac libraries through Deploy, 86 Deck crash diagnostics, 87 build stamp, 88 crash place in the log) |
+| WhisperBooks/Epubunum | 8e306df | EpubUnum-86 | 80 (77 calibration, 78 Steam builds, 79 libraries copied by the builds, 80 - 83 fixes from the first Steam build, 84 EpubBuilder's Linux launcher, 85 Mac libraries through Deploy, 86 Deck crash diagnostics, 87 build stamp, 88 crash place in the log, 89 FreeType for Steam's Linux runtime) |
 | G3DGames/TFFMpegAPI | 3edcfa3 | FFmpegAPI-12 | 13 (review fixes) |
 | G3DGames/ffmpeg-dev | 4d7b7be | ffmpeg-dev-09 | 09 |
 | WhisperBooks/whisper-dev | 9fa21dc | whisper-dev-20 | 21 (review fixes; its own CLAUDE.md) |
@@ -360,7 +360,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 88.
+Last number used: 89.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -2027,6 +2027,35 @@ line names the library: libsk4d.so -> Skia (the view's layout / paint:
 try a small book, EPUBREADER_FONT=Noto Sans; then a TEpubView log hook);
 libgtk / libcairo / libgdk -> FMX's canvas in the runtime (try
 TSAPI_FMX_CANVAS - FmxSkiaCanvas); anything else - see.
+
+## Zip 89 (on top of 88): FreeType for Steam Linux Runtime 3 - THE DECK FIX
+Deck log with zip 88 (build "2026-11-17 15:26, 662ddc7"): UNHANDLED
+EAccessViolation at ...F2B7 reading 0 in libfreetype.so.6.17.4 +0x522B7
+(/usr/lib/x86_64-linux-gnu/ - the RUNTIME's FreeType 2.10.4), on the first
+page drawn. ldd: libsk4d.so links libfreetype.so.6 (system's). Test 2
+(FONTCONFIG_FILE with only the runtime's /usr/share/fonts): still
+crashes - not a host font. Test 3: Ubuntu 22.04's FreeType 2.11.1 (+
+libbrotlidec / libbrotlicommon) next to EpubReader and the program's
+folder first on LD_LIBRARY_PATH in EpubReader.sh: "Works fine" (owner).
+- tools/redist.sh collect, Linux64: freetype_for_runtime - docker / podman
+  run ubuntu:22.04, apt-get install libfreetype6, copies
+  libfreetype.so.6, libbrotlidec.so.1, libbrotlicommon.so.1 and the
+  Debian copyright files as licences/FreeType-copyright.txt,
+  licences/brotli-copyright.txt (FTL or GPL; brotli MIT). No docker /
+  podman: a warning, collect goes on.
+- tools/deploy_redist.py: EpubReader's share (reader_file) = FFmpeg +
+  libfreetype / libbrotli* + their licences (EpubBuilder: everything, as
+  before - it gets them too).
+- EpubReader.sh / EpubBuilder.sh (identical to each other, NO LONGER to
+  TSteamAPI's): before exec, when $here/libfreetype.so.6 exists, $here
+  first on LD_LIBRARY_PATH (+ a stderr line). Tested here: without the
+  file nothing changes; with it the folder comes first.
+- TSteamAPI: every FMX + Skia program in SLR 3 has this crash - the same
+  launcher addition belongs there (owner's repository; offered).
+TO DO on the owner's side: redist.sh collect on Linux (with docker), copy
+redistributable_bin/Linux64 to Windows, deploy_redist.py (Linux64), then
+the depot; the Deck test with the depot's files (not the hand-edited
+script).
 
 ## Pushes checked
 - 8e306df ("Latest", after 46d2adc = zip 84) = zips 84 - 86 + demos/

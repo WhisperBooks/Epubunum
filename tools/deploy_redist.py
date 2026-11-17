@@ -28,7 +28,8 @@ What each program gets:
                backends (no Vulkan, CUDA or HIP - to be free DLC; owner
                2026-11-17), FFmpeg, the licences
   EpubReader   FFmpeg and its licence texts (it plays sound, it does not
-               transcribe)
+               transcribe); on Linux also FreeType + brotli (Skia crashes
+               with Steam Linux Runtime 3's FreeType 2.10.4)
   EpubConsole  nothing (no libraries)
 
 The entries it writes are the DeployFile entries whose LocalName starts
@@ -57,10 +58,13 @@ def is_mac():
     return PLATFORM.startswith("OSX")
 
 
-def ffmpeg_file(rel):
-    """FFmpeg's libraries and licence texts."""
+def reader_file(rel):
+    """EpubReader's share: FFmpeg's libraries and licence texts, and the
+    FreeType (with brotli) that Skia needs in Steam's Linux runtime."""
     return (re.match(r"lib(av|sw|postproc)[a-z]*[.0-9]*\.(so|dylib)", rel) is not None
-            or rel.startswith("licences/FFmpeg-"))
+            or rel.startswith("licences/FFmpeg-")
+            or re.match(r"lib(freetype|brotli[a-z]*)\.so", rel) is not None
+            or rel.startswith("licences/FreeType-") or rel.startswith("licences/brotli-"))
 
 
 def builder_file(rel):
@@ -74,7 +78,7 @@ def builder_file(rel):
 # program -> which files (by their path in the folder, '/'-separated)
 PROJECTS = {
     "demos/EpubBuilder/EpubBuilder.dproj": builder_file,
-    "demos/EpubReader/EpubReader.dproj": ffmpeg_file,
+    "demos/EpubReader/EpubReader.dproj": reader_file,
 }
 
 # libX.so.N.M.P / libX.N.M.P.dylib: the stem and the version

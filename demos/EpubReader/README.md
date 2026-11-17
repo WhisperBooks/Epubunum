@@ -143,8 +143,9 @@ Application > Icons, Win64).
 
 ## Platform notes (from TSteamAPI)
 
-The files in `src/` named `Fmx*.pas` and `EpubReader.sh` are **unchanged
-copies** of TSteamAPI's (github.com/G3DGames/TSteamAPI, `docs/`):
+The files in `src/` named `Fmx*.pas` are **unchanged copies** of
+TSteamAPI's (github.com/G3DGames/TSteamAPI, `docs/`); `EpubReader.sh` is
+TSteamAPI's launcher with one addition (below, FreeType):
 
 - **Linux in Steam's runtime / SteamOS:** use Steam Linux Runtime 3.0;
   `FmxLinuxGtkGlobal` makes GTK globally visible (otherwise "access
@@ -161,6 +162,16 @@ copies** of TSteamAPI's (github.com/G3DGames/TSteamAPI, `docs/`):
   TSteamAPI's `FmxLinuxMenu` needs for a designed menu); Windows and macOS
   keep the native bar. SteamOS runs every main window full screen: the
   drawn bar stays inside it.
+- **FreeType in Steam Linux Runtime 3** (found 2026-11-17, Steam Deck):
+  Skia (`libsk4d.so`) uses the system's `libfreetype.so.6`, and the
+  runtime's 2.10.4 crashes it on the first page drawn ("Access violation
+  ... accessing address 0", in `libfreetype.so.6.17.4`). The reader ships
+  FreeType 2.11.1 (Ubuntu 22.04's, with brotli) next to it -
+  `tools/redist.sh collect` fetches it, Deploy and the depot take it - and
+  `EpubReader.sh` puts the program's folder first on `LD_LIBRARY_PATH`
+  when a `libfreetype.so.6` is there, so that FreeType is the one loaded
+  (before GTK loads the runtime's). Started without the script, inside the
+  runtime, the reader crashes as before.
 
 ## Sound
 
