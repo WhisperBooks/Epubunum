@@ -34,5 +34,7 @@ Android64/
 *.ppu
 *.a
 link.res
+# written before every build by tools\buildstamp.bat
+demos/common/BuildStamp.inc
 # release archives made by tools/redist.sh package
 redistributable_bin/packages/

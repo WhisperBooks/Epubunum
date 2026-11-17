@@ -72,6 +72,9 @@ type
     { Sets up the temporary audio folder; opens a book named on the
       command line. }
     procedure FormCreate(Sender: TObject);
+    { An exception nothing handled: into the debug log with the library it
+      happened in (DebugLogException), then shown as before. }
+    procedure AppException(Sender: TObject; E: Exception);
     { Stops the audio and removes the temporary files. }
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
     { Keys: P, Ctrl+O, Ctrl+Plus / Ctrl+Minus, D, L (Learn to read), R (say
@@ -1805,12 +1808,20 @@ begin
   end;
 end;
 
+procedure TfrmMain.AppException(Sender: TObject; E: Exception);
+begin
+  DebugLogException(E, ExceptAddr);
+  Application.ShowException(E);
+end;
+
 procedure TfrmMain.FormCreate(Sender: TObject);
 var
   Line: string;
 begin
   // the debug log: next to the settings, started afresh at every run
   DebugLogOpen(ChangeFileExt(SettingsFile, '-debug.log'));
+  // a crash in a library (Steam Deck, 2026-11-17): logged with where it was
+  Application.OnException := AppException;
   // Steam (started in the .dpr, before the log was open)
   DebugLog(SteamText);
   for Line in SteamNotes do

@@ -79,6 +79,15 @@ Every build's log (and the queue report) starts with the machine
 the device in full. "Default" is shown as the device whisper.cpp takes,
 with whether the calibration found it fastest for the model.
 
+## Which build is this?
+
+Every build of EpubReader and EpubBuilder is stamped: a pre-build step
+(`tools\buildstamp.bat`) writes the time and the git commit into
+`demos/common/BuildStamp.inc` (not tracked), and the debug log's first
+lines - and EpubBuilder's window and build logs - show it, e.g.
+`Build: 2026-11-17 15:25, 8e306df+` (`+`: with changes not committed
+yet). Compare it with the build you uploaded.
+
 ## Linux and Steam's runtime
 
 Like EpubReader, EpubBuilder carries TSteamAPI's `FmxLinuxGtkGlobal` (FMX

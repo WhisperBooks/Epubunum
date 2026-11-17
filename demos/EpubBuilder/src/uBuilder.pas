@@ -232,6 +232,9 @@ type
   TfrmBuilder = class(TForm)
     { Loads whisper.cpp and lists its devices; builds the window. }
     procedure FormCreate(Sender: TObject);
+    { An exception nothing handled: into the debug log with the library it
+      happened in (DebugLogException), then shown as before. }
+    procedure AppException(Sender: TObject; E: Exception);
     { Stops a build before the window goes. }
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
   private
@@ -1498,6 +1501,12 @@ begin
   lbAudio.Margins.Rect := RectF(GAP, GAP, GAP, GAP);
 end;
 
+procedure TfrmBuilder.AppException(Sender: TObject; E: Exception);
+begin
+  DebugLogException(E, ExceptAddr);
+  Application.ShowException(E);
+end;
+
 procedure TfrmBuilder.FormCreate(Sender: TObject);
 var
   Lib: TWhisperLib;
@@ -1508,6 +1517,8 @@ begin
   OnShow := FormShow;
   // the debug log: next to the settings, started afresh at every run
   DebugLogOpen(ChangeFileExt(SettingsFile, '-debug.log'));
+  // a crash in a library (Steam Deck, 2026-11-17): logged with where it was
+  Application.OnException := AppException;
   FJob := -1;
   FBuildLog := TStringList.Create;
   BuildWindow;
@@ -1544,6 +1555,7 @@ begin
   cbDevice.ItemIndex := 0;
   LoadSettings;
   LogLine('Machine: ' + MachineText);
+  LogLine('Build: ' + BuildStamp);
   // Steam (started in the .dpr, before the log was open)
   LogLine(SteamText);
   for Line in SteamNotes do
@@ -3263,6 +3275,7 @@ var
   Speed: Double;
 begin
   LogLine('Machine: ' + MachineText);
+  LogLine('EpubBuilder build: ' + BuildStamp);
   if SteamBuild then
     LogLine(SteamText);
   if FWhisperText <> '' then

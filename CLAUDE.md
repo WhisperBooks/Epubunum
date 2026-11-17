@@ -14,7 +14,7 @@ the history, one per zip.
 | Repo | Pushed | = zip | Last zip number used |
 |---|---|---|---|
 | WhisperBooks/TWhisper | d669a06 | TWhisper-30 | 31 (review fixes) |
-| WhisperBooks/Epubunum | 4b560d1 | EpubUnum-83 | 80 (77 calibration, 78 Steam builds, 79 libraries copied by the builds, 80 - 83 fixes from the first Steam build, 84 EpubBuilder's Linux launcher, 85 Mac libraries through Deploy, 86 Deck crash diagnostics) |
+| WhisperBooks/Epubunum | 8e306df | EpubUnum-86 | 80 (77 calibration, 78 Steam builds, 79 libraries copied by the builds, 80 - 83 fixes from the first Steam build, 84 EpubBuilder's Linux launcher, 85 Mac libraries through Deploy, 86 Deck crash diagnostics, 87 build stamp, 88 crash place in the log) |
 | G3DGames/TFFMpegAPI | 3edcfa3 | FFmpegAPI-12 | 13 (review fixes) |
 | G3DGames/ffmpeg-dev | 4d7b7be | ffmpeg-dev-09 | 09 |
 | WhisperBooks/whisper-dev | 9fa21dc | whisper-dev-20 | 21 (review fixes; its own CLAUDE.md) |
@@ -360,7 +360,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 86.
+Last number used: 88.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -1982,7 +1982,62 @@ finding no face -> a nil typeface in libsk4d), the review's open item
   TEpubView.Fonts as the last resort; a face found -> the crash is
   elsewhere (layout of the 31851-word document? the first paint?).
 
+## Zip 87 (on top of 8e306df = zip 86): build stamp
+Owner sent the Deck's debug log of 15:11: the OLD build (no "fonts:"
+line, no "open: cover done" - zip 86 not in that upload); "Can we have a
+build version or something - can't tell if this is new update or not".
+- NEW tools\buildstamp.bat (CRLF): PreBuildEvent of both .dproj ('$(Base)'
+  group: every platform and configuration - Delphi compiles on Windows
+  for Linux / macOS too; IgnoreExitCode true), writes
+  demos\common\BuildStamp.inc (.gitignore): const BUILD_STAMP =
+  'yyyy-mm-dd hh:nn, <git short hash>[+]' ('+' = git status --porcelain
+  --untracked-files=no not empty; "no git" when git is not on PATH; time
+  from PowerShell Get-Date, else %DATE% %TIME%). Always exits 0.
+- uDebugLog: {$I BuildStamp.inc}, BuildStamp function; the log's
+  header has "Build: ..." under the first line. EpubBuilder: "Build:"
+  in the window at start, "EpubBuilder build:" in every build's log
+  (LogMachine) - so the queue's .log files say it too.
+- NOTE: a project that uses uDebugLog needs the pre-build step (or the
+  .inc) - only EpubReader and EpubBuilder do. A command-line build runs
+  PreBuildEvent too.
+NOT COMPILED here. The sample .inc as the batch writes it passes
+pasdoc_check.
+
+## Zip 88 (on top of 87): where a crash happened, in the log
+Deck log of 15:17 (zip 86 build, before zip 87's stamp): FONTS FINE -
+sans-serif -> DejaVu Sans, serif -> DejaVu Serif, monospace -> DejaVu
+Sans Mono, Noto Sans found, Liberation Sans none; /etc/fonts,
+/usr/share/fonts, /run/host/fonts there (host fonts passed in), no
+FONTCONFIG_* set. The open sequence COMPLETES ("open: done (the page is
+drawn next)"; no saved word, so no RestoreWord) - the access violation
+(address 0, in a library) is in the FIRST PAINT: TEpubView's layout /
+paint with Skia (paragraphs, pictures via MakeFromEncoded, the progress
+strip), or FMX's Linux canvas inside the runtime.
+- uDebugLog: DebugLogWhere(Address) - on Linux the file and offset from
+  /proc/self/maps ('libsk4d.so +0x1a2b3c (/path)'); DebugLogException(E,
+  ExceptAddr) - class, message, raised-at address and its place, plus the
+  place of the address an access violation's message names (the faulting
+  instruction). System.SysUtils moved to the interface's uses (Exception
+  in a declaration): DeleteFile / RenameFile there now QUALIFIED
+  (Winapi.Windows, later in the uses, has its own).
+- EpubReader and EpubBuilder: Application.OnException := AppException
+  (DebugLogException, then Application.ShowException as before).
+NEXT: the Deck's "UNHANDLED EAccessViolation ... in <library> +0x..."
+line names the library: libsk4d.so -> Skia (the view's layout / paint:
+try a small book, EPUBREADER_FONT=Noto Sans; then a TEpubView log hook);
+libgtk / libcairo / libgdk -> FMX's canvas in the runtime (try
+TSAPI_FMX_CANVAS - FmxSkiaCanvas); anything else - see.
+
 ## Pushes checked
+- 8e306df ("Latest", after 46d2adc = zip 84) = zips 84 - 86 + demos/
+  restored (the owner deleted demos/ on Windows; sent whole):
+  identical (CR LF / BOM aside) but the IDE-saved .dproj / .deployproj -
+  STEAMBUILD, postbuild x4, <program>.sh x4 (moved by the IDE),
+  libsteam_api, uSteam: all there; XML valid. EpubBuilder's Steam
+  configuration got BT_BuildType Debug on OSX64 / OSXARM64 / Win64 (the
+  owner took his Developer ID out). No OSXARM64 library entries yet
+  (deploy_redist.py --platform OSXARM64 not run on the real folder).
+  .sh 100755. project_check, pasdoc_check 0.
 - 4b560d1 ("Latest", 2026-11-17 13:29) = zips 77 - 83 (46e03e3 before
   it): every delivered file identical (CR LF / BOM aside) except the two
   .dproj files, re-saved by the IDE - STEAMBUILD in Steam and
