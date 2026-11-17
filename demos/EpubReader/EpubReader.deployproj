@@ -314,18 +314,18 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\OSXARM64\licences\FFmpeg-COPYING.LGPLv2.1">
-            <RemoteDir>EpubReader.app\Contents\Resources\licences\</RemoteDir>
-            <RemoteName>FFmpeg-COPYING.LGPLv2.1</RemoteName>
+        <DeployFile Include="..\..\redistributable_bin\OSXARM64\libavcodec.dylib">
+            <RemoteDir>EpubReader.app\Contents\Frameworks\</RemoteDir>
+            <RemoteName>libavcodec.dylib</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\OSXARM64\libavcodec.dylib">
-            <RemoteDir>EpubReader.app\Contents\Frameworks\</RemoteDir>
-            <RemoteName>libavcodec.dylib</RemoteName>
+        <DeployFile Include="..\..\redistributable_bin\OSXARM64\licences\FFmpeg-COPYING.LGPLv2.1">
+            <RemoteDir>EpubReader.app\Contents\Resources\licences\</RemoteDir>
+            <RemoteName>FFmpeg-COPYING.LGPLv2.1</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
@@ -391,6 +391,24 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
             <Required>True</Required>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\brotli-copyright.txt">
+            <RemoteDir>EpubReader\licences\</RemoteDir>
+            <RemoteName>brotli-copyright.txt</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\FreeType-copyright.txt">
+            <RemoteDir>EpubReader\licences\</RemoteDir>
+            <RemoteName>FreeType-copyright.txt</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
         </DeployFile>
         <DeployFile Include="$(SKIADIR)\Binary\Shared\Linux64\libsk4d.so" Condition="'$(Config)'=='Steam' And '$(SKIADIR)'!=''">
             <RemoteDir>EpubReader\</RemoteDir>
@@ -467,6 +485,15 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libavformat.so">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>libavformat.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
         <DeployFile Include="$(BDS)\binlinux64\libsk4d.so" Condition="'$(Config)'=='SteamDebug' And '$(SKIADIR)'==''">
             <RemoteDir>EpubReader\</RemoteDir>
             <RemoteName>libsk4d.so</RemoteName>
@@ -477,18 +504,27 @@
             <Overwrite>True</Overwrite>
             <Required>True</Required>
         </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\Linux64\libavformat.so">
+        <DeployFile Include="src\EpubReader.sh" Condition="'$(Config)'=='SteamDebug'">
             <RemoteDir>EpubReader\</RemoteDir>
-            <RemoteName>libavformat.so</RemoteName>
+            <RemoteName>EpubReader.sh</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="src\EpubReader.sh" Condition="'$(Config)'=='SteamDebug'">
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libbrotlidec.so.1">
             <RemoteDir>EpubReader\</RemoteDir>
-            <RemoteName>EpubReader.sh</RemoteName>
+            <RemoteName>libbrotlidec.so.1</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libfreetype.so.6">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>libfreetype.so.6</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
@@ -555,6 +591,15 @@
         <DeployFile Include="..\..\redistributable_bin\Linux64\libavcodec.so.62">
             <RemoteDir>EpubReader\</RemoteDir>
             <RemoteName>libavcodec.so.62</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libbrotlicommon.so.1">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>libbrotlicommon.so.1</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>

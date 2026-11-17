@@ -6,9 +6,10 @@
         <AppType>Application</AppType>
         <MainSource>EpubReader.dpr</MainSource>
         <Base>True</Base>
-        <Config Condition="'$(Config)'==''">Steam</Config>
-        <Platform Condition="'$(Platform)'==''">Linux64</Platform>
+        <Config Condition="'$(Config)'==''">Release</Config>
+        <Platform Condition="'$(Platform)'==''">Win64</Platform>
         <TargetedPlatforms>135298</TargetedPlatforms>
+        <ProjectName Condition="'$(ProjectName)'==''">EpubReader</ProjectName>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Base' or '$(Base)'!=''">
         <Base>true</Base>
@@ -107,7 +108,8 @@
         <Base>true</Base>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base)'!=''">
-        <PreBuildEvent><![CDATA[call "$(PROJECTDIR)\..\..\tools\buildstamp.bat"]]></PreBuildEvent>
+        <PreBuildEvent><![CDATA[call "$(PROJECTDIR)\..\..\tools\buildstamp.bat"
+$(PreBuildEvent)]]></PreBuildEvent>
         <PreBuildEventIgnoreExitCode>true</PreBuildEventIgnoreExitCode>
         <SanitizedProjectName>EpubReader</SanitizedProjectName>
         <DCC_Namespace>System;Xml;Data;Datasnap;Web;Soap;$(DCC_Namespace)</DCC_Namespace>
@@ -315,118 +317,6 @@
                 <Platform value="Win64">True</Platform>
             </Platforms>
             <Deployment Version="5">
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libavcodec.62.dylib" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Frameworks\</RemoteDir>
-                        <RemoteName>libavcodec.62.dylib</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libavcodec.dylib" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Frameworks\</RemoteDir>
-                        <RemoteName>libavcodec.dylib</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libavfilter.11.dylib" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Frameworks\</RemoteDir>
-                        <RemoteName>libavfilter.11.dylib</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libavfilter.dylib" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Frameworks\</RemoteDir>
-                        <RemoteName>libavfilter.dylib</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libavformat.62.dylib" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Frameworks\</RemoteDir>
-                        <RemoteName>libavformat.62.dylib</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libavformat.dylib" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Frameworks\</RemoteDir>
-                        <RemoteName>libavformat.dylib</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libavutil.60.dylib" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Frameworks\</RemoteDir>
-                        <RemoteName>libavutil.60.dylib</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libavutil.dylib" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Frameworks\</RemoteDir>
-                        <RemoteName>libavutil.dylib</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libswresample.6.dylib" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Frameworks\</RemoteDir>
-                        <RemoteName>libswresample.6.dylib</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libswresample.dylib" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Frameworks\</RemoteDir>
-                        <RemoteName>libswresample.dylib</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libswscale.9.dylib" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Frameworks\</RemoteDir>
-                        <RemoteName>libswscale.9.dylib</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libswscale.dylib" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Frameworks\</RemoteDir>
-                        <RemoteName>libswscale.dylib</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\licences\FFmpeg-BUILD-INFO.txt" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Resources\licences\</RemoteDir>
-                        <RemoteName>FFmpeg-BUILD-INFO.txt</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\licences\FFmpeg-COPYING.LGPLv2.1" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Resources\licences\</RemoteDir>
-                        <RemoteName>FFmpeg-COPYING.LGPLv2.1</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\licences\FFmpeg-COPYING.LGPLv3" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Resources\licences\</RemoteDir>
-                        <RemoteName>FFmpeg-COPYING.LGPLv3</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\licences\FFmpeg-LICENSE.md" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Resources\licences\</RemoteDir>
-                        <RemoteName>FFmpeg-LICENSE.md</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
                 <DeployFile LocalName="$(BDS)\Redist\iossimulator\libcgunwind.1.0.dylib" Class="DependencyModule">
                     <Platform Name="iOSSimulator">
                         <Overwrite>true</Overwrite>
@@ -690,6 +580,27 @@
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libbrotlicommon.so.1" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libbrotlicommon.so.1</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libbrotlidec.so.1" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libbrotlidec.so.1</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libfreetype.so.6" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libfreetype.so.6</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
                 <DeployFile LocalName="..\..\redistributable_bin\Linux64\libswresample.so.6" Class="File">
                     <Platform Name="Linux64">
                         <RemoteDir>.\</RemoteDir>
@@ -742,6 +653,132 @@
                 <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\FFmpeg-LICENSE.md" Class="File">
                     <Platform Name="Linux64">
                         <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>FFmpeg-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\FreeType-copyright.txt" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>FreeType-copyright.txt</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\licences\brotli-copyright.txt" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\licences\</RemoteDir>
+                        <RemoteName>brotli-copyright.txt</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libavcodec.62.dylib" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Frameworks\</RemoteDir>
+                        <RemoteName>libavcodec.62.dylib</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libavcodec.dylib" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Frameworks\</RemoteDir>
+                        <RemoteName>libavcodec.dylib</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libavfilter.11.dylib" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Frameworks\</RemoteDir>
+                        <RemoteName>libavfilter.11.dylib</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libavfilter.dylib" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Frameworks\</RemoteDir>
+                        <RemoteName>libavfilter.dylib</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libavformat.62.dylib" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Frameworks\</RemoteDir>
+                        <RemoteName>libavformat.62.dylib</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libavformat.dylib" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Frameworks\</RemoteDir>
+                        <RemoteName>libavformat.dylib</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libavutil.60.dylib" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Frameworks\</RemoteDir>
+                        <RemoteName>libavutil.60.dylib</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libavutil.dylib" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Frameworks\</RemoteDir>
+                        <RemoteName>libavutil.dylib</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libswresample.6.dylib" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Frameworks\</RemoteDir>
+                        <RemoteName>libswresample.6.dylib</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libswresample.dylib" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Frameworks\</RemoteDir>
+                        <RemoteName>libswresample.dylib</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libswscale.9.dylib" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Frameworks\</RemoteDir>
+                        <RemoteName>libswscale.9.dylib</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libswscale.dylib" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Frameworks\</RemoteDir>
+                        <RemoteName>libswscale.dylib</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\licences\FFmpeg-BUILD-INFO.txt" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Resources\licences\</RemoteDir>
+                        <RemoteName>FFmpeg-BUILD-INFO.txt</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\licences\FFmpeg-COPYING.LGPLv2.1" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Resources\licences\</RemoteDir>
+                        <RemoteName>FFmpeg-COPYING.LGPLv2.1</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\licences\FFmpeg-COPYING.LGPLv3" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Resources\licences\</RemoteDir>
+                        <RemoteName>FFmpeg-COPYING.LGPLv3</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\licences\FFmpeg-LICENSE.md" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Resources\licences\</RemoteDir>
                         <RemoteName>FFmpeg-LICENSE.md</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>
@@ -1791,32 +1828,288 @@
     <Import Project="$(BDS)\Bin\CodeGear.Delphi.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Delphi.Targets')"/>
     <Import Project="$(APPDATA)\Embarcadero\$(BDSAPPDATABASEDIR)\$(PRODUCTVERSION)\UserTools.proj" Condition="Exists('$(APPDATA)\Embarcadero\$(BDSAPPDATABASEDIR)\$(PRODUCTVERSION)\UserTools.proj')"/>
     <Import Project="$(MSBuildProjectName).deployproj" Condition="Exists('$(MSBuildProjectName).deployproj')"/>
+    <PropertyGroup Condition="'$(Config)'=='Debug' And '$(Platform)'=='Android'">
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Debug' And '$(Platform)'=='Android64'">
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Debug' And '$(Platform)'=='iOSDevice64'">
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Debug' And '$(Platform)'=='iOSSimARM64'">
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Debug' And '$(Platform)'=='Linux64'">
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Debug' And '$(Platform)'=='OSX64'">
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Debug' And '$(Platform)'=='OSXARM64'">
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Debug' And '$(Platform)'=='Win32'">
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Debug' And '$(Platform)'=='Win64'">
-        <PreBuildEvent/>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
         <PostBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\postbuild.bat&quot; EpubReader $(Config) &quot;$(OUTPUTDIR)&quot; &quot;$(PROJECTDIR)&quot;</PostBuildEvent>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='SteamDebug' And '$(Platform)'=='Android'">
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='SteamDebug' And '$(Platform)'=='Android64'">
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='SteamDebug' And '$(Platform)'=='iOSDevice64'">
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='SteamDebug' And '$(Platform)'=='iOSSimARM64'">
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='SteamDebug' And '$(Platform)'=='Linux64'">
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='SteamDebug' And '$(Platform)'=='OSX64'">
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='SteamDebug' And '$(Platform)'=='OSXARM64'">
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='SteamDebug' And '$(Platform)'=='Win32'">
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='SteamDebug' And '$(Platform)'=='Win64'">
-        <PreBuildEvent/>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
         <PostBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\postbuild.bat&quot; EpubReader $(Config) &quot;$(OUTPUTDIR)&quot; &quot;$(PROJECTDIR)&quot;</PostBuildEvent>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Release' And '$(Platform)'=='Android'">
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Release' And '$(Platform)'=='Android64'">
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Release' And '$(Platform)'=='iOSDevice64'">
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Release' And '$(Platform)'=='iOSSimARM64'">
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Release' And '$(Platform)'=='Linux64'">
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Release' And '$(Platform)'=='OSX64'">
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Release' And '$(Platform)'=='OSXARM64'">
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Release' And '$(Platform)'=='Win32'">
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Release' And '$(Platform)'=='Win64'">
-        <PreBuildEvent/>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
         <PostBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\postbuild.bat&quot; EpubReader $(Config) &quot;$(OUTPUTDIR)&quot; &quot;$(PROJECTDIR)&quot;</PostBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Steam' And '$(Platform)'=='Android'">
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Steam' And '$(Platform)'=='Android64'">
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Steam' And '$(Platform)'=='iOSDevice64'">
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Steam' And '$(Platform)'=='iOSSimARM64'">
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Steam' And '$(Platform)'=='Linux64'">
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Steam' And '$(Platform)'=='OSX64'">
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Steam' And '$(Platform)'=='OSXARM64'">
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Steam' And '$(Platform)'=='Win32'">
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
+        <PreLinkEvent/>
+        <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
+        <PostBuildEvent/>
+        <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
+    </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Steam' And '$(Platform)'=='Win64'">
-        <PreBuildEvent/>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
