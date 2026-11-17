@@ -14,7 +14,7 @@ the history, one per zip.
 | Repo | Pushed | = zip | Last zip number used |
 |---|---|---|---|
 | WhisperBooks/TWhisper | d669a06 | TWhisper-30 | 31 (review fixes) |
-| WhisperBooks/Epubunum | e00fb17 | EpubUnum-72 | 76 (73 review fixes, 74 - 76 this file) |
+| WhisperBooks/Epubunum | e00fb17 | EpubUnum-72 | 77 (73 review fixes, 74 - 76 this file, 77 Linux build fix) |
 | G3DGames/TFFMpegAPI | 3edcfa3 | FFmpegAPI-12 | 13 (review fixes) |
 | G3DGames/ffmpeg-dev | 4d7b7be | ffmpeg-dev-09 | 09 |
 | WhisperBooks/whisper-dev | 9fa21dc | whisper-dev-20 | 21 (review fixes; its own CLAUDE.md) |
@@ -360,7 +360,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 76.
+Last number used: 77.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -1659,6 +1659,18 @@ packages):
 - Still open there: a sound server that hangs at start-up hangs the
   reader (the output's constructor / destructor); every clip jump opens
   the audio file again.
+
+## Zip 77 (on top of 76): Linux build fix for zip 73
+Owner, 2026-11-17, Linux64 build: "uDebugLog.pas(148): E2003 Undeclared
+identifier: 'RegisterExpectedMemoryLeak'". Zip 73's call is now inside
+{$ifdef MSWINDOWS}: Delphi's System declares the routine for Windows
+only (it belongs to that memory manager, as ReportMemoryLeaksOnShutdown
+does). LESSON: zip 73 - 76 and the other repositories' review zips were
+NOT COMPILED; anything from them that is not plain cross-platform RTL is
+suspect on Linux until the owner's build has passed - checked after this
+error: TWhisper-31 uses AtomicIncrement / AtomicDecrement (compiler
+intrinsics, every Delphi platform; InterlockedIncrement under FPC),
+FFmpegAPI-13's new WASAPI lines are inside the Windows-only block.
 
 ## Pushes checked
 - e00fb17 ("Claude push", 2026-11-16 21:25) = zip 72 (the handover);

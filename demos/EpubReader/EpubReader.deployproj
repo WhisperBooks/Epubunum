@@ -183,18 +183,18 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\Linux64\libavformat.so.62">
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libavfilter.so.11">
             <RemoteDir>EpubReader\</RemoteDir>
-            <RemoteName>libavformat.so.62</RemoteName>
+            <RemoteName>libavfilter.so.11</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\Linux64\libavfilter.so.11">
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libavformat.so.62">
             <RemoteDir>EpubReader\</RemoteDir>
-            <RemoteName>libavfilter.so.11</RemoteName>
+            <RemoteName>libavformat.so.62</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>

@@ -144,8 +144,12 @@ end;
 
 initialization
   Lock := TCriticalSection.Create;
-  // meant to stay (below): not a leak for ReportMemoryLeaksOnShutdown
+  // meant to stay (below): not a leak for ReportMemoryLeaksOnShutdown.
+  // Windows only: the routine (and the leak report) belong to its memory
+  // manager - System does not declare it for Linux or macOS
+  {$ifdef MSWINDOWS}
   RegisterExpectedMemoryLeak(Lock);
+  {$endif}
 
 // No finalization: the lock is never freed. A worker thread (whisper.cpp's
 // and ggml's lines come from theirs) can be inside DebugLog while the
