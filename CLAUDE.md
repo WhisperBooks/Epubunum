@@ -13,11 +13,11 @@ the history, one per zip.
 
 | Repo | Pushed | = zip | Last zip number used |
 |---|---|---|---|
-| WhisperBooks/TWhisper | d669a06 | TWhisper-30 | 30 |
-| WhisperBooks/Epubunum | e00fb17 | EpubUnum-72 | 73 (review fixes, below) |
-| G3DGames/TFFMpegAPI | 3edcfa3 | FFmpegAPI-12 | 12 (none this session) |
+| WhisperBooks/TWhisper | d669a06 | TWhisper-30 | 31 (review fixes) |
+| WhisperBooks/Epubunum | e00fb17 | EpubUnum-72 | 76 (73 review fixes, 74 - 76 this file) |
+| G3DGames/TFFMpegAPI | 3edcfa3 | FFmpegAPI-12 | 13 (review fixes) |
 | G3DGames/ffmpeg-dev | 4d7b7be | ffmpeg-dev-09 | 09 |
-| WhisperBooks/whisper-dev | 9fa21dc | whisper-dev-20 | 20 |
+| WhisperBooks/whisper-dev | 9fa21dc | whisper-dev-20 | 21 (review fixes; its own CLAUDE.md) |
 | TSteamAPI | ea0a132 | (owner's; read only here) | - |
 
 Checked 2026-11-16 21:18 against the deliveries, file by file (CR LF /
@@ -360,7 +360,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 73.
+Last number used: 76.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -1595,15 +1595,70 @@ FOUND AND NOT FIXED (owner to decide):
   clip 0 when a file ends before a clip matched; extracted audio stays
   until the reader closes (stored audio could be played in place with
   FFmpeg's subfile: protocol).
-- tools: redist.sh package lists sonames from ldd - with real link
-  chains the versioned file stays in core and the cuda / rocm part gets
-  a dangling link (check with tar tzvf; dlopen'ed libraries land in
-  core); deploy_redist.py deploys libX.so and libX.so.N as two full
+- tools: redist.sh package - libraries a runtime loads with dlopen are
+  not in ldd's list and land in core (the dangling-link worry of the
+  review was WRONG: whisper-dev bundles the runtimes as plain files
+  under their soname and copies its own libraries - zip 74);
+  deploy_redist.py deploys libX.so and libX.so.N as two full
   copies after scp (drop equal files by hash - may bring the set under
   2 GiB).
 - Leftovers: remove EPUBREADER_NO_COVERS; EPUBREADER_FONT -> a "font"
   setting or remove; deploy entries out of git (a --remove switch, a
   project_check rule); a Windows default platform.
+
+## Zip 74 (on top of 73): whisper-dev reviewed; this file only
+whisper-dev 9fa21dc reviewed the same way (owner: "Do the same for
+whisper-dev", "y + claude.md"); its fixes are whisper-dev-21, and
+whisper-dev has a CLAUDE.md of its own from that zip (rules, what can be
+tested without the SDKs, the zip's notes and the findings not fixed) -
+whisper-dev's history from 21 on is kept there, 01 - 20 stay here.
+What whisper-dev-21 changes for work in THIS repository:
+- dlls/ is emptied of the previous build by every build, and holds
+  BUILD-INFO.txt (system, glibc, whisper.cpp commit, backends, CUDA
+  toolkit, HIP targets). tools/redist.sh collect does not copy that file
+  yet (it takes *.so*, the kernel folders, licences/): worth adding, as
+  ffmpeg-dev's BUILD-INFO.txt is (offered, not done).
+- patchelf is required for a bundling build (the container has it).
+- The CUDA / HIP backends should no longer carry the builder's folder
+  (to check on the first container build: whisper-dev CLAUDE.md, zip 21
+  item 5).
+Corrected in the zip 73 notes above: redist.sh package cannot make a
+dangling link (the runtimes are plain files under their soname).
+
+## Zip 75 (on top of 74): TWhisper reviewed; this file only
+TWhisper d669a06 reviewed the same way (owner: "Same for TWhisper",
+"y + claude"); its fixes are TWhisper-31 and the notes are in TWhisper's
+CLAUDE.md ("Review fixes (TWhisper-31 ...)", with what was not read and
+what was found and not fixed). What it changes for THIS repository
+(EpubBuilder links TWhisper - rebuild it after TWhisper's packages):
+- Every TWhisperModel now refuses a whisper.cpp library that fails the
+  layout check (TWhisperLib.RequireLayout): EpubBuilder never ran that
+  check. A mismatched library shows as the build's "FAILED: Layout check
+  FAILED ..." line instead of a crash in whisper_full.
+- FillGaps keeps short gap segments ("It was", "Sie") that were dropped
+  as prompt echoes: expect a few more heard words and fewer "not heard"
+  on a book transcribed again (saved transcripts are unchanged - they
+  hold what was kept then).
+- Still open there and here: TBuildThread.Cancel reads FRun while the
+  thread may free it (the same shape as TWhisperBenchmark.Cancel).
+
+## Zip 76 (on top of 75): TFFMpegAPI reviewed; this file only
+TFFMpegAPI 3edcfa3 reviewed the same way (owner: "Same for TFFMpegAPI",
+"y + claude.md"); its fixes are FFmpegAPI-13 and the notes are in its
+CLAUDE.md ("Review fixes (zip 13 ...)"). What it changes for THIS
+repository (EpubReader and EpubBuilder link it - rebuild both after its
+packages):
+- Linux: the end of an audio file should now always be seen (PulseAudio's
+  Drained no longer needs a latency of exactly 0) - tmPlayTimer's
+  FPlayer.Ended is what moves the reader to the next file. Test with a
+  book of two or more audio files.
+- A sound device that goes away while playing: FPlayer.LastError is set,
+  tmPlayTimer stops playing with FSoundNote; the next Play opens the
+  default device afresh (FPlayer.Output is a new object then - uMain
+  only reads it at start-up, for the log).
+- Still open there: a sound server that hangs at start-up hangs the
+  reader (the output's constructor / destructor); every clip jump opens
+  the audio file again.
 
 ## Pushes checked
 - e00fb17 ("Claude push", 2026-11-16 21:25) = zip 72 (the handover);
