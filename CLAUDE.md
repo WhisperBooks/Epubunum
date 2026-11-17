@@ -360,7 +360,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 90.
+Last number used: 92.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -2081,6 +2081,29 @@ Mac sound (FFmpegAPI-14, AudioQueue) CONFIRMED by the owner 18:25 - 18:34:
 play / pause, jumps, speed slider, the end of an audio file.
 NEEDS TSteamAPI zip Screen1 (Steamworks.FMX.Screen) in SteamworksFMX for
 the Steam configurations; Debug / Release do not use it.
+
+## Zip 91 (on top of 3cefa7f = zip 90): Per Monitor v2 DPI awareness
+First Windows screen: line (27" 4K monitor at 150 %): "2560 x 1440 units,
+scale 1.00 (2560 x 1440 px)" - the programs had NO DPI awareness in their
+manifest (no AppDPIAwarenessMode: Windows stretched a 96 dpi window, FMX
+saw 2560 x 1440 at scale 1). Owner: "you never set dpi awareness in the
+manifest - v2 fixes that" (and declined a TSteamAPI work-around reading
+the display mode). EpubReader.dproj / EpubBuilder.dproj, Base_Win64:
+AppDPIAwarenessMode PerMonitorV2, AppEnableRuntimeThemes true,
+Manifest_File $(BDS)\bin\default_app.manifest (the IDE's "Auto generate"
+manifest). Expected: a sharp window, and "scale 1.50 (3840 x 2160 px)".
+TSteamAPI pushes checked: d11be14 = Screen1, a58bd1d = Screen3 (Screen2 +
+TDisplay from FMX.Types; compiled on Windows).
+
+## Zip 92 (on top of 91): Big Picture maximises the window
+Owner 20:20, zip 91 build: sharp; screen: "scale 1.50 (3840 x 2160 px)"
+on the 27" 4K monitor (confirmed). Big Picture (Windows) run: "-> big-
+screen interface, UI scale 1.75 (viewing distance 1103 mm)" - but "Big
+Picture: yes - BigPictureWindow bpwMaximized: no form to change": uSteam
+starts TSteamAPI in the .dpr, before any form. Fixed in TSteamAPI (zip
+BigPicture1: the timer applies it once the main form exists, and logs a
+line). uSteam: Steam's lines go straight into the debug log once it is
+open (before: kept as SteamNotes only, so that later line was lost).
 
 ## Pushes checked
 - a6ea67b ("SteamOS good") = zips 87 - 89: identical (CR LF aside) but

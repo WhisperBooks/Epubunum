@@ -69,13 +69,15 @@ implementation
 
 {$IFDEF STEAMBUILD}
 uses
-  Steamworks.Core, Steamworks.Components, Steamworks.FMX, Steamworks.FMX.Screen;
+  Steamworks.Core, Steamworks.Components, Steamworks.FMX, Steamworks.FMX.Screen, uDebugLog;
 
 type
   { Receives TSteamAPI's events (they are methods of an object). }
   TSteamHost = class
   public
-    { Steam's own lines worth keeping (info and up). }
+    { Steam's own lines worth keeping (info and up): kept for SteamNotes
+      until the debug log is open, then straight into it (TSteamAPI's
+      late Big Picture line comes after the form logged the notes). }
     procedure SteamLog(Sender: TObject; ALevel: TSteamLogLevel; const AMessage: string);
     { Steam did not start: why (no message box - the program carries on). }
     procedure SteamInitFailed(Sender: TObject; AResult: Integer; const AMessage: string);
@@ -111,7 +113,11 @@ end;
 {$IFDEF STEAMBUILD}
 procedure TSteamHost.SteamLog(Sender: TObject; ALevel: TSteamLogLevel; const AMessage: string);
 begin
-  if ALevel >= sllInfo then
+  if ALevel < sllInfo then
+    Exit;
+  if DebugLogFile <> '' then
+    DebugLog('Steam: ' + AMessage)
+  else
     Note('Steam: ' + AMessage);
 end;
 
