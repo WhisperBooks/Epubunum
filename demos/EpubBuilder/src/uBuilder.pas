@@ -15,11 +15,11 @@ uses
   // TJSONArray's inline getters expand only with it (H2443)
   System.Generics.Collections,
   FMX.Types, FMX.Controls, FMX.Forms, FMX.Dialogs, FMX.DialogService, FMX.DialogService.Sync, FMX.StdCtrls, FMX.Layouts,
-  FMX.ListBox, FMX.Edit, FMX.Memo, FMX.Memo.Types, FMX.ScrollBox, FMX.Controls.Presentation,
+  FMX.ListBox, FMX.Edit, FMX.Memo, FMX.Memo.Types, FMX.ScrollBox, FMX.Controls.Presentation, FMX.Menus,
   Epub.Zip, Epub.Book, Epub.Layout, Epub.Writer,
   FFmpeg.API,
   Whisper.Types, Whisper.API, Whisper.Audio, Whisper.Core, Whisper.Words, Whisper.Align, Whisper.AudioSet,
-  uDebugLog;
+  uDebugLog, uMachine, uCalibration, uSteam;
 
 type
   { The figures of one build, for the queue's report (filled by the
@@ -37,8 +37,14 @@ type
     TranscribeSeconds: Double;
     { The model (file name; a saved transcript's own when it names one). }
     Model: string;
-    { The device ('' = whisper.cpp's default). }
+    { The device used, by name: whisper.cpp's default is resolved to the
+      device it takes (owner: CUDA chosen by "Default" was not visible in
+      the logs). }
     Device: string;
+    { The device in words (WhisperDeviceText: name, card, backend, memory). }
+    DeviceText: string;
+    { The machine (MachineText: name, system, processor, memory). }
+    Machine: string;
     { The language transcribed ('' = not given). }
     Language: string;
     { Words Whisper heard. }
@@ -339,6 +345,24 @@ type
     { The queue's file (the last loaded or saved; '' = none yet): the
       report takes its name, and it is saved again after each job. }
     FQueueFile: string;
+    { The calibration running, nil when none. }
+    FCalib: TCalibrationThread;
+    { whisper.cpp's version and folder, for the logs ('' = not loaded). }
+    FWhisperText: string;
+    { The window has been shown (the calibration question comes once). }
+    FShown: Boolean;
+    { The menu bar (Windows, macOS: the system's). }
+    mnuMain: TMainMenu;
+    {$IF Defined(LINUX) and not Defined(ANDROID)}
+    { Linux: the menu bar drawn by FMX instead (mnuMain stays nil): GTK's
+      native bar shows only the first letter of each item (as EpubReader).
+      Declared on Linux only (H2219 elsewhere). }
+    mnuBar: TMenuBar;
+    {$ENDIF}
+    { Tools > Re-calibrate (this model). }
+    miCalibrate: TMenuItem;
+    { Tools > Re-calibrate every model in the model's folder. }
+    miCalibrateAll: TMenuItem;
     { A label above AParent's next control. }
     function AddCaption(AParent: TFmxObject; const AText: string): TLabel;
     { A row in AParent: a caption, then a control filling it. }
@@ -448,6 +472,46 @@ type
     procedure ShowStatus;
     { tmStatus: ShowStatus. }
     procedure tmStatusTimer(Sender: TObject);
+    { Makes the menu bar: File (Exit), Tools (the calibration). }
+    procedure BuildMenu;
+    { The first show: the calibration question, once the window is up. }
+    procedure FormShow(Sender: TObject);
+    { At start-up: notes a calibration the program ended in; asks to
+      calibrate when it was never done (or the devices have changed since)
+      and the user has not said not to ask. }
+    procedure CheckCalibrationAtStart;
+    { Starts a calibration of the model in the window (AAllModels: every
+      ggml-*.bin in its folder, smallest first); ARetry: pairs that ended
+      the program before are timed again. Asks for a model or a recording
+      when there is none. }
+    procedure StartCalibration(AAllModels, ARetry: Boolean);
+    { The calibration thread ended (any way): results kept, the model's
+      device chosen, its lines saved beside the settings. }
+    procedure CalibrationDone(Sender: TObject);
+    { Puts the device the calibration found fastest for the model in the
+      window into cbDevice (ALog: says so, or that the model is not
+      calibrated). }
+    procedure ApplyCalibration(ALog: Boolean);
+    { Tools > Re-calibrate (this model). }
+    procedure miCalibrateClick(Sender: TObject);
+    { Tools > Re-calibrate every model in its folder. }
+    procedure miCalibrateAllClick(Sender: TObject);
+    { Tools > Calibration results: what is kept, model by model. }
+    procedure miCalibrationClick(Sender: TObject);
+    { File > Exit. }
+    procedure miExitClick(Sender: TObject);
+    { The machine, whisper.cpp and the device a build of AModel on ADevice
+      uses, into the log (and so the build's .log): logs from several
+      machines told apart (owner, 2026-11-17). }
+    procedure LogMachine(const AModel, ADevice: string);
+    { cbDevice's first item: 'Default (whisper.cpp chooses: CUDA0)'. }
+    function DefaultDeviceItem: string;
+    { The calibration says the model failed on ADevice (a model too big
+      for the card): asked first, No by default; then CheckBookThen. }
+    procedure CheckCalibrationThen(const ADevice: string; AQueue: Boolean);
+    { Asks before building from a book that is already a read-along one;
+      then CheckOutputThen. }
+    procedure CheckBookThen(const ADevice: string; AQueue: Boolean);
   end;
 
 var
@@ -459,6 +523,11 @@ implementation
 {$R *.fmx}
 
 const
+  { Written before each calibration pair, deleted after it: found at
+    start-up, the program ended during that pair. Beside the settings. }
+  CALIBRATION_MARKER_SUFFIX = '-calibrating.txt';
+  { The calibration's lines, beside the settings. }
+  CALIBRATION_LOG_SUFFIX = '-calibration.log';
   { The prompt given to every 30 s window: punctuated and capitalised, so
     the transcript is too. TWhisper's recommended settings for books
     (its CLAUDE.md; WhisperConsole --no-context --carry-prompt --prompt):
@@ -681,27 +750,9 @@ begin
 end;
 
 function TBuildThread.OpenFFmpeg: TFFmpegLibrary;
-var
-  First: string;
 begin
-  DebugLog('FFmpeg: loading (the program''s folder / the system)');
-  try
-    Result := TFFmpegLibrary.Create('');
-  except
-    on E: EFFmpegError do
-    begin
-      First := E.Message;
-      DebugLog('FFmpeg: ' + First + ' - trying the whisper.cpp folder');
-      if not TWhisperLib.IsLoaded then
-        raise;
-      try
-        Result := TFFmpegLibrary.Create(TWhisperLib.Instance.LibraryFolder);
-      except
-        on E2: EFFmpegError do
-          raise EFFmpegError.Create(First + sLineBreak + E2.Message);
-      end;
-    end;
-  end;
+  // shared with the calibration (uCalibration)
+  Result := OpenBuilderFFmpeg;
 end;
 
 function TBuildThread.ReadSaved(const AParts: TWhisperAudioPartArray; out AResult: TWhisperTranscription;
@@ -858,7 +909,7 @@ begin
   DebugLog('model loaded');
   Params := TWhisperParams.Create;
   try
-    Log(Format('Model: %s on %s', [Model.Description, IfThen(FDevice = '', 'the default device', FDevice)]));
+    Log(Format('Model: %s on %s', [Model.Description, BuilderDeviceText(FDevice)]));
     // transcribe, never translate: the words must be the book's own
     Params.Translate := False;
     // the book's language when Whisper knows it (else Whisper detects it)
@@ -1079,6 +1130,7 @@ var
   Report: TEpubWriteReport;
   I, N: Integer;
   Started: TDateTime;
+  Dev: TWhisperDevice;
 begin
   Book := nil;
   FF := nil;
@@ -1120,7 +1172,16 @@ begin
       FSummary.AudioSeconds := FTotalSeconds;
       FSummary.Files := Audio.Files.Count;
       FSummary.Parts := Length(Audio.Parts);
-      FSummary.Device := FDevice;
+      // the device by what it is: '' (whisper.cpp's choice) as the device
+      // it takes
+      if BuilderFindDevice(FDevice, Dev) then
+      begin
+        FSummary.Device := Dev.Name;
+        FSummary.DeviceText := WhisperDeviceText(Dev);
+      end
+      else
+        FSummary.Device := FDevice;
+      FSummary.Machine := MachineText;
       FSummary.Language := FLanguage;
       Log(Format('Audio: %d file(s), %d part(s), about %s', [Audio.Files.Count, Length(Audio.Parts),
         WhisperTimeToStr(Round(FTotalSeconds * 100))]));
@@ -1441,13 +1502,16 @@ procedure TfrmBuilder.FormCreate(Sender: TObject);
 var
   Lib: TWhisperLib;
   I: Integer;
+  Line: string;
 begin
   OnCloseQuery := FormCloseQuery;
+  OnShow := FormShow;
   // the debug log: next to the settings, started afresh at every run
   DebugLogOpen(ChangeFileExt(SettingsFile, '-debug.log'));
   FJob := -1;
   FBuildLog := TStringList.Create;
   BuildWindow;
+  BuildMenu;
   cbDevice.Items.Add('Default (whisper.cpp chooses)');
   try
     DebugLog('whisper.cpp: loading');
@@ -1459,6 +1523,10 @@ begin
       DebugLog('device: ' + WhisperDeviceText(FDevices[I]));
     for I := 0 to High(FDevices) do
       cbDevice.Items.Add(WhisperDeviceText(FDevices[I]));
+    // which device "Default" is (owner: whisper.cpp's CUDA choice was not
+    // visible anywhere)
+    cbDevice.Items[0] := DefaultDeviceItem;
+    FWhisperText := Format('whisper.cpp %s from %s', [Lib.Version, Lib.LibraryFolder]);
     LogLine(Format('whisper.cpp %s loaded from %s', [Lib.Version, Lib.LibraryFolder]));
   except
     on E: Exception do
@@ -1475,6 +1543,11 @@ begin
   end;
   cbDevice.ItemIndex := 0;
   LoadSettings;
+  LogLine('Machine: ' + MachineText);
+  // Steam (started in the .dpr, before the log was open)
+  LogLine(SteamText);
+  for Line in SteamNotes do
+    DebugLog(Line);
   LogLine('Choose the EPUB, add its audio files in reading order, choose the model (ggml-*.bin), Create.');
   LogLine('Debug log: ' + DebugLogFile);
   UpdateControls;
@@ -1572,6 +1645,19 @@ end;
 procedure TfrmBuilder.FormClose(Sender: TObject; var Action: TCloseAction);
 begin
   SaveSettings;
+  if FCalib <> nil then
+  begin
+    // as a build below: nothing of a calibration is kept unless it ends
+    FCalib.FreeOnTerminate := False;
+    FCalib.OnLog := nil;
+    FCalib.OnProgress := nil;
+    FCalib.OnStatus := nil;
+    FCalib.OnTerminate := nil;
+    tmStatus.Enabled := False;
+    FCalib.Cancel;
+    FCalib.WaitFor;
+    FreeAndNil(FCalib);
+  end;
   if FBuild <> nil then
   begin
     // still running (BuildDone, which clears FBuild, runs on this thread
@@ -1603,14 +1689,21 @@ var
   Busy, Ready, Waiting: Boolean;
   I: Integer;
 begin
-  Busy := (FBuild <> nil) or FQueueRunning;
+  Busy := (FBuild <> nil) or FQueueRunning or (FCalib <> nil);
   Ready := (FWhisperNote = '') and (edBook.Text <> '') and (lbAudio.Count > 0) and (edOut.Text <> '') and
     ((edModel.Text <> '') or chkReuse.IsChecked);
   // the window stays usable while building: books are added to the queue
   // while it runs (owner)
   btnCreate.Enabled := not Busy and Ready;
   btnAddJob.Enabled := Ready;
-  btnCancel.Enabled := FBuild <> nil;
+  btnCancel.Enabled := (FBuild <> nil) or (FCalib <> nil);
+  if miCalibrate <> nil then
+  begin
+    miCalibrate.Enabled := not Busy and (FWhisperNote = '');
+    // an item's Enabled reaches the system's menu by itself (only new
+    // items need RecreateOSMenu); StartCalibration checks again anyway
+    miCalibrateAll.Enabled := miCalibrate.Enabled;
+  end;
   Waiting := False;
   for I := 0 to High(FJobs) do
     if FJobs[I].State <> jsDone then
@@ -1798,6 +1891,8 @@ begin
     if D.Execute then
     begin
       edModel.Text := D.FileName;
+      // the device the calibration found fastest for this model
+      ApplyCalibration(True);
       SaveSettings;
     end;
   finally
@@ -1835,10 +1930,8 @@ end;
 
 procedure TfrmBuilder.CheckThen(AQueue: Boolean);
 var
-  Device, Msg: string;
-  Q: Boolean;
+  Device: string;
 begin
-  Q := AQueue;
   if SameFileName(ExpandFileName(edOut.Text), ExpandFileName(edBook.Text)) then
   begin
     LogLine('The output must not be the book itself: choose another output file.');
@@ -1852,6 +1945,50 @@ begin
   Device := '';
   if cbDevice.ItemIndex > 0 then
     Device := FDevices[cbDevice.ItemIndex - 1].Name;
+  CheckCalibrationThen(Device, AQueue);
+end;
+
+procedure TfrmBuilder.CheckCalibrationThen(const ADevice: string; AQueue: Boolean);
+var
+  Device, Why: string;
+  Q: Boolean;
+  D: TWhisperDevice;
+begin
+  // local copies for the dialog's anonymous method to capture
+  Device := ADevice;
+  Q := AQueue;
+  // the calibration saw this model fail on this device (owner: large-v3 on
+  // the 4 GB GTX 1650 failed): asked first, No by default
+  Why := '';
+  if (edModel.Text <> '') and BuilderFindDevice(Device, D) then
+    Why := CalibrationFailure(SettingsFile, edModel.Text, D.Name);
+  if Why <> '' then
+  begin
+    TDialogService.MessageDialog(Format('In the calibration, %s FAILED on %s:' + sLineBreak + sLineBreak + '%s' +
+      sLineBreak + sLineBreak + 'A build would most likely fail the same way (a model too big for the card''s ' +
+      'memory fails like this). Choose another device, or a smaller model.' + sLineBreak + sLineBreak +
+      'Build on it anyway?', [ExtractFileName(edModel.Text), WhisperDeviceText(D), Why]), TMsgDlgType.mtWarning,
+      [TMsgDlgBtn.mbYes, TMsgDlgBtn.mbNo], TMsgDlgBtn.mbNo, 0,
+      procedure(const AResult: TModalResult)
+      begin
+        if AResult = mrYes then
+          CheckBookThen(Device, Q)
+        else
+          LogLine(Format('Not started: %s failed on %s in the calibration (Tools > Calibration results).',
+            [ExtractFileName(edModel.Text), D.Name]));
+      end);
+    Exit;
+  end;
+  CheckBookThen(Device, Q);
+end;
+
+procedure TfrmBuilder.CheckBookThen(const ADevice: string; AQueue: Boolean);
+var
+  Device, Msg: string;
+  Q: Boolean;
+begin
+  Device := ADevice;
+  Q := AQueue;
   // a book that is already a read-along one (made by this program, or with
   // synced audio of its own): asked first, No by default (owner: "I
   // accidentally tried re-encoding an already built epub")
@@ -1980,6 +2117,7 @@ begin
     LogLine(Format('=== Job %d of %d: %s -> %s (%s) ===', [AIndex + 1, Length(FJobs), AJob.Title,
       ExtractFileName(AJob.Output), FormatDateTime('yyyy-mm-dd hh:nn', Now)]));
   end;
+  LogMachine(AJob.Model, AJob.Device);
   Audio := TStringList.Create;
   try
     for I := 0 to High(AJob.Audio) do
@@ -2159,7 +2297,7 @@ begin
     Csv.Add('job,title,state,started,seconds,audio_seconds,speed_x,saved_transcript,transcribe_seconds,model,' +
       'device,language,files,parts,book_words,heard_words,exact,similar,moved,interpolated,not_heard,' +
       'not_spoken,front_back_matter,matched_percent,verdict,words_per_second,clips,left_out,chapter_marks,' +
-      'upgraded_epub2,epub_bytes,book,output,note');
+      'upgraded_epub2,epub_bytes,book,output,note,device_text,machine');
     for I := 0 to High(FJobs) do
     begin
       J := FJobs[I];
@@ -2186,7 +2324,7 @@ begin
         S.Verdict, '-'), Mb]));
       // the CSV row: everything
       Csv.Add(Format('%d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%s,%s,%s,%d,%d,%d,%s,%d,' +
-        '%s,%s,%s', [I + 1, CsvText(J.Title), STATE_TEXT[J.State], IfThen(J.Started > 0,
+        '%s,%s,%s,%s,%s', [I + 1, CsvText(J.Title), STATE_TEXT[J.State], IfThen(J.Started > 0,
         FormatDateTime('yyyy-mm-dd hh:nn:ss', J.Started), ''), Num(J.Seconds, 1), Num(S.AudioSeconds, 1),
         IfThen(Speed = '-', '', Num(S.AudioSeconds / Max(J.Seconds, 0.001), 2)),
         IfThen(S.SavedTranscript, 'yes', 'no'), Num(S.TranscribeSeconds, 1), CsvText(S.Model), CsvText(S.Device),
@@ -2194,7 +2332,7 @@ begin
         S.Stats.Moved, S.Stats.Interpolated, S.Stats.NotHeard, S.Stats.NotSpoken, S.EdgeWords,
         Num(S.Matched, 2), S.Verdict, Num(S.Stats.WordsPerSecond, 2), S.Clips, S.LeftOut, S.ChapterMarks,
         IfThen(S.Upgraded, 'yes', 'no'), J.OutputBytes, CsvText(J.Book), CsvText(J.Output),
-        CsvText(IfThen(S.Error <> '', S.Error, J.Note))]));
+        CsvText(IfThen(S.Error <> '', S.Error, J.Note)), CsvText(S.DeviceText), CsvText(S.Machine)]));
     end;
     Md.Add('');
     if TotalTime > 0 then
@@ -2219,14 +2357,17 @@ begin
       Md.Add(Format('- Started %s, took %s', [FormatDateTime('yyyy-mm-dd hh:nn', J.Started), HmsText(J.Seconds)]));
       if S.Error <> '' then
         Md.Add('- **Failed:** ' + S.Error);
+      if S.Machine <> '' then
+        Md.Add('- Machine: ' + S.Machine);
       if S.AudioSeconds > 0 then
         Md.Add(Format('- Audio: %s in %d file(s), %d part(s); language %s', [HmsText(S.AudioSeconds), S.Files,
           S.Parts, IfThen(S.Language = '', 'not given', S.Language)]));
       if S.SavedTranscript then
         Md.Add('- Transcript: the saved one' + IfThen(S.Model <> '', ' (made with ' + S.Model + ')', ''))
       else if S.TranscribeSeconds > 0 then
-        Md.Add(Format('- Transcribed with %s on %s in %s (%.1fx)', [S.Model, IfThen(S.Device = '',
-          'the default device', S.Device), HmsText(S.TranscribeSeconds), S.AudioSeconds /
+        Md.Add(Format('- Transcribed with %s on %s in %s (%.1fx)', [S.Model, IfThen(S.DeviceText = '',
+          IfThen(S.Device = '', 'the default device', S.Device), S.DeviceText), HmsText(S.TranscribeSeconds),
+          S.AudioSeconds /
           Max(S.TranscribeSeconds, 0.001)], FS));
       if S.Verdict <> '' then
       begin
@@ -2565,6 +2706,11 @@ end;
 
 procedure TfrmBuilder.btnCancelClick(Sender: TObject);
 begin
+  if FCalib <> nil then
+  begin
+    LogLine('Cancelling the calibration ...');
+    FCalib.Cancel;
+  end;
   if FBuild <> nil then
   begin
     LogLine('Cancelling ...');
@@ -2690,6 +2836,453 @@ end;
 procedure TfrmBuilder.tmStatusTimer(Sender: TObject);
 begin
   ShowStatus;
+end;
+
+procedure TfrmBuilder.BuildMenu;
+
+  { A menu item under AParent. }
+  function Item(AParent: TFmxObject; const AText: string; AOnClick: TNotifyEvent): TMenuItem;
+  begin
+    Result := TMenuItem.Create(Self);
+    Result.Parent := AParent;
+    Result.Text := AText;
+    Result.OnClick := AOnClick;
+  end;
+
+var
+  M: TMenuItem;
+  Bar: TFmxObject;
+begin
+  {$IF Defined(LINUX) and not Defined(ANDROID)}
+  mnuBar := TMenuBar.Create(Self);
+  mnuBar.Parent := Self;
+  mnuBar.Position.Y := -1;   // above everything
+  mnuBar.Align := TAlignLayout.Top;
+  Bar := mnuBar;
+  {$ELSE}
+  mnuMain := TMainMenu.Create(Self);
+  mnuMain.Parent := Self;
+  Bar := mnuMain;
+  {$ENDIF}
+  M := Item(Bar, '&File', nil);
+  Item(M, 'E&xit', miExitClick);
+  M := Item(Bar, '&Tools', nil);
+  miCalibrate := Item(M, '&Re-calibrate (this model)...', miCalibrateClick);
+  miCalibrateAll := Item(M, 'Re-calibrate &every model in its folder...', miCalibrateAllClick);
+  Item(M, '-', nil);
+  Item(M, '&Calibration results', miCalibrationClick);
+  // a menu made in code reaches the window (Windows' / macOS' own menu
+  // bar) only when it is recreated (EpubReader: without it, no menu)
+  if mnuMain <> nil then
+    mnuMain.RecreateOSMenu;
+end;
+
+procedure TfrmBuilder.miExitClick(Sender: TObject);
+begin
+  Close;
+end;
+
+function TfrmBuilder.DefaultDeviceItem: string;
+var
+  D: TWhisperDevice;
+begin
+  if BuilderFindDevice('', D) then
+    Result := Format('Default (whisper.cpp chooses: %s - the first GPU, not always the fastest)', [D.Name])
+  else
+    Result := 'Default (whisper.cpp chooses)';
+end;
+
+procedure TfrmBuilder.FormShow(Sender: TObject);
+begin
+  if FShown then
+    Exit;
+  FShown := True;
+  // once the window is on the screen: the question is centred on it
+  TThread.ForceQueue(nil,
+    procedure
+    begin
+      CheckCalibrationAtStart;
+    end);
+end;
+
+procedure TfrmBuilder.CheckCalibrationAtStart;
+var
+  Done, DontAsk, DontShow: Boolean;
+  Key, Made, Note, Why, Model, Names, Text: string;
+  I: Integer;
+begin
+  if (FWhisperNote <> '') or (Length(FDevices) = 0) then
+    Exit;
+  // the last run ended while a pair was timed (a GPU runtime that aborts)
+  Note := CalibrationCheckMarker(ChangeFileExt(SettingsFile, CALIBRATION_MARKER_SUFFIX), SettingsFile);
+  if Note <> '' then
+    LogLine(Note);
+  CalibrationState(SettingsFile, Done, DontAsk, Key, Made);
+  if Done and SameText(Key, CalibrationDevicesKey(FDevices)) then
+  begin
+    LogLine(Format('Calibrated %s (Tools > Calibration results; Tools > Re-calibrate after a new graphics card ' +
+      'or driver).', [Made]));
+    if (edModel.Text <> '') and (CalibrationSummary(SettingsFile, edModel.Text) <> '') then
+      LogLine(ExtractFileName(edModel.Text) + ': ' + CalibrationSummary(SettingsFile, edModel.Text))
+    else if edModel.Text <> '' then
+      LogLine(ExtractFileName(edModel.Text) + ' is not calibrated yet: Tools > Re-calibrate times it.');
+    Exit;
+  end;
+  Why := '';
+  if Done then
+    Why := Format('The devices have changed since the calibration of %s.', [Made]) + sLineBreak + sLineBreak;
+  if DontAsk then
+  begin
+    LogLine(Why + 'Not calibrated for this machine (you asked not to be reminded): "Default" lets whisper.cpp ' +
+      'choose, and it takes the first GPU in its list, not the fastest. Tools > Re-calibrate.');
+    Exit;
+  end;
+  if edModel.Text <> '' then
+    Model := ExtractFileName(edModel.Text)
+  else
+    Model := 'the model you choose next';
+  Names := '';
+  for I := 0 to High(FDevices) do
+    Names := Names + IfThen(Names <> '', ', ', '') + FDevices[I].Name;
+  Text := Why + 'EpubBuilder should be calibrated to this machine.' + sLineBreak + sLineBreak +
+    'Which device transcribes fastest - the processor, or the graphics card through CUDA, Vulkan or ROCm - ' +
+    'depends on a large number of factors: the card and its memory, its driver, the model, the processor. ' +
+    'Left to itself whisper.cpp takes the first GPU in its list, and that is often not the fastest (on one ' +
+    'machine CUDA took 39 minutes for a book Vulkan did in 29), and a large model may not fit a small card at ' +
+    'all.' + sLineBreak + sLineBreak +
+    Format('The calibration times %s on every device here (%s): 30 seconds of speech, three times each, with ' +
+    'the settings of a build, and makes the fastest the device for that model. It takes a minute or two per ' +
+    'device - longer on the processor with a large model.', [Model, Names]) + sLineBreak + sLineBreak +
+    'Tools > Re-calibrate does it again later (a new graphics card or driver, another model).';
+  if AskCalibration(Self, Text, DontShow) then
+  begin
+    if DontShow then
+      CalibrationSetDontAsk(SettingsFile, True);
+    StartCalibration(False, False);
+  end
+  else
+  begin
+    if DontShow then
+      CalibrationSetDontAsk(SettingsFile, True);
+    LogLine('Not calibrated: "Default" lets whisper.cpp choose (the first GPU in its list, not always the ' +
+      'fastest). Tools > Re-calibrate does it later.');
+  end;
+end;
+
+procedure TfrmBuilder.miCalibrateClick(Sender: TObject);
+begin
+  // asked for: pairs that ended the program before are tried again
+  StartCalibration(False, True);
+end;
+
+procedure TfrmBuilder.miCalibrateAllClick(Sender: TObject);
+begin
+  StartCalibration(True, True);
+end;
+
+{ ggml-*.bin of AFolder, smallest first (the quick ones give answers
+  early; a large model on the processor comes last). }
+function ModelFilesOf(const AFolder: string): TStringList;
+var
+  Files: TStringDynArray;
+  I, J: Integer;
+  T: string;
+begin
+  Result := TStringList.Create;
+  Files := TDirectory.GetFiles(AFolder, 'ggml-*.bin');
+  for I := 1 to High(Files) do
+  begin
+    T := Files[I];
+    J := I - 1;
+    while (J >= 0) and (TFile.GetSize(Files[J]) > TFile.GetSize(T)) do
+    begin
+      Files[J + 1] := Files[J];
+      Dec(J);
+    end;
+    Files[J + 1] := T;
+  end;
+  for I := 0 to High(Files) do
+    Result.Add(Files[I]);
+end;
+
+procedure TfrmBuilder.StartCalibration(AAllModels, ARetry: Boolean);
+var
+  Models, Skip: TStringList;
+  Audio, Saved: string;
+  Ini: TMemIniFile;
+  D: TOpenDialog;
+  I: Integer;
+begin
+  if (FBuild <> nil) or (FCalib <> nil) or FQueueRunning then
+  begin
+    LogLine('A build or a calibration is running: calibrate when it has ended.');
+    Exit;
+  end;
+  if (FWhisperNote <> '') or (Length(FDevices) = 0) then
+  begin
+    LogLine('whisper.cpp is not available: there is nothing to calibrate.');
+    Exit;
+  end;
+  if edModel.Text = '' then
+    btnModelClick(nil);
+  if edModel.Text = '' then
+  begin
+    LogLine('Calibration not started: choose a model (ggml-*.bin) first.');
+    Exit;
+  end;
+  // the recording: the one used before, else media/aladdin.m4a beside the
+  // program (or above it), else asked for
+  Saved := '';
+  if FileExists(SettingsFile) then
+  begin
+    Ini := TMemIniFile.Create(SettingsFile, TEncoding.UTF8);
+    try
+      Saved := Ini.ReadString(CAL_SECTION, 'Audio', '');
+    finally
+      Ini.Free;
+    end;
+  end;
+  Audio := FindCalibrationAudio(Saved);
+  if Audio = '' then
+  begin
+    LogLine(Format('media/%s was not found beside the program: choose a recording of English speech, a few ' +
+      'minutes long, for the calibration.', [CALIBRATION_AUDIO]));
+    D := TOpenDialog.Create(Self);
+    try
+      D.Title := 'A recording for the calibration (English speech, a few minutes)';
+      D.Filter := 'Audio (*.m4b;*.m4a;*.mp3;*.wav;*.flac;*.ogg;*.opus;*.aac)|*.m4b;*.m4a;*.mp3;*.wav;*.flac;' +
+        '*.ogg;*.opus;*.aac|All files (*.*)|*.*';
+      D.InitialDir := FAudioFolder;
+      if D.Execute then
+        Audio := D.FileName;
+    finally
+      D.Free;
+    end;
+    if Audio = '' then
+    begin
+      LogLine('Calibration not started: no recording.');
+      Exit;
+    end;
+  end;
+  if AAllModels then
+    Models := ModelFilesOf(ExtractFileDir(edModel.Text))
+  else
+  begin
+    Models := TStringList.Create;
+    Models.Add(edModel.Text);
+  end;
+  if ARetry then
+  begin
+    CalibrationClearCrashes(SettingsFile);
+    Skip := TStringList.Create;
+  end
+  else
+    Skip := CalibrationCrashes(SettingsFile);
+  try
+    if Models.Count = 0 then
+    begin
+      LogLine('No ggml-*.bin in ' + ExtractFileDir(edModel.Text) + ': nothing to calibrate.');
+      Exit;
+    end;
+    // the calibration's lines: in the window and in <settings>-calibration.log
+    mmLog.Lines.Clear;
+    FBuildLog.Clear;
+    FLogging := True;
+    LogLine(Format('=== Calibration (%s) ===', [FormatDateTime('yyyy-mm-dd hh:nn', Now)]));
+    LogLine('Machine: ' + MachineText);
+    LogLine(FWhisperText);
+    LogLine('Devices:');
+    for I := 0 to High(FDevices) do
+      LogLine('  ' + WhisperDeviceText(FDevices[I]));
+    LogLine(Format('Each model on each device: loaded, a short warm-up, then %d timed runs of 30 s of speech ' +
+      '(the median counts; the stretch is chosen away from both ends of the recording), with the settings of ' +
+      'a build: word times by DTW, the book prompt, each window on its own.', [CALIBRATION_RUNS]));
+    if Models.Count > 1 then
+    begin
+      LogLine(Format('%d models, smallest first:', [Models.Count]));
+      for I := 0 to Models.Count - 1 do
+        LogLine('  ' + ExtractFileName(Models[I]));
+    end;
+    // English: the calibration recording is English speech (the language
+    // makes no difference to the speed)
+    FCalib := TCalibrationThread.Create(Models, Audio, 'en', BOOK_PROMPT, ChangeFileExt(SettingsFile,
+      CALIBRATION_MARKER_SUFFIX), FDevices, Skip);
+  finally
+    Models.Free;
+    Skip.Free;
+  end;
+  FCalib.OnLog :=
+    procedure(AText: string)
+    begin
+      LogLine(AText);
+    end;
+  FCalib.OnProgress :=
+    procedure(APercent: Double)
+    begin
+      pbBuild.Value := APercent;
+      FPercent := APercent;
+    end;
+  FCalib.OnStatus :=
+    procedure(AText: string)
+    begin
+      FStatusText := AText;
+      ShowStatus;
+    end;
+  pbBuild.Value := 0;
+  FStarted := Now;
+  FPercent := 0;
+  FRatePercent := -1;
+  FStatusText := 'Calibrating ...';
+  tmStatus.Enabled := True;
+  FCalib.OnTerminate := CalibrationDone;
+  FCalib.FreeOnTerminate := True;
+  UpdateControls;
+  FCalib.Start;
+end;
+
+procedure TfrmBuilder.CalibrationDone(Sender: TObject);
+var
+  T: TCalibrationThread;
+  LogFile: string;
+begin
+  // OnTerminate runs on the main thread after Execute: the queued log
+  // lines have been delivered before it
+  T := Sender as TCalibrationThread;
+  if T.Completed then
+  begin
+    try
+      CalibrationSave(SettingsFile, T.Results, CalibrationDevicesKey(FDevices), T.AudioFile);
+      LogLine('Kept in ' + SettingsFile);
+      // the model in the window gets its fastest device, and keeps it
+      ApplyCalibration(True);
+      SaveSettings;
+    except
+      on E: Exception do
+        LogLine('The calibration was not saved: ' + E.Message);
+    end;
+  end
+  else
+    LogLine('The calibration did not finish: nothing was changed (Tools > Re-calibrate runs it again).');
+  LogLine(Format('Calibration took %s', [WhisperTimeToStr(MilliSecondsBetween(Now, FStarted) div 10)]));
+  FLogging := False;
+  LogFile := ChangeFileExt(SettingsFile, CALIBRATION_LOG_SUFFIX);
+  try
+    FBuildLog.SaveToFile(LogFile, TEncoding.UTF8);
+    LogLine('Calibration log: ' + LogFile);
+  except
+    on E: Exception do
+      LogLine('The calibration log was not saved: ' + E.Message);
+  end;
+  // FreeOnTerminate: the thread frees itself once this handler returns
+  FCalib := nil;
+  tmStatus.Enabled := False;
+  ShowStatus;
+  UpdateControls;
+end;
+
+procedure TfrmBuilder.ApplyCalibration(ALog: Boolean);
+var
+  Dev: string;
+  Speed: Double;
+  I: Integer;
+begin
+  if (edModel.Text = '') or (FWhisperNote <> '') then
+    Exit;
+  if CalibrationBest(SettingsFile, edModel.Text, Dev, Speed) then
+  begin
+    for I := 0 to High(FDevices) do
+      if SameText(FDevices[I].Name, Dev) then
+      begin
+        cbDevice.ItemIndex := I + 1;
+        if ALog then
+          LogLine(Format('Device: %s - the fastest for %s in the calibration (%s)', [Dev,
+            ExtractFileName(edModel.Text), CalibrationSummary(SettingsFile, edModel.Text)]));
+        Exit;
+      end;
+    if ALog then
+      LogLine(Format('The calibration chose %s for %s, and whisper.cpp lists no %s now: Tools > Re-calibrate.',
+        [Dev, ExtractFileName(edModel.Text), Dev]));
+  end
+  else if ALog then
+    LogLine(Format('%s is not calibrated on this machine: the device stays "%s". Tools > Re-calibrate times it ' +
+      'on every device.', [ExtractFileName(edModel.Text), cbDevice.Items[Max(0, cbDevice.ItemIndex)]]));
+end;
+
+procedure TfrmBuilder.miCalibrationClick(Sender: TObject);
+var
+  Ini: TMemIniFile;
+  Sections, Crashes: TStringList;
+  Done, DontAsk: Boolean;
+  Key, Made, Model: string;
+  I, P: Integer;
+begin
+  CalibrationState(SettingsFile, Done, DontAsk, Key, Made);
+  LogLine('');
+  if not Done then
+  begin
+    LogLine('Not calibrated on this machine yet: Tools > Re-calibrate.');
+    Exit;
+  end;
+  LogLine(Format('Calibration of %s:', [Made]));
+  if not SameText(Key, CalibrationDevicesKey(FDevices)) then
+    LogLine('  THE DEVICES HAVE CHANGED SINCE: Tools > Re-calibrate.');
+  Ini := TMemIniFile.Create(SettingsFile, TEncoding.UTF8);
+  Sections := TStringList.Create;
+  try
+    Ini.ReadSections(Sections);
+    for I := 0 to Sections.Count - 1 do
+      if StartsText(CAL_SECTION + ' ', Sections[I]) and not SameText(Sections[I], CAL_CRASH_SECTION) then
+      begin
+        Model := Copy(Sections[I], Length(CAL_SECTION) + 2, MaxInt);
+        LogLine(Format('  %s: %s - %s', [Model, IfThen(Ini.ReadString(Sections[I], 'Best', '') = '',
+          'NO DEVICE COULD RUN IT', 'best ' + Ini.ReadString(Sections[I], 'Best', '')),
+          CalibrationSummary(SettingsFile, Model)]));
+      end;
+  finally
+    Sections.Free;
+    Ini.Free;
+  end;
+  Crashes := CalibrationCrashes(SettingsFile);
+  try
+    for I := 0 to Crashes.Count - 1 do
+    begin
+      P := Pos(#9, Crashes[I]);
+      LogLine(Format('  %s on %s ended the program: left out until Tools > Re-calibrate', [Copy(Crashes[I], 1,
+        P - 1), Copy(Crashes[I], P + 1, MaxInt)]));
+    end;
+  finally
+    Crashes.Free;
+  end;
+  LogLine('Log of the last calibration: ' + ChangeFileExt(SettingsFile, CALIBRATION_LOG_SUFFIX));
+end;
+
+procedure TfrmBuilder.LogMachine(const AModel, ADevice: string);
+var
+  D: TWhisperDevice;
+  Best: string;
+  Speed: Double;
+begin
+  LogLine('Machine: ' + MachineText);
+  if SteamBuild then
+    LogLine(SteamText);
+  if FWhisperText <> '' then
+    LogLine(FWhisperText);
+  if AModel = '' then
+    Exit;
+  LogLine('Device: ' + BuilderDeviceText(ADevice));
+  if not BuilderFindDevice(ADevice, D) then
+    Exit;
+  if CalibrationBest(SettingsFile, AModel, Best, Speed) then
+  begin
+    if SameText(Best, D.Name) then
+      LogLine(Format('  the fastest for %s in the calibration (%s)', [ExtractFileName(AModel),
+        CalibrationSummary(SettingsFile, AModel)]))
+    else
+      LogLine(Format('  NOT the fastest for %s: the calibration found %s (%s)', [ExtractFileName(AModel), Best,
+        CalibrationSummary(SettingsFile, AModel)]));
+  end
+  else
+    LogLine(Format('  %s is not calibrated on this machine (Tools > Re-calibrate)', [ExtractFileName(AModel)]));
 end;
 
 end.

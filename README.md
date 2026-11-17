@@ -196,6 +196,37 @@ tools/redist.sh collect ../whisper-dev ../ffmpeg-dev
 tools/redist.sh deploy Linux64 demos/EpubBuilder/Linux64/Release
 ```
 
+## Steam builds
+
+EpubReader and EpubBuilder can be built for Steam (AppIDs 5639840 and
+5639910, `STEAM_APP_ID` in each `.dpr`). To make a Steam build, choose its
+configuration in the IDE. The rest of each program is the same:
+
+| Configuration | Parent | Steam |
+|---|---|---|
+| Debug, Release | - | none: TSteamAPI is not needed at all |
+| **SteamDebug** | Debug | started with the AppID from the environment (no `steam_appid.txt`, no relaunch): run from the IDE with Steam running |
+| **Steam** | Release | started outside Steam, the program ends and Steam launches it (Steam starts first if needed) |
+
+Both define `STEAMBUILD`. All the Steam code is in `demos/common/uSteam.pas`
+and compiles to nothing without that define. When Steam cannot be started,
+the program carries on without it and says so in its log; neither program
+uses a Steam feature yet. A Steam build needs:
+
+- TSteamAPI's runtime packages `Steamworks` and `SteamworksFMX`, built for
+  the platform (their units come from Delphi's Dcp folder, as EpubUnum's
+  do). See TSteamAPI's `docs/Install-Delphi.md`.
+- The Steam library in `redistributable_bin/steam/` (see
+  `redistributable_bin/README.md`). The Win64 build copies it next to the
+  .exe; Deploy puts it next to the Linux program or into the Mac bundle.
+
+Every Win64 build also copies the program's other libraries next to it
+(`tools\postbuild.bat`): FFmpeg for EpubReader; for EpubBuilder,
+whisper.cpp with the CPU and Vulkan backends in the Steam configurations
+(CUDA and ROCm are to be free DLC) and every backend in Debug / Release.
+On macOS `tools/redist.sh deploy` gives EpubBuilder the CPU and Metal
+backends.
+
 ## SteamOS, Linux and Proton
 
 The reader carries TSteamAPI's platform fixes (unchanged copies, see

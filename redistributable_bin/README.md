@@ -9,7 +9,7 @@ folders and `.dll` / `.so` / `.dylib` files).
 
 | Folder | Filled on | With |
 |---|---|---|
-| `Win64` | Windows | `tools\redist.bat collect WHISPER_DEV FFMPEG_DEV` |
+| `Win64` | Windows | `tools\redist.bat collect WHISPER_DEV FFMPEG_DEV` (or just `tools\redist.bat collect WHISPER_DEV` when that folder holds FFmpeg's DLLs too, as TWhisper's `redistributable_bin\Win64` does) |
 | `Linux64` | Linux x86-64 | `tools/redist.sh collect WHISPER_DEV FFMPEG_DEV` |
 | `OSXARM64`, `OSX64` | a Mac (that architecture) | `tools/redist.sh collect WHISPER_DEV FFMPEG_DEV` |
 
@@ -23,6 +23,23 @@ every Linux with glibc 2.35 or newer. On Windows, TWhisper's `redistributable_bi
 also does as WHISPER_DEV. Each platform folder also gets `licences/`:
 FFmpeg's LGPL texts and its build's configure line, and whisper.cpp's MIT
 licence - they go with the libraries.
+
+## What each program gets
+
+| | Windows (Win64 build) | macOS (`redist.sh deploy`) |
+|---|---|---|
+| EpubReader | FFmpeg | FFmpeg |
+| EpubBuilder, Debug / Release | everything here: CPU, Vulkan, CUDA, ROCm, FFmpeg | - |
+| EpubBuilder, Steam / SteamDebug | CPU and Vulkan backends, FFmpeg (CUDA and ROCm are to be free DLC) | - |
+| EpubBuilder (macOS) | - | CPU and Metal backends, FFmpeg (no Vulkan, CUDA or HIP) |
+
+On **Windows** every build of either program copies its share next to
+the .exe itself: the projects' post-build step runs
+`tools\postbuild.bat`, and the Steam configurations add
+`steam_api64.dll`. Only files that changed are copied again. The output
+folder is then complete, ready for a Steam depot as it is. Without
+`redistributable_bin\Win64` a Debug or Release build only warns (the
+libraries may be on PATH); a Steam build fails.
 
 ## Deploying
 
@@ -94,3 +111,20 @@ library and of libgomp into its `dlls/licences/` (whisper-dev-18), and
 and the HIP SDK's licence files. `package` warns when a GPU part has none.
 
 Models (`ggml-*.bin`) are not kept here: EpubBuilder asks for one.
+
+## Steam builds (the Steam library)
+
+The **Steam** and **SteamDebug** configurations of EpubReader and
+EpubBuilder (see the main README) need Valve's Steam library. It comes from
+the Steamworks SDK, as TSteamAPI's `redistributable_bin` has it. Copy
+three of its folders here, under `steam/`:
+
+| Folder | File | Used by |
+|---|---|---|
+| `steam/win64` | `steam_api64.dll` | Win64: the Steam configurations' post-build step copies it next to the .exe (the build fails if it is missing) |
+| `steam/linux64` | `libsteam_api.so` | Linux64: deployed next to the program by Delphi's Deploy (PAServer), Steam configurations only |
+| `steam/osx` | `libsteam_api.dylib` (both Mac architectures) | OSXARM64 / OSX64: deployed into the bundle's `Contents/MacOS`, Steam configurations only |
+
+Debug and Release builds neither use nor deploy it. Like everything else
+here, it is never committed (Valve's licence covers it, not this
+repository's).

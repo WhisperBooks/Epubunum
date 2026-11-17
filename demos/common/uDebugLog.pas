@@ -33,8 +33,13 @@ implementation
 
 uses
   {$IFDEF POSIX}
-  // System.SysUtils.DeleteFile's inline body expands only with it (H2443)
-  Posix.Unistd,
+  // System.SysUtils.DeleteFile's and RenameFile's inline bodies expand
+  // only with them (H2443)
+  Posix.Unistd, Posix.Stdio,
+  {$ENDIF}
+  {$IFDEF MSWINDOWS}
+  // System.SysUtils.RenameFile's inline body expands only with it (H2443)
+  Winapi.Windows,
   {$ENDIF}
   System.SysUtils, System.Classes, System.SyncObjs;
 
@@ -145,11 +150,13 @@ end;
 initialization
   Lock := TCriticalSection.Create;
   // meant to stay (below): not a leak for ReportMemoryLeaksOnShutdown.
-  // Windows only: the routine (and the leak report) belong to its memory
-  // manager - System does not declare it for Linux or macOS
-  {$ifdef MSWINDOWS}
+  // Windows only: the call exists only there (E2003 on Linux / macOS),
+  // and is marked platform (W1002) - as is the leak report itself
+  {$IFDEF MSWINDOWS}
+  {$WARN SYMBOL_PLATFORM OFF}
   RegisterExpectedMemoryLeak(Lock);
-  {$endif}
+  {$WARN SYMBOL_PLATFORM ON}
+  {$ENDIF}
 
 // No finalization: the lock is never freed. A worker thread (whisper.cpp's
 // and ggml's lines come from theirs) can be inside DebugLog while the

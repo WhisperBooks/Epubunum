@@ -28,9 +28,15 @@ uses
   // ... and Skia's raster / Vulkan canvas when TSAPI_FMX_CANVAS asks for it
   FmxSkiaCanvas in 'src\FmxSkiaCanvas.pas',
   uDebugLog in '..\common\uDebugLog.pas',
+  // Steam: only in the Steam / SteamDebug configurations (STEAMBUILD)
+  uSteam in '..\common\uSteam.pas',
   uMain in 'src\uMain.pas' {frmMain};
 
 {$R *.res}
+
+const
+  { EpubReader's Steam AppID (used by the Steam / SteamDebug configurations). }
+  STEAM_APP_ID = 5639840;
 
 begin
 {$IFDEF DEBUG}
@@ -44,6 +50,10 @@ begin
   WriteLn(ErrOutput, 'start-up: units initialised');
 {$ENDIF}
   Application.Initialize;
+  // a Steam build started outside Steam: Steam launches it itself, and
+  // this copy ends before it makes a window (nothing in other builds)
+  if not SteamStartup(STEAM_APP_ID) then
+    Exit;
   Application.CreateForm(TfrmMain, frmMain);
 {$IFDEF POSIX}
   WriteLn(ErrOutput, 'start-up: Application.Run');

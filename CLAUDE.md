@@ -14,7 +14,7 @@ the history, one per zip.
 | Repo | Pushed | = zip | Last zip number used |
 |---|---|---|---|
 | WhisperBooks/TWhisper | d669a06 | TWhisper-30 | 31 (review fixes) |
-| WhisperBooks/Epubunum | e00fb17 | EpubUnum-72 | 77 (73 review fixes, 74 - 76 this file, 77 Linux build fix) |
+| WhisperBooks/Epubunum | 20fc7ce | EpubUnum-76 | 80 (77 calibration, 78 Steam builds, 79 libraries copied by the builds, 80 - 83 fixes from the first Steam build) |
 | G3DGames/TFFMpegAPI | 3edcfa3 | FFmpegAPI-12 | 13 (review fixes) |
 | G3DGames/ffmpeg-dev | 4d7b7be | ffmpeg-dev-09 | 09 |
 | WhisperBooks/whisper-dev | 9fa21dc | whisper-dev-20 | 21 (review fixes; its own CLAUDE.md) |
@@ -360,7 +360,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 77.
+Last number used: 83.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -1660,19 +1660,264 @@ packages):
   reader (the output's constructor / destructor); every clip jump opens
   the audio file again.
 
-## Zip 77 (on top of 76): Linux build fix for zip 73
-Owner, 2026-11-17, Linux64 build: "uDebugLog.pas(148): E2003 Undeclared
-identifier: 'RegisterExpectedMemoryLeak'". Zip 73's call is now inside
-{$ifdef MSWINDOWS}: Delphi's System declares the routine for Windows
-only (it belongs to that memory manager, as ReportMemoryLeaksOnShutdown
-does). LESSON: zip 73 - 76 and the other repositories' review zips were
-NOT COMPILED; anything from them that is not plain cross-platform RTL is
-suspect on Linux until the owner's build has passed - checked after this
-error: TWhisper-31 uses AtomicIncrement / AtomicDecrement (compiler
-intrinsics, every Delphi platform; InterlockedIncrement under FPC),
-FFmpegAPI-13's new WASAPI lines are inside the Windows-only block.
+## Zip 77 (on top of 20fc7ce = zip 76): EpubBuilder calibration
+Owner, 2026-11-17, after Windows tests: "Default" (whisper.cpp chooses)
+picks wrong - the 5090 laptop built Night Watch with large-v3 in 39:20 on
+CUDA (whisper.cpp's first GPU) and in 29:16 on Vulkan, same figures to
+the word; large-v3 failed outright on the Ideapad's 4 GB GTX 1650. Asked
+for: a calibration step, kept in the settings; a start-up question
+(Start calibration / Cancel, "Do not show this again"); the improved 30 s
+benchmark "where there is noise" on Aladdin (media/aladdin.m4a) over all
+devices, the best made the default; the device persisted; Re-calibrate
+in a menu; and the machine and backend in the logs ("The output logs
+give no idea of the machine or backend being used").
+- NEW demos/EpubBuilder/src/uCalibration.pas: TCalibrationThread - ONE
+  TWhisperBenchmark, RunOne per model x device (not Run: a marker file
+  is written before each pair), CALIBRATION_RUNS = 3 (median), 30 s,
+  StartSeconds -1 (WhisperFindSpeech: speech all through, 30 s from both
+  ends - TWhisper zip 26), the build's settings (DTW heads per model,
+  BOOK_PROMPT, NoContext, language 'en'). Cancel under TMonitor (the
+  benchmark is freed in Execute's finally). The storage functions
+  (EpubBuilder.ini: [Calibration] Done / DontAsk / Made / Devices /
+  Audio, [Calibration <model file>] Made / Best / BestSpeed / one key per
+  device = speed or 'failed: ...', [Calibration crashes]
+  device@model = date). BuilderFindDevice / BuilderDeviceText resolve ''
+  to whisper.cpp's own choice (use_gpu: the GPU / IGPU with GpuIndex =
+  gpu_device, else the CPU). OpenBuilderFFmpeg (moved out of
+  TBuildThread.OpenFFmpeg, which calls it). AskCalibration: the
+  start-up form, made in code (TForm.CreateNew, ShowModal).
+- A device whose timed text has under 60 % of the words of the
+  best-heard device of that model is NOT chosen (a backend computing
+  garbage fast would win otherwise) - logged.
+- CRASH MARKER: <settings>-calibrating.txt holds model + TAB + device
+  while a pair runs. Found at start-up: that pair is recorded failed and
+  in [Calibration crashes]; the start-up calibration skips it,
+  Re-calibrate (menu) clears the list and tries it.
+- NEW demos/common/uMachine.pas: MachineText = name - TOSVersion;
+  CPU (N logical processors); N GB of memory. Windows: COMPUTERNAME,
+  registry ProcessorNameString, GlobalMemoryStatusEx. Linux: gethostname,
+  /proc/cpuinfo, /proc/meminfo (read until nothing more comes - /proc
+  files have size 0). macOS: name only (CPU / memory left out).
+  Framework-free (no FMX: Winapi.Windows clashes stay out of uBuilder).
+- uBuilder: menu bar (File > Exit; Tools > Re-calibrate (this model),
+  Re-calibrate every model in its folder (smallest first), Calibration
+  results) - TMainMenu, on Linux an FMX TMenuBar as EpubReader.
+  FormShow -> ForceQueue -> CheckCalibrationAtStart: the marker; done and
+  the same device list -> a log line; the device list changed -> asked
+  again ("The devices have changed ..."); DontAsk -> a log line only.
+  Choosing a model applies its calibrated device (ApplyCalibration).
+  The calibration runs in the main window like a build (Cancel, the Now
+  line, the progress bar; Create / Run queue / the Tools items disabled);
+  its lines also go to <settings>-calibration.log. CheckThen split:
+  CheckCalibrationThen (the model FAILED on this device in the
+  calibration -> asked, No by default) -> CheckBookThen (the old
+  read-along question) -> CheckOutputThen.
+  cbDevice's first item names whisper.cpp's choice ("Default
+  (whisper.cpp chooses: CUDA0 - the first GPU, not always the fastest)").
+- LOGS: every build (Create and each queue job) starts with Machine:,
+  whisper.cpp version + folder, Device: in full (default resolved) and
+  whether the calibration found it fastest for the model ("NOT the
+  fastest ... found Vulkan0"). The thread's "Model: ... on" line resolves
+  the default too. TBuildSummary.Device is the resolved name; new
+  DeviceText and Machine; queue report: "- Machine:" per job, the device
+  in full; CSV + device_text, machine at the end (36 columns).
+- The settings stay EpubBuilder.ini (the owner said settings.json - the
+  builder's file has always been the INI; the reader's is JSON).
+- Device persistence: already there (Build/Device by name); the
+  calibration sets it and SaveSettings keeps it.
+NOT COMPILED (no Delphi here; pasdoc_check, project_check 0 problems).
+Names used from memory, worth a look if the compile complains:
+TForm.CreateNew, TFormPosition.OwnerFormCenter, TStyledSetting.Other,
+TButton.Cancel / Default / ModalResult, Posix.Unistd.gethostname,
+System.Win.Registry TRegistry.OpenKeyReadOnly.
+TO TEST (Windows, then the Ideapad):
+1. Delete [Calibration*] from EpubBuilder.ini (or the file); start: the
+   question; Start with large-v3: CPU, CUDA0, Vulkan0 timed; Vulkan0
+   expected fastest; cbDevice set; EpubBuilder-calibration.log written.
+2. Restart: no question, "Calibrated ..." line.
+3. A build: the log's Machine / Device lines; the queue report's columns.
+4. Ideapad, large-v3: CUDA0 / Vulkan should FAIL (memory) -> the CPU
+   chosen with the "a smaller model may fit" line; Create on CUDA0 asks.
+   If the program dies instead: restart -> the crash line, the pair
+   skipped.
+5. Tools > Re-calibrate every model in its folder (base .. large-v3).
+6. Cancel during a calibration; close during one (no error, no leak).
+Offered, not done: time-left for the calibration; the reader does not
+transcribe, so it needs none; media/aladdin.m4a is not deployed by
+deploy_redist.py (copy it, or a DeployFile entry - owner's call: LibriVox
+recordings are public domain).
+
+## Zip 78 (on top of 77): Steam builds; macOS ARM as a test-bed
+Owner, 2026-11-17: a Steam AppID bought - deploy through Steam; Windows,
+Linux and macOS ARM builds "even if incomplete, make a good test-bed";
+TSteamAPI added, "easy to select or deselect from the build process";
+Reader and Builder both. AppIDs (owner): EpubReader 5639840, EpubBuilder
+5639910. Switch (owner's choice of three): BUILD CONFIGURATIONS, not a
+source define. Owner, mid-turn: "There is a RestartIfRequired in
+TSteamAPI that starts steam etc, there is also a way to run debug code" -
+RestartIfNecessary in Steam (Release child), SetAppIdEnvironment in
+SteamDebug (Debug child), as TSteamAPI's demos (its docs/Launcher.md).
+- NEW demos/common/uSteam.pas: everything Steam, behind STEAMBUILD.
+  Without it the unit uses no Steamworks unit (non-Steam builds need
+  TSteamAPI neither built nor installed). SteamStartup(AppID) in the .dpr
+  after Application.Initialize, before any form: TSteamAPI (FMX, owner
+  nil, freed in the unit's finalization - before the Steamworks units'
+  own); OnRestartRequired sets ATerminate False and the .dpr Exits (no
+  form made, so nothing half-started). OnInitFailed assigned: no message
+  box; the program CARRIES ON without Steam and logs why (ASSUMPTION - the
+  owner did not answer "relaunch, else carry on / else refuse"; neither
+  program uses a Steam feature yet). SteamText / SteamNotes: the forms
+  log them (reader: debug log; builder: window + every build's log).
+- .dpr: STEAM_APP_ID const, uSteam in the uses.
+- .dproj (EpubReader, EpubBuilder; by hand, platforms untouched):
+  configurations Steam (Cfg_3, parent Cfg_2) and SteamDebug (Cfg_4,
+  parent Cfg_1), each declared right after its parent's declaration
+  group (MSBuild reads in order: the parent's flag must be set before its
+  platform groups are read), with a Win64 group; value groups before the
+  first ItemGroup: DCC_Define STEAMBUILD, and on Win64 a PostBuildEvent
+  copying redistributable_bin/steam/win64/steam_api64.dll to $(OUTPUTDIR)
+  (fails the build when missing). DeployFile entries, Configuration
+  Steam / SteamDebug only: steam/linux64/libsteam_api.so (Linux64, .\),
+  steam/osx/libsteam_api.dylib (OSX64, OSXARM64, Contents\MacOS\ - as
+  TSteamAPI's SteamDemo). deploy_redist.py's entries (Linux64\) are
+  untouched by it and it does not touch these.
+- redistributable_bin/steam/{win64,linux64,osx}: copied from TSteamAPI's
+  redistributable_bin (Valve's SDK); git-ignored like the rest.
+NOT COMPILED. TO TEST: Release and Debug still build WITHOUT TSteamAPI's
+packages; SteamDebug Win64 from the IDE with Steam running (log: "Steam
+build, AppID ...: Steam running"; Steam shows the program as running);
+Steam config started by double click (Steam launches it); Steam not
+running / not logged in (the line, the program works); Linux64 /
+OSXARM64 deploy carries libsteam_api.
+If the IDE re-saves a .dproj and moves the new groups: fine, its layout
+wins; check that STEAMBUILD is still in Steam / SteamDebug.
+MACOS ARM (no code needed here for a first build - all three loaders
+look in the bundle's Contents/Frameworks, redist.sh deploy OSXARM64
+fills it): on the Mac whisper-dev (Metal - not built yet) and ffmpeg-dev,
+redist.sh collect, then after each PAServer build redist.sh deploy
+OSXARM64 <scratch dir>/<Program>.app (a Clean empties the bundle;
+deploy_redist.py is Linux64 only). Expected gaps: EpubReader SILENT
+(TFFMpegAPI has no AudioQueue output yet); EpubBuilder's devices are the
+CPU and Metal (the calibration will tell); signing / notarising for Steam
+not looked at.
+NEXT (offered): Steam depots and app build scripts (steamcmd
+app_build / depot_build .vdf, one depot per OS per program - the depot
+IDs from the Steamworks site), and the GPU-backends-as-DLC plan above.
+
+## Zip 79 (on top of 78): the builds copy their libraries
+Owner, 2026-11-17: "For the windows build you are now copying the Steam
+DLL to the output folder. Can you also do that for required DLLs for
+Reader and Builder but with Builder only supply CPU + Vulkan (Mac CPU +
+Metal). The others we'll do as DLC".
+- NEW tools/postbuild.bat PROGRAM CONFIG OUTPUT_FOLDER (CRLF), the
+  Base_Win64 PostBuildEvent of both .dproj (every Win64 configuration;
+  the zip 78 Cfg_3_Win64 / Cfg_4_Win64 copy groups removed - their
+  declaration groups stay): EpubReader av* / sw* / postproc* + FFmpeg
+  licences; EpubBuilder Steam / SteamDebug = everything but the cuda and
+  rocm parts (names as tools/redist-package.ps1: ggml-cuda, cudart64_*,
+  cublas*, nvrtc*, ggml-hip, amdhip64*, amd_comgr*, hiprtc*, hipblas*,
+  rocblas*, rocsolver*, libhipblas*, the rocblas / hipblaslt folders,
+  CUDA-* / ROCm-* licences), Debug / Release = everything (DECISION
+  here: the owner tests CUDA from the IDE; say if Release should be
+  core only too); Steam configs + steam_api64.dll. robocopy (unchanged
+  files not copied again). No redistributable_bin\Win64: Steam fails,
+  Debug / Release warn. NOTE: a Debug / Release output folder now holds
+  the libraries itself (CUDA ~1 GB on the first build), and whisper.cpp
+  is loaded from there before PATH.
+- .gitattributes: *.bat text eol=crlf (cmd misreads labels in LF-only
+  batch files; redist.bat was LF in the repository).
+- tools/redist.sh deploy OSX64 / OSXARM64: by the .app's name - EpubReader
+  FFmpeg only (and its licences); otherwise no *vulkan* / *cuda* / *hip*
+  library (CPU + Metal). Linux64 unchanged (deploy_redist.py still puts
+  everything into EpubBuilder: CUDA on the GTX 1650 is tested that way;
+  a --core switch for Steam Linux depots is the obvious next step).
+NOT RUN (no Windows here): postbuild.bat read through only; the macOS
+filter was run on a dummy folder (EpubBuilder: whisper, ggml-base, -cpu,
+-metal, -blas, FFmpeg; EpubReader: FFmpeg).
+TO TEST: Win64 builds of both in Debug and Steam (the messages in the
+build output; the Steam folder has no ggml-cuda / ggml-hip, its device
+list is CPU + Vulkan); EpubReader plays from its own folder.
+Also noted 2026-11-17:
+- The owner codesigns the Mac builds himself. redist.sh deploy signs
+  Contents/Frameworks (CODESIGN_ID for his identity);
+  libsteam_api.dylib, deployed by Delphi into Contents/MacOS, is not
+  signed by it - sign it with the app.
+- FOR LATER (owner: "a good plan - for later"): CHINESE / JAPANESE.
+  EpubUnum's walker splits words at spaces and dashes only, so a CJK
+  sentence would be one word. Plan: (1) Epub.Layout - every Han
+  character (and kana) a word, punctuation attached as now; (2) TWhisper
+  - Whisper's CJK pieces (already "every whole character piece is a
+  word") split to single characters, and WhisperSplitBookWords the same
+  - the two lists must still agree; (3) reader phrase / sentence steps
+  at 。，！？ etc. (EndsPhrase is ASCII). Test pair: the Analects -
+  LibriVox Chinese (classical text, 2:27:53) and English (Legge),
+  Gutenberg texts of both. Starter book for other languages: Andersen's
+  Princess and the Pea, Emperor's New Clothes, Steadfast Tin Soldier -
+  each recorded on LibriVox in 7 languages (EN, NL, DE, FR, EL, FI + DA
+  or EO); each recording needs the EPUB of the translation its reader
+  used.
+- Steam: Whisper models are MIT (OpenAI; ggml conversions MIT) -
+  licences with them; one model in the base depot (turbo), others as
+  free DLC like the GPU backends; Steam's AI disclosure (live-generated,
+  with a guardrails statement) for EpubBuilder, none for EpubReader.
+
+## Zip 80 (on top of 79): first Steam build (owner, 2026-11-17)
+The owner's dcc64 output for EpubReader, configuration Steam, Win64:
+COMPILED (STEAMBUILD;RELEASE;SKIA defined - the configuration and
+TSteamAPI's units work), then "[Exec Error] The command "call ...
+postbuild.bat" EpubReader Steam ".\Win64\Steam\"" exited with code 1".
+- $(OUTPUTDIR) is RELATIVE (.\Win64\Steam\). postbuild.bat now takes
+  $(PROJECTDIR) as a 4th argument (both .dproj pass it) and makes a
+  relative output folder the project's; the folder is then normalised
+  (%%~f: no ".\", no trailing backslash).
+- The other likely cause: no redistributable_bin\Win64 in Epubunum (the
+  owner's libraries are TWhisper's redistributable_bin\Win64 on PATH -
+  the build log's whisper.cpp / FFmpeg folder) - a Steam build fails
+  then, by design; the message is in the IDE's Output pane. redist.bat
+  collect: FFMPEG_DEV is optional when WHISPER_DEV holds FFmpeg's DLLs
+  too (TWhisper's folder does): tools\redist.bat collect
+  <TWhisper>\redistributable_bin\Win64.
+- uDebugLog: Winapi.Windows in the uses on Windows (H2443 RenameFile),
+  {$WARN SYMBOL_PLATFORM OFF} around RegisterExpectedMemoryLeak (W1002).
+
+## Zip 81 (on top of 80): postbuild.bat says which copy failed
+Owner, run by hand (PowerShell): "postbuild: copying to
+...\Win64\Steam failed" - past the library and folder checks, so a
+robocopy gave 8+ (no step named). Likely: no redistributable_bin\Win64\
+licences (folder filled by hand, not by redist.bat collect) - robocopy
+16. Now: licence texts are optional (:licences - a warning when the
+folder or the copy is missing), and every failure names its step, the
+source, the target and the code (8 = files not copied - in use?; 16 = a
+folder missing). Owner to run it again and send the line.
+
+## Zip 82 (on top of 81): whisper.cpp's licence; paths tidied
+Owner: zip 81's postbuild works (EpubReader Steam: FFmpeg +
+steam_api64.dll copied); "redist.bat collect <TWhisper>\redistributable_bin
+\Win64 <ffmpeg-dev>" gave licences CUDA-EULA + FFmpeg-* but NO
+whisper.cpp-LICENSE (only looked for WHISPER_DEV\whisper.cpp\LICENSE).
+redist.bat collect now also takes it from a licences folder or a
+whisper.cpp-LICENSE.txt beside the DLLs / in WHISPER_DEV, and WARNS when
+none is found (MIT: it must ship with the DLLs - the Steam depot).
+ROOT in redist.bat and postbuild.bat is the full path (messages showed
+tools\..).
+
+## Zip 83 (on top of 82): POSIX build of uDebugLog (PACKAGE: EpubUnum)
+Owner's Linux / macOS build of EpubReader: E2003 RegisterExpectedMemoryLeak
+in uDebugLog (zip 73's fix: the call exists on Windows only - never
+compiled for POSIX since), H2443 RenameFile wants Posix.Stdio.
+- uDebugLog: RegisterExpectedMemoryLeak under {$IFDEF MSWINDOWS};
+  Posix.Stdio beside Posix.Unistd.
+- The same H2443 in the package units (Delphi on POSIX only): Epub.Zip
+  (DeleteFile -> Posix.Unistd), Epub.Writer (DeleteFile, RenameFile ->
+  Posix.Unistd, Posix.Stdio), under {$if defined(POSIX) and not
+  defined(FPC)} - FPC builds of lib/ unchanged. NOT COMPILED here (no
+  FPC / Delphi in this session).
 
 ## Pushes checked
+- 20fc7ce ("Claude push", 2026-11-17 09:27) = zips 74 - 76 (CLAUDE.md
+  only); 2b69310 (2026-11-16 21:36) = zip 73 (the review fixes: all five
+  in the source). pasdoc_check, project_check 0 problems. Shallow clone,
+  not compared file by file.
 - e00fb17 ("Claude push", 2026-11-16 21:25) = zip 72 (the handover);
   cloned shallow for the review, not compared file by file.
 - d242ae1 (2026-11-16 21:18) = zips 64 - 71: every delivered file

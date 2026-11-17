@@ -151,6 +151,10 @@ function EpubBytesText(const ABytes: TBytes): string;
 implementation
 
 uses
+  {$if defined(POSIX) and not defined(FPC)}
+  // SysUtils.DeleteFile's inline body expands only with it (H2443, Delphi)
+  Posix.Unistd,
+  {$endif}
   {$ifdef FPC}zstream{$else}ZLib{$endif};
 
 const

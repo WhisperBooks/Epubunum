@@ -428,7 +428,7 @@ uses
   Posix.Unistd,
   {$ENDIF}
   System.Hash, System.UIConsts,
-  FmxWineCanvas, FmxSkiaCanvas;
+  FmxWineCanvas, FmxSkiaCanvas, uSteam;
 
 const
   { Text size step, px. }
@@ -1754,9 +1754,15 @@ begin
 end;
 
 procedure TfrmMain.FormCreate(Sender: TObject);
+var
+  Line: string;
 begin
   // the debug log: next to the settings, started afresh at every run
   DebugLogOpen(ChangeFileExt(SettingsFile, '-debug.log'));
+  // Steam (started in the .dpr, before the log was open)
+  DebugLog(SteamText);
+  for Line in SteamNotes do
+    DebugLog(Line);
   FFindIndex := -1;
   FLearnFirst := -1;
   FLearnLast := -1;

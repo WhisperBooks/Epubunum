@@ -31,6 +31,54 @@ Next to the program, or on PATH:
 A Whisper model file (`ggml-large-v3-turbo.bin` is a good choice) is
 chosen in the window.
 
+For the calibration (below), `media/aladdin.m4a` - a LibriVox recording
+- beside the program, or in a folder up to five levels above it (the
+repository's root, from `demos/EpubBuilder/<platform>/<config>`). Without
+it the calibration asks for another recording of English speech, a few
+minutes long.
+
+## Calibration (which device is fastest here)
+
+Which device transcribes fastest - the processor, or the graphics card
+through CUDA, Vulkan or ROCm - depends on the card and its memory, its
+driver, the model and the processor. Left to itself ("Default")
+whisper.cpp takes the first GPU in its list, and that is often not the
+fastest: on an RTX 5090 laptop large-v3 built Night Watch in 39 min on
+CUDA (whisper.cpp's choice) and in 29 min on Vulkan; a 4 GB GTX 1650 cannot
+hold large-v3 at all.
+
+So the builder offers a **calibration** when it starts, until one has
+been made (or **Do not show this again** is ticked). It times the model
+in the window on every device: the model is loaded, a short warm-up, then
+three timed runs of 30 s of speech (the median counts). The 30 s are
+chosen in the recording where there is speech all through, away from
+both ends. The settings are a build's: word times by DTW, the book
+prompt, each window on its own. The fastest device becomes the model's
+device. A device that heard far fewer words than the others is not
+chosen, because it may not compute correctly. A device the model fails
+on (not enough memory) is recorded. Create and Add to queue ask before
+building on it (No by default).
+
+- **Tools > Re-calibrate (this model)**: again, after a new graphics card
+  or driver. The start-up question also comes back when the device list
+  has changed.
+- **Tools > Re-calibrate every model in its folder**: every
+  `ggml-*.bin` beside the model, smallest first.
+- **Tools > Calibration results**: what is kept, model by model.
+
+Choosing a model that has been calibrated sets the device to its fastest.
+Results are kept per model in `EpubBuilder.ini`
+(`[Calibration]`, `[Calibration ggml-large-v3.bin]`, ...). The last
+calibration's lines are in `EpubBuilder-calibration.log`, beside it. If
+the program ends while a model is timed on a device (a GPU runtime that
+gives up), the next start records that pair as failed, and the
+calibration offered then leaves it out. Re-calibrate tries it again.
+
+Every build's log (and the queue report) starts with the machine
+(name, system, processor, memory), whisper.cpp's version and folder, and
+the device in full. "Default" is shown as the device whisper.cpp takes,
+with whether the calibration found it fastest for the model.
+
 ## Debug log
 
 Every run writes `EpubBuilder-debug.log` next to the settings
@@ -49,8 +97,8 @@ doing. The previous run's log is kept as `EpubBuilder-debug.log.old`.
    in reading order (**Up** / **Down**; added files are sorted as people
    read them: chapter2 before chapter10). With **Chapters of a file are
    parts** ticked, each chapter of an m4b is transcribed as a part.
-3. Choose the model and, if you like, the device (Default lets
-   whisper.cpp choose; WhisperConsole `--bench` tells which is fastest).
+3. Choose the model; the device is the calibration's fastest for it
+   (or choose one: Default lets whisper.cpp take its first GPU).
 4. Check the output name (`<book>-synced.epub` by default) and press
    **Create**. The **Now** line shows what is being done - while a part
    is transcribed, the words as they are heard, with their time in the

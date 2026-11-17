@@ -24,7 +24,9 @@
 #     other there through $ORIGIN; EpubReader.sh goes along when
 #     EpubReader is there) or its .app (macOS: the libraries into
 #     Contents/Frameworks, signed - ad hoc, or with the identity in
-#     CODESIGN_ID - and the licences into Contents/Resources/licences)
+#     CODESIGN_ID - and the licences into Contents/Resources/licences;
+#     by the .app's name: EpubReader FFmpeg only, EpubBuilder the CPU
+#     and Metal backends - no Vulkan, CUDA or HIP)
 set -e
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 
@@ -104,8 +106,23 @@ deploy() {
         *) echo "On macOS TARGET is the program's .app"; exit 1 ;;
       esac
       mkdir -p "$TARGET/Contents/Frameworks" "$TARGET/Contents/Resources/licences"
-      cp -a "$SRC"/*.dylib "$TARGET/Contents/Frameworks/"
-      cp -a "$SRC"/licences/. "$TARGET/Contents/Resources/licences/"
+      # by program (the .app's name): EpubReader plays sound - FFmpeg only;
+      # EpubBuilder - the CPU and Metal backends (Vulkan, CUDA and HIP
+      # are left out: GPU backends other than the platform's own are to be
+      # free DLC - owner, 2026-11-17)
+      APP=$(basename "${TARGET%/}" .app)
+      for f in "$SRC"/*.dylib; do
+        n=$(basename "$f")
+        case $APP in
+          EpubReader*) case $n in libav*|libsw*|libpostproc*) ;; *) continue ;; esac ;;
+          *) case $n in *vulkan*|*cuda*|*hip*) continue ;; esac ;;
+        esac
+        cp -a "$f" "$TARGET/Contents/Frameworks/"
+      done
+      case $APP in
+        EpubReader*) cp -a "$SRC"/licences/FFmpeg-* "$TARGET/Contents/Resources/licences/" 2>/dev/null || true ;;
+        *) cp -a "$SRC"/licences/. "$TARGET/Contents/Resources/licences/" ;;
+      esac
       for f in "$TARGET"/Contents/Frameworks/*.dylib; do
         [ -L "$f" ] || codesign --force --sign "${CODESIGN_ID:--}" "$f"
       done

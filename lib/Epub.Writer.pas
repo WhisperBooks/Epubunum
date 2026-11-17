@@ -207,6 +207,11 @@ function EpubRelativeHref(const AFrom, ATo: string): string;
 implementation
 
 uses
+  {$if defined(POSIX) and not defined(FPC)}
+  // SysUtils.DeleteFile / RenameFile's inline bodies expand only with them
+  // (H2443, Delphi)
+  Posix.Unistd, Posix.Stdio,
+  {$endif}
   DateUtils, StrUtils;
 
 const

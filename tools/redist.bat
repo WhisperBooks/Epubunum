@@ -3,7 +3,8 @@ rem Epubunum's redistributables on Windows: the whisper.cpp libraries
 rem (whisper-dev) and FFmpeg's (ffmpeg-dev) together in
 rem redistributable_bin\Win64, and copied next to a built program.
 rem
-rem   tools\redist.bat collect WHISPER_DEV FFMPEG_DEV
+rem   tools\redist.bat collect WHISPER_DEV [FFMPEG_DEV]
+rem     (FFMPEG_DEV not needed when WHISPER_DEV holds FFmpeg's DLLs too)
 rem     fills redistributable_bin\Win64 from WHISPER_DEV\dlls (or
 rem     WHISPER_DEV itself when it holds the DLLs - TWhisper's
 rem     redistributable_bin\Win64 will do) and FFMPEG_DEV\dlls\windows-x64,
@@ -16,10 +17,13 @@ rem     (tools\redist-package.ps1; VERSION defaults to today's date)
 rem   tools\redist.bat deploy TARGET
 rem     copies redistributable_bin\Win64 next to a built program (TARGET:
 rem     its folder, e.g. demos\EpubBuilder\Win64\Release)
+rem     (every file; the programs' Win64 builds copy what they need
+rem     themselves - tools\postbuild.bat, their post-build step)
 rem
 rem Linux and macOS: tools/redist.sh.
 setlocal
-set "ROOT=%~dp0.."
+rem the repository's folder, without "tools\.." in the messages
+for %%I in ("%~dp0..") do set "ROOT=%%~fI"
 set "OUT=%ROOT%\redistributable_bin\Win64"
 if /i "%~1"=="collect" goto collect
 if /i "%~1"=="deploy" goto deploy
@@ -27,7 +31,7 @@ if /i "%~1"=="package" goto package
 goto usage
 
 :collect
-if "%~3"=="" goto usage
+if "%~2"=="" goto usage
 set "WDIR=%~2\dlls"
 if not exist "%WDIR%\whisper.dll" set "WDIR=%~2"
 set "FDIR=%~3\dlls\windows-x64"
@@ -35,6 +39,9 @@ if not exist "%WDIR%\whisper.dll" (
   echo No whisper.dll in %WDIR%: run whisper-dev's build.bat
   exit /b 1
 )
+rem FFmpeg from ffmpeg-dev, or already beside whisper.cpp's DLLs (TWhisper's
+rem redistributable_bin\Win64 holds both) - then FFMPEG_DEV is not needed
+if not exist "%FDIR%\avutil-60.dll" if exist "%WDIR%\avutil-60.dll" set "FDIR=%WDIR%"
 if not exist "%FDIR%\avutil-60.dll" (
   echo No avutil-60.dll in %FDIR%: run ffmpeg-dev's build.bat
   exit /b 1
@@ -45,11 +52,19 @@ rem whisper.cpp's DLLs with their sub-folders (HIP: rocblas\library), not
 rem the Debug build; robocopy's exit codes below 8 are success
 robocopy "%WDIR%" "%OUT%" /e /xd debug /xf README.md .gitignore *.pdb /njh /njs /nfl /ndl >nul
 if errorlevel 8 goto failed
-copy /y "%FDIR%\*.dll" "%OUT%\" >nul || goto failed
+if /i not "%FDIR%"=="%WDIR%" copy /y "%FDIR%\*.dll" "%OUT%\" >nul || goto failed
 for %%f in (COPYING.LGPLv2.1 COPYING.LGPLv3 LICENSE.md BUILD-INFO.txt) do (
   if exist "%FDIR%\%%f" copy /y "%FDIR%\%%f" "%OUT%\licences\FFmpeg-%%f" >nul
 )
-if exist "%~2\whisper.cpp\LICENSE" copy /y "%~2\whisper.cpp\LICENSE" "%OUT%\licences\whisper.cpp-LICENSE.txt" >nul
+rem whisper.cpp's MIT licence: whisper-dev's checkout (WHISPER_DEV\whisper.cpp),
+rem or a licences folder / LICENSE file beside the DLLs (TWhisper's
+rem redistributable_bin\Win64 has none - a warning: it must go with them)
+for %%f in ("%~2\whisper.cpp\LICENSE" "%WDIR%\licences\whisper.cpp-LICENSE.txt" "%~2\licences\whisper.cpp-LICENSE.txt" "%WDIR%\whisper.cpp-LICENSE.txt") do (
+  if not exist "%OUT%\licences\whisper.cpp-LICENSE.txt" if exist "%%~f" copy /y "%%~f" "%OUT%\licences\whisper.cpp-LICENSE.txt" >nul
+)
+if not exist "%OUT%\licences\whisper.cpp-LICENSE.txt" (
+  echo Warning: no whisper.cpp licence found - copy whisper.cpp's LICENSE to %OUT%\licences\whisper.cpp-LICENSE.txt ^(MIT: it must go with the DLLs^)
+)
 rem NVIDIA's licence with its runtime (cudart / cuBLAS: attachment A),
 rem AMD's HIP SDK licence texts with theirs
 if exist "%OUT%\ggml-cuda.dll" if exist "%CUDA_PATH%\EULA.txt" copy /y "%CUDA_PATH%\EULA.txt" "%OUT%\licences\CUDA-EULA.txt" >nul

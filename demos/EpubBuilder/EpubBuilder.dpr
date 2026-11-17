@@ -18,9 +18,17 @@ uses
   System.StartUpCopy,
   FMX.Forms,
   uDebugLog in '..\common\uDebugLog.pas',
+  // Steam: only in the Steam / SteamDebug configurations (STEAMBUILD)
+  uSteam in '..\common\uSteam.pas',
+  uMachine in '..\common\uMachine.pas',
+  uCalibration in 'src\uCalibration.pas',
   uBuilder in 'src\uBuilder.pas' {frmBuilder};
 
 {$R *.res}
+
+const
+  { EpubBuilder's Steam AppID (used by the Steam / SteamDebug configurations). }
+  STEAM_APP_ID = 5639910;
 
 begin
 {$IFDEF DEBUG}
@@ -28,6 +36,10 @@ begin
   ReportMemoryLeaksOnShutdown := True;
 {$ENDIF}
   Application.Initialize;
+  // a Steam build started outside Steam: Steam launches it itself, and
+  // this copy ends before it makes a window (nothing in other builds)
+  if not SteamStartup(STEAM_APP_ID) then
+    Exit;
   Application.CreateForm(TfrmBuilder, frmBuilder);
   Application.Run;
 end.
