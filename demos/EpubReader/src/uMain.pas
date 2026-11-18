@@ -37,7 +37,9 @@ uses
   System.Generics.Collections,
   Epub.Zip, Epub.Layout, Epub.Book, Epub.Components, Epub.FMX, Epub.FMX.View, uDebugLog,
   // sound: DCUs of TFFMpegAPI's runtime package FFmpegAPI
-  FFmpeg.API, FFmpeg.Player;
+  FFmpeg.API, FFmpeg.Player,
+  // the game pad and its menu (fields of the form)
+  uSteamPad, uPadMenu;
 
 type
   { A book in the Recently Opened list, with where its reader left off. }
@@ -265,10 +267,63 @@ type
     FClip: Integer;
     { The audio is playing. }
     FPlaying: Boolean;
+    { The screen is kept on (it plays) - see uInhibit. }
+    FAwake: Boolean;
+    { The game pad through Steam Input (uSteamPad; reads nothing outside a
+      Steam build). }
+    FPad: TSteamPad;
+    { Polls FPad. }
+    tmPad: TTimer;
+    { The last poll (ms), for the stick's scrolling. }
+    FPadTick: UInt64;
+    { The pad's menu (uPadMenu). }
+    FPadMenu: TPadMenu;
+    { FPadMenu shows the contents, not the main menu. }
+    FMenuContents: Boolean;
+    { The library's cover chosen with the pad (-1 = none yet). }
+    FCoverSel: Integer;
+    { Its frame. }
+    recCoverSel: TRectangle;
     { First word of each clip (-1 when it has none). }
     FClipFirst: TArray<Integer>;
     { Last word of each clip. }
     FClipLast: TArray<Integer>;
+    { Steam's Exit Game (SIGTERM) or the system shutting down: the window's
+      own close (FormClose: the place, the settings) - quick, nothing to
+      wait for.
+      @param(ASignal  the signal's number) }
+    procedure QuitSignalled(ASignal: Integer);
+    { The pad: Steam Input with EpubReader's manifest (written beside the
+      settings from uReaderInput), the menu, the poll. }
+    procedure StartPad;
+    { Reads the pad: presses to PadPress, the stick scrolls the page. }
+    procedure tmPadTimer(Sender: TObject);
+    { What a pad button does where the reader is (menu, library, page).
+      @param(AButton  PAD_UP .. PAD_LIBRARY) }
+    procedure PadPress(AButton: Integer);
+    { The pad's main menu. }
+    procedure ShowPadMenu;
+    { The pad's contents list (the panel's entries). }
+    procedure ShowContentsMenu;
+    { Row AIndex of the main menu as it reads now.
+      @param(AIndex  MENU_RESUME .. MENU_EXIT)
+      @returns(the text) }
+    function PadMenuText(AIndex: Integer): string;
+    { A menu row chosen (pad or click).
+      @param(Sender  the menu)
+      @param(AIndex  the row) }
+    procedure PadMenuChoose(Sender: TObject; AIndex: Integer);
+    { The menu closed by a click beside it. }
+    procedure PadMenuClose(Sender: TObject);
+    { Left / right on a menu row with a value (text size, speed).
+      @param(ADelta  -1 or 1) }
+    procedure PadMenuValue(ADelta: Integer);
+    { The library's pad choice moved to the nearest cover that way.
+      @param(ADX  -1, 0, 1)
+      @param(ADY  -1, 0, 1) }
+    procedure MoveCover(ADX, ADY: Integer);
+    { FCoverSel's frame placed (or hidden). }
+    procedure ShowCoverSelection;
     { Opens AFileName. }
     procedure OpenBook(const AFileName: string);
     { Plays from the start of clip AClip. }
@@ -436,11 +491,62 @@ uses
   Posix.Unistd,
   {$ENDIF}
   System.Hash, System.UIConsts, System.Skia,
-  FmxWineCanvas, FmxSkiaCanvas, uSteam;
+  FmxWineCanvas, FmxSkiaCanvas, uSteam, uInhibit, uQuitSignal, uReaderInput;
 
 const
   { Text size step, px. }
   SIZE_STEP = 2;
+  { The pad's buttons, in the order of PAD_ACTIONS. }
+  PAD_UP = 0;
+  { Down. }
+  PAD_DOWN = 1;
+  { Left. }
+  PAD_LEFT = 2;
+  { Right. }
+  PAD_RIGHT = 3;
+  { Play / pause, choose (A). }
+  PAD_PLAY = 4;
+  { Back (B). }
+  PAD_BACK = 5;
+  { Say it again (X). }
+  PAD_AGAIN = 6;
+  { Dark mode (Y). }
+  PAD_DARK = 7;
+  { Previous sentence (left shoulder). }
+  PAD_SENTENCE_PREV = 8;
+  { Next sentence (right shoulder). }
+  PAD_SENTENCE_NEXT = 9;
+  { Previous chapter (left trigger). }
+  PAD_CHAPTER_PREV = 10;
+  { Next chapter (right trigger). }
+  PAD_CHAPTER_NEXT = 11;
+  { The menu (Start). }
+  PAD_MENU = 12;
+  { The library (Select / View). }
+  PAD_LIBRARY = 13;
+  { The action names, as in tools/gen_reader_input.py's manifest. }
+  PAD_ACTIONS: array[0..13] of string = ('Up', 'Down', 'Left', 'Right', 'Play', 'Back', 'Again', 'Dark',
+    'SentencePrev', 'SentenceNext', 'ChapterPrev', 'ChapterNext', 'Menu', 'Library');
+  { The pad's menu rows. }
+  MENU_RESUME = 0;
+  { The library. }
+  MENU_LIBRARY = 1;
+  { The contents. }
+  MENU_CONTENTS = 2;
+  { Text size (left / right). }
+  MENU_SIZE = 3;
+  { Speed (left / right). }
+  MENU_SPEED = 4;
+  { Dark mode. }
+  MENU_DARK = 5;
+  { Learn to read. }
+  MENU_LEARN = 6;
+  { Exit. }
+  MENU_EXIT = 7;
+  { The stick's scrolling at full tilt, units a second. }
+  PAD_SCROLL_SPEED = 1500;
+  { The stick's dead zone. }
+  PAD_STICK_DEAD = 0.15;
   // The tool bar's icons: SVG path data in a 24 by 24 box (Sprite3D's
   // transport icons; the folder is new). FMX.Objects' TPath (the shape)
   // hides System.IOUtils' TPath (file names): both are written qualified.
@@ -1315,6 +1421,8 @@ begin
   lblLibrary.TextSettings.FontColor := View1.TextColor;
   recLibrary.Visible := True;
   recLibrary.BringToFront;
+  // the pad's choice: none until the pad moves it
+  FCoverSel := -1;
   LayoutLibrary;
   UpdateControls;
 end;
@@ -1329,6 +1437,9 @@ begin
   for I := 0 to High(FCoverImages) do
     FCoverImages[I].Free;
   FCoverImages := nil;
+  FCoverSel := -1;
+  if recCoverSel <> nil then
+    recCoverSel.Visible := False;
   // the contents panel back, left of the page as before
   lbToc.Visible := True;
   Splitter1.Visible := True;
@@ -1400,6 +1511,9 @@ begin
     end;
     FCoverImages[K + 1].SetBounds(X0 + Col * (W + COVER_GAP), Y0 + Row * (TileH + COVER_GAP), W, TileH);
   end;
+  // the pad's frame follows its cover
+  if FCoverSel >= 0 then
+    ShowCoverSelection;
 end;
 
 procedure TfrmMain.recLibraryResized(Sender: TObject);
@@ -1849,6 +1963,13 @@ begin
   // a crash in a library (Steam Deck, 2026-11-17): logged with where it was
   Application.OnException := AppException;
   OnShow := FormShow;
+  // Steam's Exit Game ends the program with SIGTERM: the place is saved
+  // first (owner)
+  if QuitSignalInstall(QuitSignalled) then
+    DebugLog('SIGTERM / SIGINT / SIGHUP: the place is saved before the program ends');
+  Line := QuitSignalLast(ChangeFileExt(SettingsFile, '-ended.txt'));
+  if Line <> '' then
+    DebugLog(Line);
   // Steam (started in the .dpr, before the log was open)
   DebugLog(SteamText);
   for Line in SteamNotes do
@@ -1899,6 +2020,7 @@ begin
   end;
   // dark mode, text size, speed, the recent books and their positions
   LoadSettings;
+  StartPad;
   UpdateControls;
   DebugLog('window ready');
   // a book named on the command line (Open with), else the library: the
@@ -1909,9 +2031,381 @@ begin
     ShowLibrary;
 end;
 
+procedure TfrmMain.QuitSignalled(ASignal: Integer);
+begin
+  // the next start says so too (the debug log starts afresh)
+  if FPlaying then
+    QuitSignalRecord(ChangeFileExt(SettingsFile, '-ended.txt'), ASignal, 'reading aloud')
+  else
+    QuitSignalRecord(ChangeFileExt(SettingsFile, '-ended.txt'), ASignal, '');
+  DebugLog(Format('asked to end (%s - Steam''s Exit Game, or the system shutting down)',
+    [QuitSignalName(ASignal)]));
+  Close;
+end;
+
+procedure TfrmMain.StartPad;
+var
+  I: Integer;
+  Folder, Manifest: string;
+begin
+  FCoverSel := -1;
+  FPadMenu := TPadMenu.Create(Self, Self);
+  FPadMenu.OnChoose := PadMenuChoose;
+  FPadMenu.OnClose := PadMenuClose;
+  if SteamBigPicture then
+    FPadMenu.FontSize := 30
+  else
+    FPadMenu.FontSize := 20;
+  FPad := TSteamPad.Create('Reader', PAD_ACTIONS, 'Scroll');
+  // directions repeat while held (scrolling, lists)
+  for I := PAD_UP to PAD_RIGHT do
+    FPad.SetRepeat(I, True);
+  if not SteamRunning then
+  begin
+    DebugLog(FPad.Start(''));
+    Exit;
+  end;
+  // the manifest and its layouts written by the program (afresh when it
+  // brings other ones), so nothing has to be deployed: into steaminput/
+  // beside the program - where the partner site's "Custom Configuration
+  // (Bundled with Game)" can name it - else beside the settings (a
+  // folder the user cannot write to; the Mac's signed bundle always)
+  Manifest := '';
+  {$IFNDEF MACOS}
+  Folder := ExtractFilePath(ParamStr(0)) + 'steaminput';
+  try
+    Manifest := ReaderInputWrite(Folder);
+  except
+    on E: Exception do
+      DebugLog('pad: ' + Folder + ' not writable (' + E.Message + '): the settings'' folder instead');
+  end;
+  {$ENDIF}
+  if Manifest = '' then
+  begin
+    Folder := ExtractFilePath(SettingsFile) + 'steaminput';
+    try
+      Manifest := ReaderInputWrite(Folder);
+    except
+      on E: Exception do
+        DebugLog('pad: the action manifest was not written to ' + Folder + ': ' + E.Message);
+    end;
+  end;
+  if Manifest <> '' then
+    DebugLog(FPad.Start(Manifest) + Format(' (layout revision %d)', [READER_INPUT_REVISION]));
+  if not FPad.Started then
+    Exit;
+  tmPad := TTimer.Create(Self);
+  tmPad.Interval := 16;
+  tmPad.OnTimer := tmPadTimer;
+  FPadTick := TThread.GetTickCount64;
+  tmPad.Enabled := True;
+end;
+
+procedure TfrmMain.tmPadTimer(Sender: TObject);
+var
+  Presses: TSteamPadPresses;
+  Y: Single;
+  I: Integer;
+  Now_: UInt64;
+  Note: string;
+begin
+  Now_ := TThread.GetTickCount64;
+  try
+    FPad.Poll(Presses, Y);
+    Note := FPad.TakeNote;
+    if Note <> '' then
+      DebugLog(Note);
+    for I := 0 to High(Presses) do
+      if Presses[I] then
+        PadPress(I);
+    // the right stick scrolls the page (up is positive)
+    if (Abs(Y) > PAD_STICK_DEAD) and not FPadMenu.Showing and not LibraryShowing and
+      (EpubUnum1.Book <> nil) then
+      View1.ScrollPos := View1.ScrollPos - Y * PAD_SCROLL_SPEED * (Now_ - FPadTick) / 1000;
+  except
+    on E: Exception do
+      DebugLog('pad: ' + E.ClassName + ': ' + E.Message);
+  end;
+  FPadTick := Now_;
+end;
+
+procedure TfrmMain.PadPress(AButton: Integer);
+begin
+  if not (AButton in [PAD_UP, PAD_DOWN, PAD_LEFT, PAD_RIGHT]) then
+    DebugLog('pad: ' + PAD_ACTIONS[AButton]);
+  // the menu first: it is over everything
+  if FPadMenu.Showing then
+  begin
+    case AButton of
+      PAD_UP: FPadMenu.Move(-1);
+      PAD_DOWN: FPadMenu.Move(1);
+      PAD_LEFT: PadMenuValue(-1);
+      PAD_RIGHT: PadMenuValue(1);
+      PAD_PLAY: PadMenuChoose(FPadMenu, FPadMenu.Selected);
+      PAD_BACK, PAD_MENU:
+        // the contents: back to the menu; the menu: closed
+        if FMenuContents then
+          ShowPadMenu
+        else
+          FPadMenu.Hide;
+      PAD_LIBRARY:
+        begin
+          FPadMenu.Hide;
+          miLibraryClick(nil);
+        end;
+    end;
+    Exit;
+  end;
+  if LibraryShowing then
+  begin
+    case AButton of
+      PAD_UP: MoveCover(0, -1);
+      PAD_DOWN: MoveCover(0, 1);
+      PAD_LEFT: MoveCover(-1, 0);
+      PAD_RIGHT: MoveCover(1, 0);
+      PAD_PLAY:
+        if (FCoverSel >= 0) and (FCoverSel <= High(FCoverImages)) then
+          CoverClick(FCoverImages[FCoverSel])
+        else
+          MoveCover(0, 0);
+      PAD_BACK, PAD_LIBRARY:
+        if EpubUnum1.Book <> nil then
+          HideLibrary;
+      PAD_MENU: ShowPadMenu;
+    end;
+    Exit;
+  end;
+  case AButton of
+    PAD_UP: View1.ScrollPos := View1.ScrollPos - 3 * View1.FontSize;
+    PAD_DOWN: View1.ScrollPos := View1.ScrollPos + 3 * View1.FontSize;
+    PAD_LEFT: View1.Page(False);
+    PAD_RIGHT: View1.Page(True);
+    PAD_PLAY: btnPlayClick(nil);
+    PAD_AGAIN:
+      if FLearn then
+      begin
+        // as the R key
+        if FLearnFirst >= 0 then
+          SayWords(FLearnFirst, FLearnLast)
+        else
+          LearnStep(1);
+      end;
+    PAD_DARK: btnDarkClick(nil);
+    PAD_SENTENCE_PREV:
+      if btnPrevClip.Enabled then
+        btnPrevClipClick(nil);
+    PAD_SENTENCE_NEXT:
+      if btnNextClip.Enabled then
+        btnNextClipClick(nil);
+    PAD_CHAPTER_PREV:
+      if btnPrev.Enabled then
+        btnPrevClick(nil);
+    PAD_CHAPTER_NEXT:
+      if btnNext.Enabled then
+        btnNextClick(nil);
+    PAD_MENU: ShowPadMenu;
+    PAD_LIBRARY: miLibraryClick(nil);
+  end;
+end;
+
+function TfrmMain.PadMenuText(AIndex: Integer): string;
+const
+  ON_OFF: array[Boolean] of string = ('off', 'on');
+begin
+  case AIndex of
+    MENU_RESUME: Result := 'Back to the book';
+    MENU_LIBRARY: Result := 'Library';
+    MENU_CONTENTS: Result := 'Contents';
+    MENU_SIZE: Result := Format('Text size   <  %d  >', [Round(View1.FontSize)]);
+    MENU_SPEED: Result := Format('Speed   <  %s  >', [lblSpeed.Text]);
+    MENU_DARK: Result := 'Dark mode: ' + ON_OFF[FDark];
+    MENU_LEARN: Result := 'Learn to read: ' + ON_OFF[FLearn];
+    MENU_EXIT: Result := 'Exit';
+  else
+    Result := '';
+  end;
+end;
+
+procedure TfrmMain.ShowPadMenu;
+var
+  Items: TArray<string>;
+  I: Integer;
+begin
+  FMenuContents := False;
+  SetLength(Items, MENU_EXIT + 1);
+  for I := 0 to MENU_EXIT do
+    Items[I] := PadMenuText(I);
+  FPadMenu.SetColors(View1.BackgroundColor, View1.TextColor, $40808080);
+  FPadMenu.Show('EpubReader', Items, MENU_RESUME);
+end;
+
+procedure TfrmMain.ShowContentsMenu;
+var
+  Items: TArray<string>;
+  I: Integer;
+begin
+  if lbToc.Count = 0 then
+    Exit;
+  FMenuContents := True;
+  SetLength(Items, lbToc.Count);
+  for I := 0 to lbToc.Count - 1 do
+    Items[I] := lbToc.Items[I];
+  FPadMenu.SetColors(View1.BackgroundColor, View1.TextColor, $40808080);
+  FPadMenu.Show('Contents', Items, lbToc.ItemIndex);
+end;
+
+procedure TfrmMain.PadMenuChoose(Sender: TObject; AIndex: Integer);
+begin
+  if AIndex < 0 then
+    Exit;
+  if FMenuContents then
+  begin
+    FPadMenu.Hide;
+    if AIndex >= lbToc.Count then
+      Exit;
+    // the panel's own change does the going there
+    if lbToc.ItemIndex = AIndex then
+      lbTocChange(nil)
+    else
+      lbToc.ItemIndex := AIndex;
+    Exit;
+  end;
+  case AIndex of
+    MENU_RESUME:
+      begin
+        FPadMenu.Hide;
+        if LibraryShowing and (EpubUnum1.Book <> nil) then
+          HideLibrary;
+      end;
+    MENU_LIBRARY:
+      begin
+        FPadMenu.Hide;
+        if not LibraryShowing then
+          ShowLibrary;
+      end;
+    MENU_CONTENTS:
+      if (EpubUnum1.Book <> nil) and not LibraryShowing then
+        ShowContentsMenu;
+    MENU_SIZE, MENU_SPEED:
+      // a value: left / right change it; choosing it closes the menu
+      FPadMenu.Hide;
+    MENU_DARK:
+      begin
+        btnDarkClick(nil);
+        FPadMenu.SetText(MENU_DARK, PadMenuText(MENU_DARK));
+        // the box in the new colours
+        ShowPadMenu;
+        FPadMenu.Move(MENU_DARK);
+      end;
+    MENU_LEARN:
+      if EpubUnum1.Book <> nil then
+      begin
+        btnLearnClick(nil);
+        FPadMenu.SetText(MENU_LEARN, PadMenuText(MENU_LEARN));
+      end;
+    MENU_EXIT:
+      begin
+        FPadMenu.Hide;
+        Close;
+      end;
+  end;
+end;
+
+procedure TfrmMain.PadMenuClose(Sender: TObject);
+begin
+  FPadMenu.Hide;
+end;
+
+procedure TfrmMain.PadMenuValue(ADelta: Integer);
+begin
+  if FMenuContents then
+    Exit;
+  case FPadMenu.Selected of
+    MENU_SIZE:
+      if ADelta < 0 then
+        btnSmallerClick(nil)
+      else
+        btnLargerClick(nil);
+    MENU_SPEED:
+      tbSpeed.Value := tbSpeed.Value + ADelta * SPEED_STEP;
+  else
+    Exit;
+  end;
+  FPadMenu.SetText(FPadMenu.Selected, PadMenuText(FPadMenu.Selected));
+end;
+
+procedure TfrmMain.MoveCover(ADX, ADY: Integer);
+var
+  I, Best: Integer;
+  C, D: TPointF;
+  Along, Across, Score, BestScore: Single;
+begin
+  if Length(FCoverImages) = 0 then
+    Exit;
+  // the first press: the open book's cover (the first, large one)
+  if (FCoverSel < 0) or (FCoverSel > High(FCoverImages)) or ((ADX = 0) and (ADY = 0)) then
+  begin
+    if (FCoverSel < 0) or (FCoverSel > High(FCoverImages)) then
+      FCoverSel := 0;
+    ShowCoverSelection;
+    Exit;
+  end;
+  C := FCoverImages[FCoverSel].BoundsRect.CenterPoint;
+  Best := -1;
+  BestScore := 0;
+  for I := 0 to High(FCoverImages) do
+  begin
+    if I = FCoverSel then
+      Continue;
+    D := FCoverImages[I].BoundsRect.CenterPoint - C;
+    // how far that way, and how far off it
+    Along := D.X * ADX + D.Y * ADY;
+    Across := Abs(D.X * ADY) + Abs(D.Y * ADX);
+    if Along <= 1 then
+      Continue;
+    Score := Along + 2 * Across;
+    if (Best < 0) or (Score < BestScore) then
+    begin
+      Best := I;
+      BestScore := Score;
+    end;
+  end;
+  if Best >= 0 then
+    FCoverSel := Best;
+  ShowCoverSelection;
+end;
+
+procedure TfrmMain.ShowCoverSelection;
+var
+  R: TRectF;
+begin
+  if recCoverSel = nil then
+  begin
+    recCoverSel := TRectangle.Create(Self);
+    recCoverSel.Parent := recLibrary;
+    recCoverSel.Fill.Kind := TBrushKind.None;
+    recCoverSel.Stroke.Thickness := 6;
+    recCoverSel.HitTest := False;
+  end;
+  if not LibraryShowing or (FCoverSel < 0) or (FCoverSel > High(FCoverImages)) then
+  begin
+    recCoverSel.Visible := False;
+    Exit;
+  end;
+  R := FCoverImages[FCoverSel].BoundsRect;
+  R.Inflate(4, 4);
+  recCoverSel.Stroke.Color := View1.TextColor;
+  recCoverSel.BoundsRect := R;
+  recCoverSel.Visible := True;
+  recCoverSel.BringToFront;
+end;
+
 procedure TfrmMain.FormClose(Sender: TObject; var Action: TCloseAction);
 begin
   DebugLog('closing');
+  if tmPad <> nil then
+    tmPad.Enabled := False;
+  FreeAndNil(FPad);
   StopPlaying;
   // where the reader left off, and the settings
   RememberBook;
@@ -1949,6 +2443,29 @@ begin
   // typing in the find box is text, not the reader's keys (P, D, L, R ...)
   if (edFind <> nil) and edFind.IsFocused then
     Exit;
+  // the pad's menu with the keyboard too: arrows, Enter, Esc
+  if (FPadMenu <> nil) and FPadMenu.Showing then
+  begin
+    case Key of
+      vkUp: PadPress(PAD_UP);
+      vkDown: PadPress(PAD_DOWN);
+      vkLeft: PadPress(PAD_LEFT);
+      vkRight: PadPress(PAD_RIGHT);
+      vkReturn: PadPress(PAD_PLAY);
+      vkEscape: PadPress(PAD_BACK);
+    end;
+    Key := 0;
+    KeyChar := #0;
+    Exit;
+  end;
+  // Esc on the page: the pad's menu (in Big Picture the menu bar is not
+  // there - this is the way to Library, Contents and Exit)
+  if (Key = vkEscape) and not LibraryShowing and (FPadMenu <> nil) then
+  begin
+    ShowPadMenu;
+    Key := 0;
+    Exit;
+  end;
   // Esc in the library: back to the open book
   if (Key = vkEscape) and LibraryShowing and (EpubUnum1.Book <> nil) then
   begin
@@ -3319,6 +3836,17 @@ var
   B: TEpubBook;
   S: string;
 begin
+  if FPlaying <> FAwake then
+  begin
+    // read aloud with nobody at the controls: SteamOS (Game Mode) goes by
+    // input only and would dim, then sleep
+    FAwake := FPlaying;
+    if FPlaying then
+      InhibitStart(ikDisplay, 'Reading aloud')
+    else
+      InhibitStop(ikDisplay);
+    DebugLog('screen: ' + InhibitText);
+  end;
   B := EpubUnum1.Book;
   btnPrev.Enabled := (B <> nil) and (Length(FChapterWord) > 0) and not LibraryShowing;
   btnNext.Enabled := (B <> nil) and (ChapterOfWord(CurrentWord) < High(FChapterWord)) and not LibraryShowing;

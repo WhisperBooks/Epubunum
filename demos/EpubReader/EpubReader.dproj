@@ -274,6 +274,8 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <DCCReference Include="src\FmxWineCanvas.pas"/>
         <DCCReference Include="src\FmxSkiaCanvas.pas"/>
         <DCCReference Include="..\common\uDebugLog.pas"/>
+        <DCCReference Include="..\common\uInhibit.pas"/>
+        <DCCReference Include="..\common\uQuitSignal.pas"/>
         <DCCReference Include="..\common\uSteam.pas"/>
         <DCCReference Include="src\uMain.pas">
             <Form>frmMain</Form>

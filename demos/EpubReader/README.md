@@ -74,6 +74,61 @@ Go to Footnote - a list of the book's notes. Any book opens where you
 left it - the sentence lit, and Play starts there. Books are matched by
 file name for now (a book moved to another folder keeps its place).
 
+## Screen kept on while it reads aloud
+
+While the audio plays, EpubReader asks the system to keep the screen on
+and not sleep (Windows: SetThreadExecutionState; macOS: an IOKit power
+assertion; Linux: systemd-logind's inhibitor plus
+org.freedesktop.ScreenSaver over D-Bus). SteamOS in Game Mode otherwise
+dims, then sleeps, with nobody touching the controller. Pause lets it
+idle again. The debug log has a "screen:" line saying how it was asked.
+
+## Game pad (Steam builds)
+
+In a Steam build EpubReader reads the pad through Steam Input, with its
+own action manifest (`epubreader_controllers.vdf` and a default layout
+per controller type). The program carries the files and writes them
+into `steaminput/` beside itself at start-up (beside the settings when
+that folder cannot be written, and always on the Mac), then gives Steam
+the manifest. They are made by `tools/gen_reader_input.py` from one
+table, with TSteamAPI's generator:
+
+```
+python3 tools/gen_reader_input.py --tsteamapi ../TSteamAPI
+```
+
+| Pad | On the page | In the library | In the menu |
+|---|---|---|---|
+| A (bottom face button) | play / pause | open the chosen book | choose |
+| B (right face button) | - | back to the book | back / close |
+| X (left face button) | say it again (Learn to read) | - | - |
+| Y (top face button) | dark mode | - | - |
+| D-pad, left stick | up / down a little, left / right a page | choose a cover | up / down; left / right change a value |
+| Right stick | scroll | - | - |
+| Shoulders | sentence back / on | - | - |
+| Triggers (full pull) | chapter back / on | - | - |
+| Start / Menu | the menu | the menu | close |
+| Select / View | the library | back to the book | the library |
+
+The menu: Back to the book, Library, Contents, Text size, Speed, Dark
+mode, Learn to read, Exit. Esc on the page opens it with the keyboard
+(arrows, Enter, Esc there); a click or tap on a row works too. In Big
+Picture there is no menu bar, so this is the way to Exit.
+
+Steam reads a manifest's layouts once per Steam session: after a new
+layout revision, restart Steam (on SteamOS, Steam or the machine). For
+players, the partner site's Steam Input setting should be "Custom
+Configuration (Bundled with Game)" naming
+`steaminput/epubreader_controllers.vdf`.
+
+## Ended from outside (Steam's Exit Game)
+
+Steam's Exit Game ends EpubReader with SIGTERM (Linux, macOS); so does
+the system when it shuts down. EpubReader then closes as from its own
+menu: the place in the book and the settings are saved. The debug log
+says so, and the next start's debug log says when the last run was
+ended. On Windows nothing is trapped.
+
 ## Debug log
 
 Every run writes `EpubReader-debug.log` next to `EpubReader.json`: start

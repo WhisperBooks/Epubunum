@@ -20,9 +20,13 @@
      last HISTORY_RECENT builds;
   2. the model was calibrated on the device: the calibration's speed
      corrected by how this machine's builds compared with their own
-     calibrations (a whole book runs slower than the calibration's 30 s:
-     parts, silences, bad stretches tried again);
-  3. the calibration's speed alone;
+     calibrations;
+  3. the calibration's speed times HISTORY_BOOK_RATIO.
+  A whole book runs FASTER than the calibration's 30 s windows (each has
+  its fixed costs; a book's silences go quickly): Night Watch, turbo, 1.48
+  on the M4 with Metal, 1.36 with Core ML, 1.36 on the Steam Machine with
+  Vulkan (2026-11-18) - the calibration alone promised 32 min for a book
+  done in 24.
   else nothing. The window then blends it with the build's own rate (in
   seconds per second of audio), the build's own counting more as more
   audio is done (APriorAudio: the audio after which both count the same). }
@@ -39,6 +43,9 @@ const
   { Builds of one machine, model and device the expectation looks at (the
     latest). }
   HISTORY_RECENT = 5;
+  { A whole book's speed over the calibration's, when no build here says
+    better (the lowest measured, so the first estimate errs long). }
+  HISTORY_BOOK_RATIO = 1.35;
   { The table's columns (HistoryCells, HistoryTable). }
   HISTORY_HEADERS: array[0..11] of string = ('When', 'Machine', 'Model', 'Device', 'Audio', 'Transcription',
     'Speed', 'Calibration', 'Book / calibration', 'Align + write', 'Exact %', 'Matched %');
@@ -498,10 +505,10 @@ begin
   end
   else if ACalibrationSpeed > 0 then
   begin
-    ASpeed := ACalibrationSpeed;
+    ASpeed := ACalibrationSpeed * HISTORY_BOOK_RATIO;
     APriorAudio := PRIOR_CALIBRATION;
-    ASource := Format('the calibration (%.1fx; no finished build here yet to correct it - a whole book usually ' +
-      'runs slower)', [ACalibrationSpeed], Inv);
+    ASource := Format('the calibration (%.1fx) times %.2f - a whole book usually runs that much faster (no ' +
+      'finished build here yet to say better)', [ACalibrationSpeed, HISTORY_BOOK_RATIO], Inv);
   end;
   Result := ASpeed > 0;
 end;

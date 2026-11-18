@@ -70,7 +70,7 @@ the history, one per zip.
 | Repo | Pushed | = zip | Last zip number used |
 |---|---|---|---|
 | WhisperBooks/TWhisper | d669a06 | TWhisper-30 | 31 (review fixes) |
-| WhisperBooks/Epubunum | 51bb81e | EpubUnum-94 | 98 (95 Mac ggml backends in redist.sh, 96 aladdin.m4a deployed, 97 Later tests 7 Core ML, 98 DRM-free .aax in EpubBuilder, 99 build history + time left, 100 Tools > Build history, 101 models by name + download, 102 Core ML encoders, 103 iOS reader plan, 104 mobile readers (iOS + Android), 105 justified text, 106 pasdoc_epub prototype, 107 its layout, 108 parked, 109 this note, 110 ROCm DLC, 111 staging without parts.txt + playtest, 112 aladdin in Win64 builds - pushed d72d7b2 WITHOUT tools/pasdoc_epub.py (owner did not apply it; 109 pushed since); 110 NOT pushed; 93 Big Picture full screen and 94 this handover NOT pushed; 90 screen log, 91 DPI awareness, 92 Big Picture late maximise; 77 calibration, 78 Steam builds, 79 libraries copied by the builds, 80 - 83 fixes from the first Steam build, 84 EpubBuilder's Linux launcher, 85 Mac libraries through Deploy, 86 Deck crash diagnostics, 87 build stamp, 88 crash place in the log, 89 FreeType for Steam's Linux runtime) |
+| WhisperBooks/Epubunum | 51bb81e | EpubUnum-94 | 98 (95 Mac ggml backends in redist.sh, 96 aladdin.m4a deployed, 97 Later tests 7 Core ML, 98 DRM-free .aax in EpubBuilder, 99 build history + time left, 100 Tools > Build history, 101 models by name + download, 102 Core ML encoders, 103 iOS reader plan, 104 mobile readers (iOS + Android), 105 justified text, 106 pasdoc_epub prototype, 107 its layout, 108 parked, 109 this note, 110 ROCm DLC, 111 staging without parts.txt + playtest, 112 aladdin in Win64 builds, 113 .gitignore for Python caches - pushed 58ebe9b = 110 - 112; 113 NOT pushed; earlier: pushed d72d7b2 WITHOUT tools/pasdoc_epub.py (owner did not apply it; 109 pushed since); 110 NOT pushed; 93 Big Picture full screen and 94 this handover NOT pushed; 90 screen log, 91 DPI awareness, 92 Big Picture late maximise; 77 calibration, 78 Steam builds, 79 libraries copied by the builds, 80 - 83 fixes from the first Steam build, 84 EpubBuilder's Linux launcher, 85 Mac libraries through Deploy, 86 Deck crash diagnostics, 87 build stamp, 88 crash place in the log, 89 FreeType for Steam's Linux runtime) |
 | G3DGames/TFFMpegAPI | 0795d19 | FFmpegAPI-14 | 14 (macOS sound) |
 | G3DGames/ffmpeg-dev | 4d7b7be | ffmpeg-dev-09 | 09 |
 | WhisperBooks/whisper-dev | 9fa21dc | whisper-dev-20 | 21 (review fixes; its own CLAUDE.md) |
@@ -452,7 +452,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 112.
+Last number used: 122.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -2666,6 +2666,182 @@ builder: C:\src\epub_builder (the reader's: C:\src\epub_reader).
   configuration: :media - robocopy media\aladdin.m4a to
   <output>\media\; missing -> a warning, not a failure (the calibration
   asks for a recording). NOT RUN (no Windows here; read through).
+
+## Zip 113 (on top of 58ebe9b): Python caches ignored
+Push 58ebe9b ("Steam Deployed", 2026-11-18) checked = zips 110 - 112 (CR
+LF aside); EpubBuilder.dproj: Linux64 121 entries (no ROCm kernels,
+aladdin), OSXARM64 29, uHistory / uModels; all .dproj / .deployproj XML
+valid; project_check, pasdoc_check 0. It also committed
+tools/__pycache__/deploy_redist.cpython-314.pyc (Python's cache, made
+when steam_stage.py imports deploy_redist.py).
+- .gitignore: __pycache__/ and *.pyc. The owner removes the committed
+  one: git rm -r --cached tools/__pycache__
+
+## Zip 114 (on top of zip 113 / 58ebe9b): kept awake while working
+Owner, 2026-11-18, Steam Machine: "The steam machine thinks Builder is
+"Inactivity" it seems cos it starts it's screen saver after a while".
+SteamOS Game Mode judges activity by input only (Kodi / Jellyfin reports
+the same); it dims, then SUSPENDS - an hour's build would stop.
+- demos/common/uInhibit.pas (new): InhibitStart(ikSleep | ikDisplay,
+  reason) / InhibitStop (counted), InhibitText for the logs. Windows
+  SetThreadExecutionState; macOS IOPMAssertionCreateWithName
+  (PreventUserIdleSystemSleep / ...DisplaySleep); Linux libdbus-1.so.3
+  loaded at run time, private connections (exit_on_disconnect off):
+  login1 Manager.Inhibit("sleep:idle", app, why, "block") on the system
+  bus, kept while the returned fd is open; ikDisplay also
+  org.freedesktop.ScreenSaver.Inhibit / UnInhibit on the session bus.
+  Never raises.
+- EpubBuilder: UpdateControls holds ikSleep while Busy (build, queue,
+  calibration, download); a log line each change.
+- EpubReader: UpdateControls holds ikDisplay while FPlaying; debug log
+  "screen: ...".
+- Both .dpr list uInhibit (always, not Steam-only); .dproj NOT shipped -
+  the IDE adds the DCCReference from the .dpr.
+- NOT KNOWN: whether Steam's Game Mode (gamescope) honours logind /
+  ScreenSaver inhibitors. Test on the Steam Machine: start a build, leave
+  the controller; the log's "keeping the computer awake:" line says
+  which calls worked. If it still dims / sleeps: Steam settings' timeouts
+  meanwhile, and look for Steam's own way (e.g. a Steamworks call).
+
+## Steam Machine results (2026-11-18)
+- ROCm in Steam's runtime with the bundled libraries works: ROCm0 7.9 of
+  8 GB free; medium.en calibration ROCm0 15.3x, CPU 1.5x.
+- Vulkan0 calibration crashed EpubBuilder (native crash while loading
+  the model; the debug log stops; the crash marker recorded it failed).
+  Diagnosis offered: rename libggml-hip.so and calibrate Vulkan alone;
+  launch option  %command% > ~/eb-out.log 2>&1  for stderr.
+- Night Watch turbo on ROCm0 (MEASURED, 2026-11-18, not calibrated,
+  build 2af83eb, whisper.cpp 1.9.5-dev): 23:44 in all, transcription
+  1419 s for 52889 s of audio = 37.3x; exact 95.3 %, matched 97.8 % (as
+  every turbo run). No stalls: every part ran at about the same rate
+  (the first, 9.5 s for 114 s, is the warm-up). The FASTEST whole-book
+  turbo so far: 5090 laptop Vulkan 26:08 (steady 87x but ~15 min of
+  stalls), M4 Core ML 30:47, M4 Metal 52:18. ROCm 5.8 of 8 GB free with
+  turbo loaded.
+- Logs: ~/.config/EpubBuilder/ (SteamOS's user is deck).
+- The Vulkan0 crash FOUND (stderr via launch option
+  %command% > ~/eb-out.log 2>&1, small.en, with and without HIP): not
+  ggml, not the driver - gamescope's WSI layer (an implicit Vulkan layer
+  in Game Mode) aborts in vkroots.h: Assertion `obj' failed
+  (VkDispatchTableMap<VkQueue_T*>::insert), just after "[Gamescope WSI]
+  Forcing on VK_EXT_swapchain_maintenance1" - SIGABRT, so our debug log
+  just stops. It came and went (one run got through).
+  Zip 116: EpubBuilder.sh exports DISABLE_GAMESCOPE_WSI=1 (the layer's
+  own disable_environment). Not in EpubReader's launcher: it may present
+  through Skia's Vulkan canvas, which gamescope's layer is for.
+- The screen is a 4K TV but Valve recommend the Steam Machine runs at
+  1080p, so the apps see 1920x1080 (the TV's EDID gives only an aspect).
+
+## Zip 117 (on top of zip 116): the first estimate x 1.35; Vulkan = ROCm here
+Steam Machine, Night Watch turbo, MEASURED 2026-11-18:
+- Vulkan0 (DISABLE_GAMESCOPE_WSI=1 as launch option, HIP renamed):
+  calibration 27.3x; book 23:56, 37.0x; exact 95.2 %, matched 97.8 %.
+- ROCm0: book 23:44, 37.3x (above). The same within noise: the ROCm
+  depot buys nothing on this machine once gamescope's layer is off -
+  Vulkan the default; ROCm kept as an option for AMD cards where Vulkan
+  is slow or unstable (drop the 975 MB depot if none turns up).
+- Book / calibration: 1.36 (Vulkan, Steam Machine), 1.36 (Core ML, M4),
+  1.48 (Metal, M4). The estimate from the calibration alone said 32:18.
+- uHistory: HISTORY_BOOK_RATIO = 1.35 applied in HistoryExpect's third
+  case (calibration only); its log text said "a whole book usually runs
+  slower" - wrong, now "times 1.35 ... faster". Cases 1 and 2 unchanged.
+- Owner then calibrated with all three devices (15:59, turbo): CPU 1.1x,
+  ROCm0 27.3x, Vulkan0 28.8x (27.3x at 15:18 - about 5 % run to run);
+  Vulkan0 chosen. Both GPU libraries loaded together without a crash.
+  ROCm0 book / calibration 37.3 / 27.3 = 1.37 - the 1.35 holds.
+
+## Zip 119 (on top of zip 118): Steam's Exit Game saves first
+Owner, 2026-11-18: "Steam has a "Exit Game" option from it's own control
+panel. This forcibly quits the running app. It would be nice to trap
+that and write anything pending" ... "If closed this way record it in
+the log". Steam's reaper ends a game with SIGTERM, then SIGKILL (the
+grace time was not looked up - keep the handler quick).
+- demos/common/uQuitSignal.pas (new, POSIX): QuitSignalInstall(proc) -
+  signal() for SIGTERM / SIGINT / SIGHUP writes the number to a pipe; an
+  anonymous thread reads it and TThread.Queue's the proc once.
+  QuitSignalName, QuitNow (_exit: no finalization, no waiting for GPU
+  threads), QuitSignalRecord / QuitSignalLast (<settings>-ended.txt:
+  "The last run was ended from outside at ... while ...", read and
+  deleted at the next start into the debug log). Windows: nothing
+  (Steam may TerminateProcess - not trappable; untested).
+- EpubBuilder.QuitSignalled: note file; LogLine "Asked to end (SIGTERM
+  ...) while building X (NN %)"; SaveSettings; calibration marker
+  deleted (not a crash); queue file saved; the build's log beside the
+  output / the calibration log saved; then QuitNow when busy, else
+  Close.
+- EpubReader.QuitSignalled: note file ("while reading aloud"), debug log,
+  Close (FormClose saves the place and settings).
+- Both .dpr list uQuitSignal; .dproj not shipped.
+- NOT TESTED: built in Delphi on Linux and macOS; Steam's Exit Game on
+  the Steam Machine with a build running, then the next start's debug
+  log. Delphi's Posix.Signal signal() / Posix.Unistd pipe, _exit assumed.
+- Possible next: a build stopped part way keeps its finished parts'
+  transcripts and resumes (now it starts again).
+
+## Zip 120 (on top of zip 119): EpubReader compiles again
+Zip 119 put TfrmMain.QuitSignalled at the top of the private section,
+before its fields: E2169 (no field after a method in one section) and,
+following from it, E2250 on TThread.ForceQueue in FormShow. Moved down
+with the other private methods (before OpenBook). In uBuilder the
+private section with fields is a second one for this reason.
+
+## Zip 121 (on top of zip 120): EpubReader's pad controls (Big Picture, part 1)
+Owner, 2026-11-18: "OK, big picture mode"; asked which part first, chose
+pad controls (then the big-screen layout, then following Big Picture
+switches). No TSteamAPI change.
+- tools/gen_reader_input.py (new): EpubReader's tables (set Reader;
+  stick Scroll; buttons Up Down Left Right Play Back Again Dark
+  SentencePrev SentenceNext ChapterPrev ChapterNext Menu Library),
+  written with TSteamAPI's tools/gen_input_mapping.py imported from
+  --tsteamapi (its Profile, manifest(), layout(), CONTROLLERS; no
+  __pycache__ left there). Output demos/EpubReader/steaminput/ (manifest
+  + controllers/reader_controller_<type>.vdf) and
+  demos/EpubReader/src/uReaderInput.pas (GENERATED: the files as constant
+  line arrays; ReaderInputWrite(folder)). LAYOUT_REVISION 1. Triggers
+  bound as "click" (full pull) of the trigger group - NOT YET SEEN on a
+  pad.
+- demos/common/uSteamPad.pas (new): TSteamPad(set, buttons, stick) -
+  Start(manifest) (ISteamInput Start(True), SetInputActionManifestFile-
+  Path), Poll (RunFrame, every connected pad, presses with repeats
+  400 / 120 ms for chosen buttons, the stick's y), TakeNote (handles
+  found, pad count, failure). STEAMBUILD only; elsewhere nothing.
+- demos/EpubReader/src/uPadMenu.pas (new): TPadMenu, a list over the
+  form (shade, box, rows in a scroll box), Move / SetText / Selected,
+  click or tap -> OnChoose (queued), click beside -> OnClose.
+- EpubReader uMain: StartPad (after LoadSettings) writes the files to
+  <exe>/steaminput (not on the Mac), else <settings>/steaminput, starts
+  the pad, tmPad 16 ms; PadPress per place (menu > library > page);
+  menu rows Back to the book / Library / Contents (lbToc's entries) /
+  Text size < > / Speed < > / Dark / Learn / Exit; library covers chosen
+  by direction (nearest centre that way), framed (recCoverSel); Esc on
+  the page opens the menu with the keyboard. Debug log: "pad: ..."
+  lines (start, actions found, controllers, each non-direction press).
+- README (reader): the controls table, the generator line, restart Steam
+  after layout changes, partner-site "Custom Configuration (Bundled with
+  Game)" -> steaminput/epubreader_controllers.vdf.
+- NOT COMPILED, NOT TESTED. Next (owner's order): the big-screen layout
+  (UiScale), then Big Picture switches while running.
+
+## Zip 122 (on top of zip 121): three folders, output named after the book
+Owner, 2026-11-18: "Can we assume that users will have three folders.
+one for input epub, one for import audio and a final one for output.
+These will be the default folders when setting up paths. The output
+folder should end up with a copy of the epub3 version of the input file
+using the same name unless that file already exists in which case add
+sequential numbering ... filename_001.epub. While the user may modify
+the filename this should be the default".
+- uBuilder: FBookFolder / FAudioFolder (were "last used") are now set
+  folders, with FOutFolder; defaults <Documents>/EpubBuilder/Books,
+  Audio, Output (settings [Folders] Book / Audio / Output; an empty key
+  = the default), made at start-up and logged. A pick in a dialog no
+  longer changes them. Tools > Books folder... / Audio folder... /
+  Output folder... (miFolderClick, item Tag 0 / 1 / 2).
+- DefaultOutput(book): <output>/<book name>.epub, else _001, _002 ...
+  (taken = a file there or a waiting / running queue job). ShowBook uses
+  it (was <book>-synced.epub beside the book); FAutoOut remembers it so a
+  new output folder renames only an unchanged name. Output... opens in
+  the output's folder. StartJob makes the output's folder.
+- README (builder): Folders. NOT COMPILED.
 
 ## Pushes checked
 - a6ea67b ("SteamOS good") = zips 87 - 89: identical (CR LF aside) but

@@ -58,4 +58,14 @@ if [ -e "$here/libfreetype.so.6" ]; then
   echo "launcher: $here first on LD_LIBRARY_PATH (its own FreeType)" >&2
 fi
 
+# EpubBuilder's addition: no gamescope WSI layer. In SteamOS Game Mode
+# gamescope's implicit Vulkan layer wraps every Vulkan device, and on
+# ggml's compute-only one it aborts the program (vkroots.h: Assertion
+# `obj' failed - VkDispatchTableMap<VkQueue_T*>::insert; Steam Machine,
+# 2026-11-18, Vulkan0 calibration). EpubBuilder shows nothing through
+# Vulkan (FMX draws with OpenGL), so the layer is not needed. The variable
+# is the layer's own off switch; nothing reads it outside gamescope.
+export DISABLE_GAMESCOPE_WSI=1
+echo "launcher: gamescope's Vulkan WSI layer off (ggml's Vulkan device)" >&2
+
 exec "$prog" "$@"

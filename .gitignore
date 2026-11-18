@@ -36,5 +36,8 @@ Android64/
 link.res
 # written before every build by tools\buildstamp.bat
 demos/common/BuildStamp.inc
+# Python's caches (tools/steam_stage.py imports deploy_redist.py)
+__pycache__/
+*.pyc
 # release archives made by tools/redist.sh package
 redistributable_bin/packages/

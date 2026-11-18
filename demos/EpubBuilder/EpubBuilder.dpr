@@ -25,6 +25,10 @@ uses
   // Direct2D leaves FMX windows white; a no-op on Windows and elsewhere
   FmxWineCanvas in 'src\FmxWineCanvas.pas',
   uDebugLog in '..\common\uDebugLog.pas',
+  // keeps the computer awake while it works (SteamOS sleeps on no input)
+  uInhibit in '..\common\uInhibit.pas',
+  // Steam's Exit Game (SIGTERM): saved before the end
+  uQuitSignal in '..\common\uQuitSignal.pas',
   // Steam: only in the Steam / SteamDebug configurations (STEAMBUILD)
   uSteam in '..\common\uSteam.pas',
   uMachine in '..\common\uMachine.pas',

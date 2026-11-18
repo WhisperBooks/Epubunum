@@ -1,0 +1,383 @@
+"controller_mappings"
+{
+	"version"		"3"
+	"revision"		"1"
+	"title"		"EpubReader - PlayStation 4 (r1)"
+	"description"		"Default layout for the PlayStation 4 (reader_controller_ps4.vdf, revision 1) - EpubReader: reading, listening and its menu."
+	"controller_type"		"controller_ps4"
+	"major_revision"		"0"
+	"minor_revision"		"1"
+	"Timestamp"		"0"
+	"actions"
+	{
+		"Reader"
+		{
+			"title"		"#Set_Reader"
+			"StickPadGyro"
+			{
+				"Scroll"
+				{
+					"title"		"#Action_Scroll"
+					"input_mode"		"joystick_move"
+				}
+			}
+			"Button"
+			{
+				"Up"		"#Action_Up"
+				"Down"		"#Action_Down"
+				"Left"		"#Action_Left"
+				"Right"		"#Action_Right"
+				"Play"		"#Action_Play"
+				"Back"		"#Action_Back"
+				"Again"		"#Action_Again"
+				"Dark"		"#Action_Dark"
+				"SentencePrev"		"#Action_SentencePrev"
+				"SentenceNext"		"#Action_SentenceNext"
+				"ChapterPrev"		"#Action_ChapterPrev"
+				"ChapterNext"		"#Action_ChapterNext"
+				"Menu"		"#Action_Menu"
+				"Library"		"#Action_Library"
+			}
+		}
+	}
+	"localization"
+	{
+		"english"
+		{
+			"title"		"EpubReader - PlayStation 4 (r1)"
+			"description"		"Default layout for the PlayStation 4 (reader_controller_ps4.vdf, revision 1) - EpubReader: reading, listening and its menu."
+			"Set_Reader"		"Reading"
+			"Action_Scroll"		"Scroll the page"
+			"Action_Up"		"Up (menu, library) / scroll up"
+			"Action_Down"		"Down (menu, library) / scroll down"
+			"Action_Left"		"Left / previous page"
+			"Action_Right"		"Right / next page"
+			"Action_Play"		"Play / pause; choose (menu, library)"
+			"Action_Back"		"Back (close the menu or the library)"
+			"Action_Again"		"Say it again (Learn to read)"
+			"Action_Dark"		"Dark mode"
+			"Action_SentencePrev"		"Previous sentence"
+			"Action_SentenceNext"		"Next sentence"
+			"Action_ChapterPrev"		"Previous chapter"
+			"Action_ChapterNext"		"Next chapter"
+			"Action_Menu"		"Menu"
+			"Action_Library"		"Library"
+		}
+	}
+	"group"
+	{
+		"id"		"0"
+		"mode"		"switches"
+		"inputs"
+		{
+			"left_bumper"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"game_action Reader SentencePrev"
+						}
+					}
+				}
+			}
+			"right_bumper"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"game_action Reader SentenceNext"
+						}
+					}
+				}
+			}
+			"button_escape"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"game_action Reader Menu"
+						}
+					}
+				}
+			}
+			"button_menu"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"game_action Reader Library"
+						}
+					}
+				}
+			}
+		}
+	}
+	"group"
+	{
+		"id"		"1"
+		"mode"		"four_buttons"
+		"inputs"
+		{
+			"button_a"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"game_action Reader Play"
+						}
+					}
+				}
+			}
+			"button_b"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"game_action Reader Back"
+						}
+					}
+				}
+			}
+			"button_x"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"game_action Reader Again"
+						}
+					}
+				}
+			}
+			"button_y"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"game_action Reader Dark"
+						}
+					}
+				}
+			}
+		}
+	}
+	"group"
+	{
+		"id"		"2"
+		"mode"		"trigger"
+		"inputs"
+		{
+			"click"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"game_action Reader ChapterPrev"
+						}
+					}
+				}
+			}
+		}
+	}
+	"group"
+	{
+		"id"		"3"
+		"mode"		"trigger"
+		"inputs"
+		{
+			"click"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"game_action Reader ChapterNext"
+						}
+					}
+				}
+			}
+		}
+	}
+	"group"
+	{
+		"id"		"4"
+		"mode"		"dpad"
+		"inputs"
+		{
+			"dpad_north"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"game_action Reader Up"
+						}
+					}
+				}
+			}
+			"dpad_south"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"game_action Reader Down"
+						}
+					}
+				}
+			}
+			"dpad_west"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"game_action Reader Left"
+						}
+					}
+				}
+			}
+			"dpad_east"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"game_action Reader Right"
+						}
+					}
+				}
+			}
+		}
+	}
+	"group"
+	{
+		"id"		"5"
+		"mode"		"joystick_move"
+		"inputs"
+		{
+		}
+		"settings"
+		{
+			"virtual_mode"		"1"
+		}
+		"gameactions"
+		{
+			"Reader"		"Scroll"
+		}
+	}
+	"group"
+	{
+		"id"		"6"
+		"mode"		"dpad"
+		"inputs"
+		{
+			"dpad_north"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"game_action Reader Up"
+						}
+					}
+				}
+			}
+			"dpad_south"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"game_action Reader Down"
+						}
+					}
+				}
+			}
+			"dpad_west"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"game_action Reader Left"
+						}
+					}
+				}
+			}
+			"dpad_east"
+			{
+				"activators"
+				{
+					"Full_Press"
+					{
+						"bindings"
+						{
+							"binding"		"game_action Reader Right"
+						}
+					}
+				}
+			}
+		}
+	}
+	"preset"
+	{
+		"id"		"0"
+		"name"		"Reader"
+		"group_source_bindings"
+		{
+			"0"		"switch active"
+			"1"		"button_diamond active"
+			"2"		"left_trigger active"
+			"3"		"right_trigger active"
+			"4"		"joystick active"
+			"5"		"right_joystick active"
+			"6"		"dpad active"
+		}
+	}
+	"settings"
+	{
+	}
+}

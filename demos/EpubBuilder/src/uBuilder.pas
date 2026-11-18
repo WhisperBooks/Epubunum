@@ -19,7 +19,7 @@ uses
   Epub.Zip, Epub.Book, Epub.Layout, Epub.Writer,
   FFmpeg.API, FFmpeg.Media,
   Whisper.Types, Whisper.API, Whisper.Audio, Whisper.Core, Whisper.Words, Whisper.Align, Whisper.AudioSet,
-  uDebugLog, uMachine, uCalibration, uHistory, uModels, uSteam;
+  uDebugLog, uMachine, uCalibration, uHistory, uModels, uSteam, uInhibit, uQuitSignal;
 
 type
   { The figures of one build, for the queue's report (filled by the
@@ -284,6 +284,9 @@ type
     FFillingModels: Boolean;
     { The model being downloaded, nil when none. }
     FDownload: TModelDownload;
+    { The computer is kept awake (a build, queue, calibration or download
+      runs) - see uInhibit. }
+    FAwake: Boolean;
     { The device to transcribe on. }
     cbDevice: TComboBox;
     { The EPUB to write. }
@@ -350,10 +353,18 @@ type
     FDevices: TWhisperDeviceArray;
     { Why whisper.cpp is not there ('' when it is). }
     FWhisperNote: string;
-    { Folder the last book was chosen in ('' = none yet). }
+    { The books folder: where Book... opens (Tools > Folders; default
+      Documents/EpubBuilder/Books). }
     FBookFolder: string;
-    { Folder the last audio was added from. }
+    { The audio folder: where Add audio... opens (default
+      Documents/EpubBuilder/Audio). }
     FAudioFolder: string;
+    { The output folder: where a chosen book's EPUB 3 goes by default
+      (default Documents/EpubBuilder/Output). }
+    FOutFolder: string;
+    { The output name given by DefaultOutput for the book in the window
+      (Tools > Output folder renames it only while it is unchanged). }
+    FAutoOut: string;
     { The chosen book's title. }
     FBookTitle: string;
     { The job queue: left of the book. }
@@ -522,6 +533,13 @@ type
     { Closing while a build runs asks first (No by default): the build
       would be stopped and its work so far lost. }
     procedure FormCloseQuery(Sender: TObject; var CanClose: Boolean);
+    { Steam's Exit Game (SIGTERM) or the system shutting down: saves the
+      settings, the queue file, the build's log so far and leaves no
+      calibration crash mark (it was not a crash), then ends - at once
+      when a build, calibration or download runs (waiting for the GPU
+      would outlast Steam's patience), else by closing the window.
+      @param(ASignal  the signal's number) }
+    procedure QuitSignalled(ASignal: Integer);
     { Asks before replacing an EPUB this program did not just make from
       this book (or one a waiting job will write), then StartBuild /
       AddJob (AQueue). }
@@ -585,6 +603,15 @@ type
     procedure miHistoryClick(Sender: TObject);
     { Tools > Get AMD ROCm acceleration: SteamGetDlc. }
     procedure miRocmClick(Sender: TObject);
+    { Tools > Books folder... / Audio folder... / Output folder...: the
+      three folders (Tag 0, 1, 2 of the item). }
+    procedure miFolderClick(Sender: TObject);
+    { The output for book ABook: its file name in the output folder, or
+      with _001, _002 ... when that is taken (a file there, or a job of
+      the queue writes it).
+      @param(ABook  the book chosen)
+      @returns(the full path) }
+    function DefaultOutput(const ABook: string): string;
     { At start-up (Linux Steam builds, STEAM_DLC_ROCM set): an AMD GPU
       with no ROCm device -> the DLC offered (or, when it is installed,
       why it may not have loaded). }
@@ -621,6 +648,8 @@ const
   { Written before each calibration pair, deleted after it: found at
     start-up, the program ended during that pair. Beside the settings. }
   CALIBRATION_MARKER_SUFFIX = '-calibrating.txt';
+  { The note of an end from outside (uQuitSignal), beside the settings. }
+  QUIT_NOTE_SUFFIX = '-ended.txt';
   { The calibration's lines, beside the settings. }
   CALIBRATION_LOG_SUFFIX = '-calibration.log';
   { The prompt given to every 30 s window: punctuated and capitalised, so
@@ -1625,6 +1654,12 @@ begin
   OnShow := FormShow;
   // the debug log: next to the settings, started afresh at every run
   DebugLogOpen(ChangeFileExt(SettingsFile, '-debug.log'));
+  // Steam's Exit Game ends the program with SIGTERM: save first (owner)
+  if QuitSignalInstall(QuitSignalled) then
+    DebugLog('SIGTERM / SIGINT / SIGHUP: saved before the program ends');
+  Line := QuitSignalLast(ChangeFileExt(SettingsFile, QUIT_NOTE_SUFFIX));
+  if Line <> '' then
+    DebugLog(Line);
   // a crash in a library (Steam Deck, 2026-11-17): logged with where it was
   Application.OnException := AppException;
   FJob := -1;
@@ -1668,8 +1703,19 @@ begin
   if SteamBuild and not FolderWritable(FModelsFolder) then
     FModelsFolder := ModelsDefaultFolder(False, ExtractFilePath(SettingsFile));
   LoadSettings;
+  // the three folders there from the start (the dialogs open in them)
+  try
+    ForceDirectories(FBookFolder);
+    ForceDirectories(FAudioFolder);
+    ForceDirectories(FOutFolder);
+  except
+    on E: Exception do
+      LogLine('A folder was not made: ' + E.Message);
+  end;
   FillModels;
   LogLine('Models folder: ' + FModelsFolder);
+  LogLine(Format('Folders: books %s, audio %s, output %s (Tools to change)', [FBookFolder, FAudioFolder,
+    FOutFolder]));
   if FCoreML then
     LogLine('Core ML: built in - a model''s Core ML encoder is downloaded with it (the encoder then runs on the ' +
       'Neural Engine).');
@@ -1694,9 +1740,24 @@ end;
 procedure TfrmBuilder.LoadSettings;
 var
   Ini: TMemIniFile;
-  Device: string;
+  Device, Docs: string;
   I: Integer;
+
+  { The folder kept under AKey, else ADefault. }
+  function FolderSetting(const AKey, ADefault: string): string;
+  begin
+    Result := Ini.ReadString('Folders', AKey, '');
+    if Result = '' then
+      Result := ADefault;
+  end;
+
 begin
+  // the three folders: books in, audio in, books out (owner, 2026-11-18) -
+  // Documents/EpubBuilder/... until Tools > ... folder chooses others
+  Docs := TPath.Combine(TPath.GetDocumentsPath, 'EpubBuilder');
+  FBookFolder := TPath.Combine(Docs, 'Books');
+  FAudioFolder := TPath.Combine(Docs, 'Audio');
+  FOutFolder := TPath.Combine(Docs, 'Output');
   if not FileExists(SettingsFile) then
     Exit;
   try
@@ -1717,8 +1778,9 @@ begin
         if SameText(FDevices[I].Name, Device) then
           cbDevice.ItemIndex := I + 1;
       chkChapters.IsChecked := Ini.ReadBool('Build', 'Chapters', True);
-      FBookFolder := Ini.ReadString('Folders', 'Book', '');
-      FAudioFolder := Ini.ReadString('Folders', 'Audio', '');
+      FBookFolder := FolderSetting('Book', FBookFolder);
+      FAudioFolder := FolderSetting('Audio', FAudioFolder);
+      FOutFolder := FolderSetting('Output', FOutFolder);
     finally
       Ini.Free;
     end;
@@ -1754,6 +1816,7 @@ begin
       Ini.DeleteKey('Build', 'UseSavedTranscript');
       Ini.WriteString('Folders', 'Book', FBookFolder);
       Ini.WriteString('Folders', 'Audio', FAudioFolder);
+      Ini.WriteString('Folders', 'Output', FOutFolder);
       Ini.UpdateFile;
     finally
       Ini.Free;
@@ -1787,6 +1850,57 @@ begin
     TMsgDlgType.mtWarning, [TMsgDlgBtn.mbYes, TMsgDlgBtn.mbNo], TMsgDlgBtn.mbNo, 0) = mrYes;
   if not CanClose then
     LogLine('Still building.');
+end;
+
+procedure TfrmBuilder.QuitSignalled(ASignal: Integer);
+var
+  Busy: Boolean;
+  What: string;
+begin
+  Busy := (FBuild <> nil) or (FCalib <> nil) or (FDownload <> nil);
+  What := '';
+  if FBuild <> nil then
+    What := Format('building %s (%.0f %%)', [ExtractFileName(FRunOut), FPercent])
+  else if FCalib <> nil then
+    What := Format('calibrating (%.0f %%)', [FPercent])
+  else if FDownload <> nil then
+    What := 'downloading a model';
+  // the next start says so too (the debug log starts afresh)
+  QuitSignalRecord(ChangeFileExt(SettingsFile, QUIT_NOTE_SUFFIX), ASignal, What);
+  try
+    LogLine(Format('Asked to end (%s - Steam''s Exit Game, or the system shutting down)%s: saving.',
+      [QuitSignalName(ASignal), IfThen(What <> '', ' while ' + What, '')]));
+    SaveSettings;
+    if FCalib <> nil then
+      // ended from outside, not by a device: no crash to remember
+      TFile.Delete(ChangeFileExt(SettingsFile, CALIBRATION_MARKER_SUFFIX));
+    if FQueueRunning and (FQueueFile <> '') then
+    begin
+      SaveQueue(FQueueFile);
+      LogLine('Queue file saved: ' + FQueueFile);
+    end;
+    if (FBuild <> nil) and (FRunOut <> '') and (FBuildLog <> nil) then
+    begin
+      LogLine('The build was stopped part way: its transcription so far is lost (Create again).');
+      FBuildLog.SaveToFile(FRunOut + '.log', TEncoding.UTF8);
+    end
+    else if (FCalib <> nil) and (FBuildLog <> nil) then
+    begin
+      LogLine('The calibration was stopped part way: nothing of it was kept.');
+      FBuildLog.SaveToFile(ChangeFileExt(SettingsFile, CALIBRATION_LOG_SUFFIX), TEncoding.UTF8);
+    end;
+  except
+    on E: Exception do
+      DebugLog('saving before the end: ' + E.Message);
+  end;
+  if Busy then
+  begin
+    DebugLog('ending now (a build, calibration or download was running)');
+    QuitNow(0);
+  end;
+  // nothing running: the window's own close (FormClose)
+  DebugLog('closing');
+  Close;
 end;
 
 procedure TfrmBuilder.FormClose(Sender: TObject; var Action: TCloseAction);
@@ -1850,6 +1964,17 @@ var
   I: Integer;
 begin
   Busy := (FBuild <> nil) or FQueueRunning or (FCalib <> nil) or (FDownload <> nil);
+  if Busy <> FAwake then
+  begin
+    // SteamOS (Game Mode) and laptops sleep with nobody at the controls,
+    // half way through an hour's transcription (owner, Steam Machine)
+    FAwake := Busy;
+    if Busy then
+      InhibitStart(ikSleep, 'Building an audiobook')
+    else
+      InhibitStop(ikSleep);
+    LogLine(IfThen(Busy, 'keeping the computer awake: ', 'letting the computer sleep: ') + InhibitText);
+  end;
   Ready := (FWhisperNote = '') and (edBook.Text <> '') and (lbAudio.Count > 0) and (edOut.Text <> '') and
     ((FModelPath <> '') or chkReuse.IsChecked);
   // the window stays usable while building: books are added to the queue
@@ -1915,7 +2040,10 @@ begin
         if lbAudio.Count > 0 then
           LogLine('Another book: the audio list was emptied.');
         lbAudio.Clear;
-        edOut.Text := ChangeFileExt(AFileName, '') + '-synced.epub';
+        // the EPUB 3 in the output folder, under the book's own name
+        // (numbered when taken) - the user may change it (owner)
+        edOut.Text := DefaultOutput(AFileName);
+        FAutoOut := edOut.Text;
       end;
       edBook.Text := AFileName;
     finally
@@ -1975,10 +2103,7 @@ begin
     D.Filter := 'EPUB books (*.epub)|*.epub';
     D.InitialDir := FBookFolder;
     if D.Execute then
-    begin
-      FBookFolder := ExtractFileDir(D.FileName);
       ShowBook(D.FileName);
-    end;
   finally
     D.Free;
   end;
@@ -1995,10 +2120,7 @@ begin
     D.Options := D.Options + [TOpenOption.ofAllowMultiSelect];
     D.InitialDir := FAudioFolder;
     if D.Execute then
-    begin
-      FAudioFolder := ExtractFileDir(D.FileName);
       AddAudio(D.Files);
-    end;
   finally
     D.Free;
   end;
@@ -2012,7 +2134,6 @@ begin
   Folder := FAudioFolder;
   if not SelectDirectory('Folder of audio files', '', Folder) then
     Exit;
-  FAudioFolder := ExcludeTrailingPathDelimiter(Folder);
   try
     L := WhisperListAudioFiles(Folder);
     try
@@ -2292,6 +2413,10 @@ begin
   try
     D.Filter := 'EPUB books (*.epub)|*.epub';
     D.DefaultExt := 'epub';
+    if edOut.Text <> '' then
+      D.InitialDir := ExtractFileDir(edOut.Text)
+    else
+      D.InitialDir := FOutFolder;
     D.FileName := edOut.Text;
     if D.Execute then
       edOut.Text := D.FileName;
@@ -2486,6 +2611,14 @@ begin
   FStarted := Now;
   FRunBook := ExpandFileName(AJob.Book);
   FRunOut := ExpandFileName(AJob.Output);
+  // the output folder (Documents/EpubBuilder/Output at first) made when
+  // the first book goes there
+  try
+    ForceDirectories(ExtractFileDir(FRunOut));
+  except
+    on E: Exception do
+      LogLine('The output folder was not made: ' + E.Message);
+  end;
   FJob := AIndex;
   FCancelled := False;
   // this build's lines, saved beside its output when it ends
@@ -3320,6 +3453,10 @@ begin
   Item(M, '-', nil);
   Item(M, '&Calibration results', miCalibrationClick);
   Item(M, 'Build &history...', miHistoryClick);
+  Item(M, '-', nil);
+  Item(M, '&Books folder...', miFolderClick).Tag := 0;
+  Item(M, '&Audio folder...', miFolderClick).Tag := 1;
+  Item(M, '&Output folder...', miFolderClick).Tag := 2;
   // shown by CheckRocmDlc when it applies
   miRocm := Item(M, 'Get AMD &ROCm acceleration (free DLC)...', miRocmClick);
   miRocm.Visible := False;
@@ -3709,6 +3846,71 @@ end;
 procedure TfrmBuilder.miHistoryClick(Sender: TObject);
 begin
   ShowBuildHistory(Self, HistoryFile, HistoryMachine(MachineText));
+end;
+
+procedure TfrmBuilder.miFolderClick(Sender: TObject);
+const
+  NAMES: array[0..2] of string = ('Books folder (the EPUBs to read along)', 'Audio folder (the recordings)',
+    'Output folder (the books made)');
+var
+  K: Integer;
+  Folder: string;
+begin
+  K := (Sender as TMenuItem).Tag;
+  case K of
+    0: Folder := FBookFolder;
+    1: Folder := FAudioFolder;
+  else
+    Folder := FOutFolder;
+  end;
+  if not SelectDirectory(NAMES[K], '', Folder) then
+    Exit;
+  Folder := ExcludeTrailingPathDelimiter(Folder);
+  case K of
+    0: FBookFolder := Folder;
+    1: FAudioFolder := Folder;
+  else
+    begin
+      FOutFolder := Folder;
+      // the book's output follows, unless the user named it
+      if (edBook.Text <> '') and SameFileName(edOut.Text, FAutoOut) then
+      begin
+        edOut.Text := DefaultOutput(edBook.Text);
+        FAutoOut := edOut.Text;
+      end;
+    end;
+  end;
+  LogLine(NAMES[K] + ': ' + Folder);
+  SaveSettings;
+  UpdateControls;
+end;
+
+function TfrmBuilder.DefaultOutput(const ABook: string): string;
+
+  { A job of the queue writes AFile. }
+  function Queued(const AFile: string): Boolean;
+  var
+    I: Integer;
+  begin
+    Result := False;
+    for I := 0 to High(FJobs) do
+      if (FJobs[I].State in [jsWaiting, jsRunning]) and SameFileName(ExpandFileName(FJobs[I].Output), AFile) then
+        Exit(True);
+  end;
+
+var
+  Name: string;
+  N: Integer;
+begin
+  Name := ChangeFileExt(ExtractFileName(ABook), '');
+  Result := TPath.Combine(FOutFolder, Name + '.epub');
+  N := 0;
+  // the book itself (chosen from the output folder) counts as taken too
+  while FileExists(Result) or Queued(ExpandFileName(Result)) do
+  begin
+    Inc(N);
+    Result := TPath.Combine(FOutFolder, Format('%s_%.3d.epub', [Name, N]));
+  end;
 end;
 
 procedure TfrmBuilder.miCalibrationClick(Sender: TObject);

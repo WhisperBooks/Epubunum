@@ -1,0 +1,882 @@
+.\WhisperConsole --bench C:\models\ggml-large-v3-turbo.bin C:\audio\aladdin.wav --devices CPU --seconds 120
+.\WhisperConsole --bench C:\models\ggml-large-v3-turbo.bin C:\audio\aladdin.wav --devices CPU --seconds 120 --threads 8
+.\WhisperConsole --bench C:\models\ggml-base.en.bin C:\audio\aladdin.wav --devices CUDA0,Vulkan0 --runs 5
+.\WhisperConsole C:\models\ggml-large-v3-turbo.bin C:\audio\aladdin.wav --device Vulkan0
+.\WhisperConsole --bench C:\models\ggml-base.en.bin C:\audio\aladdin.wav --devices Bogus0
+.\WhisperConsole C:\models\ggml-base.en.bin C:\audio\aladdin.wav --device Bogus0
+
+01:02:16.448  info: Read C:\audio\aladdin.wav: 1 channel(s), 8000 Hz, 16 bits, 16852947 frames -> 33705894 samples at 16000 Hz (2106.62 s) in 3041 ms
+01:03:10.428  info: Transcription finished: 322 segment(s), language en, 2106.62 s of audio in 53844 ms
+01:03:10.429  Language en (english); real-time factor 39.12
+
+01:04:10.523  info: Read C:\audio\aladdin.wav: 1 channel(s), 8000 Hz, 16 bits, 16852947 frames -> 33705894 samples at 16000 Hz (2106.62 s) in 2983 ms
+01:04:54.694  info: Transcription finished: 324 segment(s), language en, 2106.62 s of audio in 44025 ms
+01:04:54.695  Language en (english); real-time factor 47.85
+
+.\WhisperConsole C:\models\whisper\ggml-large-v3-turbo.bin C:\audio\magician.m4b en --chapters --no-context --carry-prompt --prompt "Pug and Tomas lived in Crydee, on Midkemia. Kulgan, Arutha and Tully spoke." --json C:\audio\magician.json --labels C:\audio\magician-words.txt 2>&1 | Tee-Object -FilePath C:\audio\magician.log
+.\WhisperConsole C:\models\whisper\ggml-large-v3-turbo.bin "C:\audio\moment.m4b" en --chapters --no-context --carry-prompt --prompt "Jon-Tom and Mudge met Clothahump. Markus, Oplode, Quorly and Pandro spoke of Quasequa." --json C:\audio\moment.json 2>&1 | Tee-Object -FilePath C:\audio\moment.log
+.\WhisperConsole C:\models\whisper\ggml-large-v3-turbo.bin "C:\audio\silverthorn.aax" en --chapters --no-context --carry-prompt --prompt "Once upon a time, there was a story. It was read aloud." --json C:\audio\silverthorn.json 2>&1 | Tee-Object -FilePath C:\audio\silverthorn.log
+.\WhisperConsole C:\models\whisper\ggml-large-v3-turbo.bin "C:\audio\TheHobbit-dec.aax" en --chapters --no-context --carry-prompt --prompt "Once upon a time, there was a story. It was read aloud." --json C:\audio\TheHobbit-dec.json 2>&1 | Tee-Object -FilePath C:\audio\TheHobbit-dec.log
+.\WhisperConsole C:\models\whisper\ggml-large-v3-turbo.bin "C:\audio\NightWatch.m4b" en --chapters --no-context --carry-prompt --prompt "Once upon a time, there was a story. It was read aloud." --json C:\audio\NightWatch.json 2>&1 | Tee-Object -FilePath C:\audio\NightWatch.log
+.\WhisperConsole C:\models\whisper\ggml-large-v3-turbo.bin "C:\audio\TheStarsMyDestination.m4b" en --chapters --no-context --carry-prompt --prompt "Once upon a time, there was a story. It was read aloud." --json C:\audio\TheStarsMyDestination.json 2>&1 | Tee-Object -FilePath C:\audio\TheStarsMyDestination.log
+
+Stuart Wills
+.\EpubConsole C:\books\moby-dick-mo.epub --words C:\books\moby-words.txt
+.\WhisperConsole C:\models\whisper\ggml-large-v3-turbo.bin C:\audio\MobyDick --chapters --no-context --carry-prompt --prompt "It was read aloud, with care." --json C:\books\moby.json --align-words C:\books\moby-words.txt --timings C:\books\moby-timings.txt 2>&1 | Tee-Object -FilePath C:\books\MobyDick.log
+.\EpubConsole C:\books\moby-dick-mo.epub --overlay C:\books\moby-timings.txt C:\books\moby-synced.epub
+
+
+.\WhisperConsole --from-json C:\books\moby.json --align-words C:\books\moby-words.txt --timings C:\books\moby-timings.txt
+.\EpubConsole C:\books\moby-dick-mo.epub --overlay C:\books\moby-timings.txt C:\books\moby-synced.epub
+
+
+.\EpubConsole C:\books\moby-dick-mo.epub --words C:\books\moby-words.txt
+.\WhisperConsole --from-json C:\books\moby.json --align-words C:\books\moby-words.txt --timings C:\books\moby-timings.txt
+.\EpubConsole C:\books\moby-dick-mo.epub --overlay C:\books\moby-timings.txt C:\books\moby-synced.epub
+
+
+
+.\EpubConsole C:\books\moby-dick-mo.epub --words C:\books\moby-words.txt
+.\WhisperConsole --from-json C:\books\moby.json --align-words C:\books\moby-words.txt --timings C:\books\moby-timings.txt
+.\EpubConsole C:\books\moby-dick-mo.epub --overlay C:\books\moby-timings.txt C:\books\moby-synced.epub
+
+Same for https://github.com/G3DGames/TFFMpegAPI
+Transcript kept for next time: /home/simon/src/english/Night Watch - Terry Pratchett-synced.transcript.json (113694 words)
+
+large-v3 - Ideapad = fail
+
+large-v3-turbo - Ideapad
+
+RESULTS - 113836 words in the book (to the aligner), 113694 heard by Whisper
+  Exact:        108365 (95.2 %) - heard as the book has it; timed by what was heard.
+  Similar:      1891 (1.7 %) - heard a little differently (a name, a spelling, an old word); timed by what was heard.
+  Moved:        441 (0.4 %) - read in another place than the book has them (a footnote read where it is called); timed where they were read.
+  Interpolated: 2072 (1.8 %) - not heard clearly between heard words; timed by sharing out the time between them (worth a listen when there are many in a row).
+  Not heard:    3 (0.0 %) - a silence in the transcript where the book goes on; timed like interpolated words.
+  Not spoken:   780 (0.7 %) - in the book but not in the recording (title pages, notes, a licence); left without highlight.
+  Verdict: 97.8 % of the timed words were matched to what was heard: good.
+  Of the not spoken words, 215 are before the first or after the last word read: front and back matter, normal (not listed below; the text is still in the book).
+  Stretches of 3 or more words worth a look (longest first, at most 10):
+    404 words not spoken, at 14:40:28.430: limits of humorous fantasy and should be recognized as one ...
+    123 words interpolated, at 14:39:39.950: Author Terry Pratchett’s novels have sold more than thirty million ...
+    101 words moved, at 01:29:14.050: Who was an orangutan, changed from his former human shape ...
+    70 words moved, at 03:42:02.910: In the same way that ancient forests become coal, ancient ...
+    56 words moved, at 11:23:46.130: advice, had he been inclined to part with it. You ...
+    51 words moved, at 00:27:40.130: quite young (insofar as you could tell with an Igor, ...
+    40 words moved, at 00:46:13.660: League of Temperance, made up of former vampires who now ...
+    36 words moved, at 12:09:28.620: made a point, on occasions like this, to talk only ...
+    34 words not spoken, at 02:32:21.760: And you’re not His Grace Commander Sir Samuel Vimes, neither. ...
+    28 words interpolated, at 14:40:09.110: inventiveness of Alice in Wonderland.” A.S. Byatt “Humorously entertaining (and ...
+Writing /home/simon/src/english/Night Watch - Terry Pratchett-synced.epub ...
+Done: 17 document(s), 112769 clip(s), 0 timed word(s) left out
+Chapter marks: 75 (the recording's parts; EpubReader steps by them when the book's contents list has no chapters that are read)
+The book was EPUB 2: it is EPUB 3 now (overlays need it)
+Finished after 00:57:32.070
+Open /home/simon/src/english/Night Watch - Terry Pratchett-synced.epub in EpubReader.
+Log kept: /home/simon/src/english/Night Watch - Terry Pratchett-synced.epub.log
+
+medium.en - Ideapad
+
+RESULTS - 113836 words in the book (to the aligner), 114144 heard by Whisper
+  Exact:        107434 (94.4 %) - heard as the book has it; timed by what was heard.
+  Similar:      2223 (2.0 %) - heard a little differently (a name, a spelling, an old word); timed by what was heard.
+  Moved:        438 (0.4 %) - read in another place than the book has them (a footnote read where it is called); timed where they were read.
+  Interpolated: 2387 (2.1 %) - not heard clearly between heard words; timed by sharing out the time between them (worth a listen when there are many in a row).
+  Not heard:    34 (0.0 %) - a silence in the transcript where the book goes on; timed like interpolated words.
+  Not spoken:   1037 (0.9 %) - in the book but not in the recording (title pages, notes, a licence); left without highlight.
+  Verdict: 97.5 % of the timed words were matched to what was heard: good.
+  Of the not spoken words, 220 are before the first or after the last word read: front and back matter, normal (not listed below; the text is still in the book).
+  Stretches of 3 or more words worth a look (longest first, at most 10):
+    575 words not spoken, at 14:39:40.030: Author Terry Pratchett’s novels have sold more than thirty million ...
+    101 words moved, at 01:29:13.790: Who was an orangutan, changed from his former human shape ...
+    70 words moved, at 03:42:02.910: In the same way that ancient forests become coal, ancient ...
+    51 words moved, at 00:27:40.150: quite young (insofar as you could tell with an Igor, ...
+    51 words moved, at 11:23:41.100: And this was true. Don’t bother with the boots, would ...
+    42 words moved, at 00:46:12.700: The Uberwald League of Temperance, made up of former vampires ...
+    36 words moved, at 12:09:28.680: made a point, on occasions like this, to talk only ...
+    34 words not spoken, at 02:32:21.820: And you’re not His Grace Commander Sir Samuel Vimes, neither. ...
+    22 words not spoken, at 13:58:33.210: He hadn’t had time to put a pair of drawers ...
+    21 words moved, at 02:49:19.970: a man without whose experiments with thin rubber the housing ...
+Writing /home/simon/src/english/Night Watch - Terry Pratchett-medium-synced.epub ...
+Done: 16 document(s), 112482 clip(s), 0 timed word(s) left out
+Chapter marks: 75 (the recording's parts; EpubReader steps by them when the book's contents list has no chapters that are read)
+The book was EPUB 2: it is EPUB 3 now (overlays need it)
+Finished after 01:50:54.580
+Open /home/simon/src/english/Night Watch - Terry Pratchett-medium-synced.epub in EpubReader.
+Log kept: /home/simon/src/english/Night Watch - Terry Pratchett-medium-synced.epub.log
+
+
+large-v3 - Monster
+
+AutoSelect (CUDA?)
+
+RESULTS - 113836 words in the book (to the aligner), 113837 heard by Whisper
+  Exact:        108484 (95.3 %) - heard as the book has it; timed by what was heard.
+  Similar:      1749 (1.5 %) - heard a little differently (a name, a spelling, an old word); timed by what was heard.
+  Moved:        438 (0.4 %) - read in another place than the book has them (a footnote read where it is called); timed where they were read.
+  Interpolated: 1936 (1.7 %) - not heard clearly between heard words; timed by sharing out the time between them (worth a listen when there are many in a row).
+  Not heard:    1 (0.0 %) - a silence in the transcript where the book goes on; timed like interpolated words.
+  Not spoken:   944 (0.8 %) - in the book but not in the recording (title pages, notes, a licence); left without highlight.
+  Verdict: 97.9 % of the timed words were matched to what was heard: good.
+  Of the not spoken words, 220 are before the first or after the last word read: front and back matter, normal (not listed below; the text is still in the book).
+  Stretches of 3 or more words worth a look (longest first, at most 10):
+    575 words not spoken, at 14:39:48.310: Author Terry Pratchett’s novels have sold more than thirty million ...
+    101 words moved, at 01:29:13.950: Who was an orangutan, changed from his former human shape ...
+    71 words moved, at 03:42:02.450: In the same way that ancient forests become coal, ancient ...
+    51 words moved, at 00:27:40.030: quite young (insofar as you could tell with an Igor, ...
+    51 words moved, at 11:23:41.020: And this was true. Don’t bother with the boots, would ...
+    40 words moved, at 00:46:13.520: League of Temperance, made up of former vampires who now ...
+    36 words moved, at 12:09:28.480: made a point, on occasions like this, to talk only ...
+    34 words not spoken, at 02:32:21.660: And you’re not His Grace Commander Sir Samuel Vimes, neither. ...
+    22 words not spoken, at 13:58:33.010: He hadn’t had time to put a pair of drawers ...
+    21 words moved, at 02:49:19.550: a man without whose experiments with thin rubber the housing ...
+Writing C:\Video\epubunum\night watch\english\Night Watch - Terry Pratchett-large-synced.epub ...
+Done: 16 document(s), 112607 clip(s), 0 timed word(s) left out
+Chapter marks: 75 (the recording's parts; EpubReader steps by them when the book's contents list has no chapters that are read)
+The book was EPUB 2: it is EPUB 3 now (overlays need it)
+Finished after 00:39:20.240
+Open C:\Video\epubunum\night watch\english\Night Watch - Terry Pratchett-large-synced.epub in EpubReader.
+Log kept: C:\Video\epubunum\night watch\english\Night Watch - Terry Pratchett-large-synced.epub.log
+
+Vulkan
+
+RESULTS - 113836 words in the book (to the aligner), 113818 heard by Whisper
+  Exact:        108483 (95.3 %) - heard as the book has it; timed by what was heard.
+  Similar:      1750 (1.5 %) - heard a little differently (a name, a spelling, an old word); timed by what was heard.
+  Moved:        438 (0.4 %) - read in another place than the book has them (a footnote read where it is called); timed where they were read.
+  Interpolated: 1928 (1.7 %) - not heard clearly between heard words; timed by sharing out the time between them (worth a listen when there are many in a row).
+  Not heard:    1 (0.0 %) - a silence in the transcript where the book goes on; timed like interpolated words.
+  Not spoken:   954 (0.8 %) - in the book but not in the recording (title pages, notes, a licence); left without highlight.
+  Verdict: 97.9 % of the timed words were matched to what was heard: good.
+  Of the not spoken words, 220 are before the first or after the last word read: front and back matter, normal (not listed below; the text is still in the book).
+  Stretches of 3 or more words worth a look (longest first, at most 10):
+    575 words not spoken, at 14:39:48.310: Author Terry Pratchett’s novels have sold more than thirty million ...
+    101 words moved, at 01:29:13.950: Who was an orangutan, changed from his former human shape ...
+    71 words moved, at 03:42:02.830: In the same way that ancient forests become coal, ancient ...
+    51 words moved, at 00:27:40.030: quite young (insofar as you could tell with an Igor, ...
+    51 words moved, at 11:23:41.020: And this was true. Don’t bother with the boots, would ...
+    40 words moved, at 00:46:13.520: League of Temperance, made up of former vampires who now ...
+    36 words moved, at 12:09:28.480: made a point, on occasions like this, to talk only ...
+    34 words not spoken, at 02:32:21.680: And you’re not His Grace Commander Sir Samuel Vimes, neither. ...
+    22 words not spoken, at 13:58:33.010: He hadn’t had time to put a pair of drawers ...
+    21 words moved, at 02:49:19.550: a man without whose experiments with thin rubber the housing ...
+Writing C:\Video\epubunum\night watch\english\Night Watch - Terry Pratchett-large-vulkan-synced.epub ...
+Done: 16 document(s), 112599 clip(s), 0 timed word(s) left out
+Chapter marks: 75 (the recording's parts; EpubReader steps by them when the book's contents list has no chapters that are read)
+The book was EPUB 2: it is EPUB 3 now (overlays need it)
+Finished after 00:29:16.530
+Open C:\Video\epubunum\night watch\english\Night Watch - Terry Pratchett-large-vulkan-synced.epub in EpubReader.
+Log kept: C:\Video\epubunum\night watch\english\Night Watch - Terry Pratchett-large-vulkan-synced.epub.log
+
+large-v3-turbo - Monster
+
+Machine: MONSTER - Windows 11 (Version 26H2, OS Build 26300.9974, 64-bit Edition); Intel(R) Core(TM) Ultra 9 275HX (24 logical processors); 63 GB of memory
+whisper.cpp 1.9.5-dev from C:\src\Whisper\redistributable_bin\Win64\
+Device: Vulkan0 - NVIDIA GeForce RTX 5090 Laptop GPU (GPU, Vulkan, 22.5 of 23.6 GB free)
+  the fastest for ggml-large-v3-turbo.bin in the calibration (CPU 1.0x, CUDA0 25.5x, Vulkan0 26.1x, Vulkan1 3.3x (2026-11-17 10:42))
+Book: Night Watch - 113836 words, language en
+FFmpeg avutil 60.26.103, swresample 6.3.103, avcodec 62.28.103, avformat 62.12.103 (LGPL version 2.1 or later) from C:\src\Whisper\redistributable_bin\Win64\
+Audio: 1 file(s), 75 part(s), about 14:41:28.700
+Loading ggml-large-v3-turbo.bin ...
+Model: large, multilingual, vocabulary 51866, GPU True, DTW word timings (alignment heads large-v3-turbo, flash attention False) on Vulkan0 - NVIDIA GeForce RTX 5090 Laptop GPU (GPU, Vulkan, 20.6 of 23.6 GB free)
+Transcribing in en, each 30 s window on its own, with a punctuated prompt (TWhisper's settings for books)
+Part 1 of 75 "Opening Credits": 114 s of audio, 48 words, 91.0 s
+Part 2 of 75 "Chapter 1": 781 s of audio, 1717 words, 9.6 s
+Part 3 of 75 "Chapter 2": 1106 s of audio, 2539 words, 37.9 s
+Part 4 of 75 "Chapter 3": 757 s of audio, 1613 words, 9.5 s
+Part 5 of 75 "Chapter 4": 544 s of audio, 1215 words, 32.9 s
+Part 6 of 75 "Chapter 5": 177 s of audio, 440 words, 3.1 s
+Part 7 of 75 "Chapter 6": 140 s of audio, 331 words, 2.3 s
+Part 8 of 75 "Chapter 7": 506 s of audio, 1082 words, 6.4 s
+Part 9 of 75 "Chapter 8": 137 s of audio, 281 words, 2.5 s
+Part 10 of 75 "Chapter 9": 622 s of audio, 1339 words, 8.1 s
+Part 11 of 75 "Chapter 10": 608 s of audio, 1289 words, 76.5 s
+Part 12 of 75 "Chapter 11": 1934 s of audio, 4083 words, 22.9 s
+Part 13 of 75 "Chapter 12": 271 s of audio, 643 words, 4.0 s
+Part 14 of 75 "Chapter 13": 943 s of audio, 2056 words, 11.7 s
+Part 15 of 75 "Chapter 14": 681 s of audio, 1340 words, 8.6 s
+Part 16 of 75 "Chapter 15": 630 s of audio, 1345 words, 7.9 s
+Part 17 of 75 "Chapter 16": 1427 s of audio, 2916 words, 26.3 s
+Part 18 of 75 "Chapter 17": 321 s of audio, 646 words, 4.4 s
+Part 19 of 75 "Chapter 18": 1112 s of audio, 2436 words, 16.7 s
+Part 20 of 75 "Chapter 19": 1730 s of audio, 3833 words, 47.0 s
+Part 21 of 75 "Chapter 20": 705 s of audio, 1561 words, 9.2 s
+Part 22 of 75 "Chapter 21": 1174 s of audio, 2488 words, 14.2 s
+Part 23 of 75 "Chapter 22": 160 s of audio, 351 words, 2.7 s
+Part 24 of 75 "Chapter 23": 893 s of audio, 2026 words, 11.1 s
+Part 25 of 75 "Chapter 24": 3134 s of audio, 6715 words, 37.4 s
+Part 26 of 75 "Chapter 25": 459 s of audio, 963 words, 6.1 s
+Part 27 of 75 "Chapter 26": 1946 s of audio, 4263 words, 46.3 s
+Part 28 of 75 "Chapter 27": 70 s of audio, 172 words, 1.6 s
+Part 29 of 75 "Chapter 28": 2071 s of audio, 4710 words, 426.0 s
+Part 30 of 75 "Chapter 29": 701 s of audio, 1380 words, 18.3 s
+Part 31 of 75 "Chapter 30": 49 s of audio, 117 words, 1.4 s
+Part 32 of 75 "Chapter 31": 285 s of audio, 678 words, 4.1 s
+Part 33 of 75 "Chapter 32": 503 s of audio, 1128 words, 6.6 s
+Part 34 of 75 "Chapter 33": 54 s of audio, 128 words, 1.4 s
+Part 35 of 75 "Chapter 34": 117 s of audio, 259 words, 2.1 s
+Part 36 of 75 "Chapter 35": 937 s of audio, 2006 words, 11.5 s
+Part 37 of 75 "Chapter 36": 24 s of audio, 41 words, 1.2 s
+Part 38 of 75 "Chapter 37": 153 s of audio, 280 words, 2.5 s
+Part 39 of 75 "Chapter 38": 3473 s of audio, 7288 words, 40.5 s
+Part 40 of 75 "Chapter 39": 1257 s of audio, 2695 words, 15.2 s
+Part 41 of 75 "Chapter 40": 512 s of audio, 1076 words, 6.4 s
+Part 42 of 75 "Chapter 41": 210 s of audio, 441 words, 3.2 s
+Part 43 of 75 "Chapter 42": 1565 s of audio, 3458 words, 19.2 s
+Part 44 of 75 "Chapter 43": 555 s of audio, 1166 words, 7.4 s
+Part 45 of 75 "Chapter 44": 1766 s of audio, 3768 words, 20.7 s
+Part 46 of 75 "Chapter 45": 45 s of audio, 63 words, 1.3 s
+Part 47 of 75 "Chapter 46": 177 s of audio, 377 words, 2.8 s
+Part 48 of 75 "Chapter 47": 531 s of audio, 1083 words, 20.4 s
+Part 49 of 75 "Chapter 48": 1171 s of audio, 2542 words, 14.1 s
+Part 50 of 75 "Chapter 49": 429 s of audio, 966 words, 6.0 s
+Part 51 of 75 "Chapter 50": 500 s of audio, 1055 words, 6.6 s
+Part 52 of 75 "Chapter 51": 89 s of audio, 235 words, 2.0 s
+Part 53 of 75 "Chapter 52": 489 s of audio, 1091 words, 6.7 s
+Part 54 of 75 "Chapter 53": 833 s of audio, 1824 words, 49.4 s
+Part 55 of 75 "Chapter 54": 1801 s of audio, 3987 words, 20.8 s
+Part 56 of 75 "Chapter 55": 239 s of audio, 494 words, 3.6 s
+Part 57 of 75 "Chapter 56": 862 s of audio, 2011 words, 45.1 s
+Part 58 of 75 "Chapter 57": 191 s of audio, 442 words, 26.2 s
+Part 59 of 75 "Chapter 58": 138 s of audio, 324 words, 2.5 s
+Part 60 of 75 "Chapter 59": 547 s of audio, 1196 words, 6.8 s
+Part 61 of 75 "Chapter 60": 67 s of audio, 114 words, 1.5 s
+Part 62 of 75 "Chapter 61": 285 s of audio, 713 words, 4.3 s
+Part 63 of 75 "Chapter 62": 101 s of audio, 231 words, 1.9 s
+Part 64 of 75 "Chapter 63": 450 s of audio, 1006 words, 6.0 s
+Part 65 of 75 "Chapter 64": 442 s of audio, 873 words, 5.6 s
+Part 66 of 75 "Chapter 65": 209 s of audio, 443 words, 57.0 s
+Part 67 of 75 "Chapter 66": 1421 s of audio, 3138 words, 17.2 s
+Part 68 of 75 "Chapter 67": 310 s of audio, 666 words, 4.4 s
+Part 69 of 75 "Chapter 68": 643 s of audio, 1387 words, 8.9 s
+Part 70 of 75 "Chapter 69": 562 s of audio, 1087 words, 7.1 s
+Part 71 of 75 "Chapter 70": 73 s of audio, 147 words, 1.7 s
+Part 72 of 75 "Chapter 71": 935 s of audio, 1944 words, 11.2 s
+Part 73 of 75 "Chapter 72": 1894 s of audio, 3726 words, 21.4 s
+Part 74 of 75 "Chapter 73": 86 s of audio, 88 words, 51.7 s
+Part 75 of 75 "Closing Credits": 57 s of audio, 106 words, 1.4 s
+Transcript kept for next time: C:\Video\epubunum\night watch\english\Night Watch - Terry Pratchett-turbo-synced.transcript.json (113709 words)
+
+RESULTS - 113836 words in the book (to the aligner), 113709 heard by Whisper
+  Exact:        108361 (95.2 %) - heard as the book has it; timed by what was heard.
+  Similar:      1893 (1.7 %) - heard a little differently (a name, a spelling, an old word); timed by what was heard.
+  Moved:        441 (0.4 %) - read in another place than the book has them (a footnote read where it is called); timed where they were read.
+  Interpolated: 2077 (1.8 %) - not heard clearly between heard words; timed by sharing out the time between them (worth a listen when there are many in a row).
+  Not heard:    7 (0.0 %) - a silence in the transcript where the book goes on; timed like interpolated words.
+  Not spoken:   774 (0.7 %) - in the book but not in the recording (title pages, notes, a licence); left without highlight.
+  Verdict: 97.8 % of the timed words were matched to what was heard: good.
+  Of the not spoken words, 215 are before the first or after the last word read: front and back matter, normal (not listed below; the text is still in the book).
+  Stretches of 3 or more words worth a look (longest first, at most 10):
+    404 words not spoken, at 14:40:24.530: limits of humorous fantasy and should be recognized as one ...
+    123 words interpolated, at 14:39:39.950: Author Terry Pratchett’s novels have sold more than thirty million ...
+    101 words moved, at 01:29:14.050: Who was an orangutan, changed from his former human shape ...
+    70 words moved, at 03:42:02.910: In the same way that ancient forests become coal, ancient ...
+    56 words moved, at 11:23:46.130: advice, had he been inclined to part with it. You ...
+    51 words moved, at 00:27:40.130: quite young (insofar as you could tell with an Igor, ...
+    43 words interpolated, at 14:40:09.130: inventiveness of Alice in Wonderland.” A.S. Byatt “Humorously entertaining (and ...
+    40 words moved, at 00:46:13.660: League of Temperance, made up of former vampires who now ...
+    36 words moved, at 12:09:28.620: made a point, on occasions like this, to talk only ...
+    34 words not spoken, at 02:32:21.760: And you’re not His Grace Commander Sir Samuel Vimes, neither. ...
+Writing C:\Video\epubunum\night watch\english\Night Watch - Terry Pratchett-turbo-synced.epub ...
+Done: 17 document(s), 112772 clip(s), 0 timed word(s) left out
+Chapter marks: 75 (the recording's parts; EpubReader steps by them when the book's contents list has no chapters that are read)
+The book was EPUB 2: it is EPUB 3 now (overlays need it)
+Finished after 00:26:08.540
+Open C:\Video\epubunum\night watch\english\Night Watch - Terry Pratchett-turbo-synced.epub in EpubReader.
+Log kept: C:\Video\epubunum\night watch\english\Night Watch - Terry Pratchett-turbo-synced.epub.log
+
+medium.en - Monster
+
+Machine: MONSTER - Windows 11 (Version 26H2, OS Build 26300.9974, 64-bit Edition); Intel(R) Core(TM) Ultra 9 275HX (24 logical processors); 63 GB of memory
+whisper.cpp 1.9.5-dev from C:\src\Whisper\redistributable_bin\Win64\
+Device: Vulkan0 - NVIDIA GeForce RTX 5090 Laptop GPU (GPU, Vulkan, 22.6 of 23.6 GB free)
+  ggml-medium.en.bin is not calibrated on this machine (Tools > Re-calibrate)
+Book: Night Watch - 113836 words, language en
+FFmpeg avutil 60.26.103, swresample 6.3.103, avcodec 62.28.103, avformat 62.12.103 (LGPL version 2.1 or later) from C:\src\Whisper\redistributable_bin\Win64\
+Audio: 1 file(s), 75 part(s), about 14:41:28.700
+Loading ggml-medium.en.bin ...
+Model: medium, English only, vocabulary 51864, GPU True, DTW word timings (alignment heads medium.en, flash attention False) on Vulkan0 - NVIDIA GeForce RTX 5090 Laptop GPU (GPU, Vulkan, 20.4 of 23.6 GB free)
+Transcribing in en, each 30 s window on its own, with a punctuated prompt (TWhisper's settings for books)
+Part 1 of 75 "Opening Credits": 114 s of audio, 56 words, 6.3 s
+Part 2 of 75 "Chapter 1": 781 s of audio, 1711 words, 19.3 s
+Part 3 of 75 "Chapter 2": 1106 s of audio, 2543 words, 47.5 s
+Part 4 of 75 "Chapter 3": 757 s of audio, 1616 words, 27.1 s
+Part 5 of 75 "Chapter 4": 544 s of audio, 1223 words, 21.3 s
+Part 6 of 75 "Chapter 5": 177 s of audio, 445 words, 8.5 s
+Part 7 of 75 "Chapter 6": 140 s of audio, 333 words, 3.7 s
+Part 8 of 75 "Chapter 7": 506 s of audio, 1078 words, 14.9 s
+Part 9 of 75 "Chapter 8": 137 s of audio, 284 words, 5.8 s
+Part 10 of 75 "Chapter 9": 622 s of audio, 1345 words, 28.3 s
+Part 11 of 75 "Chapter 10": 608 s of audio, 1305 words, 19.9 s
+Part 12 of 75 "Chapter 11": 1934 s of audio, 4095 words, 75.6 s
+Part 13 of 75 "Chapter 12": 271 s of audio, 645 words, 15.1 s
+Part 14 of 75 "Chapter 13": 943 s of audio, 2072 words, 38.8 s
+Part 15 of 75 "Chapter 14": 681 s of audio, 1354 words, 22.8 s
+Part 16 of 75 "Chapter 15": 630 s of audio, 1353 words, 25.1 s
+Part 17 of 75 "Chapter 16": 1427 s of audio, 2930 words, 43.6 s
+Part 18 of 75 "Chapter 17": 321 s of audio, 645 words, 13.3 s
+Part 19 of 75 "Chapter 18": 1112 s of audio, 2433 words, 42.3 s
+Part 20 of 75 "Chapter 19": 1730 s of audio, 3851 words, 72.7 s
+Part 21 of 75 "Chapter 20": 705 s of audio, 1576 words, 27.8 s
+Part 22 of 75 "Chapter 21": 1174 s of audio, 2496 words, 38.9 s
+Part 23 of 75 "Chapter 22": 160 s of audio, 355 words, 3.8 s
+Part 24 of 75 "Chapter 23": 893 s of audio, 2040 words, 29.0 s
+Part 25 of 75 "Chapter 24": 3134 s of audio, 6731 words, 112.3 s
+Part 26 of 75 "Chapter 25": 459 s of audio, 957 words, 12.8 s
+Part 27 of 75 "Chapter 26": 1946 s of audio, 4270 words, 62.2 s
+Part 28 of 75 "Chapter 27": 70 s of audio, 175 words, 1.9 s
+Part 29 of 75 "Chapter 28": 2071 s of audio, 4763 words, 84.0 s
+Part 30 of 75 "Chapter 29": 701 s of audio, 1388 words, 22.2 s
+Part 31 of 75 "Chapter 30": 49 s of audio, 115 words, 1.1 s
+Part 32 of 75 "Chapter 31": 285 s of audio, 669 words, 6.9 s
+Part 33 of 75 "Chapter 32": 503 s of audio, 1131 words, 18.8 s
+Part 34 of 75 "Chapter 33": 54 s of audio, 128 words, 1.3 s
+Part 35 of 75 "Chapter 34": 117 s of audio, 260 words, 8.3 s
+Part 36 of 75 "Chapter 35": 937 s of audio, 2009 words, 28.2 s
+Part 37 of 75 "Chapter 36": 24 s of audio, 41 words, 0.4 s
+Part 38 of 75 "Chapter 37": 153 s of audio, 282 words, 5.5 s
+Part 39 of 75 "Chapter 38": 3473 s of audio, 7299 words, 119.0 s
+Part 40 of 75 "Chapter 39": 1257 s of audio, 2700 words, 42.1 s
+Part 41 of 75 "Chapter 40": 512 s of audio, 1083 words, 14.7 s
+Part 42 of 75 "Chapter 41": 210 s of audio, 446 words, 9.5 s
+Part 43 of 75 "Chapter 42": 1565 s of audio, 3460 words, 57.3 s
+Part 44 of 75 "Chapter 43": 555 s of audio, 1165 words, 15.3 s
+Part 45 of 75 "Chapter 44": 1766 s of audio, 3798 words, 61.6 s
+Part 46 of 75 "Chapter 45": 45 s of audio, 64 words, 0.8 s
+Part 47 of 75 "Chapter 46": 177 s of audio, 375 words, 10.8 s
+Part 48 of 75 "Chapter 47": 531 s of audio, 1091 words, 23.9 s
+Part 49 of 75 "Chapter 48": 1171 s of audio, 2545 words, 33.7 s
+Part 50 of 75 "Chapter 49": 429 s of audio, 975 words, 11.1 s
+Part 51 of 75 "Chapter 50": 500 s of audio, 1062 words, 20.0 s
+Part 52 of 75 "Chapter 51": 89 s of audio, 226 words, 6.8 s
+Part 53 of 75 "Chapter 52": 489 s of audio, 1123 words, 21.0 s
+Part 54 of 75 "Chapter 53": 833 s of audio, 1834 words, 32.7 s
+Part 55 of 75 "Chapter 54": 1801 s of audio, 4007 words, 72.0 s
+Part 56 of 75 "Chapter 55": 239 s of audio, 495 words, 9.8 s
+Part 57 of 75 "Chapter 56": 862 s of audio, 2011 words, 37.6 s
+Part 58 of 75 "Chapter 57": 191 s of audio, 492 words, 5.0 s
+Part 59 of 75 "Chapter 58": 138 s of audio, 324 words, 8.7 s
+Part 60 of 75 "Chapter 59": 547 s of audio, 1204 words, 17.6 s
+Part 61 of 75 "Chapter 60": 67 s of audio, 114 words, 3.6 s
+Part 62 of 75 "Chapter 61": 285 s of audio, 716 words, 10.5 s
+Part 63 of 75 "Chapter 62": 101 s of audio, 228 words, 2.4 s
+Part 64 of 75 "Chapter 63": 450 s of audio, 1018 words, 15.2 s
+Part 65 of 75 "Chapter 64": 442 s of audio, 873 words, 12.7 s
+Part 66 of 75 "Chapter 65": 209 s of audio, 441 words, 5.1 s
+Part 67 of 75 "Chapter 66": 1421 s of audio, 3138 words, 44.6 s
+Part 68 of 75 "Chapter 67": 310 s of audio, 668 words, 10.2 s
+Part 69 of 75 "Chapter 68": 643 s of audio, 1388 words, 22.8 s
+Part 70 of 75 "Chapter 69": 562 s of audio, 1091 words, 20.0 s
+Part 71 of 75 "Chapter 70": 73 s of audio, 150 words, 1.8 s
+Part 72 of 75 "Chapter 71": 935 s of audio, 1944 words, 33.2 s
+Part 73 of 75 "Chapter 72": 1894 s of audio, 3752 words, 61.4 s
+Part 74 of 75 "Chapter 73": 86 s of audio, 92 words, 5.0 s
+Part 75 of 75 "Closing Credits": 57 s of audio, 105 words, 1.2 s
+Transcript kept for next time: C:\Video\epubunum\night watch\english\Night Watch - Terry Pratchett-medium-en-synced.transcript.json (114200 words)
+
+RESULTS - 113836 words in the book (to the aligner), 114200 heard by Whisper
+  Exact:        107450 (94.4 %) - heard as the book has it; timed by what was heard.
+  Similar:      2221 (2.0 %) - heard a little differently (a name, a spelling, an old word); timed by what was heard.
+  Moved:        433 (0.4 %) - read in another place than the book has them (a footnote read where it is called); timed where they were read.
+  Interpolated: 2397 (2.1 %) - not heard clearly between heard words; timed by sharing out the time between them (worth a listen when there are many in a row).
+  Not heard:    31 (0.0 %) - a silence in the transcript where the book goes on; timed like interpolated words.
+  Not spoken:   1021 (0.9 %) - in the book but not in the recording (title pages, notes, a licence); left without highlight.
+  Verdict: 97.5 % of the timed words were matched to what was heard: good.
+  Of the not spoken words, 226 are before the first or after the last word read: front and back matter, normal (not listed below; the text is still in the book).
+  Stretches of 3 or more words worth a look (longest first, at most 10):
+    575 words not spoken, at 14:39:40.030: Author Terry Pratchett’s novels have sold more than thirty million ...
+    101 words moved, at 01:29:14.050: Who was an orangutan, changed from his former human shape ...
+    70 words moved, at 03:42:02.570: In the same way that ancient forests become coal, ancient ...
+    51 words moved, at 11:23:41.100: And this was true. Don’t bother with the boots, would ...
+    40 words moved, at 00:46:13.620: League of Temperance, made up of former vampires who now ...
+    36 words moved, at 12:09:28.680: made a point, on occasions like this, to talk only ...
+    34 words not spoken, at 02:32:21.820: And you’re not His Grace Commander Sir Samuel Vimes, neither. ...
+    32 words moved, at 00:27:40.150: quite young (insofar as you could tell with an Igor, ...
+    22 words not spoken, at 13:58:33.190: He hadn’t had time to put a pair of drawers ...
+    21 words moved, at 02:49:19.970: a man without whose experiments with thin rubber the housing ...
+Writing C:\Video\epubunum\night watch\english\Night Watch - Terry Pratchett-medium-en-synced.epub ...
+Done: 16 document(s), 112501 clip(s), 0 timed word(s) left out
+Chapter marks: 75 (the recording's parts; EpubReader steps by them when the book's contents list has no chapters that are read)
+The book was EPUB 2: it is EPUB 3 now (overlays need it)
+Finished after 00:31:44.370
+Open C:\Video\epubunum\night watch\english\Night Watch - Terry Pratchett-medium-en-synced.epub in EpubReader.
+Log kept: C:\Video\epubunum\night watch\english\Night Watch - Terry Pratchett-medium-en-synced.epub.log
+
+M4 - turbo
+
+Machine: Simons-Mac-mini-2.local - macOS (Version 27.0.1); 10 logical processors
+EpubBuilder build: 2026-11-18 09:29, 37263d8
+whisper.cpp 1.9.5-dev from /Volumes/SN770/Applications/EpubBuilder.app/Contents/Frameworks/
+Device: MTL0 - Apple M4 (GPU, MTL, 11.8 of 11.8 GB free)
+  the fastest for ggml-large-v3-turbo.bin in the calibration (CPU 2.5x, MTL0 11.4x (2026-11-18 09:40))
+Book: Night Watch - 113836 words, language en
+FFmpeg avutil 60.26.103, swresample 6.3.103, avcodec 62.28.103, avformat 62.12.103 (LGPL version 2.1 or later) from /Volumes/SN770/Applications/EpubBuilder.app/Contents/Frameworks/
+Audio: 1 file(s), 75 part(s), about 14:41:28.700
+Loading ggml-large-v3-turbo.bin ...
+Model: large, multilingual, vocabulary 51866, GPU True, DTW word timings (alignment heads large-v3-turbo, flash attention False) on MTL0 - Apple M4 (GPU, MTL, 9.8 of 11.8 GB free)
+Transcribing in en, each 30 s window on its own, with a punctuated prompt (TWhisper's settings for books)
+Part 1 of 75 "Opening Credits": 114 s of audio, 48 words, 25.0 s
+Part 2 of 75 "Chapter 1": 781 s of audio, 1716 words, 43.5 s
+Part 3 of 75 "Chapter 2": 1106 s of audio, 2539 words, 67.6 s
+Part 4 of 75 "Chapter 3": 757 s of audio, 1614 words, 43.1 s
+Part 5 of 75 "Chapter 4": 544 s of audio, 1215 words, 36.6 s
+Part 6 of 75 "Chapter 5": 177 s of audio, 440 words, 11.2 s
+Part 7 of 75 "Chapter 6": 140 s of audio, 331 words, 8.1 s
+Part 8 of 75 "Chapter 7": 506 s of audio, 1082 words, 28.5 s
+Part 9 of 75 "Chapter 8": 137 s of audio, 281 words, 9.0 s
+Part 10 of 75 "Chapter 9": 622 s of audio, 1339 words, 35.0 s
+Part 11 of 75 "Chapter 10": 608 s of audio, 1288 words, 46.4 s
+Part 12 of 75 "Chapter 11": 1934 s of audio, 4083 words, 109.5 s
+Part 13 of 75 "Chapter 12": 271 s of audio, 644 words, 15.8 s
+Part 14 of 75 "Chapter 13": 943 s of audio, 2055 words, 53.0 s
+Part 15 of 75 "Chapter 14": 681 s of audio, 1340 words, 38.0 s
+Part 16 of 75 "Chapter 15": 630 s of audio, 1345 words, 35.1 s
+Part 17 of 75 "Chapter 16": 1427 s of audio, 2917 words, 82.1 s
+Part 18 of 75 "Chapter 17": 321 s of audio, 646 words, 18.0 s
+Part 19 of 75 "Chapter 18": 1112 s of audio, 2436 words, 66.8 s
+Part 20 of 75 "Chapter 19": 1730 s of audio, 3825 words, 104.0 s
+Part 21 of 75 "Chapter 20": 705 s of audio, 1563 words, 39.8 s
+Part 22 of 75 "Chapter 21": 1174 s of audio, 2492 words, 66.1 s
+Part 23 of 75 "Chapter 22": 160 s of audio, 351 words, 9.2 s
+Part 24 of 75 "Chapter 23": 893 s of audio, 2024 words, 51.7 s
+Part 25 of 75 "Chapter 24": 3134 s of audio, 6720 words, 179.2 s
+Part 26 of 75 "Chapter 25": 459 s of audio, 963 words, 26.1 s
+Part 27 of 75 "Chapter 26": 1946 s of audio, 4265 words, 111.7 s
+Part 28 of 75 "Chapter 27": 70 s of audio, 172 words, 4.5 s
+Part 29 of 75 "Chapter 28": 2071 s of audio, 4723 words, 123.2 s
+Part 30 of 75 "Chapter 29": 701 s of audio, 1381 words, 38.9 s
+Part 31 of 75 "Chapter 30": 49 s of audio, 117 words, 3.0 s
+Part 32 of 75 "Chapter 31": 285 s of audio, 678 words, 15.8 s
+Part 33 of 75 "Chapter 32": 503 s of audio, 1126 words, 28.3 s
+Part 34 of 75 "Chapter 33": 54 s of audio, 128 words, 3.1 s
+Part 35 of 75 "Chapter 34": 117 s of audio, 259 words, 7.3 s
+Part 36 of 75 "Chapter 35": 937 s of audio, 2006 words, 53.8 s
+Part 37 of 75 "Chapter 36": 24 s of audio, 41 words, 1.4 s
+Part 38 of 75 "Chapter 37": 153 s of audio, 280 words, 8.8 s
+Part 39 of 75 "Chapter 38": 3473 s of audio, 7288 words, 196.3 s
+Part 40 of 75 "Chapter 39": 1257 s of audio, 2696 words, 72.5 s
+Part 41 of 75 "Chapter 40": 512 s of audio, 1076 words, 32.9 s
+Part 42 of 75 "Chapter 41": 210 s of audio, 441 words, 14.0 s
+Part 43 of 75 "Chapter 42": 1565 s of audio, 3458 words, 98.6 s
+Part 44 of 75 "Chapter 43": 555 s of audio, 1166 words, 35.3 s
+Part 45 of 75 "Chapter 44": 1766 s of audio, 3768 words, 101.8 s
+Part 46 of 75 "Chapter 45": 45 s of audio, 63 words, 2.8 s
+Part 47 of 75 "Chapter 46": 177 s of audio, 379 words, 10.7 s
+Part 48 of 75 "Chapter 47": 531 s of audio, 1083 words, 31.6 s
+Part 49 of 75 "Chapter 48": 1171 s of audio, 2543 words, 67.0 s
+Part 50 of 75 "Chapter 49": 429 s of audio, 966 words, 25.7 s
+Part 51 of 75 "Chapter 50": 500 s of audio, 1055 words, 28.7 s
+Part 52 of 75 "Chapter 51": 89 s of audio, 235 words, 6.2 s
+Part 53 of 75 "Chapter 52": 489 s of audio, 1091 words, 29.0 s
+Part 54 of 75 "Chapter 53": 833 s of audio, 1823 words, 52.5 s
+Part 55 of 75 "Chapter 54": 1801 s of audio, 3991 words, 102.9 s
+Part 56 of 75 "Chapter 55": 239 s of audio, 494 words, 14.1 s
+Part 57 of 75 "Chapter 56": 862 s of audio, 2011 words, 54.0 s
+Part 58 of 75 "Chapter 57": 191 s of audio, 442 words, 14.4 s
+Part 59 of 75 "Chapter 58": 138 s of audio, 324 words, 8.1 s
+Part 60 of 75 "Chapter 59": 547 s of audio, 1195 words, 31.2 s
+Part 61 of 75 "Chapter 60": 67 s of audio, 114 words, 4.3 s
+Part 62 of 75 "Chapter 61": 285 s of audio, 711 words, 17.5 s
+Part 63 of 75 "Chapter 62": 101 s of audio, 230 words, 6.0 s
+Part 64 of 75 "Chapter 63": 450 s of audio, 1006 words, 26.6 s
+Part 65 of 75 "Chapter 64": 442 s of audio, 873 words, 24.8 s
+Part 66 of 75 "Chapter 65": 209 s of audio, 443 words, 15.7 s
+Part 67 of 75 "Chapter 66": 1421 s of audio, 3142 words, 82.8 s
+Part 68 of 75 "Chapter 67": 310 s of audio, 666 words, 17.6 s
+Part 69 of 75 "Chapter 68": 643 s of audio, 1381 words, 37.3 s
+Part 70 of 75 "Chapter 69": 562 s of audio, 1088 words, 32.2 s
+Part 71 of 75 "Chapter 70": 73 s of audio, 147 words, 4.6 s
+Part 72 of 75 "Chapter 71": 935 s of audio, 1944 words, 53.3 s
+Part 73 of 75 "Chapter 72": 1894 s of audio, 3725 words, 106.1 s
+Part 74 of 75 "Chapter 73": 86 s of audio, 90 words, 14.6 s
+Part 75 of 75 "Closing Credits": 57 s of audio, 106 words, 3.2 s
+Transcript kept for next time: /Volumes/SN770/unum/out/Night Watch - Terry Pratchett-turbo.transcript.json (113727 words)
+
+RESULTS - 113836 words in the book (to the aligner), 113727 heard by Whisper
+  Exact:        108372 (95.2 %) - heard as the book has it; timed by what was heard.
+  Similar:      1906 (1.7 %) - heard a little differently (a name, a spelling, an old word); timed by what was heard.
+  Moved:        438 (0.4 %) - read in another place than the book has them (a footnote read where it is called); timed where they were read.
+  Interpolated: 2070 (1.8 %) - not heard clearly between heard words; timed by sharing out the time between them (worth a listen when there are many in a row).
+  Not heard:    7 (0.0 %) - a silence in the transcript where the book goes on; timed like interpolated words.
+  Not spoken:   759 (0.7 %) - in the book but not in the recording (title pages, notes, a licence); left without highlight.
+  Verdict: 97.8 % of the timed words were matched to what was heard: good.
+  Of the not spoken words, 220 are before the first or after the last word read: front and back matter, normal (not listed below; the text is still in the book).
+  Stretches of 3 or more words worth a look (longest first, at most 10):
+    404 words not spoken, at 14:40:24.990: limits of humorous fantasy and should be recognized as one ...
+    123 words interpolated, at 14:39:39.950: Author Terry Pratchett’s novels have sold more than thirty million ...
+    101 words moved, at 01:29:14.050: Who was an orangutan, changed from his former human shape ...
+    70 words moved, at 03:42:02.910: In the same way that ancient forests become coal, ancient ...
+    51 words moved, at 00:27:40.130: quite young (insofar as you could tell with an Igor, ...
+    51 words moved, at 11:23:41.100: And this was true. Don’t bother with the boots, would ...
+    40 words moved, at 00:46:13.660: League of Temperance, made up of former vampires who now ...
+    36 words moved, at 12:09:28.620: made a point, on occasions like this, to talk only ...
+    34 words not spoken, at 02:32:21.760: And you’re not His Grace Commander Sir Samuel Vimes, neither. ...
+    28 words interpolated, at 14:40:09.130: inventiveness of Alice in Wonderland.” A.S. Byatt “Humorously entertaining (and ...
+Writing /Volumes/SN770/unum/out/Night Watch - Terry Pratchett-turbo.epub ...
+Done: 17 document(s), 112786 clip(s), 0 timed word(s) left out
+Chapter marks: 75 (the recording's parts; EpubReader steps by them when the book's contents list has no chapters that are read)
+The book was EPUB 2: it is EPUB 3 now (overlays need it)
+Finished after 00:52:17.630
+Open /Volumes/SN770/unum/out/Night Watch - Terry Pratchett-turbo.epub in EpubReader.
+Log kept: /Volumes/SN770/unum/out/Night Watch - Terry Pratchett-turbo.epub.log
+
+M4 - base.en
+
+Machine: Simons-Mac-mini-2.local - macOS (Version 27.0.1); 10 logical processors
+EpubBuilder build: 2026-11-18 09:29, 37263d8
+whisper.cpp 1.9.5-dev from /Volumes/SN770/Applications/EpubBuilder.app/Contents/Frameworks/
+Device: MTL0 - Apple M4 (GPU, MTL, 11.8 of 11.8 GB free)
+  the fastest for ggml-base.en.bin in the calibration (CPU 34.0x, MTL0 69.1x (2026-11-18 09:44))
+Book: Night Watch - 113836 words, language en
+FFmpeg avutil 60.26.103, swresample 6.3.103, avcodec 62.28.103, avformat 62.12.103 (LGPL version 2.1 or later) from /Volumes/SN770/Applications/EpubBuilder.app/Contents/Frameworks/
+Audio: 1 file(s), 75 part(s), about 14:41:28.700
+Loading ggml-base.en.bin ...
+Model: base, English only, vocabulary 51864, GPU True, DTW word timings (alignment heads base.en, flash attention False) on MTL0 - Apple M4 (GPU, MTL, 11.4 of 11.8 GB free)
+Transcribing in en, each 30 s window on its own, with a punctuated prompt (TWhisper's settings for books)
+Part 1 of 75 "Opening Credits": 114 s of audio, 54 words, 3.9 s
+Part 2 of 75 "Chapter 1": 781 s of audio, 1784 words, 11.2 s
+Part 3 of 75 "Chapter 2": 1106 s of audio, 2565 words, 16.8 s
+Part 4 of 75 "Chapter 3": 757 s of audio, 1627 words, 12.7 s
+Part 5 of 75 "Chapter 4": 544 s of audio, 1222 words, 8.1 s
+Part 6 of 75 "Chapter 5": 177 s of audio, 443 words, 3.6 s
+Part 7 of 75 "Chapter 6": 140 s of audio, 328 words, 2.5 s
+Part 8 of 75 "Chapter 7": 506 s of audio, 1160 words, 11.0 s
+Part 9 of 75 "Chapter 8": 137 s of audio, 281 words, 1.6 s
+Part 10 of 75 "Chapter 9": 622 s of audio, 1360 words, 11.8 s
+Part 11 of 75 "Chapter 10": 608 s of audio, 1302 words, 9.8 s
+Part 12 of 75 "Chapter 11": 1934 s of audio, 4087 words, 40.5 s
+Part 13 of 75 "Chapter 12": 271 s of audio, 636 words, 5.1 s
+Part 14 of 75 "Chapter 13": 943 s of audio, 2070 words, 14.0 s
+Part 15 of 75 "Chapter 14": 681 s of audio, 1344 words, 13.3 s
+Part 16 of 75 "Chapter 15": 630 s of audio, 1354 words, 9.6 s
+Part 17 of 75 "Chapter 16": 1427 s of audio, 2965 words, 26.8 s
+Part 18 of 75 "Chapter 17": 321 s of audio, 646 words, 4.4 s
+Part 19 of 75 "Chapter 18": 1112 s of audio, 2482 words, 17.3 s
+Part 20 of 75 "Chapter 19": 1730 s of audio, 3872 words, 32.9 s
+Part 21 of 75 "Chapter 20": 705 s of audio, 1601 words, 11.5 s
+Part 22 of 75 "Chapter 21": 1174 s of audio, 2499 words, 19.0 s
+Part 23 of 75 "Chapter 22": 160 s of audio, 360 words, 2.0 s
+Part 24 of 75 "Chapter 23": 893 s of audio, 2034 words, 18.0 s
+Part 25 of 75 "Chapter 24": 3134 s of audio, 6737 words, 64.0 s
+Part 26 of 75 "Chapter 25": 459 s of audio, 958 words, 10.9 s
+Part 27 of 75 "Chapter 26": 1946 s of audio, 4272 words, 32.4 s
+Part 28 of 75 "Chapter 27": 70 s of audio, 175 words, 0.9 s
+Part 29 of 75 "Chapter 28": 2071 s of audio, 4766 words, 37.1 s
+Part 30 of 75 "Chapter 29": 701 s of audio, 1410 words, 12.1 s
+Part 31 of 75 "Chapter 30": 49 s of audio, 114 words, 0.6 s
+Part 32 of 75 "Chapter 31": 285 s of audio, 684 words, 6.4 s
+Part 33 of 75 "Chapter 32": 503 s of audio, 1139 words, 9.7 s
+Part 34 of 75 "Chapter 33": 54 s of audio, 128 words, 0.6 s
+Part 35 of 75 "Chapter 34": 117 s of audio, 261 words, 1.4 s
+Part 36 of 75 "Chapter 35": 937 s of audio, 2036 words, 15.4 s
+Part 37 of 75 "Chapter 36": 24 s of audio, 40 words, 0.3 s
+Part 38 of 75 "Chapter 37": 153 s of audio, 286 words, 3.3 s
+Part 39 of 75 "Chapter 38": 3473 s of audio, 7344 words, 68.5 s
+Part 40 of 75 "Chapter 39": 1257 s of audio, 2747 words, 26.7 s
+Part 41 of 75 "Chapter 40": 512 s of audio, 1083 words, 10.3 s
+Part 42 of 75 "Chapter 41": 210 s of audio, 445 words, 3.4 s
+Part 43 of 75 "Chapter 42": 1565 s of audio, 3473 words, 30.0 s
+Part 44 of 75 "Chapter 43": 555 s of audio, 1164 words, 8.9 s
+Part 45 of 75 "Chapter 44": 1766 s of audio, 3887 words, 30.7 s
+Part 46 of 75 "Chapter 45": 45 s of audio, 63 words, 0.4 s
+Part 47 of 75 "Chapter 46": 177 s of audio, 387 words, 3.6 s
+Part 48 of 75 "Chapter 47": 531 s of audio, 1093 words, 8.7 s
+Part 49 of 75 "Chapter 48": 1171 s of audio, 2540 words, 23.1 s
+Part 50 of 75 "Chapter 49": 429 s of audio, 975 words, 6.0 s
+Part 51 of 75 "Chapter 50": 500 s of audio, 1059 words, 6.6 s
+Part 52 of 75 "Chapter 51": 89 s of audio, 224 words, 3.5 s
+Part 53 of 75 "Chapter 52": 489 s of audio, 1095 words, 9.1 s
+Part 54 of 75 "Chapter 53": 833 s of audio, 1822 words, 15.9 s
+Part 55 of 75 "Chapter 54": 1801 s of audio, 4091 words, 36.5 s
+Part 56 of 75 "Chapter 55": 239 s of audio, 496 words, 4.7 s
+Part 57 of 75 "Chapter 56": 862 s of audio, 2024 words, 13.6 s
+Part 58 of 75 "Chapter 57": 191 s of audio, 439 words, 3.3 s
+Part 59 of 75 "Chapter 58": 138 s of audio, 322 words, 2.6 s
+Part 60 of 75 "Chapter 59": 547 s of audio, 1198 words, 9.3 s
+Part 61 of 75 "Chapter 60": 67 s of audio, 119 words, 0.7 s
+Part 62 of 75 "Chapter 61": 285 s of audio, 708 words, 7.4 s
+Part 63 of 75 "Chapter 62": 101 s of audio, 233 words, 1.2 s
+Part 64 of 75 "Chapter 63": 450 s of audio, 1006 words, 7.8 s
+Part 65 of 75 "Chapter 64": 442 s of audio, 886 words, 6.0 s
+Part 66 of 75 "Chapter 65": 209 s of audio, 442 words, 3.8 s
+Part 67 of 75 "Chapter 66": 1421 s of audio, 3142 words, 23.1 s
+Part 68 of 75 "Chapter 67": 310 s of audio, 662 words, 4.0 s
+Part 69 of 75 "Chapter 68": 643 s of audio, 1379 words, 9.0 s
+Part 70 of 75 "Chapter 69": 562 s of audio, 1094 words, 9.1 s
+Part 71 of 75 "Chapter 70": 73 s of audio, 148 words, 0.9 s
+Part 72 of 75 "Chapter 71": 935 s of audio, 1958 words, 18.8 s
+Part 73 of 75 "Chapter 72": 1894 s of audio, 3723 words, 30.8 s
+Part 74 of 75 "Chapter 73": 86 s of audio, 94 words, 2.7 s
+Part 75 of 75 "Closing Credits": 57 s of audio, 108 words, 0.8 s
+Transcript kept for next time: /Volumes/SN770/unum/out/Night Watch - Terry Pratchett-base.transcript.json (114755 words)
+
+RESULTS - 113836 words in the book (to the aligner), 114755 heard by Whisper
+  Exact:        103701 (91.1 %) - heard as the book has it; timed by what was heard.
+  Similar:      3763 (3.3 %) - heard a little differently (a name, a spelling, an old word); timed by what was heard.
+  Moved:        435 (0.4 %) - read in another place than the book has them (a footnote read where it is called); timed where they were read.
+  Interpolated: 4604 (4.0 %) - not heard clearly between heard words; timed by sharing out the time between them (worth a listen when there are many in a row).
+  Not heard:    10 (0.0 %) - a silence in the transcript where the book goes on; timed like interpolated words.
+  Not spoken:   1040 (0.9 %) - in the book but not in the recording (title pages, notes, a licence); left without highlight.
+  Verdict: 95.5 % of the timed words were matched to what was heard: good.
+  Of the not spoken words, 225 are before the first or after the last word read: front and back matter, normal (not listed below; the text is still in the book).
+  Stretches of 3 or more words worth a look (longest first, at most 10):
+    575 words not spoken, at 14:39:39.950: Author Terry Pratchett’s novels have sold more than thirty million ...
+    101 words moved, at 01:29:14.030: Who was an orangutan, changed from his former human shape ...
+    70 words moved, at 03:42:02.910: In the same way that ancient forests become coal, ancient ...
+    54 words moved, at 11:23:41.100: And this was true. Don’t bother with the boots, would ...
+    48 words moved, at 00:27:41.590: as you could tell with an Igor, since useful limbs ...
+    40 words moved, at 00:46:13.580: League of Temperance, made up of former vampires who now ...
+    36 words moved, at 12:09:28.460: made a point, on occasions like this, to talk only ...
+    34 words not spoken, at 02:32:21.700: And you’re not His Grace Commander Sir Samuel Vimes, neither. ...
+    22 words not spoken, at 13:58:32.950: He hadn’t had time to put a pair of drawers ...
+    21 words interpolated, at 14:08:25.710: dollars and the freehold of a large corner site in ...
+Writing /Volumes/SN770/unum/out/Night Watch - Terry Pratchett-base.epub ...
+Done: 16 document(s), 112503 clip(s), 0 timed word(s) left out
+Chapter marks: 75 (the recording's parts; EpubReader steps by them when the book's contents list has no chapters that are read)
+The book was EPUB 2: it is EPUB 3 now (overlays need it)
+Finished after 00:16:05.040
+Open /Volumes/SN770/unum/out/Night Watch - Terry Pratchett-base.epub in EpubReader.
+Log kept: /Volumes/SN770/unum/out/Night Watch - Terry Pratchett-base.epub.log
+
+Steam Machine - turbo - HIP
+
+Machine: steamdeck - Steam Runtime 3 (sniper) #1 SMP PREEMPT_DYNAMIC Fri, 23 Oct 2026 20:44:20 +0000 (Version 7.2.7); AMD Custom CPU 1772 (12 logical processors); 15 GB of memory
+EpubBuilder build: 2026-11-18 13:21, 2af83eb
+Steam build, AppID 5639910: Steam running
+whisper.cpp 1.9.5-dev from /home/deck/.local/share/Steam/steamapps/common/EPubUnum Playtest/
+Device: ROCm0 - AMD Steam Machine (GPU, ROCm, 7.7 of 8.0 GB free)
+  ggml-large-v3-turbo.bin is not calibrated on this machine (Tools > Re-calibrate)
+Book: Night Watch - 113836 words, language en
+FFmpeg avutil 60.26.103, swresample 6.3.103, avcodec 62.28.103, avformat 62.12.103 (LGPL version 2.1 or later) from /home/deck/.local/share/Steam/steamapps/common/EPubUnum Playtest/
+Audio: 1 file(s), 75 part(s), about 14:41:28.700
+Expected: no figure yet (no earlier build of this model on this device here, not calibrated) - the time left comes from this build's own rate.
+Loading ggml-large-v3-turbo.bin ...
+Model: large, multilingual, vocabulary 51866, GPU True, DTW word timings (alignment heads large-v3-turbo, flash attention False) on ROCm0 - AMD Steam Machine (GPU, ROCm, 5.8 of 8.0 GB free)
+Transcribing in en, each 30 s window on its own, with a punctuated prompt (TWhisper's settings for books)
+Part 1 of 75 "Opening Credits": 114 s of audio, 46 words, 9.5 s
+Part 2 of 75 "Chapter 1": 781 s of audio, 1716 words, 20.4 s
+Part 3 of 75 "Chapter 2": 1106 s of audio, 2539 words, 30.7 s
+Part 4 of 75 "Chapter 3": 757 s of audio, 1614 words, 19.6 s
+Part 5 of 75 "Chapter 4": 544 s of audio, 1216 words, 15.9 s
+Part 6 of 75 "Chapter 5": 177 s of audio, 440 words, 5.1 s
+Part 7 of 75 "Chapter 6": 140 s of audio, 330 words, 4.1 s
+Part 8 of 75 "Chapter 7": 506 s of audio, 1082 words, 12.9 s
+Part 9 of 75 "Chapter 8": 137 s of audio, 281 words, 3.9 s
+Part 10 of 75 "Chapter 9": 622 s of audio, 1339 words, 16.0 s
+Part 11 of 75 "Chapter 10": 608 s of audio, 1287 words, 19.8 s
+Part 12 of 75 "Chapter 11": 1934 s of audio, 4084 words, 49.9 s
+Part 13 of 75 "Chapter 12": 271 s of audio, 640 words, 7.4 s
+Part 14 of 75 "Chapter 13": 943 s of audio, 2054 words, 24.7 s
+Part 15 of 75 "Chapter 14": 681 s of audio, 1340 words, 17.6 s
+Part 16 of 75 "Chapter 15": 630 s of audio, 1348 words, 16.3 s
+Part 17 of 75 "Chapter 16": 1427 s of audio, 2917 words, 38.6 s
+Part 18 of 75 "Chapter 17": 321 s of audio, 646 words, 8.3 s
+Part 19 of 75 "Chapter 18": 1112 s of audio, 2443 words, 30.8 s
+Part 20 of 75 "Chapter 19": 1730 s of audio, 3826 words, 47.6 s
+Part 21 of 75 "Chapter 20": 705 s of audio, 1561 words, 18.6 s
+Part 22 of 75 "Chapter 21": 1174 s of audio, 2492 words, 30.7 s
+Part 23 of 75 "Chapter 22": 160 s of audio, 351 words, 4.3 s
+Part 24 of 75 "Chapter 23": 893 s of audio, 2025 words, 23.8 s
+Part 25 of 75 "Chapter 24": 3134 s of audio, 6727 words, 82.7 s
+Part 26 of 75 "Chapter 25": 459 s of audio, 963 words, 12.3 s
+Part 27 of 75 "Chapter 26": 1946 s of audio, 4266 words, 52.5 s
+Part 28 of 75 "Chapter 27": 70 s of audio, 172 words, 2.1 s
+Part 29 of 75 "Chapter 28": 2071 s of audio, 4732 words, 55.9 s
+Part 30 of 75 "Chapter 29": 701 s of audio, 1381 words, 17.7 s
+Part 31 of 75 "Chapter 30": 49 s of audio, 117 words, 1.4 s
+Part 32 of 75 "Chapter 31": 285 s of audio, 678 words, 7.5 s
+Part 33 of 75 "Chapter 32": 503 s of audio, 1127 words, 13.3 s
+Part 34 of 75 "Chapter 33": 54 s of audio, 128 words, 1.4 s
+Part 35 of 75 "Chapter 34": 117 s of audio, 259 words, 3.3 s
+Part 36 of 75 "Chapter 35": 937 s of audio, 2006 words, 24.7 s
+Part 37 of 75 "Chapter 36": 24 s of audio, 41 words, 0.6 s
+Part 38 of 75 "Chapter 37": 153 s of audio, 280 words, 4.0 s
+Part 39 of 75 "Chapter 38": 3473 s of audio, 7292 words, 90.2 s
+Part 40 of 75 "Chapter 39": 1257 s of audio, 2694 words, 32.7 s
+Part 41 of 75 "Chapter 40": 512 s of audio, 1076 words, 13.6 s
+Part 42 of 75 "Chapter 41": 210 s of audio, 441 words, 5.7 s
+Part 43 of 75 "Chapter 42": 1565 s of audio, 3458 words, 41.4 s
+Part 44 of 75 "Chapter 43": 555 s of audio, 1171 words, 15.2 s
+Part 45 of 75 "Chapter 44": 1766 s of audio, 3767 words, 45.5 s
+Part 46 of 75 "Chapter 45": 45 s of audio, 63 words, 1.2 s
+Part 47 of 75 "Chapter 46": 177 s of audio, 379 words, 4.8 s
+Part 48 of 75 "Chapter 47": 531 s of audio, 1083 words, 14.5 s
+Part 49 of 75 "Chapter 48": 1171 s of audio, 2542 words, 30.6 s
+Part 50 of 75 "Chapter 49": 429 s of audio, 966 words, 11.7 s
+Part 51 of 75 "Chapter 50": 500 s of audio, 1055 words, 13.0 s
+Part 52 of 75 "Chapter 51": 89 s of audio, 233 words, 2.5 s
+Part 53 of 75 "Chapter 52": 489 s of audio, 1091 words, 13.4 s
+Part 54 of 75 "Chapter 53": 833 s of audio, 1824 words, 23.6 s
+Part 55 of 75 "Chapter 54": 1801 s of audio, 3986 words, 46.6 s
+Part 56 of 75 "Chapter 55": 239 s of audio, 494 words, 6.4 s
+Part 57 of 75 "Chapter 56": 862 s of audio, 2010 words, 25.5 s
+Part 58 of 75 "Chapter 57": 191 s of audio, 442 words, 6.2 s
+Part 59 of 75 "Chapter 58": 138 s of audio, 327 words, 3.8 s
+Part 60 of 75 "Chapter 59": 547 s of audio, 1196 words, 14.3 s
+Part 61 of 75 "Chapter 60": 67 s of audio, 114 words, 1.8 s
+Part 62 of 75 "Chapter 61": 285 s of audio, 708 words, 8.2 s
+Part 63 of 75 "Chapter 62": 101 s of audio, 231 words, 2.7 s
+Part 64 of 75 "Chapter 63": 450 s of audio, 1005 words, 12.1 s
+Part 65 of 75 "Chapter 64": 442 s of audio, 872 words, 11.6 s
+Part 66 of 75 "Chapter 65": 209 s of audio, 439 words, 5.5 s
+Part 67 of 75 "Chapter 66": 1421 s of audio, 3137 words, 37.8 s
+Part 68 of 75 "Chapter 67": 310 s of audio, 666 words, 8.2 s
+Part 69 of 75 "Chapter 68": 643 s of audio, 1382 words, 17.0 s
+Part 70 of 75 "Chapter 69": 562 s of audio, 1086 words, 14.4 s
+Part 71 of 75 "Chapter 70": 73 s of audio, 147 words, 2.1 s
+Part 72 of 75 "Chapter 71": 935 s of audio, 1945 words, 24.4 s
+Part 73 of 75 "Chapter 72": 1894 s of audio, 3726 words, 47.7 s
+Part 74 of 75 "Chapter 73": 86 s of audio, 89 words, 5.5 s
+Part 75 of 75 "Closing Credits": 57 s of audio, 106 words, 1.5 s
+Transcript kept for next time: /home/deck/Books/out/Night Watch - Terry Pratchett-turbo.transcript.json (113737 words)
+
+RESULTS - 113836 words in the book (to the aligner), 113737 heard by Whisper
+  Exact:        108433 (95.3 %) - heard as the book has it; timed by what was heard.
+  Similar:      1857 (1.6 %) - heard a little differently (a name, a spelling, an old word); timed by what was heard.
+  Moved:        438 (0.4 %) - read in another place than the book has them (a footnote read where it is called); timed where they were read.
+  Interpolated: 2058 (1.8 %) - not heard clearly between heard words; timed by sharing out the time between them (worth a listen when there are many in a row).
+  Not heard:    7 (0.0 %) - a silence in the transcript where the book goes on; timed like interpolated words.
+  Not spoken:   759 (0.7 %) - in the book but not in the recording (title pages, notes, a licence); left without highlight.
+  Verdict: 97.8 % of the timed words were matched to what was heard: good.
+  Of the not spoken words, 220 are before the first or after the last word read: front and back matter, normal (not listed below; the text is still in the book).
+  Stretches of 3 or more words worth a look (longest first, at most 10):
+    404 words not spoken, at 14:40:24.990: limits of humorous fantasy and should be recognized as one ...
+    123 words interpolated, at 14:39:39.950: Author Terry Pratchett’s novels have sold more than thirty million ...
+    101 words moved, at 01:29:14.050: Who was an orangutan, changed from his former human shape ...
+    70 words moved, at 03:42:02.910: In the same way that ancient forests become coal, ancient ...
+    51 words moved, at 00:27:40.130: quite young (insofar as you could tell with an Igor, ...
+    51 words moved, at 11:23:41.100: And this was true. Don’t bother with the boots, would ...
+    40 words moved, at 00:46:13.660: League of Temperance, made up of former vampires who now ...
+    36 words moved, at 12:09:28.620: made a point, on occasions like this, to talk only ...
+    34 words not spoken, at 02:32:21.760: And you’re not His Grace Commander Sir Samuel Vimes, neither. ...
+    28 words interpolated, at 14:40:09.090: inventiveness of Alice in Wonderland.” A.S. Byatt “Humorously entertaining (and ...
+Writing /home/deck/Books/out/Night Watch - Terry Pratchett-turbo.epub ...
+Done: 17 document(s), 112786 clip(s), 0 timed word(s) left out
+Chapter marks: 75 (the recording's parts; EpubReader steps by them when the book's contents list has no chapters that are read)
+The book was EPUB 2: it is EPUB 3 now (overlays need it)
+Finished after 00:23:44.520
+Speed: 37.3x real time; exact 95.3 %, matched 97.8 %.
+Kept in the build history: /home/deck/.config/EpubBuilder/EpubBuilder-history.csv
+Open /home/deck/Books/out/Night Watch - Terry Pratchett-turbo.epub in EpubReader.
+
+Steam Machine - turbo - Vulkan
+
+Machine: steamdeck - Steam Runtime 3 (sniper) #1 SMP PREEMPT_DYNAMIC Fri, 23 Oct 2026 20:44:20 +0000 (Version 7.2.7); AMD Custom CPU 1772 (12 logical processors); 15 GB of memory
+EpubBuilder build: 2026-11-18 13:21, 2af83eb
+Steam build, AppID 5639910: Steam running
+whisper.cpp 1.9.5-dev from /home/deck/.local/share/Steam/steamapps/common/EPubUnum Playtest/
+Device: Vulkan0 - AMD Steam Machine (RADV NAVI33) (GPU, Vulkan, 7.2 of 8.0 GB free)
+  the fastest for ggml-large-v3-turbo.bin in the calibration (CPU 1.1x, Vulkan0 27.4x (2026-11-18 15:20))
+Book: Night Watch - 113836 words, language en
+FFmpeg avutil 60.26.103, swresample 6.3.103, avcodec 62.28.103, avformat 62.12.103 (LGPL version 2.1 or later) from /home/deck/.local/share/Steam/steamapps/common/EPubUnum Playtest/
+Audio: 1 file(s), 75 part(s), about 14:41:28.700
+Expected: about 00:32:18.870 for 14:41:28.700 of audio - 27.4x real time, from the calibration (27.4x; no finished build here yet to correct it - a whole book usually runs slower).
+Loading ggml-large-v3-turbo.bin ...
+Model: large, multilingual, vocabulary 51866, GPU True, DTW word timings (alignment heads large-v3-turbo, flash attention False) on Vulkan0 - AMD Steam Machine (RADV NAVI33) (GPU, Vulkan, 5.2 of 8.0 GB free)
+Transcribing in en, each 30 s window on its own, with a punctuated prompt (TWhisper's settings for books)
+Part 1 of 75 "Opening Credits": 114 s of audio, 46 words, 9.6 s
+Part 2 of 75 "Chapter 1": 781 s of audio, 1715 words, 20.6 s
+Part 3 of 75 "Chapter 2": 1106 s of audio, 2539 words, 30.7 s
+Part 4 of 75 "Chapter 3": 757 s of audio, 1613 words, 19.7 s
+Part 5 of 75 "Chapter 4": 544 s of audio, 1214 words, 15.8 s
+Part 6 of 75 "Chapter 5": 177 s of audio, 440 words, 5.1 s
+Part 7 of 75 "Chapter 6": 140 s of audio, 331 words, 3.8 s
+Part 8 of 75 "Chapter 7": 506 s of audio, 1082 words, 12.9 s
+Part 9 of 75 "Chapter 8": 137 s of audio, 281 words, 3.9 s
+Part 10 of 75 "Chapter 9": 622 s of audio, 1338 words, 16.3 s
+Part 11 of 75 "Chapter 10": 608 s of audio, 1287 words, 19.6 s
+Part 12 of 75 "Chapter 11": 1934 s of audio, 4083 words, 49.8 s
+Part 13 of 75 "Chapter 12": 271 s of audio, 640 words, 7.4 s
+Part 14 of 75 "Chapter 13": 943 s of audio, 2055 words, 24.5 s
+Part 15 of 75 "Chapter 14": 681 s of audio, 1340 words, 17.5 s
+Part 16 of 75 "Chapter 15": 630 s of audio, 1345 words, 16.3 s
+Part 17 of 75 "Chapter 16": 1427 s of audio, 2916 words, 38.0 s
+Part 18 of 75 "Chapter 17": 321 s of audio, 646 words, 8.6 s
+Part 19 of 75 "Chapter 18": 1112 s of audio, 2436 words, 31.8 s
+Part 20 of 75 "Chapter 19": 1730 s of audio, 3824 words, 49.3 s
+Part 21 of 75 "Chapter 20": 705 s of audio, 1561 words, 19.1 s
+Part 22 of 75 "Chapter 21": 1174 s of audio, 2493 words, 31.7 s
+Part 23 of 75 "Chapter 22": 160 s of audio, 351 words, 4.3 s
+Part 24 of 75 "Chapter 23": 893 s of audio, 2023 words, 23.9 s
+Part 25 of 75 "Chapter 24": 3134 s of audio, 6728 words, 82.2 s
+Part 26 of 75 "Chapter 25": 459 s of audio, 963 words, 12.2 s
+Part 27 of 75 "Chapter 26": 1946 s of audio, 4266 words, 52.3 s
+Part 28 of 75 "Chapter 27": 70 s of audio, 172 words, 2.0 s
+Part 29 of 75 "Chapter 28": 2071 s of audio, 4723 words, 57.5 s
+Part 30 of 75 "Chapter 29": 701 s of audio, 1378 words, 18.1 s
+Part 31 of 75 "Chapter 30": 49 s of audio, 117 words, 1.4 s
+Part 32 of 75 "Chapter 31": 285 s of audio, 678 words, 7.5 s
+Part 33 of 75 "Chapter 32": 503 s of audio, 1126 words, 14.1 s
+Part 34 of 75 "Chapter 33": 54 s of audio, 128 words, 1.4 s
+Part 35 of 75 "Chapter 34": 117 s of audio, 259 words, 3.3 s
+Part 36 of 75 "Chapter 35": 937 s of audio, 2003 words, 24.7 s
+Part 37 of 75 "Chapter 36": 24 s of audio, 41 words, 0.6 s
+Part 38 of 75 "Chapter 37": 153 s of audio, 280 words, 3.9 s
+Part 39 of 75 "Chapter 38": 3473 s of audio, 7295 words, 92.4 s
+Part 40 of 75 "Chapter 39": 1257 s of audio, 2696 words, 33.6 s
+Part 41 of 75 "Chapter 40": 512 s of audio, 1077 words, 13.8 s
+Part 42 of 75 "Chapter 41": 210 s of audio, 441 words, 5.8 s
+Part 43 of 75 "Chapter 42": 1565 s of audio, 3459 words, 42.9 s
+Part 44 of 75 "Chapter 43": 555 s of audio, 1164 words, 15.9 s
+Part 45 of 75 "Chapter 44": 1766 s of audio, 3767 words, 46.3 s
+Part 46 of 75 "Chapter 45": 45 s of audio, 63 words, 1.2 s
+Part 47 of 75 "Chapter 46": 177 s of audio, 379 words, 4.8 s
+Part 48 of 75 "Chapter 47": 531 s of audio, 1084 words, 14.8 s
+Part 49 of 75 "Chapter 48": 1171 s of audio, 2542 words, 30.6 s
+Part 50 of 75 "Chapter 49": 429 s of audio, 967 words, 11.6 s
+Part 51 of 75 "Chapter 50": 500 s of audio, 1055 words, 13.0 s
+Part 52 of 75 "Chapter 51": 89 s of audio, 236 words, 2.4 s
+Part 53 of 75 "Chapter 52": 489 s of audio, 1091 words, 13.3 s
+Part 54 of 75 "Chapter 53": 833 s of audio, 1824 words, 23.5 s
+Part 55 of 75 "Chapter 54": 1801 s of audio, 3990 words, 47.5 s
+Part 56 of 75 "Chapter 55": 239 s of audio, 494 words, 6.5 s
+Part 57 of 75 "Chapter 56": 862 s of audio, 2010 words, 25.6 s
+Part 58 of 75 "Chapter 57": 191 s of audio, 442 words, 6.1 s
+Part 59 of 75 "Chapter 58": 138 s of audio, 327 words, 3.8 s
+Part 60 of 75 "Chapter 59": 547 s of audio, 1196 words, 14.2 s
+Part 61 of 75 "Chapter 60": 67 s of audio, 114 words, 1.8 s
+Part 62 of 75 "Chapter 61": 285 s of audio, 712 words, 8.1 s
+Part 63 of 75 "Chapter 62": 101 s of audio, 231 words, 2.7 s
+Part 64 of 75 "Chapter 63": 450 s of audio, 1004 words, 12.1 s
+Part 65 of 75 "Chapter 64": 442 s of audio, 873 words, 11.6 s
+Part 66 of 75 "Chapter 65": 209 s of audio, 439 words, 5.5 s
+Part 67 of 75 "Chapter 66": 1421 s of audio, 3137 words, 37.8 s
+Part 68 of 75 "Chapter 67": 310 s of audio, 666 words, 8.1 s
+Part 69 of 75 "Chapter 68": 643 s of audio, 1381 words, 16.9 s
+Part 70 of 75 "Chapter 69": 562 s of audio, 1087 words, 14.5 s
+Part 71 of 75 "Chapter 70": 73 s of audio, 147 words, 2.0 s
+Part 72 of 75 "Chapter 71": 935 s of audio, 1944 words, 24.2 s
+Part 73 of 75 "Chapter 72": 1894 s of audio, 3726 words, 47.4 s
+Part 74 of 75 "Chapter 73": 86 s of audio, 87 words, 5.0 s
+Part 75 of 75 "Closing Credits": 57 s of audio, 106 words, 1.4 s
+Transcript kept for next time: /home/deck/Books/out/Night Watch - Terry Pratchett-vulkan.transcript.json (113714 words)
+
+RESULTS - 113836 words in the book (to the aligner), 113714 heard by Whisper
+  Exact:        108406 (95.2 %) - heard as the book has it; timed by what was heard.
+  Similar:      1856 (1.6 %) - heard a little differently (a name, a spelling, an old word); timed by what was heard.
+  Moved:        438 (0.4 %) - read in another place than the book has them (a footnote read where it is called); timed where they were read.
+  Interpolated: 2046 (1.8 %) - not heard clearly between heard words; timed by sharing out the time between them (worth a listen when there are many in a row).
+  Not heard:    3 (0.0 %) - a silence in the transcript where the book goes on; timed like interpolated words.
+  Not spoken:   803 (0.7 %) - in the book but not in the recording (title pages, notes, a licence); left without highlight.
+  Verdict: 97.8 % of the timed words were matched to what was heard: good.
+  Of the not spoken words, 220 are before the first or after the last word read: front and back matter, normal (not listed below; the text is still in the book).
+  Stretches of 3 or more words worth a look (longest first, at most 10):
+    448 words not spoken, at 14:40:09.090: inventiveness of Alice in Wonderland.” A.S. Byatt “Humorously entertaining (and ...
+    123 words interpolated, at 14:39:39.950: Author Terry Pratchett’s novels have sold more than thirty million ...
+    101 words moved, at 01:29:14.050: Who was an orangutan, changed from his former human shape ...
+    70 words moved, at 03:42:02.910: In the same way that ancient forests become coal, ancient ...
+    51 words moved, at 00:27:40.130: quite young (insofar as you could tell with an Igor, ...
+    51 words moved, at 11:23:41.100: And this was true. Don’t bother with the boots, would ...
+    40 words moved, at 00:46:13.660: League of Temperance, made up of former vampires who now ...
+    36 words moved, at 12:09:28.620: made a point, on occasions like this, to talk only ...
+    34 words not spoken, at 02:32:21.760: And you’re not His Grace Commander Sir Samuel Vimes, neither. ...
+    27 words moved, at 01:24:38.750: Old Tom, the University’s venerable clock, tolled not sounds but ...
+Writing /home/deck/Books/out/Night Watch - Terry Pratchett-vulkan.epub ...
+Done: 17 document(s), 112746 clip(s), 0 timed word(s) left out
+Chapter marks: 75 (the recording's parts; EpubReader steps by them when the book's contents list has no chapters that are read)
+The book was EPUB 2: it is EPUB 3 now (overlays need it)
+Finished after 00:23:55.820
+Speed: 37.0x real time (expected 27.4x); exact 95.2 %, matched 97.8 %.
+Kept in the build history: /home/deck/.config/EpubBuilder/EpubBuilder-history.csv
+Open /home/deck/Books/out/Night Watch - Terry Pratchett-vulkan.epub in EpubReader.
+

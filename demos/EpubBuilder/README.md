@@ -177,6 +177,48 @@ script: on Linux, Steam starts `EpubBuilder.sh`, which starts
 `EpubBuilder` next to it. Deploy puts the script there in every
 configuration.
 
+## Folders
+
+EpubBuilder works with three folders: books (the EPUBs to read along),
+audio (the recordings) and output (the books it makes). At first they
+are Documents/EpubBuilder/Books, Audio and Output, made at start-up;
+Tools > Books folder... / Audio folder... / Output folder... choose
+others (kept in the settings). Book... and Add audio... open in their
+folder.
+
+A chosen book's output is its own file name in the output folder - the
+EPUB 3 it becomes, with the audio and the overlays. When that name is
+taken (a file there, or a job in the queue writes it) it gets a number:
+Night Watch_001.epub, then _002 and so on. The name can still be changed
+(Output...).
+
+## Kept awake while it works
+
+While a build, the queue, a calibration or a model download runs,
+EpubBuilder asks the system not to sleep (the screen may still go dark),
+and lets it sleep again when it ends. SteamOS in Game Mode, and laptops,
+otherwise sleep after a while with nobody at the controls - half way
+through a book. The log says how it was asked ("keeping the computer
+awake: ..."):
+
+- Windows: SetThreadExecutionState.
+- macOS: an IOKit power assertion.
+- Linux: systemd-logind's sleep:idle inhibitor over D-Bus (libdbus-1).
+
+If the machine still sleeps, set its sleep timeout to Never while a long
+book builds (Steam: Settings > Display / Power).
+
+## Ended from outside (Steam's Exit Game)
+
+Steam's Exit Game ends EpubBuilder with SIGTERM (Linux, macOS); so does
+the system when it shuts down. EpubBuilder then saves its settings, the
+queue file and the log so far, and ends at once when a build, calibration
+or download was running (the work in progress is lost: Create again).
+The log says "Asked to end (SIGTERM ...)", and the next start's debug log
+says when and during what the last run was ended. A calibration ended
+this way is not taken for a crash of the device. On Windows nothing is
+trapped.
+
 ## Debug log
 
 Every run writes `EpubBuilder-debug.log` next to the settings

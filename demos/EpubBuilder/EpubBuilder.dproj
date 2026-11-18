@@ -308,6 +308,8 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <DCCReference Include="src\FmxLinuxGtkGlobal.pas"/>
         <DCCReference Include="src\FmxWineCanvas.pas"/>
         <DCCReference Include="..\common\uDebugLog.pas"/>
+        <DCCReference Include="..\common\uInhibit.pas"/>
+        <DCCReference Include="..\common\uQuitSignal.pas"/>
         <DCCReference Include="..\common\uSteam.pas"/>
         <DCCReference Include="..\common\uMachine.pas"/>
         <DCCReference Include="src\uCalibration.pas"/>
