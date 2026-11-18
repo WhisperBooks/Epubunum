@@ -516,6 +516,9 @@ uses
 const
   { Text size step, px. }
   SIZE_STEP = 2;
+  { The smallest text on a Steam Deck (Steam's advice for its 7" screen:
+    24 at the least - owner, 2026-11-18; the default 20 was too small). }
+  SIZE_MIN_DECK = 24;
   { The pad's buttons, in the order of PAD_ACTIONS. }
   PAD_UP = 0;
   { Down. }
@@ -2099,6 +2102,14 @@ begin
     end;
   end;
   DebugLog('books folder: ' + FBooksFolder);
+  // a Steam Deck: text at least SIZE_MIN_DECK (a smaller size kept from
+  // before is raised; the pad's menu can make it larger)
+  if SteamOnDeck and (View1.FontSize < SIZE_MIN_DECK) then
+  begin
+    DebugLog(Format('Steam Deck: text size %d raised to %d (Steam''s least there)', [Round(View1.FontSize),
+      SIZE_MIN_DECK]));
+    View1.FontSize := SIZE_MIN_DECK;
+  end;
   StartPad;
   // Big Picture: the pad and its menu do it all - no tool bar, no
   // contents panel (owner, 2026-11-18; the menu bar is left off already)
@@ -3839,6 +3850,9 @@ end;
 
 procedure TfrmMain.btnSmallerClick(Sender: TObject);
 begin
+  // not below Steam's least on a Steam Deck
+  if SteamOnDeck and (View1.FontSize - SIZE_STEP < SIZE_MIN_DECK) then
+    Exit;
   if View1.FontSize > 10 then
     View1.FontSize := View1.FontSize - SIZE_STEP;
 end;

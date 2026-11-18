@@ -452,7 +452,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 130.
+Last number used: 132.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -2974,6 +2974,37 @@ and Linux can use this."
 - Possible next: EpubBuilder's Steam build making its books straight
   into the reader's Books folder (two installs: EPubUnum Playtest /
   EPubUnum - siblings under steamapps/common).
+
+## Zip 131 (on top of zip 130): text at least 24 on a Steam Deck
+Owner 21:23: "Deck says text is 20 - if that's pt then it is too small.
+Steam suggest 24 min". (FMX font sizes are device-independent pixels,
+1/96 in at scale 1; the Deck runs at scale 1, 1280 x 800, 7".)
+- uSteam: SteamOnDeck (ISteamUtils IsRunningOnSteamHardware =
+  k_ESteamHardwareTypeSteamDeck; False without Steam or SDK < 1.65).
+- uMain: SIZE_MIN_DECK = 24 - at start-up a smaller size (the saved 20)
+  is raised and logged; Smaller stops there on a Deck. Other machines
+  unchanged (default 20, least 10). The TV case comes with the
+  big-screen layout (UI scale from Steamworks.FMX.Screen).
+- NOT COMPILED. Owner decides on the Deck "in the AM".
+
+## NOTE (owner, 2026-11-18): disk space on Steam hardware
+"Steam hardware has relatively small SSDs as standard. We should keep an
+eye in disk space when we come to transferring from external sources
+(later)". Steam Deck 64 GB / 256 GB / 512 GB models; Steam Machine
+512 GB / 2 TB; shared with every game. When books come in from outside
+(downloads, copies from another machine, a library service):
+- check the free space before copying, say how much a book needs and
+  how much is free, and refuse (or ask) rather than fill the disk;
+- prefer the SD card / the larger drive where Steam has one.
+ALREADY RELEVANT, not just "later":
+- EpubReader extracts a book's audio to the temp folder to play it -
+  Night Watch's m4b is 840 MB (Mac log, 2026-11-18), deleted on close;
+  a crash or a kill leaves it (EpubReader-<hash> under the temp folder).
+  Worth: a check of free space before extracting, and clearing old
+  EpubReader-* temp folders at start-up.
+- EpubBuilder: models (turbo 1.5 GB, large 3 GB) in the program's
+  models folder; the transcript, the output EPUB (the audio inside it,
+  ~ the m4b's size) and the input copies.
 
 ## Pushes checked
 - a6ea67b ("SteamOS good") = zips 87 - 89: identical (CR LF aside) but

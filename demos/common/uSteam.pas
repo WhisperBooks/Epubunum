@@ -54,6 +54,13 @@ function SteamRunning: Boolean;
   @returns(the answer; False outside a Steam build) }
 function SteamBigPicture: Boolean;
 
+{ True on a Steam Deck (ISteamUtils' IsRunningOnSteamHardware, SDK 1.65
+  and later): a 7" screen held close - Steam asks for text of at least
+  24 there (owner, 2026-11-18).
+  @returns(the answer; False outside a Steam build, without Steam, or
+    with an older Steam) }
+function SteamOnDeck: Boolean;
+
 { One line for the logs: 'not a Steam build', or 'Steam build, AppID N:
   Steam running' / '... not running (why)'.
   @returns(the line) }
@@ -102,7 +109,8 @@ implementation
 {$IFDEF STEAMBUILD}
 uses
   Steamworks.Types, Steamworks.SDKTypes, Steamworks.Core, Steamworks.Components, Steamworks.FMX,
-  Steamworks.FMX.Screen, Steamworks.Plugin.Apps, Steamworks.Plugin.Friends, uDebugLog;
+  Steamworks.FMX.Screen, Steamworks.Plugin.Apps, Steamworks.Plugin.Friends, Steamworks.Plugin.Utils,
+  uDebugLog;
 
 type
   { Receives TSteamAPI's events (they are methods of an object). }
@@ -228,6 +236,26 @@ begin
   Result := (GSteam <> nil) and GSteam.IsRunning and GSteam.InBigPicture;
   {$ELSE}
   Result := False;
+  {$ENDIF}
+end;
+
+function SteamOnDeck: Boolean;
+{$IFDEF STEAMBUILD}
+var
+  U: TSteamUtilsPlugin;
+{$ENDIF}
+begin
+  Result := False;
+  {$IFDEF STEAMBUILD}
+  if (GSteam = nil) or not GSteam.IsRunning then
+    Exit;
+  try
+    U := TSteamUtilsPlugin(Steam.FindPlugin(TSteamUtilsPlugin));
+    Result := (U <> nil) and U.Active and (U.IsRunningOnSteamHardware = k_ESteamHardwareTypeSteamDeck);
+  except
+    // an older redistributable: not known, taken as no
+    Result := False;
+  end;
   {$ENDIF}
 end;
 
