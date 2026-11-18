@@ -184,7 +184,8 @@ procedure CalibrationClearCrashes(const AIniFile: string);
   @returns(a line for the log; '' when there was no marker) }
 function CalibrationCheckMarker(const AMarkerFile, AIniFile: string): string;
 
-{ The calibration's recording: ASaved when it exists, else
+{ The calibration's recording: ASaved when it exists, else (macOS) the
+  bundle's Contents/Resources/media/CALIBRATION_AUDIO, else
   media/CALIBRATION_AUDIO beside the program or in a folder above it.
   @returns('' when there is none) }
 function FindCalibrationAudio(const ASaved: string): string;
@@ -616,6 +617,14 @@ begin
   if (ASaved <> '') and FileExists(ASaved) then
     Exit(ASaved);
   Dir := ExcludeTrailingPathDelimiter(ExtractFilePath(ParamStr(0)));
+  {$IFDEF MACOS}
+  // the bundle's Contents/Resources/media (Dir is Contents/MacOS), where
+  // Deploy and tools/redist.sh deploy put it
+  Result := TPath.Combine(TPath.Combine(TPath.Combine(ExtractFileDir(Dir), 'Resources'), 'media'),
+    CALIBRATION_AUDIO);
+  if FileExists(Result) then
+    Exit;
+  {$ENDIF}
   for I := 0 to CALIBRATION_AUDIO_LEVELS do
   begin
     Result := TPath.Combine(TPath.Combine(Dir, 'media'), CALIBRATION_AUDIO);

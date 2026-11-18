@@ -33,9 +33,12 @@ chosen in the window.
 
 For the calibration (below), `media/aladdin.m4a` - a LibriVox recording
 - beside the program, or in a folder up to five levels above it (the
-repository's root, from `demos/EpubBuilder/<platform>/<config>`). Without
-it the calibration asks for another recording of English speech, a few
-minutes long.
+repository's root, from `demos/EpubBuilder/<platform>/<config>`); on
+macOS also the bundle's `Contents/Resources/media`. On Linux and macOS
+`tools/redist.sh collect` takes it into `redistributable_bin/<platform>/media`,
+so `tools/deploy_redist.py` and `tools/redist.sh deploy` put it there.
+Without it the calibration asks for another recording of English speech,
+a few minutes long.
 
 ## Calibration (which device is fastest here)
 

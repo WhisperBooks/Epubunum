@@ -6,10 +6,9 @@
         <AppType>Application</AppType>
         <MainSource>EpubBuilder.dpr</MainSource>
         <Base>True</Base>
-        <Config Condition="'$(Config)'==''">Steam</Config>
-        <Platform Condition="'$(Platform)'==''">Win64</Platform>
+        <Config Condition="'$(Config)'==''">Release</Config>
+        <Platform Condition="'$(Platform)'==''">OSXARM64</Platform>
         <TargetedPlatforms>135298</TargetedPlatforms>
-        <ProjectName Condition="'$(ProjectName)'==''">EpubBuilder</ProjectName>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Base' or '$(Base)'!=''">
         <Base>true</Base>
@@ -1417,6 +1416,23 @@ $(PreBuildEvent)]]></PreBuildEvent>
                 </DeployFile>
                 <DeployFile LocalName="Linux64\Debug\EpubBuilder" Configuration="Debug" Class="ProjectOutput">
                     <Platform Name="Linux64">
+                        <RemoteName>EpubBuilder</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="OSXARM64\Release\EpubBuilder.entitlements" Configuration="Release" Class="ProjectOSXEntitlements">
+                    <Platform Name="OSXARM64">
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="OSXARM64\Release\EpubBuilder.info.plist" Configuration="Release" Class="ProjectOSXInfoPList">
+                    <Platform Name="OSXARM64">
+                        <RemoteName>Info.plist</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="OSXARM64\Release\EpubBuilder" Configuration="Release" Class="ProjectOutput">
+                    <Platform Name="OSXARM64">
                         <RemoteName>EpubBuilder</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>

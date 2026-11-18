@@ -321,6 +321,118 @@ $(PreBuildEvent)]]></PreBuildEvent>
                 <Platform value="Win64">True</Platform>
             </Platforms>
             <Deployment Version="5">
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libavcodec.62.dylib" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Frameworks\</RemoteDir>
+                        <RemoteName>libavcodec.62.dylib</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libavcodec.dylib" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Frameworks\</RemoteDir>
+                        <RemoteName>libavcodec.dylib</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libavfilter.11.dylib" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Frameworks\</RemoteDir>
+                        <RemoteName>libavfilter.11.dylib</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libavfilter.dylib" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Frameworks\</RemoteDir>
+                        <RemoteName>libavfilter.dylib</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libavformat.62.dylib" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Frameworks\</RemoteDir>
+                        <RemoteName>libavformat.62.dylib</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libavformat.dylib" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Frameworks\</RemoteDir>
+                        <RemoteName>libavformat.dylib</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libavutil.60.dylib" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Frameworks\</RemoteDir>
+                        <RemoteName>libavutil.60.dylib</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libavutil.dylib" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Frameworks\</RemoteDir>
+                        <RemoteName>libavutil.dylib</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libswresample.6.dylib" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Frameworks\</RemoteDir>
+                        <RemoteName>libswresample.6.dylib</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libswresample.dylib" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Frameworks\</RemoteDir>
+                        <RemoteName>libswresample.dylib</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libswscale.9.dylib" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Frameworks\</RemoteDir>
+                        <RemoteName>libswscale.9.dylib</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libswscale.dylib" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Frameworks\</RemoteDir>
+                        <RemoteName>libswscale.dylib</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\licences\FFmpeg-BUILD-INFO.txt" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Resources\licences\</RemoteDir>
+                        <RemoteName>FFmpeg-BUILD-INFO.txt</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\licences\FFmpeg-COPYING.LGPLv2.1" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Resources\licences\</RemoteDir>
+                        <RemoteName>FFmpeg-COPYING.LGPLv2.1</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\licences\FFmpeg-COPYING.LGPLv3" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Resources\licences\</RemoteDir>
+                        <RemoteName>FFmpeg-COPYING.LGPLv3</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\licences\FFmpeg-LICENSE.md" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Resources\licences\</RemoteDir>
+                        <RemoteName>FFmpeg-LICENSE.md</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
                 <DeployFile LocalName="$(BDS)\Redist\iossimulator\libcgunwind.1.0.dylib" Class="DependencyModule">
                     <Platform Name="iOSSimulator">
                         <Overwrite>true</Overwrite>
@@ -672,118 +784,6 @@ $(PreBuildEvent)]]></PreBuildEvent>
                     <Platform Name="Linux64">
                         <RemoteDir>.\licences\</RemoteDir>
                         <RemoteName>brotli-copyright.txt</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libavcodec.62.dylib" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Frameworks\</RemoteDir>
-                        <RemoteName>libavcodec.62.dylib</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libavcodec.dylib" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Frameworks\</RemoteDir>
-                        <RemoteName>libavcodec.dylib</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libavfilter.11.dylib" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Frameworks\</RemoteDir>
-                        <RemoteName>libavfilter.11.dylib</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libavfilter.dylib" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Frameworks\</RemoteDir>
-                        <RemoteName>libavfilter.dylib</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libavformat.62.dylib" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Frameworks\</RemoteDir>
-                        <RemoteName>libavformat.62.dylib</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libavformat.dylib" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Frameworks\</RemoteDir>
-                        <RemoteName>libavformat.dylib</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libavutil.60.dylib" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Frameworks\</RemoteDir>
-                        <RemoteName>libavutil.60.dylib</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libavutil.dylib" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Frameworks\</RemoteDir>
-                        <RemoteName>libavutil.dylib</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libswresample.6.dylib" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Frameworks\</RemoteDir>
-                        <RemoteName>libswresample.6.dylib</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libswresample.dylib" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Frameworks\</RemoteDir>
-                        <RemoteName>libswresample.dylib</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libswscale.9.dylib" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Frameworks\</RemoteDir>
-                        <RemoteName>libswscale.9.dylib</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libswscale.dylib" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Frameworks\</RemoteDir>
-                        <RemoteName>libswscale.dylib</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\licences\FFmpeg-BUILD-INFO.txt" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Resources\licences\</RemoteDir>
-                        <RemoteName>FFmpeg-BUILD-INFO.txt</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\licences\FFmpeg-COPYING.LGPLv2.1" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Resources\licences\</RemoteDir>
-                        <RemoteName>FFmpeg-COPYING.LGPLv2.1</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\licences\FFmpeg-COPYING.LGPLv3" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Resources\licences\</RemoteDir>
-                        <RemoteName>FFmpeg-COPYING.LGPLv3</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\licences\FFmpeg-LICENSE.md" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Resources\licences\</RemoteDir>
-                        <RemoteName>FFmpeg-LICENSE.md</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>

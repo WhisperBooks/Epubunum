@@ -26,7 +26,8 @@ What each program gets:
                the CUDA / ROCm runtimes, ROCm's kernel folders, FFmpeg,
                the licences. macOS: whisper.cpp with the CPU and Metal
                backends (no Vulkan, CUDA or HIP - to be free DLC; owner
-               2026-11-17), FFmpeg, the licences
+               2026-11-17), FFmpeg, the licences. Both: media/aladdin.m4a
+               (the calibration's recording; macOS Contents/Resources/media)
   EpubReader   FFmpeg and its licence texts (it plays sound, it does not
                transcribe); on Linux also FreeType + brotli (Skia crashes
                with Steam Linux Runtime 3's FreeType 2.10.4)
@@ -130,8 +131,9 @@ def entry(rel, nl):
     d, _, name = rel.rpartition("/")
     if is_mac():
         # libraries into the bundle's Frameworks (where the loaders look);
-        # the licence texts are no code: Resources
-        if d.startswith("licences"):
+        # the licence texts and the calibration recording are no code:
+        # Resources
+        if d.startswith("licences") or d.startswith("media"):
             remote_dir = "Contents\\Resources\\" + d.replace("/", "\\") + "\\"
         else:
             remote_dir = "Contents\\Frameworks\\" + (d.replace("/", "\\") + "\\" if d else "")

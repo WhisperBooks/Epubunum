@@ -70,7 +70,7 @@ the history, one per zip.
 | Repo | Pushed | = zip | Last zip number used |
 |---|---|---|---|
 | WhisperBooks/TWhisper | d669a06 | TWhisper-30 | 31 (review fixes) |
-| WhisperBooks/Epubunum | 51bb81e | EpubUnum-94 | 95 (95 Mac ggml backends in redist.sh NOT pushed; 93 Big Picture full screen and 94 this handover NOT pushed; 90 screen log, 91 DPI awareness, 92 Big Picture late maximise; 77 calibration, 78 Steam builds, 79 libraries copied by the builds, 80 - 83 fixes from the first Steam build, 84 EpubBuilder's Linux launcher, 85 Mac libraries through Deploy, 86 Deck crash diagnostics, 87 build stamp, 88 crash place in the log, 89 FreeType for Steam's Linux runtime) |
+| WhisperBooks/Epubunum | 51bb81e | EpubUnum-94 | 96 (95 Mac ggml backends in redist.sh, 96 aladdin.m4a deployed - NOT pushed; 93 Big Picture full screen and 94 this handover NOT pushed; 90 screen log, 91 DPI awareness, 92 Big Picture late maximise; 77 calibration, 78 Steam builds, 79 libraries copied by the builds, 80 - 83 fixes from the first Steam build, 84 EpubBuilder's Linux launcher, 85 Mac libraries through Deploy, 86 Deck crash diagnostics, 87 build stamp, 88 crash place in the log, 89 FreeType for Steam's Linux runtime) |
 | G3DGames/TFFMpegAPI | 0795d19 | FFmpegAPI-14 | 14 (macOS sound) |
 | G3DGames/ffmpeg-dev | 4d7b7be | ffmpeg-dev-09 | 09 |
 | WhisperBooks/whisper-dev | 9fa21dc | whisper-dev-20 | 21 (review fixes; its own CLAUDE.md) |
@@ -416,7 +416,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 95.
+Last number used: 96.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -2205,6 +2205,34 @@ TO DO on the Mac: check whisper-dev's dlls/ has libggml-cpu*.so and
 libggml-metal.so (zip 78 said Metal was not built yet), redist.sh collect,
 copy redistributable_bin/OSXARM64 to Windows, deploy_redist.py --platform
 OSXARM64, Deploy; EpubBuilder's calibration should list CPU and Metal.
+Owner, Mac, 09:04: whisper-dev's dlls/ has libggml-cpu-apple_m1 / _m2_m3
+/ _m4.so and libggml-metal.so; collect with zip 95 took them (no
+libggml-blas - BLAS off, fine).
+
+## Zip 96 (on top of zip 95): the calibration recording deployed
+Owner, 09:14: "Mac Deployment (and Linux) are missing aladdin.m4a for
+calibration"; "Mac will need some models". FindCalibrationAudio looked
+beside the program and up to 5 folders above - fine from the Windows
+build tree, not from PAServer's scratch dir or inside a .app.
+- uCalibration.FindCalibrationAudio: on macOS first the bundle's
+  Contents/Resources/media/aladdin.m4a (ParamStr(0) is Contents/MacOS).
+- tools/redist.sh collect: media/aladdin.m4a (repo root, git-ignored)
+  into redistributable_bin/<platform>/media/, a WARNING when missing;
+  deploy macOS: EpubBuilder.app gets it in Contents/Resources/media
+  (EpubReader not); Linux64 deploy copies the folder whole as before.
+  package: media/ goes into the core part (public domain, LibriVox).
+- tools/deploy_redist.py: media/ on macOS -> Contents\Resources\media\
+  (Linux64 .\media\); EpubBuilder only (reader_file excludes it).
+- EpubBuilder README: where the recording is looked for.
+TESTED here: fake Mac collect / deploy (builder has it, reader not),
+deploy_redist.py OSXARM64 and Linux64 entries, XML valid, the warning.
+uCalibration NOT COMPILED (FMX; no Delphi here).
+Linux64 without collecting again: copy media/aladdin.m4a to
+redistributable_bin/Linux64/media/ on Windows, then deploy_redist.py.
+MODELS: not deployed (1.6 GB for turbo; a Clean would delete them):
+whisper.cpp's models/download-ggml-model.sh NAME FOLDER into a folder on
+the Mac, chosen in the window; Tools > Re-calibrate every model in its
+folder.
 
 ## Pushes checked
 - a6ea67b ("SteamOS good") = zips 87 - 89: identical (CR LF aside) but

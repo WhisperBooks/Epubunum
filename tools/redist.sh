@@ -119,6 +119,14 @@ collect() {
     [ -f "$FDIR/$f" ] && cp "$FDIR/$f" "$OUT/licences/FFmpeg-$f"
   done
   [ -f "$1/whisper.cpp/LICENSE" ] && cp "$1/whisper.cpp/LICENSE" "$OUT/licences/whisper.cpp-LICENSE.txt"
+  # EpubBuilder's calibration recording (media/aladdin.m4a, not committed):
+  # media/ beside the program (Linux), Contents/Resources/media (macOS)
+  if [ -f "$ROOT/media/aladdin.m4a" ]; then
+    mkdir -p "$OUT/media"
+    cp "$ROOT/media/aladdin.m4a" "$OUT/media/"
+  else
+    echo "WARNING: no media/aladdin.m4a in $ROOT - EpubBuilder's calibration will ask for a recording"
+  fi
   [ "$PLATFORM" = Linux64 ] && freetype_for_runtime "$OUT"
   echo "$(ls "$OUT" | grep -c -v licences) files in $OUT"
 }
@@ -164,7 +172,12 @@ deploy() {
       done
       case $APP in
         EpubReader*) cp -a "$SRC"/licences/FFmpeg-* "$TARGET/Contents/Resources/licences/" 2>/dev/null || true ;;
-        *) cp -a "$SRC"/licences/. "$TARGET/Contents/Resources/licences/" ;;
+        *) cp -a "$SRC"/licences/. "$TARGET/Contents/Resources/licences/"
+           # the calibration recording (uCalibration looks there first)
+           if [ -d "$SRC/media" ]; then
+             mkdir -p "$TARGET/Contents/Resources/media"
+             cp -a "$SRC"/media/. "$TARGET/Contents/Resources/media/"
+           fi ;;
       esac
       for f in "$TARGET"/Contents/Frameworks/*.dylib "$TARGET"/Contents/Frameworks/*.so; do
         [ -e "$f" ] || continue
