@@ -452,7 +452,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 125.
+Last number used: 127.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -2902,6 +2902,32 @@ too." then "Steam also supply all the controller glyphs".
 - Big Picture: layTop (tool bar), lbToc and Splitter1 hidden at start;
   HideLibrary does not show the panel again there.
 - NOT COMPILED. The glyph styles' look on each theme NOT YET SEEN.
+
+## Zip 126 (on top of zip 125): the Mac reader's crash on Exit
+TESTED (owner, zip 121 / 125 on Windows): the pad works on the reader;
+Controls shows Steam's glyphs of the pad in hand - a PS5 controller gets
+its symbols. Desktop mode keeps the tool bar and panel.
+Owner 19:04, Mac (Steam, Big Picture, 3440 x 1440 34" - UI scale 2.24
+suggested): pad Play / Menu / Back fine, manifest written beside the
+settings, 15 actions found, IOKit assertion taken and released; then
+Exit from the pad menu: "Crashed at end" - the log stops after "screen:
+IOKit assertion ... released" (in FormClose). Crash report asked for;
+fixed meanwhile by reading (not proven):
+- uQuitSignal: no finalization (closing the pipe there woke the reader
+  thread while the RTL was being finalised; its TThread clean-up could
+  run on finalised units). Most likely cause: only POSIX has the thread.
+- uPadMenu.Destroy no longer frees the rows (the form may have freed
+  them already as its children).
+- uMain: Exit from the pad menu queues Close (it ran inside tmPadTimer,
+  and FormClose frees the pad).
+
+## Zip 127 (on top of zip 126): where the Mac reader hangs on Exit
+Owner: "It just hung - steam may have killed it" - no crash report (only
+Steam's own .ips). FormClose logs each step (place and settings saved,
+sound player freed, done) and uSteam's finalization "Steam: shutting
+down" / "shut down", so the next log ends at the step that hangs.
+Suspects: FPlayer's AudioQueue dispose, ISteamInput's Shutdown in
+TSteamAPI's free, the uQuitSignal thread (zip 126 removed its wake-up).
 
 ## Pushes checked
 - a6ea67b ("SteamOS good") = zips 87 - 89: identical (CR LF aside) but

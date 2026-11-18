@@ -206,7 +206,11 @@ end;
 
 destructor TPadMenu.Destroy;
 begin
-  ClearRows;
+  // the rows, box and shade are freed by their owner (this component) or
+  // by the form they sit on, whichever goes first: freeing them here
+  // could free them twice when the form went first
+  FRows := nil;
+  FValues := nil;
   FBitmaps.Free;
   inherited;
 end;

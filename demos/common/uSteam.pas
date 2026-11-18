@@ -336,7 +336,9 @@ initialization
 
 finalization
   // before the Steamworks units' finalization (they were initialised first)
+  DebugLog('Steam: shutting down');
   FreeAndNil(GSteam);
   FreeAndNil(GHost);
+  DebugLog('Steam: shut down');
 {$ENDIF}
 end.

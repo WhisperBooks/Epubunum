@@ -180,12 +180,8 @@ begin
   {$ENDIF}
 end;
 
-initialization
-
-finalization
-  {$IFDEF POSIX}
-  // a normal end: the thread's read returns 0 and it ends without a call
-  if GHasPipe then
-    __close(GPipe.WriteDes);
-  {$ENDIF}
+// No finalization: the thread stays blocked in its read until the
+// process ends. Closing the pipe here woke it while the RTL was being
+// finalised, and its end (TThread's own clean-up) could then run on
+// finalised units - the Mac reader crashed as it closed (2026-11-18).
 end.

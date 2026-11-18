@@ -2452,7 +2452,12 @@ begin
     MENU_EXIT:
       begin
         FPadMenu.Hide;
-        Close;
+        // later, not inside the pad's timer (FormClose frees the pad)
+        TThread.ForceQueue(nil,
+          procedure
+          begin
+            Close;
+          end);
       end;
   end;
 end;
@@ -2548,6 +2553,8 @@ end;
 
 procedure TfrmMain.FormClose(Sender: TObject; var Action: TCloseAction);
 begin
+  // each step logged: the Mac reader hung here once (2026-11-18), the
+  // log ending after StopPlaying
   DebugLog('closing');
   if tmPad <> nil then
     tmPad.Enabled := False;
@@ -2556,8 +2563,10 @@ begin
   // where the reader left off, and the settings
   RememberBook;
   SaveSettings;
+  DebugLog('closing: place and settings saved');
   FreeAndNil(FUnitLayout);
   FreeAndNil(FPlayer);
+  DebugLog('closing: sound player freed');
   FreeAndNil(FFFmpeg);
   try
     if TDirectory.Exists(FAudioFolder) then
@@ -2565,6 +2574,7 @@ begin
   except
     // a file still held by the player: left for the system's temp cleanup
   end;
+  DebugLog('closing: done (the program ends next)');
 end;
 
 procedure TfrmMain.FormKeyDown(Sender: TObject; var Key: Word; var KeyChar: WideChar; Shift: TShiftState);
