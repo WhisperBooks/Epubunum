@@ -104,6 +104,14 @@ collect() {
     [ -d "$WDIR/licences" ] && cp -a "$WDIR"/licences/. "$OUT"/licences/
   else
     cp -a "$WDIR"/*.dylib "$FDIR"/*.dylib "$OUT"/
+    # ggml's backends (GGML_BACKEND_DL): CMake MODULE libraries, named
+    # lib*.so on macOS too - ggml looks for ".so" on every system but
+    # Windows (libggml-cpu-*.so, libggml-metal.so, libggml-blas.so)
+    for f in "$WDIR"/libggml-*.so; do
+      [ -f "$f" ] && cp -a "$f" "$OUT"/
+    done
+    ls "$OUT"/libggml-cpu*.so > /dev/null 2>&1 || echo "WARNING: no libggml-cpu*.so in $WDIR - EpubBuilder will have no CPU backend"
+    ls "$OUT"/libggml-metal*.so > /dev/null 2>&1 || echo "WARNING: no libggml-metal.so in $WDIR - EpubBuilder will have no Metal backend"
   fi
   # licences: FFmpeg (LGPL - its texts and the build's configure line go
   # with the libraries) and whisper.cpp (MIT)
@@ -144,7 +152,9 @@ deploy() {
       # are left out: GPU backends other than the platform's own are to be
       # free DLC - owner, 2026-11-17)
       APP=$(basename "${TARGET%/}" .app)
-      for f in "$SRC"/*.dylib; do
+      # *.dylib, and ggml's backend modules (lib*.so on macOS too)
+      for f in "$SRC"/*.dylib "$SRC"/*.so; do
+        [ -e "$f" ] || continue
         n=$(basename "$f")
         case $APP in
           EpubReader*) case $n in libav*|libsw*|libpostproc*) ;; *) continue ;; esac ;;
@@ -156,7 +166,8 @@ deploy() {
         EpubReader*) cp -a "$SRC"/licences/FFmpeg-* "$TARGET/Contents/Resources/licences/" 2>/dev/null || true ;;
         *) cp -a "$SRC"/licences/. "$TARGET/Contents/Resources/licences/" ;;
       esac
-      for f in "$TARGET"/Contents/Frameworks/*.dylib; do
+      for f in "$TARGET"/Contents/Frameworks/*.dylib "$TARGET"/Contents/Frameworks/*.so; do
+        [ -e "$f" ] || continue
         [ -L "$f" ] || codesign --force --sign "${CODESIGN_ID:--}" "$f"
       done
       echo "Libraries copied into $TARGET/Contents/Frameworks and signed (${CODESIGN_ID:-ad hoc})"

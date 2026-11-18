@@ -70,7 +70,7 @@ the history, one per zip.
 | Repo | Pushed | = zip | Last zip number used |
 |---|---|---|---|
 | WhisperBooks/TWhisper | d669a06 | TWhisper-30 | 31 (review fixes) |
-| WhisperBooks/Epubunum | 827bed1 | EpubUnum-92 | 94 (93 Big Picture full screen and 94 this handover NOT pushed; 90 screen log, 91 DPI awareness, 92 Big Picture late maximise; 77 calibration, 78 Steam builds, 79 libraries copied by the builds, 80 - 83 fixes from the first Steam build, 84 EpubBuilder's Linux launcher, 85 Mac libraries through Deploy, 86 Deck crash diagnostics, 87 build stamp, 88 crash place in the log, 89 FreeType for Steam's Linux runtime) |
+| WhisperBooks/Epubunum | 51bb81e | EpubUnum-94 | 95 (95 Mac ggml backends in redist.sh NOT pushed; 93 Big Picture full screen and 94 this handover NOT pushed; 90 screen log, 91 DPI awareness, 92 Big Picture late maximise; 77 calibration, 78 Steam builds, 79 libraries copied by the builds, 80 - 83 fixes from the first Steam build, 84 EpubBuilder's Linux launcher, 85 Mac libraries through Deploy, 86 Deck crash diagnostics, 87 build stamp, 88 crash place in the log, 89 FreeType for Steam's Linux runtime) |
 | G3DGames/TFFMpegAPI | 0795d19 | FFmpegAPI-14 | 14 (macOS sound) |
 | G3DGames/ffmpeg-dev | 4d7b7be | ffmpeg-dev-09 | 09 |
 | WhisperBooks/whisper-dev | 9fa21dc | whisper-dev-20 | 21 (review fixes; its own CLAUDE.md) |
@@ -416,7 +416,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 94.
+Last number used: 95.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -2178,6 +2178,33 @@ bpwFullScreen on Windows = that method. Here:
   interface comes later) - full screen with a menu bar.
 Pushes checked: 827bed1 = zips 91 + 92 (+ IDE re-saves of EpubConsole and
 the two package .dproj: OSX Cfg_2 groups added by the IDE - fine).
+
+## Zip 95 (on top of 51bb81e = zips 93 + 94): the Mac's ggml backends
+Session 9 (2026-11-18), owner: "is builder ready for macarm?". No: the
+OSXARM64 deploy entries in EpubBuilder.dproj held libwhisper, libggml,
+libggml-base and FFmpeg but NO backend - no CPU, no Metal. whisper-dev
+builds with GGML_BACKEND_DL=ON: each backend is a CMake MODULE library,
+and CMake names those lib*.so on macOS too; ggml itself looks for ".so"
+on every system but Windows (ggml-backend-reg.cpp,
+backend_filename_extension). tools/redist.sh copied, deployed and signed
+*.dylib only on the Mac, so the backends never reached
+redistributable_bin/OSXARM64 (zip 79's test used a dummy folder that had
+them). TWhisper loads the backends from its library folder
+(ggml_backend_load_all_from_path, Contents/Frameworks) - no change there.
+- tools/redist.sh: collect copies WHISPER_DEV's libggml-*.so on macOS too
+  and warns when no libggml-cpu*.so / libggml-metal.so is there; deploy
+  copies and signs *.so beside *.dylib (EpubBuilder: no vulkan / cuda /
+  hip as before; EpubReader: FFmpeg only as before). Linux64 unchanged.
+- deploy_redist.py needs no change (it passes .so names through).
+TESTED here on a fake Mac (uname / codesign shims): collect -> 14 files
+with libggml-cpu-*.so, -metal, -blas; deploy EpubBuilder.app -> those
+without -vulkan, all signed; EpubReader.app -> FFmpeg only;
+deploy_redist.py --platform OSXARM64 -> the backend entries; with no
+backends -> both warnings. NOT RUN on a real Mac.
+TO DO on the Mac: check whisper-dev's dlls/ has libggml-cpu*.so and
+libggml-metal.so (zip 78 said Metal was not built yet), redist.sh collect,
+copy redistributable_bin/OSXARM64 to Windows, deploy_redist.py --platform
+OSXARM64, Deploy; EpubBuilder's calibration should list CPU and Metal.
 
 ## Pushes checked
 - a6ea67b ("SteamOS good") = zips 87 - 89: identical (CR LF aside) but
