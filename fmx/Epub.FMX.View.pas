@@ -92,6 +92,8 @@ type
     FFontsFor: string;
     { Backing field of @link(LineHeight). }
     FLineHeight: Single;
+    { Backing field of @link(Justify). }
+    FJustify: Boolean;
     { Backing field of @link(ParagraphSpacing). }
     FParagraphSpacing: Single;
     { Backing field of @link(PageMargin). }
@@ -126,6 +128,8 @@ type
     procedure SetFontFamily(const AValue: string);
     { Line height; lays out again. }
     procedure SetLineHeight(const AValue: Single);
+    { Justified paragraphs on / off; lays out again. }
+    procedure SetJustify(const AValue: Boolean);
     { Scroll position (clamped). }
     procedure SetScrollPos(const AValue: Single);
     { Stops a smooth scroll where it is. }
@@ -252,6 +256,12 @@ type
     property MonoFamily: string read FMonoFamily write FMonoFamily;
     { Line height as a factor of the font size. }
     property LineHeight: Single read FLineHeight write SetLineHeight;
+    { Paragraphs and list items the book leaves at the start (left, or not
+      set) are justified - both edges straight, the last line of each as
+      it is (owner, 2026-11-18: "It'll look nicer on-screen"). What the
+      book centres, sets right or justifies itself stays as it is;
+      headings, preformatted text and table cells are not touched. }
+    property Justify: Boolean read FJustify write SetJustify default True;
     { Space between paragraphs, em (paragraphs with a first-line indent get
       a third of it, as books set them). }
     property ParagraphSpacing: Single read FParagraphSpacing write FParagraphSpacing;
@@ -317,6 +327,7 @@ begin
   FFontFamily := '';                 // '' = Skia's default sans serif
   FMonoFamily := 'monospace';
   FLineHeight := 1.4;
+  FJustify := True;
   FParagraphSpacing := 0.8;
   FPageMargin := 24;
   FTextColor := $FF222222;
@@ -418,6 +429,14 @@ begin
   if (AValue <= 0) or SameValue(AValue, FLineHeight) then
     Exit;
   FLineHeight := AValue;
+  Relayout;
+end;
+
+procedure TEpubView.SetJustify(const AValue: Boolean);
+begin
+  if AValue = FJustify then
+    Exit;
+  FJustify := AValue;
   Relayout;
 end;
 
@@ -732,7 +751,12 @@ begin
     etaEnd: PS := NewParagraphStyle(TSkTextAlign.Right);
     etaJustify: PS := NewParagraphStyle(TSkTextAlign.Justify);
   else
-    PS := NewParagraphStyle(TSkTextAlign.Left);
+    // left as the book has it (start / not set): justified when Justify
+    // is on, for running text only
+    if FJustify and (ABlock.Kind in [ebkParagraph, ebkListItem]) then
+      PS := NewParagraphStyle(TSkTextAlign.Justify)
+    else
+      PS := NewParagraphStyle(TSkTextAlign.Left);
   end;
   // the fonts found once; fallback (characters the font lacks) stays on
   Builder := TSkParagraphBuilder.Create(PS, Fonts, True);

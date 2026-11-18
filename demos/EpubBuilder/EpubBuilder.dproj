@@ -7,8 +7,9 @@
         <MainSource>EpubBuilder.dpr</MainSource>
         <Base>True</Base>
         <Config Condition="'$(Config)'==''">Release</Config>
-        <Platform Condition="'$(Platform)'==''">OSXARM64</Platform>
+        <Platform Condition="'$(Platform)'==''">Win64</Platform>
         <TargetedPlatforms>135298</TargetedPlatforms>
+        <ProjectName Condition="'$(ProjectName)'==''">EpubBuilder</ProjectName>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Base' or '$(Base)'!=''">
         <Base>true</Base>
@@ -310,6 +311,8 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <DCCReference Include="..\common\uSteam.pas"/>
         <DCCReference Include="..\common\uMachine.pas"/>
         <DCCReference Include="src\uCalibration.pas"/>
+        <DCCReference Include="src\uHistory.pas"/>
+        <DCCReference Include="src\uModels.pas"/>
         <DCCReference Include="src\uBuilder.pas">
             <Form>frmBuilder</Form>
             <FormType>fmx</FormType>
@@ -356,451 +359,18 @@ $(PreBuildEvent)]]></PreBuildEvent>
                 <Platform value="Win64">True</Platform>
             </Platforms>
             <Deployment Version="5">
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libLLVM.so.24.0git" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libLLVM.so.24.0git</RemoteName>
+                <DeployFile LocalName="$(BDS)\Redist\iossimulator\libcgunwind.1.0.dylib" Class="DependencyModule">
+                    <Platform Name="iOSSimulator">
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libamd_comgr.so.3" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libamd_comgr.so.3</RemoteName>
+                <DeployFile LocalName="$(BDS)\Redist\iossimulator\libpcre.dylib" Class="DependencyModule">
+                    <Platform Name="iOSSimulator">
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libamdhip64.so.7" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libamdhip64.so.7</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavcodec.so" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libavcodec.so</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavcodec.so.62" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libavcodec.so.62</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavfilter.so" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libavfilter.so</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavfilter.so.11" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libavfilter.so.11</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavformat.so" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libavformat.so</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavformat.so.62" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libavformat.so.62</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavutil.so" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libavutil.so</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavutil.so.60" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libavutil.so.60</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libbrotlicommon.so.1" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libbrotlicommon.so.1</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libbrotlidec.so.1" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libbrotlidec.so.1</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libclang-cpp.so.24.0git" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libclang-cpp.so.24.0git</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libcublas.so.13" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libcublas.so.13</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libcublasLt.so.13" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libcublasLt.so.13</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libcudart.so.13" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libcudart.so.13</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libfreetype.so.6" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libfreetype.so.6</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-base.so" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libggml-base.so</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-base.so.0" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libggml-base.so.0</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-alderlake.so" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libggml-cpu-alderlake.so</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-cannonlake.so" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libggml-cpu-cannonlake.so</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-cascadelake.so" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libggml-cpu-cascadelake.so</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-cooperlake.so" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libggml-cpu-cooperlake.so</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-haswell.so" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libggml-cpu-haswell.so</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-icelake.so" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libggml-cpu-icelake.so</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-ivybridge.so" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libggml-cpu-ivybridge.so</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-piledriver.so" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libggml-cpu-piledriver.so</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-sandybridge.so" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libggml-cpu-sandybridge.so</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-sapphirerapids.so" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libggml-cpu-sapphirerapids.so</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-skylakex.so" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libggml-cpu-skylakex.so</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-sse42.so" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libggml-cpu-sse42.so</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-x64.so" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libggml-cpu-x64.so</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-zen4.so" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libggml-cpu-zen4.so</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cuda.so" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libggml-cuda.so</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-hip.so" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libggml-hip.so</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-vulkan.so" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libggml-vulkan.so</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml.so" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libggml.so</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml.so.0" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libggml.so.0</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libgomp.so.1" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libgomp.so.1</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libhipblas.so.3" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libhipblas.so.3</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libhipblaslt.so.1" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libhipblaslt.so.1</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libhsa-runtime64.so.1" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libhsa-runtime64.so.1</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\liborigami.so.1" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>liborigami.so.1</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocblas.so.5" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>librocblas.so.5</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_kpack.so.0" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>librocm_kpack.so.0</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_sysdeps_bz2.so" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>librocm_sysdeps_bz2.so</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_sysdeps_drm.so.2" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>librocm_sysdeps_drm.so.2</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_sysdeps_drm_amdgpu.so.1" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>librocm_sysdeps_drm_amdgpu.so.1</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_sysdeps_elf.so.1" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>librocm_sysdeps_elf.so.1</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_sysdeps_liblzma.so.5" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>librocm_sysdeps_liblzma.so.5</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_sysdeps_numa.so.1" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>librocm_sysdeps_numa.so.1</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_sysdeps_z.so.1" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>librocm_sysdeps_z.so.1</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_sysdeps_zstd.so.1" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>librocm_sysdeps_zstd.so.1</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocprofiler-register.so.0" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>librocprofiler-register.so.0</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocroller.so.1" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>librocroller.so.1</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocsolver.so.0" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>librocsolver.so.0</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libroctx64.so.4" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libroctx64.so.4</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libswresample.so" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libswresample.so</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libswresample.so.6" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libswresample.so.6</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libswscale.so" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libswscale.so</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libswscale.so.9" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libswscale.so.9</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libwhisper.so" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libwhisper.so</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libwhisper.so.1" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libwhisper.so.1</RemoteName>
+                <DeployFile LocalName="$(BDS)\Redist\osx32\libcgunwind.1.0.dylib" Class="DependencyModule">
+                    <Platform Name="OSX32">
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
@@ -6989,6 +6559,454 @@ $(PreBuildEvent)]]></PreBuildEvent>
                     <Platform Name="Linux64">
                         <RemoteDir>.\hipblaslt\library\gfx1201\</RemoteDir>
                         <RemoteName>hipblasltTransform_gfx1201.hsaco</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libLLVM.so.24.0git" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libLLVM.so.24.0git</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libamd_comgr.so.3" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libamd_comgr.so.3</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libamdhip64.so.7" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libamdhip64.so.7</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavcodec.so.62" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libavcodec.so.62</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavcodec.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libavcodec.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavfilter.so.11" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libavfilter.so.11</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavfilter.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libavfilter.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavformat.so.62" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libavformat.so.62</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavformat.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libavformat.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavutil.so.60" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libavutil.so.60</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavutil.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libavutil.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libbrotlicommon.so.1" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libbrotlicommon.so.1</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libbrotlidec.so.1" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libbrotlidec.so.1</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libclang-cpp.so.24.0git" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libclang-cpp.so.24.0git</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libcublas.so.13" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libcublas.so.13</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libcublasLt.so.13" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libcublasLt.so.13</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libcudart.so.13" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libcudart.so.13</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libfreetype.so.6" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libfreetype.so.6</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-base.so.0" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-base.so.0</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-base.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-base.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-alderlake.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-cpu-alderlake.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-cannonlake.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-cpu-cannonlake.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-cascadelake.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-cpu-cascadelake.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-cooperlake.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-cpu-cooperlake.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-haswell.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-cpu-haswell.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-icelake.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-cpu-icelake.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-ivybridge.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-cpu-ivybridge.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-piledriver.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-cpu-piledriver.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-sandybridge.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-cpu-sandybridge.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-sapphirerapids.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-cpu-sapphirerapids.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-skylakex.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-cpu-skylakex.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-sse42.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-cpu-sse42.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-x64.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-cpu-x64.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cpu-zen4.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-cpu-zen4.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-cuda.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-cuda.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-hip.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-hip.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-vulkan.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml-vulkan.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml.so.0" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml.so.0</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libggml.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libgomp.so.1" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libgomp.so.1</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libhipblas.so.3" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libhipblas.so.3</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libhipblaslt.so.1" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libhipblaslt.so.1</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libhsa-runtime64.so.1" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libhsa-runtime64.so.1</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\liborigami.so.1" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>liborigami.so.1</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocblas.so.5" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>librocblas.so.5</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_kpack.so.0" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>librocm_kpack.so.0</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_sysdeps_bz2.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>librocm_sysdeps_bz2.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_sysdeps_drm.so.2" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>librocm_sysdeps_drm.so.2</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_sysdeps_drm_amdgpu.so.1" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>librocm_sysdeps_drm_amdgpu.so.1</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_sysdeps_elf.so.1" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>librocm_sysdeps_elf.so.1</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_sysdeps_liblzma.so.5" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>librocm_sysdeps_liblzma.so.5</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_sysdeps_numa.so.1" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>librocm_sysdeps_numa.so.1</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_sysdeps_z.so.1" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>librocm_sysdeps_z.so.1</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_sysdeps_zstd.so.1" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>librocm_sysdeps_zstd.so.1</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocprofiler-register.so.0" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>librocprofiler-register.so.0</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocroller.so.1" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>librocroller.so.1</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocsolver.so.0" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>librocsolver.so.0</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libroctx64.so.4" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libroctx64.so.4</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libswresample.so.6" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libswresample.so.6</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libswresample.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libswresample.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libswscale.so.9" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libswscale.so.9</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libswscale.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libswscale.so</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libwhisper.so.1" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libwhisper.so.1</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libwhisper.so" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\</RemoteDir>
+                        <RemoteName>libwhisper.so</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
@@ -13222,6 +13240,13 @@ $(PreBuildEvent)]]></PreBuildEvent>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libwhisper.coreml.dylib" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Frameworks\</RemoteDir>
+                        <RemoteName>libwhisper.coreml.dylib</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
                 <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libwhisper.dylib" Class="File">
                     <Platform Name="OSXARM64">
                         <RemoteDir>Contents\Frameworks\</RemoteDir>
@@ -13268,21 +13293,6 @@ $(PreBuildEvent)]]></PreBuildEvent>
                     <Platform Name="OSXARM64">
                         <RemoteDir>Contents\Resources\media\</RemoteDir>
                         <RemoteName>aladdin.m4a</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="$(BDS)\Redist\iossimulator\libcgunwind.1.0.dylib" Class="DependencyModule">
-                    <Platform Name="iOSSimulator">
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="$(BDS)\Redist\iossimulator\libpcre.dylib" Class="DependencyModule">
-                    <Platform Name="iOSSimulator">
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="$(BDS)\Redist\osx32\libcgunwind.1.0.dylib" Class="DependencyModule">
-                    <Platform Name="OSX32">
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>

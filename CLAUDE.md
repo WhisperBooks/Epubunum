@@ -70,7 +70,7 @@ the history, one per zip.
 | Repo | Pushed | = zip | Last zip number used |
 |---|---|---|---|
 | WhisperBooks/TWhisper | d669a06 | TWhisper-30 | 31 (review fixes) |
-| WhisperBooks/Epubunum | 51bb81e | EpubUnum-94 | 98 (95 Mac ggml backends in redist.sh, 96 aladdin.m4a deployed, 97 Later tests 7 Core ML, 98 DRM-free .aax in EpubBuilder, 99 build history + time left, 100 Tools > Build history, 101 models by name + download, 102 Core ML encoders - 96 - 102 NOT pushed; 93 Big Picture full screen and 94 this handover NOT pushed; 90 screen log, 91 DPI awareness, 92 Big Picture late maximise; 77 calibration, 78 Steam builds, 79 libraries copied by the builds, 80 - 83 fixes from the first Steam build, 84 EpubBuilder's Linux launcher, 85 Mac libraries through Deploy, 86 Deck crash diagnostics, 87 build stamp, 88 crash place in the log, 89 FreeType for Steam's Linux runtime) |
+| WhisperBooks/Epubunum | 51bb81e | EpubUnum-94 | 98 (95 Mac ggml backends in redist.sh, 96 aladdin.m4a deployed, 97 Later tests 7 Core ML, 98 DRM-free .aax in EpubBuilder, 99 build history + time left, 100 Tools > Build history, 101 models by name + download, 102 Core ML encoders, 103 iOS reader plan, 104 mobile readers (iOS + Android), 105 justified text, 106 pasdoc_epub prototype, 107 its layout, 108 parked - 96 - 108 NOT pushed; 93 Big Picture full screen and 94 this handover NOT pushed; 90 screen log, 91 DPI awareness, 92 Big Picture late maximise; 77 calibration, 78 Steam builds, 79 libraries copied by the builds, 80 - 83 fixes from the first Steam build, 84 EpubBuilder's Linux launcher, 85 Mac libraries through Deploy, 86 Deck crash diagnostics, 87 build stamp, 88 crash place in the log, 89 FreeType for Steam's Linux runtime) |
 | G3DGames/TFFMpegAPI | 0795d19 | FFmpegAPI-14 | 14 (macOS sound) |
 | G3DGames/ffmpeg-dev | 4d7b7be | ffmpeg-dev-09 | 09 |
 | WhisperBooks/whisper-dev | 9fa21dc | whisper-dev-20 | 21 (review fixes; its own CLAUDE.md) |
@@ -293,6 +293,17 @@ busy testing base functionality")
   only the first N minutes" (offered).
 - German / other-language number words in TWhisper's aligner.
 - Parked: sentence alignment between an English and a German book.
+- PARKED (owner, 2026-11-18 12:24: "We'll leave this as an idea for
+  later"): BOOKS FROM SOURCES - tools/pasdoc_epub.py (zips 106 - 107; the
+  TSteamAPI book builds clean, 8403 declarations) and the "maker" plan
+  (lib/ Epub.Create + document model + PasDoc / Markdown / Delphi XML-doc
+  importers, EpubConsole --create, an EpubMaker program; the Embarcadero
+  DevRel contact for the concept). Owner on the layout in EpubReader:
+  "better but not good". Next when picked up: a screenshot of an API page
+  in EpubReader first; book side - one paragraph per member (signature,
+  line break, description) to halve the gaps, shorter signatures; reader
+  side (helps every book) - follow links with Back, margin-top / -bottom,
+  a background or border for code, real tables.
 
 ### Working notes for the next session
 
@@ -439,7 +450,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 102.
+Last number used: 108.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -744,6 +755,51 @@ contributing components / systems" - reader first, then TFFMpegAPI etc.
   mins" (the 20 min first seen was the old time-left estimate); HIP
   against Vulkan on the Steam Machine is not known yet - the hint should
   say "may be faster", or be shown only where measured faster.
+- MOBILE: EPUBREADER ONLY, iOS (iPhone + iPad) AND ANDROID (owner,
+  2026-11-18 11:02: "yes, reader only on ios"; 11:03: "this would work on
+  iphone as well, we may as well do android reader to complete the
+  platform set"). EpubBuilder stays desktop / Steam: its libraries load
+  at run time (iOS apps cannot ship loose ones - App Store: signed
+  embedded frameworks only, static linking the usual way), long
+  transcriptions are suspended in the background on both, and its window
+  is a desktop one. After the Mac / Steam work. Plan:
+  1. ONE PLAYER INTERFACE in the reader (a small unit: play / pause,
+     Position, Duration, Speed, seek, end of file) with three behind it:
+     desktop = TFFmpegAudioPlayer as now; iOS = AVFoundation (AVAudioPlayer
+     with enableRate / rate, or AVAudioEngine + time pitch); Android =
+     android.media.MediaPlayer through JNI (PlaybackParams.setSpeed, API
+     23+; getCurrentPosition for the highlight). Both phones decode AAC
+     (m4b / m4a, a DRM-free .aax) and MP3 themselves, so no FFmpeg on
+     mobile. On iOS FFmpeg would have to be linked statically, and LGPL's
+     relinking sits badly with the App Store (a legal question for the
+     owner, not settled here); Android could load FFmpeg's .so files
+     (dynamic linking is the LGPL-friendly case) but has no need to.
+  2. Playing on with the screen off: iOS - AVAudioSession for spoken
+     audio and the "audio" background mode in Info.plist; Android - a
+     foreground service of type mediaPlayback with a media notification
+     (play / pause on the lock screen; Android 14 requires the type).
+  3. Audio straight from the book where the platform can read it in
+     place, else extracted to the app's cache folder as now (Extract
+     streams).
+  4. Delphi targets (the .dproj has iOSDevice64 / Android64, False):
+     Skia4Delphi supports both; fonts without fontconfig (TEpubView.Fonts:
+     Skia's own font managers on iOS / Android); the library and covers in
+     the app's own storage; books in through the system picker (iOS Files
+     / "Open in" with CFBundleDocumentTypes for .epub; Android Storage
+     Access Framework and an intent filter for application/epub+zip,
+     content URIs copied in); the copy-protection refusal unchanged.
+  5. Touch and size: tap a word = read from there, swipe pages / scroll,
+     finger-sized tool bar; PHONE layout = one column, contents and
+     library as full-screen views, tool bar at the bottom; tablet as the
+     desktop with bigger controls. Shares the big-screen work (UiScale,
+     the Steam Deck layout).
+  6. Builds: iOS on the owner's Mac (Xcode + PAServer, set up for
+     OSXARM64), TestFlight before the App Store; Android on Windows
+     (Delphi's Android SDK / NDK), an .aab for Google Play, internal
+     testing track first.
+  Order (proposed): the player interface on the desktop first (no
+  behaviour change, TFFmpegAudioPlayer behind it), then Android (no Mac
+  needed, quickest to a device), then iOS.
 - Say a sentence, then step through its words.
 - The current word shown large in a strip under the page.
 - Remember reader settings between runs (dark mode, step unit, text
@@ -2428,6 +2484,95 @@ deploy_redist.py --platform OSXARM64, Deploy; EpubBuilder log "Core ML:
 built in"; choose large-v3-turbo -> encoder offered; Re-calibrate (slow
 first warm-up); Night Watch turbo with it vs without (rename the
 .mlmodelc folder to compare) - Later tests 7.
+
+## Zip 105 (on top of zip 104): justified text (PACKAGE EpubUnumFMX)
+Owner, 2026-11-18 11:41: "As we do the layout ourselves can we do it fully
+justified please. It'll look nicer on-screen".
+- fmx/Epub.FMX.View.pas: TEpubView.Justify (published, default True;
+  SetJustify re-lays out). In the paragraph builder, a block the book
+  leaves at etaInherit / etaStart is TSkTextAlign.Justify when Justify is
+  on and the block is ebkParagraph or ebkListItem; etaCenter / etaEnd /
+  etaJustify as the book says; headings, preformatted, table cells left
+  alone. SkParagraph does not stretch the last line of a paragraph (or,
+  as far as known, a line ended by a hard break).
+NOT COMPILED. TO TEST: Moby-Dick / Night Watch in EpubReader - straight
+right edge, last lines short, centred titles and poems as before; the
+highlight still sits on the word (GetRectsForRange with stretched
+spaces); a narrow window / large text: wide gaps (no hyphenation).
+Not done, for later: hyphenation (Skia's paragraph engine does not
+hyphenate; soft hyphens from a pattern dictionary would have to be
+inserted in the layout without changing the word indexes); a reader
+setting to turn Justify off (the property is there).
+
+## Zip 106 (on top of zip 105): pasdoc_epub.py - books from Pascal sources (PROTOTYPE)
+Owner, 2026-11-18 11:45 - 12:00: "take pasdoc output and make a book the
+reader could display (with no audio)"; reading the SOURCES (PasDoc's HTML
+is table-laid and not XHTML); a different variant of builder (a "maker":
+lib/ Epub.Create + a document model + importers - PasDoc, Markdown,
+later Delphi's XML doc comments; EpubConsole --create; an EpubMaker
+program - not built yet, see the conversation's plan); the owner's DevRel
+contact at Embarcadero for the concept (a book of Delphi's own sources
+only for them / for personal use - their copyright; the TOOL is ours).
+"Run it thru TSteamAPI that's more complex - we can decide on the link
+follow depending on how the TSteamAPI test goes".
+- NEW tools/pasdoc_epub.py (Python 3, markdown + lxml + PIL for the
+  cover): Pascal lexer (comments, strings, directives), {$IFDEF} / {$IF
+  Defined()} / {$ELSE} / {$I} (include search: the unit's folder, then
+  every folder holding a unit of the book), the interface section ->
+  Items (classes / records / interfaces with members by visibility,
+  enumerations with values, procedural types, aliases, consts, vars,
+  routines; class var / class function / class operator; attributes;
+  generics; overloads; variant records with the comment before each case
+  label); doc comment = the comment right before (not a trailing remark of
+  the line before), or {< } / //<, @exclude. PasDoc tags -> XHTML
+  (@abstract, @link, @code, @longCode, @bold, @italic, @nil/@true/@false,
+  @param, @returns, @raises, @see, lists, @br, @name, @classname,
+  @deprecated; unknown tags as text). @link resolution: this unit's class,
+  the class and its ancestors, the unit, any unit; a member the book
+  leaves out (protected / private) is named, not linked. Markdown chapters
+  (tables, fenced code, GitHub heading anchors; links to other chapters
+  rewritten, links into the repository made text, pictures copied).
+  Book: title page, --intro, --part NAME FILE.md..., "API reference:
+  <package>" per .dpk / .lpk (contains order); nav to class level (units
+  with > 120 classes: none); cover (--cover). Checked before writing:
+  every XHTML is XML, every book link reaches a file and an id.
+- TSteamAPI test (80804ab): 77 chapters, 40 units, 8403 declarations,
+  0.7 MB, 0 broken links; @link not found: Exception, TComponent (RTL).
+  Audit: every declaration pasdoc_check requires to be documented has its
+  comment (6 without = SteamIPAddress_t's variant fields, none in the
+  source); spot checks right (TSteamID, TSteamworksState, TSteamAPI FMX).
+  Command (from TSteamAPI's root):
+    python3 <epubunum>/tools/pasdoc_epub.py --root . --out tsteamapi.epub
+      --title "Steamworks for Pascal" --subtitle "Guide and API reference"
+      --author G3DGames --cover --intro README.md
+      --part Guide docs/UserManual.md docs/Install-Delphi.md
+        docs/Install-Lazarus-FPC.md docs/GameEngineIntegration.md
+        docs/SteamInputMapping.md docs/Launcher.md docs/Proton.md
+      --part Components docs/components/README.md docs/components/T*.md
+      --packages packages/Steamworks.dpk packages/SteamworksFMX.dpk
+        packages/SteamworksVCL.dpk packages/SteamworksLCL.lpk
+- LAYOUT (owner 12:18: "the layout is horrible"; his EpubReader shot:
+  README's platform table one cell per line). EpubReader's CSS is bold /
+  italic / mono / size / align / indent / margin-left only (no borders,
+  backgrounds, vertical margins), so the API pages were a wall of
+  headings. Now: a heading per class / record / interface (h2) and per
+  group (h3 Properties / Events / Methods / Fields / Types and constants);
+  each member ONE line (p.member: monospace, the name bold) with its
+  description indented under it (class desc, margin-left 2em); properties
+  without accessors ("property AppID: Cardinal - read / write, default
+  0"; a re-published "property X;" shows its ancestor's declaration and
+  documentation); "In this unit" list of the main types with their first
+  sentence; other types, constants, variables, routines as member lines.
+  Markdown tables -> one paragraph per row (first cell bold, the others
+  "Column: value"; '-' cells left out); --keep-tables for readers that
+  draw tables.
+- FOUND for the reader: links are drawn but not followed (the API book
+  has thousands); tables are cells one under another (the guide's
+  Markdown has 72 tables). epubcheck not run here (not installed).
+- Core ML result recorded here too (owner 12:06, new app, MTL0 + encoder):
+  Night Watch turbo 30:47 = 28.8x (steady 29.6x, 1.0 s per window,
+  0.67 s per part), exact 95.2 %, matched 97.8 % (= Metal); expected
+  21.1x from the calibration -> whole book / calibration 1.36.
 
 ## Pushes checked
 - a6ea67b ("SteamOS good") = zips 87 - 89: identical (CR LF aside) but
