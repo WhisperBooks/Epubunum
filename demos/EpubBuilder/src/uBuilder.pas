@@ -411,6 +411,9 @@ type
     miCalibrate: TMenuItem;
     { Tools > Re-calibrate every model in the model's folder. }
     miCalibrateAll: TMenuItem;
+    { Tools > Get AMD ROCm acceleration (free DLC): Linux Steam builds, an
+      AMD GPU without a ROCm device (CheckRocmDlc). }
+    miRocm: TMenuItem;
     { A label above AParent's next control. }
     function AddCaption(AParent: TFmxObject; const AText: string): TLabel;
     { A row in AParent: a caption, then a control filling it. }
@@ -580,6 +583,12 @@ type
     procedure miCalibrationClick(Sender: TObject);
     { Tools > Build history: every build's speed and accuracy, a table. }
     procedure miHistoryClick(Sender: TObject);
+    { Tools > Get AMD ROCm acceleration: SteamGetDlc. }
+    procedure miRocmClick(Sender: TObject);
+    { At start-up (Linux Steam builds, STEAM_DLC_ROCM set): an AMD GPU
+      with no ROCm device -> the DLC offered (or, when it is installed,
+      why it may not have loaded). }
+    procedure CheckRocmDlc;
     { File > Exit. }
     procedure miExitClick(Sender: TObject);
     { The machine, whisper.cpp and the device a build of AModel on ADevice
@@ -605,6 +614,10 @@ implementation
 {$R *.fmx}
 
 const
+  { The "AMD ROCm acceleration" DLC's AppID (Steamworks: a free DLC of
+    EpubBuilder whose Linux depot holds ROCm - tools/steam_stage.py's HIP
+    folder). 0 = not created yet: nothing is offered. }
+  STEAM_DLC_ROCM: Cardinal = 0;
   { Written before each calibration pair, deleted after it: found at
     start-up, the program ended during that pair. Beside the settings. }
   CALIBRATION_MARKER_SUFFIX = '-calibrating.txt';
@@ -1669,6 +1682,7 @@ begin
   LogLine('Choose the EPUB, add its audio files in reading order, choose the model (one not downloaded yet is ' +
     'downloaded when chosen), Create.');
   LogLine('Debug log: ' + DebugLogFile);
+  CheckRocmDlc;
   UpdateControls;
 end;
 
@@ -3306,6 +3320,9 @@ begin
   Item(M, '-', nil);
   Item(M, '&Calibration results', miCalibrationClick);
   Item(M, 'Build &history...', miHistoryClick);
+  // shown by CheckRocmDlc when it applies
+  miRocm := Item(M, 'Get AMD &ROCm acceleration (free DLC)...', miRocmClick);
+  miRocm.Visible := False;
   // a menu made in code reaches the window (Windows' / macOS' own menu
   // bar) only when it is recreated (EpubReader: without it, no menu)
   if mnuMain <> nil then
@@ -3642,6 +3659,51 @@ begin
   else if ALog then
     LogLine(Format('%s is not calibrated on this machine: the device stays "%s". Tools > Re-calibrate times it ' +
       'on every device.', [ExtractFileName(FModelPath), cbDevice.Items[Max(0, cbDevice.ItemIndex)]]));
+end;
+
+procedure TfrmBuilder.CheckRocmDlc;
+var
+  I: Integer;
+  Amd, Rocm: Boolean;
+  State: TSteamDlcState;
+  D: string;
+begin
+  {$IF Defined(LINUX) and not Defined(ANDROID)}
+  if not SteamBuild or (STEAM_DLC_ROCM = 0) then
+    Exit;
+  Amd := False;
+  Rocm := False;
+  for I := 0 to High(FDevices) do
+  begin
+    D := FDevices[I].Description + ' ' + FDevices[I].Name;
+    if ContainsText(D, 'AMD') or ContainsText(D, 'Radeon') then
+      Amd := True;
+    if SameText(FDevices[I].Backend, 'ROCm') or SameText(FDevices[I].Backend, 'HIP') or
+      StartsText('ROCm', FDevices[I].Name) then
+      Rocm := True;
+  end;
+  State := SteamDlcState(STEAM_DLC_ROCM);
+  DebugLog(Format('ROCm DLC %d: state %d, AMD GPU %s, ROCm device %s', [STEAM_DLC_ROCM, Ord(State),
+    BoolToStr(Amd, True), BoolToStr(Rocm, True)]));
+  if not Amd or Rocm then
+    Exit;
+  if State = sdsInstalled then
+    LogLine('The AMD ROCm acceleration DLC is installed, but whisper.cpp lists no ROCm device: the debug log''s ' +
+      'whisper.cpp lines say why (ggml-hip; /dev/kfd, the GPU''s kernels). Vulkan is used meanwhile.')
+  else if State <> sdsNoSteam then
+  begin
+    LogLine('This AMD GPU may transcribe faster with AMD ROCm acceleration, a free DLC: Tools > Get AMD ROCm ' +
+      'acceleration.');
+    miRocm.Visible := True;
+    if mnuMain <> nil then
+      mnuMain.RecreateOSMenu;
+  end;
+  {$ENDIF}
+end;
+
+procedure TfrmBuilder.miRocmClick(Sender: TObject);
+begin
+  LogLine('AMD ROCm acceleration: ' + SteamGetDlc(STEAM_DLC_ROCM));
 end;
 
 procedure TfrmBuilder.miHistoryClick(Sender: TObject);

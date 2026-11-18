@@ -128,6 +128,16 @@ collect() {
     echo "WARNING: no media/aladdin.m4a in $ROOT - EpubBuilder's calibration will ask for a recording"
   fi
   [ "$PLATFORM" = Linux64 ] && freetype_for_runtime "$OUT"
+  # Linux: which files are the CUDA and ROCm parts (Steam DLC depots,
+  # release packages), for tools on machines without ldd
+  # (steam_stage.py)
+  if [ "$PLATFORM" = Linux64 ]; then
+    PT=$(mktemp -d)
+    part_lists "$OUT" "$PT"
+    { sed 's/^/rocm /' "$PT/rocm"; sed 's/^/cuda /' "$PT/cuda"; } > "$OUT/parts.txt"
+    echo "parts.txt: $(wc -l < "$PT/rocm") ROCm entries, $(wc -l < "$PT/cuda") CUDA entries"
+    rm -rf "$PT"
+  fi
   echo "$(ls "$OUT" | grep -c -v licences) files in $OUT"
 }
 
@@ -200,6 +210,39 @@ needs_in() {
       done
 }
 
+# the GPU parts of Linux libraries in folder $1, written to $2/cuda and
+# $2/rocm (one name a line): what libggml-cuda.so / libggml-hip.so need
+# from the folder (ldd), each library with ALL its names (libX.so,
+# libX.so.N, libX.so.N.M.P - not only the one ldd names), minus the core
+# every backend shares; ROCm's kernel folders; the CUDA / ROCm licences
+part_lists() {
+  : > "$2/cuda"
+  : > "$2/rocm"
+  CORE_RE='^lib(ggml-base|ggml|whisper|gomp)\.so'
+  for b in cuda hip; do
+    [ -f "$1/libggml-$b.so" ] || continue
+    out=$2/cuda
+    [ $b = hip ] && out=$2/rocm
+    needs_in "$1" "libggml-$b.so" | grep -v -E "$CORE_RE" | while read -r n; do
+      stem=${n%%.so*}.so
+      # (if, not &&: a name that is not there must not end the script)
+      (cd "$1" && for f in "$stem" "$stem".*; do if [ -e "$f" ]; then echo "$f"; fi; done)
+    done > "$out.tmp"
+    sort -u "$out.tmp" > "$out"
+    rm -f "$out.tmp"
+  done
+  for k in rocblas hipblaslt; do
+    [ -d "$1/$k" ] && echo "$k" >> "$2/rocm"
+  done
+  for f in $(cd "$1" && ls licences 2>/dev/null); do
+    case $f in
+      CUDA-*) echo "licences/$f" >> "$2/cuda" ;;
+      ROCm-*) echo "licences/$f" >> "$2/rocm" ;;
+    esac
+  done
+  return 0
+}
+
 # a part's read-me, $1 = part, $2 = version, $3 = platform
 part_readme() {
   cat <<EOT
@@ -240,24 +283,17 @@ package() {
   : > "$TMP/cuda"; : > "$TMP/rocm"
   if [ "$PLAT" = Linux64 ]; then
     # what each GPU backend needs from the folder, but not the core it
-    # shares with every backend
-    CORE_RE='^lib(ggml-base|ggml|whisper|gomp)\.so'
-    [ -f "$SRC/libggml-cuda.so" ] && needs_in "$SRC" libggml-cuda.so | grep -v -E "$CORE_RE" | sort -u > "$TMP/cuda"
-    if [ -f "$SRC/libggml-hip.so" ]; then
-      needs_in "$SRC" libggml-hip.so | grep -v -E "$CORE_RE" > "$TMP/rocm"
-      for k in rocblas hipblaslt; do [ -d "$SRC/$k" ] && echo "$k" >> "$TMP/rocm"; done
-      sort -u -o "$TMP/rocm" "$TMP/rocm"
-    fi
+    # shares with every backend (part_lists - also behind parts.txt)
+    part_lists "$SRC" "$TMP"
     PARTS="core cuda rocm"
   else
     PARTS="core"
   fi
-  grep -v -x -F -f "$TMP/cuda" "$ALL" | grep -v -x -F -f "$TMP/rocm" > "$TMP/core" || true
-  # licences: NVIDIA's and ROCm's with their part, the rest with core
+  grep -v -x -F -f "$TMP/cuda" "$ALL" | grep -v -x -F -f "$TMP/rocm" | grep -v -x parts.txt > "$TMP/core" || true
+  # licences: NVIDIA's and ROCm's are in their parts; the rest with core
   for f in $(cd "$SRC" && ls licences 2>/dev/null); do
     case $f in
-      CUDA-*) echo "licences/$f" >> "$TMP/cuda" ;;
-      ROCm-*) echo "licences/$f" >> "$TMP/rocm" ;;
+      CUDA-*|ROCm-*) ;;
       *) echo "licences/$f" >> "$TMP/core" ;;
     esac
   done

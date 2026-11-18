@@ -67,6 +67,31 @@ function SteamText: string;
     STEAMBUILD) }
 function SteamScreenText(AForm: TCommonCustomForm): string;
 
+type
+  { How a Steam DLC stands for this user (SteamDlcState). }
+  TSteamDlcState = (
+    { No Steam (not a Steam build, or Steam not running). }
+    sdsNoSteam,
+    { Not in the user's account. }
+    sdsNotOwned,
+    { In the account, not installed. }
+    sdsOwned,
+    { Owned and installed (in the program's folder). }
+    sdsInstalled);
+
+{ How DLC AAppID stands: ISteamApps BIsDlcInstalled / BIsSubscribedApp.
+  @param(AAppID  the DLC's AppID)
+  @returns(sdsNoSteam outside a Steam build or without Steam) }
+function SteamDlcState(AAppID: Cardinal): TSteamDlcState;
+
+{ Gets DLC AAppID: owned - Steam installs it (InstallDLC); not owned - its
+  store page in the Steam overlay, where a free DLC is added to the
+  account (Steam then installs it). The program must be started again to
+  use what the DLC brings (ggml finds its backends at start-up).
+  @param(AAppID  the DLC's AppID)
+  @returns(a line for the log: what was done, or why not) }
+function SteamGetDlc(AAppID: Cardinal): string;
+
 { What SteamStartup and Steam said before the program's log was open
   (one line each; the forms write them into their logs).
   @returns(the lines) }
@@ -76,7 +101,8 @@ implementation
 
 {$IFDEF STEAMBUILD}
 uses
-  Steamworks.Core, Steamworks.Components, Steamworks.FMX, Steamworks.FMX.Screen, uDebugLog;
+  Steamworks.Types, Steamworks.SDKTypes, Steamworks.Core, Steamworks.Components, Steamworks.FMX,
+  Steamworks.FMX.Screen, Steamworks.Plugin.Apps, Steamworks.Plugin.Friends, uDebugLog;
 
 type
   { Receives TSteamAPI's events (they are methods of an object). }
@@ -236,6 +262,73 @@ end;
 function SteamNotes: TArray<string>;
 begin
   Result := GNotes;
+end;
+
+{$IFDEF STEAMBUILD}
+{ ISteamApps' plug-in while Steam runs (linked by this unit: registered at
+  start-up, initialised with Steam). }
+function AppsPlugin: TSteamAppsPlugin;
+begin
+  Result := nil;
+  if SteamRunning then
+    Result := TSteamAppsPlugin(Steam.FindPlugin(TSteamAppsPlugin));
+end;
+{$ENDIF}
+
+function SteamDlcState(AAppID: Cardinal): TSteamDlcState;
+{$IFDEF STEAMBUILD}
+var
+  P: TSteamAppsPlugin;
+{$ENDIF}
+begin
+  Result := sdsNoSteam;
+  {$IFDEF STEAMBUILD}
+  P := AppsPlugin;
+  if (P = nil) or (AAppID = 0) then
+    Exit;
+  if P.BIsDlcInstalled(AAppID) then
+    Result := sdsInstalled
+  else if P.BIsSubscribedApp(AAppID) then
+    Result := sdsOwned
+  else
+    Result := sdsNotOwned;
+  {$ENDIF}
+end;
+
+function SteamGetDlc(AAppID: Cardinal): string;
+{$IFDEF STEAMBUILD}
+var
+  F: TSteamFriendsPlugin;
+{$ENDIF}
+begin
+  case SteamDlcState(AAppID) of
+    sdsInstalled:
+      Result := 'It is installed: start the program again to use it.';
+    sdsOwned:
+      begin
+        {$IFDEF STEAMBUILD}
+        AppsPlugin.InstallDLC(AAppID);
+        {$ENDIF}
+        Result := 'Steam is installing it (Steam''s Downloads page shows it): start the program again when it ' +
+          'has finished.';
+      end;
+    sdsNotOwned:
+      begin
+        Result := Format('Its store page: https://store.steampowered.com/app/%d - add it to your account ' +
+          '(it is free); Steam then installs it. Start the program again when it has finished.', [AAppID]);
+        {$IFDEF STEAMBUILD}
+        F := TSteamFriendsPlugin(Steam.FindPlugin(TSteamFriendsPlugin));
+        if F <> nil then
+        begin
+          F.ActivateGameOverlayToStore(AAppID, k_EOverlayToStoreFlag_None);
+          Result := 'Its store page is open in the Steam overlay: add it to your account (it is free); Steam ' +
+            'then installs it. Start the program again when it has finished.';
+        end;
+        {$ENDIF}
+      end;
+  else
+    Result := 'Steam is not running: start the program from Steam.';
+  end;
 end;
 
 {$IFDEF STEAMBUILD}

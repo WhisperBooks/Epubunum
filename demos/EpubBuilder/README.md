@@ -140,6 +140,25 @@ builds here took. Without either (no build, no calibration) it is the
 build's own rate after a minute, as before. At the end the log says
 `Speed: ...x real time (expected ...x)`.
 
+## Steam: AMD ROCm acceleration as a free DLC (Linux)
+
+On Steam the base program has whisper.cpp with the CPU and Vulkan
+backends. AMD's ROCm (HIP) backend - with its runtime and kernels, about
+1 GB - is a free DLC, "AMD ROCm acceleration", installed into the
+program's folder, where ggml finds it at the next start. In a Linux
+Steam build with an AMD GPU and no ROCm device the log says so and
+**Tools > Get AMD ROCm acceleration (free DLC)...** appears: a DLC in the
+account is installed by Steam; one that is not opens its store page in
+the Steam overlay (add it - it is free - and Steam installs it). Start
+EpubBuilder again afterwards, then **Tools > Re-calibrate**: ROCm0 is
+timed against Vulkan0. When the DLC is installed but no ROCm device
+appears, the log says so and the debug log's whisper.cpp lines say why.
+
+The depots are made with `tools/steam_stage.py` from SteamPipe GUI's
+deployment folder: it moves the ROCm files out of the Linux depot's
+folder into a HIP folder and completes that from
+`redistributable_bin/Linux64` (kernels and licences included).
+
 ## Which build is this?
 
 Every build of EpubReader and EpubBuilder is stamped: a pre-build step

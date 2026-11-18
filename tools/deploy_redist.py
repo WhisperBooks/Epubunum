@@ -119,7 +119,7 @@ def collect(folder):
         dirs.sort()
         rel_dir = os.path.relpath(base, folder)
         rel_dir = "" if rel_dir == "." else rel_dir.replace(os.sep, "/") + "/"
-        for n in wanted_names([f for f in files if f != "README.md"]):
+        for n in wanted_names([f for f in files if f not in ("README.md", "parts.txt")]):
             p = os.path.join(base, n)
             if os.path.isfile(p):
                 out.append((rel_dir + n, os.path.getsize(p)))

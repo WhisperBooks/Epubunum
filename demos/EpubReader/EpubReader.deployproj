@@ -260,6 +260,16 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
+        <DeployFile Include="OSXARM64\Steam\EpubReader" Condition="'$(Config)'=='Steam'">
+            <RemoteDir>EpubReader.app\Contents\MacOS\</RemoteDir>
+            <RemoteName>EpubReader</RemoteName>
+            <DeployClass>ProjectOutput</DeployClass>
+            <Operation>1</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+            <Required>True</Required>
+        </DeployFile>
         <DeployFile Include="..\..\redistributable_bin\OSXARM64\licences\FFmpeg-BUILD-INFO.txt">
             <RemoteDir>EpubReader.app\Contents\Resources\licences\</RemoteDir>
             <RemoteName>FFmpeg-BUILD-INFO.txt</RemoteName>
@@ -292,6 +302,15 @@
             <RemoteName>FFmpeg-COPYING.LGPLv3</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="OSXARM64\Steam\EpubReader.info.plist" Condition="'$(Config)'=='Steam'">
+            <RemoteDir>EpubReader.app\Contents\</RemoteDir>
+            <RemoteName>Info.plist</RemoteName>
+            <DeployClass>ProjectOSXInfoPList</DeployClass>
+            <Operation>1</Operation>
             <LocalCommand/>
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
@@ -346,6 +365,15 @@
             <RemoteName>libavfilter.11.dylib</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="OSXARM64\Steam\EpubReader.entitlements" Condition="'$(Config)'=='Steam'">
+            <RemoteDir>EpubReader.app\..\</RemoteDir>
+            <RemoteName>EpubReader.entitlements</RemoteName>
+            <DeployClass>ProjectOSXEntitlements</DeployClass>
+            <Operation>1</Operation>
             <LocalCommand/>
             <RemoteCommand/>
             <Overwrite>True</Overwrite>

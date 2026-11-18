@@ -16,6 +16,9 @@ rem                (CUDA and ROCm are to be free DLC; owner 2026-11-17);
 rem                Debug / Release - all of redistributable_bin\Win64,
 rem                CUDA and ROCm included (for testing every device)
 rem   Steam / SteamDebug also get steam_api64.dll
+rem   EpubBuilder also gets media\aladdin.m4a (its calibration's recording;
+rem   the builder looks in media\ beside the program first) in every
+rem   configuration - a Steam folder is complete with it
 rem
 rem CUDA and ROCm files are told apart by the names tools\redist-package.ps1
 rem uses for its cuda and rocm parts. Copies are robocopy's: files already
@@ -65,6 +68,7 @@ set "STEP=the libraries"
 robocopy "%SRC%" "%OUT%" /e /xf README.md %RC% >nul
 if errorlevel 8 goto failed
 echo postbuild: whisper.cpp (every backend) and FFmpeg copied to %OUT%
+call :media
 goto steam
 
 :buildercore
@@ -74,6 +78,7 @@ set "STEP=the libraries (CPU and Vulkan)"
 robocopy "%SRC%" "%OUT%" /e /xd rocblas hipblaslt /xf README.md ggml-cuda.dll cudart64_*.dll cublas64_*.dll cublasLt64_*.dll nvrtc*.dll ggml-hip.dll amdhip64*.dll amd_comgr*.dll hiprtc*.dll hipblas*.dll hipblaslt*.dll rocblas*.dll rocsolver*.dll libhipblas*.dll CUDA-* ROCm-* %RC% >nul
 if errorlevel 8 goto failed
 echo postbuild: whisper.cpp (CPU and Vulkan) and FFmpeg copied to %OUT%
+call :media
 goto steam
 
 :nolibs
@@ -100,6 +105,22 @@ rem robocopy: 8 = some files not copied (in use? the program still
 rem running), 16 = a folder missing or not readable
 echo postbuild: copying %STEP% from %SRC% to %OUT% failed (code %errorlevel%)
 exit /b 1
+
+:media
+rem EpubBuilder's calibration recording (media\aladdin.m4a of the
+rem repository: git-ignored, the owner's copy) - a warning when missing:
+rem the calibration then asks for a recording
+if not exist "%ROOT%\media\aladdin.m4a" (
+  echo postbuild: warning - no %ROOT%\media\aladdin.m4a: the calibration will ask for a recording
+  exit /b 0
+)
+robocopy "%ROOT%\media" "%OUT%\media" aladdin.m4a %RC% >nul
+if errorlevel 8 (
+  echo postbuild: warning - media\aladdin.m4a not copied ^(code %errorlevel%^)
+  exit /b 0
+)
+echo postbuild: media\aladdin.m4a copied to %OUT%\media
+exit /b 0
 
 :licences
 rem the licence texts matching %1, when redistributable_bin\Win64 has a

@@ -70,7 +70,7 @@ the history, one per zip.
 | Repo | Pushed | = zip | Last zip number used |
 |---|---|---|---|
 | WhisperBooks/TWhisper | d669a06 | TWhisper-30 | 31 (review fixes) |
-| WhisperBooks/Epubunum | 51bb81e | EpubUnum-94 | 98 (95 Mac ggml backends in redist.sh, 96 aladdin.m4a deployed, 97 Later tests 7 Core ML, 98 DRM-free .aax in EpubBuilder, 99 build history + time left, 100 Tools > Build history, 101 models by name + download, 102 Core ML encoders, 103 iOS reader plan, 104 mobile readers (iOS + Android), 105 justified text, 106 pasdoc_epub prototype, 107 its layout, 108 parked, 109 this note - pushed d72d7b2 WITHOUT tools/pasdoc_epub.py (owner did not apply it); 109 NOT pushed; 93 Big Picture full screen and 94 this handover NOT pushed; 90 screen log, 91 DPI awareness, 92 Big Picture late maximise; 77 calibration, 78 Steam builds, 79 libraries copied by the builds, 80 - 83 fixes from the first Steam build, 84 EpubBuilder's Linux launcher, 85 Mac libraries through Deploy, 86 Deck crash diagnostics, 87 build stamp, 88 crash place in the log, 89 FreeType for Steam's Linux runtime) |
+| WhisperBooks/Epubunum | 51bb81e | EpubUnum-94 | 98 (95 Mac ggml backends in redist.sh, 96 aladdin.m4a deployed, 97 Later tests 7 Core ML, 98 DRM-free .aax in EpubBuilder, 99 build history + time left, 100 Tools > Build history, 101 models by name + download, 102 Core ML encoders, 103 iOS reader plan, 104 mobile readers (iOS + Android), 105 justified text, 106 pasdoc_epub prototype, 107 its layout, 108 parked, 109 this note, 110 ROCm DLC, 111 staging without parts.txt + playtest, 112 aladdin in Win64 builds - pushed d72d7b2 WITHOUT tools/pasdoc_epub.py (owner did not apply it; 109 pushed since); 110 NOT pushed; 93 Big Picture full screen and 94 this handover NOT pushed; 90 screen log, 91 DPI awareness, 92 Big Picture late maximise; 77 calibration, 78 Steam builds, 79 libraries copied by the builds, 80 - 83 fixes from the first Steam build, 84 EpubBuilder's Linux launcher, 85 Mac libraries through Deploy, 86 Deck crash diagnostics, 87 build stamp, 88 crash place in the log, 89 FreeType for Steam's Linux runtime) |
 | G3DGames/TFFMpegAPI | 0795d19 | FFmpegAPI-14 | 14 (macOS sound) |
 | G3DGames/ffmpeg-dev | 4d7b7be | ffmpeg-dev-09 | 09 |
 | WhisperBooks/whisper-dev | 9fa21dc | whisper-dev-20 | 21 (review fixes; its own CLAUDE.md) |
@@ -452,7 +452,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 109.
+Last number used: 112.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -2577,6 +2577,95 @@ follow depending on how the TSteamAPI test goes".
   Night Watch turbo 30:47 = 28.8x (steady 29.6x, 1.0 s per window,
   0.67 s per part), exact 95.2 %, matched 97.8 % (= Metal); expected
   21.1x from the calibration -> whole book / calibration 1.36.
+
+## Zip 110 (on top of the push after d72d7b2): AMD ROCm acceleration as a free Steam DLC
+Owner, 2026-11-18 12:34: "For steam we were going to supply HIP as a DLC
+- can we do that then we can test Builder on Steam Machine". TWhisper's
+HIP.md: the Steam Machine is gfx1102 (rocminfo), /dev/kfd exists on
+SteamOS, HIP beat Vulkan there (turbo encode 1.5x; whisper-cli in a
+Distrobox with ROCm installed). NOT tried yet: EpubBuilder as a Steam
+build in Steam's runtime (sniper) with ROCm BUNDLED beside it (whisper-
+dev's container build) - /dev/kfd inside the runtime's container, rocBLAS
+/ hipBLASLt finding their kernel folders. Uploads: SteamPipe GUI (owner),
+its folder "Deployment" with Win / Mac / Linux -> owner: "could just add a
+HIP one?".
+- tools/redist.sh: part_lists (shared by collect and package): the GPU
+  parts by ldd, each library with ALL its names (stem.so*); FIXED: package
+  put libX.so / libX.so.N.M.P of the ROCm / CUDA libraries into CORE (only
+  ldd's soname copy went to the part). collect (Linux64) writes
+  redistributable_bin/Linux64/parts.txt ("rocm NAME" / "cuda NAME").
+  Tested with gcc-made stand-ins (libggml-hip -> amdhip64 / hipblas ->
+  rocblas, hipblaslt; three names each; kernel folders; licences): parts
+  and packages right.
+- tools/deploy_redist.py: parts.txt is not deployed.
+- NEW tools/steam_stage.py DEPLOYMENT [--linux Linux] [--hip HIP] [--cuda
+  CUDA] [--dry-run]: ROCm files out of Deployment/Linux, Deployment/HIP made
+  afresh from redistributable_bin/Linux64 (soname copies as deploy_redist,
+  plain files, kernel folders, ROCm licences); CUDA likewise into CUDA (no
+  depot yet). Tested on a fake Deployment (Linux keeps the program,
+  launcher, libsteam_api, libfmux, core, aladdin; Win / Mac untouched).
+- demos/common/uSteam.pas: TSteamDlcState, SteamDlcState (BIsDlcInstalled /
+  BIsSubscribedApp), SteamGetDlc (owned -> InstallDLC; not owned -> the
+  store page in the overlay, ActivateGameOverlayToStore); links
+  Steamworks.Plugin.Apps and .Friends in Steam builds (EpubReader too).
+- uBuilder: STEAM_DLC_ROCM (0 = nothing offered); CheckRocmDlc at start
+  (Linux Steam builds): an AMD / Radeon device and no ROCm device -> the
+  log line and Tools > Get AMD ROCm acceleration (free DLC)...; installed
+  but no ROCm device -> says so (debug log: ggml-hip). Debug log line with
+  the state.
+- EpubBuilder README: the Steam DLC section; redistributable_bin README:
+  parts.txt.
+NOT COMPILED (no Delphi). Names to look at: Steam.FindPlugin,
+TSteamAppsPlugin.BIsDlcInstalled / BIsSubscribedApp / InstallDLC,
+TSteamFriendsPlugin.ActivateGameOverlayToStore, k_EOverlayToStoreFlag_None.
+OWNER'S STEPS:
+1. Linux laptop: tools/redist.sh collect (this zip) -> parts.txt; copy
+   redistributable_bin/Linux64 to Windows (kernel folders included).
+2. Steamworks, EpubBuilder (5639910): add a DLC "AMD ROCm acceleration"
+   (free) -> its AppID; on 5639910's Depots page a new depot for it, OS
+   Linux, owned by the DLC (DLC column); the depot in the DLC's packages
+   (its store package and the developer comp package, so the owner's
+   account has it); publish.
+3. uBuilder STEAM_DLC_ROCM := the DLC's AppID; build Steam Linux64;
+   Deploy to the Linux laptop as before; copy into Deployment/Linux.
+4. python tools\steam_stage.py <Deployment> -> Deployment/HIP.
+5. SteamPipe GUI: the new depot -> Deployment\HIP; upload with the build;
+   set it live on a beta branch.
+6. Steam Machine (the beta branch): EpubBuilder's log - "ROCm0" in the
+   device list (calibration) or the DLC line; Tools > Re-calibrate turbo:
+   ROCm0 vs Vulkan0. If no ROCm0: the debug log's ggml-hip lines (no
+   /dev/kfd in the runtime? kernels not found? HSA_OVERRIDE_GFX_VERSION
+   should not be needed for gfx1102).
+
+## Zip 111 (on top of zip 110): no DLC on a Playtest; staging by name
+Owner 12:48, Steamworks screenshot of 5639910's Associated Packages: no
+DLC section - its packages are "EPubUnum Playtest", "... for store
+signup", "... Developer Comp": EpubBuilder ("EPubUnum Creator") is a
+STEAM PLAYTEST app (no store page, no monetising; no DLC). So, for the
+Steam Machine test: HIP as a SECOND DEPOT of the playtest app itself (OS
+Linux, in the playtest's packages incl. the Developer Comp) pointing at
+Deployment\HIP - every Linux install gets ROCm (~1 GB); STEAM_DLC_ROCM
+stays 0 (nothing offered). The DLC (zip 110's offer) waits until the
+builder is a normal app / a real DLC on the base app it ships as.
+Owner's SteamPipe GUI folder: C:\src\epub_reader\Deployment (CHECK it
+is EpubBuilder's - the path says reader).
+- tools/steam_stage.py: without parts.txt (redist.sh collect not yet run
+  on Linux with zip 110) the parts by NAME_RULES (ROCm / CUDA library
+  stems as whisper-dev bundles them, kernel folders, licence prefixes),
+  with a warning; a missed helper library stays in the base depot (both
+  depots go into the same folder). Tested: same split as with parts.txt.
+
+## Zip 112 (on top of zip 111): the calibration recording in Win64 builds
+Owner 13:31: "builder has no aladdin on Win Steam deployment - where
+should it go? Automate for next time". Its place: media\aladdin.m4a
+beside EpubBuilder.exe (FindCalibrationAudio's first look; Debug /
+Release found the repository's copy by searching up from the output
+folder, a Steam install cannot). Owner's SteamPipe GUI setup for the
+builder: C:\src\epub_builder (the reader's: C:\src\epub_reader).
+- tools/postbuild.bat (CRLF kept): EpubBuilder, every Win64
+  configuration: :media - robocopy media\aladdin.m4a to
+  <output>\media\; missing -> a warning, not a failure (the calibration
+  asks for a recording). NOT RUN (no Windows here; read through).
 
 ## Pushes checked
 - a6ea67b ("SteamOS good") = zips 87 - 89: identical (CR LF aside) but
