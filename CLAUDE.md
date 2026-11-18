@@ -70,7 +70,7 @@ the history, one per zip.
 | Repo | Pushed | = zip | Last zip number used |
 |---|---|---|---|
 | WhisperBooks/TWhisper | d669a06 | TWhisper-30 | 31 (review fixes) |
-| WhisperBooks/Epubunum | 51bb81e | EpubUnum-94 | 98 (95 Mac ggml backends in redist.sh, 96 aladdin.m4a deployed, 97 Later tests 7 Core ML, 98 DRM-free .aax in EpubBuilder, 99 build history + time left, 100 Tools > Build history, 101 models by name + download, 102 Core ML encoders, 103 iOS reader plan, 104 mobile readers (iOS + Android), 105 justified text, 106 pasdoc_epub prototype, 107 its layout, 108 parked - 96 - 108 NOT pushed; 93 Big Picture full screen and 94 this handover NOT pushed; 90 screen log, 91 DPI awareness, 92 Big Picture late maximise; 77 calibration, 78 Steam builds, 79 libraries copied by the builds, 80 - 83 fixes from the first Steam build, 84 EpubBuilder's Linux launcher, 85 Mac libraries through Deploy, 86 Deck crash diagnostics, 87 build stamp, 88 crash place in the log, 89 FreeType for Steam's Linux runtime) |
+| WhisperBooks/Epubunum | 51bb81e | EpubUnum-94 | 98 (95 Mac ggml backends in redist.sh, 96 aladdin.m4a deployed, 97 Later tests 7 Core ML, 98 DRM-free .aax in EpubBuilder, 99 build history + time left, 100 Tools > Build history, 101 models by name + download, 102 Core ML encoders, 103 iOS reader plan, 104 mobile readers (iOS + Android), 105 justified text, 106 pasdoc_epub prototype, 107 its layout, 108 parked, 109 this note - pushed d72d7b2 WITHOUT tools/pasdoc_epub.py (owner did not apply it); 109 NOT pushed; 93 Big Picture full screen and 94 this handover NOT pushed; 90 screen log, 91 DPI awareness, 92 Big Picture late maximise; 77 calibration, 78 Steam builds, 79 libraries copied by the builds, 80 - 83 fixes from the first Steam build, 84 EpubBuilder's Linux launcher, 85 Mac libraries through Deploy, 86 Deck crash diagnostics, 87 build stamp, 88 crash place in the log, 89 FreeType for Steam's Linux runtime) |
 | G3DGames/TFFMpegAPI | 0795d19 | FFmpegAPI-14 | 14 (macOS sound) |
 | G3DGames/ffmpeg-dev | 4d7b7be | ffmpeg-dev-09 | 09 |
 | WhisperBooks/whisper-dev | 9fa21dc | whisper-dev-20 | 21 (review fixes; its own CLAUDE.md) |
@@ -294,8 +294,10 @@ busy testing base functionality")
 - German / other-language number words in TWhisper's aligner.
 - Parked: sentence alignment between an English and a German book.
 - PARKED (owner, 2026-11-18 12:24: "We'll leave this as an idea for
-  later"): BOOKS FROM SOURCES - tools/pasdoc_epub.py (zips 106 - 107; the
-  TSteamAPI book builds clean, 8403 declarations) and the "maker" plan
+  later"): BOOKS FROM SOURCES - tools/pasdoc_epub.py (NOT IN THE
+  REPOSITORY: the owner did not apply it - it exists only in zips 106 and
+  107, 107 being the later version; apply 107's tools/pasdoc_epub.py when
+  this is picked up. The TSteamAPI book builds clean, 8403 declarations) and the "maker" plan
   (lib/ Epub.Create + document model + PasDoc / Markdown / Delphi XML-doc
   importers, EpubConsole --create, an EpubMaker program; the Embarcadero
   DevRel contact for the concept). Owner on the layout in EpubReader:
@@ -450,7 +452,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 108.
+Last number used: 109.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -2505,6 +2507,8 @@ inserted in the layout without changing the word indexes); a reader
 setting to turn Justify off (the property is there).
 
 ## Zip 106 (on top of zip 105): pasdoc_epub.py - books from Pascal sources (PROTOTYPE)
+(The script was NOT applied - owner, 12:32. It is in zips 106 / 107 only;
+see "Plans agreed or parked".)
 Owner, 2026-11-18 11:45 - 12:00: "take pasdoc output and make a book the
 reader could display (with no audio)"; reading the SOURCES (PasDoc's HTML
 is table-laid and not XHTML); a different variant of builder (a "maker":
