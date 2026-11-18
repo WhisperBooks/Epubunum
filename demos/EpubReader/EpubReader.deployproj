@@ -486,9 +486,27 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
+        <DeployFile Include="steaminput\controllers\reader_controller_switch2_pro.vdf">
+            <RemoteDir>EpubReader\steaminput\controllers\</RemoteDir>
+            <RemoteName>reader_controller_switch2_pro.vdf</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
         <DeployFile Include="..\..\redistributable_bin\Linux64\libavformat.so.62">
             <RemoteDir>EpubReader\</RemoteDir>
             <RemoteName>libavformat.so.62</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="steaminput\controllers\reader_controller_generic.vdf">
+            <RemoteDir>EpubReader\steaminput\controllers\</RemoteDir>
+            <RemoteName>reader_controller_generic.vdf</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
@@ -616,6 +634,15 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
+        <DeployFile Include="steaminput\epubreader_controllers.vdf">
+            <RemoteDir>EpubReader\steaminput\</RemoteDir>
+            <RemoteName>epubreader_controllers.vdf</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
         <DeployFile Include="..\..\redistributable_bin\Linux64\libavcodec.so.62">
             <RemoteDir>EpubReader\</RemoteDir>
             <RemoteName>libavcodec.so.62</RemoteName>
@@ -634,9 +661,90 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
+        <DeployFile Include="steaminput\controllers\reader_controller_ps5.vdf">
+            <RemoteDir>EpubReader\steaminput\controllers\</RemoteDir>
+            <RemoteName>reader_controller_ps5.vdf</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="steaminput\controllers\reader_controller_ps4.vdf">
+            <RemoteDir>EpubReader\steaminput\controllers\</RemoteDir>
+            <RemoteName>reader_controller_ps4.vdf</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="steaminput\controllers\reader_controller_neptune.vdf">
+            <RemoteDir>EpubReader\steaminput\controllers\</RemoteDir>
+            <RemoteName>reader_controller_neptune.vdf</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="steaminput\controllers\reader_controller_steamcontroller_gordon.vdf">
+            <RemoteDir>EpubReader\steaminput\controllers\</RemoteDir>
+            <RemoteName>reader_controller_steamcontroller_gordon.vdf</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
         <DeployFile Include="..\..\redistributable_bin\steam\linux64\libsteam_api.so" Condition="'$(Config)'=='SteamDebug'">
             <RemoteDir>EpubReader\</RemoteDir>
             <RemoteName>libsteam_api.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="steaminput\controllers\reader_controller_xbox360.vdf">
+            <RemoteDir>EpubReader\steaminput\controllers\</RemoteDir>
+            <RemoteName>reader_controller_xbox360.vdf</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="steaminput\controllers\reader_controller_switch_joycon_pair.vdf">
+            <RemoteDir>EpubReader\steaminput\controllers\</RemoteDir>
+            <RemoteName>reader_controller_switch_joycon_pair.vdf</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="steaminput\controllers\reader_controller_xboxone.vdf">
+            <RemoteDir>EpubReader\steaminput\controllers\</RemoteDir>
+            <RemoteName>reader_controller_xboxone.vdf</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="steaminput\controllers\reader_controller_triton.vdf">
+            <RemoteDir>EpubReader\steaminput\controllers\</RemoteDir>
+            <RemoteName>reader_controller_triton.vdf</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="steaminput\controllers\reader_controller_switch_pro.vdf">
+            <RemoteDir>EpubReader\steaminput\controllers\</RemoteDir>
+            <RemoteName>reader_controller_switch_pro.vdf</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>

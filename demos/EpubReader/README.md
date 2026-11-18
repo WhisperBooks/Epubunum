@@ -87,15 +87,24 @@ idle again. The debug log has a "screen:" line saying how it was asked.
 
 In a Steam build EpubReader reads the pad through Steam Input, with its
 own action manifest (`epubreader_controllers.vdf` and a default layout
-per controller type). The program carries the files and writes them
-into `steaminput/` beside itself at start-up (beside the settings when
-that folder cannot be written, and always on the Mac), then gives Steam
-the manifest. They are made by `tools/gen_reader_input.py` from one
+per controller type), in `steaminput/` beside the program. The build
+puts them there (Win64: tools/postbuild.bat, every configuration;
+Linux64: the Deploy entries tools/deploy_redist.py writes), so they are
+in the Steam depot before the program first runs - Steam may read them
+before it starts. The program also carries them and writes them there
+at start-up when they are missing or out of date (beside the settings
+when that folder cannot be written, and always on the Mac), then gives
+Steam the manifest. They are made by `tools/gen_reader_input.py` from one
 table, with TSteamAPI's generator:
 
 ```
-python3 tools/gen_reader_input.py --tsteamapi ../TSteamAPI
+python3 tools/gen_reader_input.py
 ```
+
+It finds TSteamAPI beside this repository (a folder named TSteamAPI or
+steamworks); elsewhere, name it with `--tsteamapi` or the TSTEAMAPI
+environment variable. The generated files are in the repository, so
+this is needed only when the controls change.
 
 | Pad | On the page | In the library | In the menu |
 |---|---|---|---|
@@ -111,9 +120,13 @@ python3 tools/gen_reader_input.py --tsteamapi ../TSteamAPI
 | Select / View | the library | back to the book | the library |
 
 The menu: Back to the book, Library, Contents, Text size, Speed, Dark
-mode, Learn to read, Exit. Esc on the page opens it with the keyboard
-(arrows, Enter, Esc there); a click or tap on a row works too. In Big
-Picture there is no menu bar, so this is the way to Exit.
+mode, Learn to read, Controls, Exit. Controls lists what each control
+does, with Steam's own pictures of the buttons of the pad in hand (the
+names, without Steam). Esc on the page opens the menu with the keyboard
+(arrows, Enter, Esc there); a click or tap on a row works too.
+
+In Big Picture the reader shows the page alone - no menu bar, tool bar
+or contents panel: the menu has all of them, and Exit.
 
 Steam reads a manifest's layouts once per Steam session: after a new
 layout revision, restart Steam (on SteamOS, Steam or the machine). For

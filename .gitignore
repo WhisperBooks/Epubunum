@@ -41,3 +41,4 @@ __pycache__/
 *.pyc
 # release archives made by tools/redist.sh package
 redistributable_bin/packages/
+timings.txt

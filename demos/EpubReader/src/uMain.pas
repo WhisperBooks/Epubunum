@@ -278,8 +278,8 @@ type
     FPadTick: UInt64;
     { The pad's menu (uPadMenu). }
     FPadMenu: TPadMenu;
-    { FPadMenu shows the contents, not the main menu. }
-    FMenuContents: Boolean;
+    { What FPadMenu shows: MODE_MAIN, MODE_CONTENTS or MODE_CONTROLS. }
+    FMenuMode: Integer;
     { The library's cover chosen with the pad (-1 = none yet). }
     FCoverSel: Integer;
     { Its frame. }
@@ -305,10 +305,21 @@ type
     procedure ShowPadMenu;
     { The pad's contents list (the panel's entries). }
     procedure ShowContentsMenu;
-    { Row AIndex of the main menu as it reads now.
+    { The pad's controls: Steam's picture of each control and what it
+      does. }
+    procedure ShowControlsMenu;
+    { Row AIndex of the main menu's value as it reads now (text size,
+      speed, on / off).
       @param(AIndex  MENU_RESUME .. MENU_EXIT)
-      @returns(the text) }
-    function PadMenuText(AIndex: Integer): string;
+      @returns(the value; '' for none) }
+    function PadMenuValue(AIndex: Integer): string;
+    { The hints at the foot of the menu: the pad's own names for choose,
+      back and change (the keys without a pad).
+      @param(AChange  with left / right's "change")
+      @returns(the line) }
+    function PadMenuFoot(AChange: Boolean): string;
+    { The colours of the pad's menu for the theme. }
+    procedure PadMenuColors;
     { A menu row chosen (pad or click).
       @param(Sender  the menu)
       @param(AIndex  the row) }
@@ -317,7 +328,7 @@ type
     procedure PadMenuClose(Sender: TObject);
     { Left / right on a menu row with a value (text size, speed).
       @param(ADelta  -1 or 1) }
-    procedure PadMenuValue(ADelta: Integer);
+    procedure PadMenuStep(ADelta: Integer);
     { The library's pad choice moved to the nearest cover that way.
       @param(ADX  -1, 0, 1)
       @param(ADY  -1, 0, 1) }
@@ -541,8 +552,16 @@ const
   MENU_DARK = 5;
   { Learn to read. }
   MENU_LEARN = 6;
+  { The pad's controls. }
+  MENU_CONTROLS = 7;
   { Exit. }
-  MENU_EXIT = 7;
+  MENU_EXIT = 8;
+  { FMenuMode: the main menu. }
+  MODE_MAIN = 0;
+  { The contents. }
+  MODE_CONTENTS = 1;
+  { The controls. }
+  MODE_CONTROLS = 2;
   { The stick's scrolling at full tilt, units a second. }
   PAD_SCROLL_SPEED = 1500;
   { The stick's dead zone. }
@@ -1440,10 +1459,14 @@ begin
   FCoverSel := -1;
   if recCoverSel <> nil then
     recCoverSel.Visible := False;
-  // the contents panel back, left of the page as before
-  lbToc.Visible := True;
-  Splitter1.Visible := True;
-  Splitter1.Position.X := lbToc.Position.X + lbToc.Width;
+  // the contents panel back, left of the page as before (not in Big
+  // Picture: the pad's menu has the contents)
+  if not SteamBigPicture then
+  begin
+    lbToc.Visible := True;
+    Splitter1.Visible := True;
+    Splitter1.Position.X := lbToc.Position.X + lbToc.Width;
+  end;
   UpdateControls;
 end;
 
@@ -2021,6 +2044,15 @@ begin
   // dark mode, text size, speed, the recent books and their positions
   LoadSettings;
   StartPad;
+  // Big Picture: the pad and its menu do it all - no tool bar, no
+  // contents panel (owner, 2026-11-18; the menu bar is left off already)
+  if SteamBigPicture then
+  begin
+    layTop.Visible := False;
+    lbToc.Visible := False;
+    Splitter1.Visible := False;
+    DebugLog('Big Picture: no tool bar or contents panel - the pad''s menu (Start, or Esc) has them');
+  end;
   UpdateControls;
   DebugLog('window ready');
   // a book named on the command line (Open with), else the library: the
@@ -2139,13 +2171,22 @@ begin
     case AButton of
       PAD_UP: FPadMenu.Move(-1);
       PAD_DOWN: FPadMenu.Move(1);
-      PAD_LEFT: PadMenuValue(-1);
-      PAD_RIGHT: PadMenuValue(1);
+      PAD_LEFT: PadMenuStep(-1);
+      PAD_RIGHT: PadMenuStep(1);
       PAD_PLAY: PadMenuChoose(FPadMenu, FPadMenu.Selected);
       PAD_BACK, PAD_MENU:
-        // the contents: back to the menu; the menu: closed
-        if FMenuContents then
-          ShowPadMenu
+        // the contents or the controls: back to the menu, on their row;
+        // the menu: closed
+        if FMenuMode = MODE_CONTENTS then
+        begin
+          ShowPadMenu;
+          FPadMenu.Move(MENU_CONTENTS);
+        end
+        else if FMenuMode = MODE_CONTROLS then
+        begin
+          ShowPadMenu;
+          FPadMenu.Move(MENU_CONTROLS);
+        end
         else
           FPadMenu.Hide;
       PAD_LIBRARY:
@@ -2208,57 +2249,162 @@ begin
   end;
 end;
 
-function TfrmMain.PadMenuText(AIndex: Integer): string;
+function TfrmMain.PadMenuValue(AIndex: Integer): string;
 const
-  ON_OFF: array[Boolean] of string = ('off', 'on');
+  ON_OFF: array[Boolean] of string = ('Off', 'On');
 begin
   case AIndex of
-    MENU_RESUME: Result := 'Back to the book';
-    MENU_LIBRARY: Result := 'Library';
-    MENU_CONTENTS: Result := 'Contents';
-    MENU_SIZE: Result := Format('Text size   <  %d  >', [Round(View1.FontSize)]);
-    MENU_SPEED: Result := Format('Speed   <  %s  >', [lblSpeed.Text]);
-    MENU_DARK: Result := 'Dark mode: ' + ON_OFF[FDark];
-    MENU_LEARN: Result := 'Learn to read: ' + ON_OFF[FLearn];
-    MENU_EXIT: Result := 'Exit';
+    MENU_SIZE: Result := Format('%s  %d  %s', [#$2039, Round(View1.FontSize), #$203A]);
+    MENU_SPEED: Result := Format('%s  %s  %s', [#$2039, lblSpeed.Text, #$203A]);
+    MENU_DARK: Result := ON_OFF[FDark];
+    MENU_LEARN: Result := ON_OFF[FLearn];
   else
     Result := '';
   end;
 end;
 
-procedure TfrmMain.ShowPadMenu;
+function TfrmMain.PadMenuFoot(AChange: Boolean): string;
 var
-  Items: TArray<string>;
+  Choose, Back: string;
+begin
+  // the pad's own names (Steam's language), else the keys
+  Choose := FPad.Origin(PAD_PLAY, FDark).Name;
+  Back := FPad.Origin(PAD_BACK, FDark).Name;
+  if (Choose = '') or (Back = '') then
+  begin
+    Choose := 'Enter';
+    Back := 'Esc';
+  end;
+  Result := Choose + ' choose      ' + Back + ' back';
+  if AChange then
+    Result := Result + '      Left / Right change';
+end;
+
+procedure TfrmMain.PadMenuColors;
+begin
+  // the page's colours; the selected row a soft blue that suits each
+  if FDark then
+    FPadMenu.SetColors($FF23262E, View1.TextColor, $FF34405A)
+  else
+    FPadMenu.SetColors($FFFBFAF7, View1.TextColor, $FFD9E5F6);
+end;
+
+procedure TfrmMain.ShowPadMenu;
+const
+  TEXTS: array[MENU_RESUME..MENU_EXIT] of string = ('Back to the book', 'Library', 'Contents', 'Text size',
+    'Speed', 'Dark mode', 'Learn to read', 'Controls', 'Exit');
+var
+  Items: TArray<TPadMenuItem>;
   I: Integer;
 begin
-  FMenuContents := False;
+  FMenuMode := MODE_MAIN;
   SetLength(Items, MENU_EXIT + 1);
   for I := 0 to MENU_EXIT do
-    Items[I] := PadMenuText(I);
-  FPadMenu.SetColors(View1.BackgroundColor, View1.TextColor, $40808080);
-  FPadMenu.Show('EpubReader', Items, MENU_RESUME);
+    Items[I] := TPadMenu.Item(TEXTS[I], PadMenuValue(I));
+  PadMenuColors;
+  FPadMenu.Show('EpubReader', Items, MENU_RESUME, PadMenuFoot(True));
 end;
 
 procedure TfrmMain.ShowContentsMenu;
 var
-  Items: TArray<string>;
+  Items: TArray<TPadMenuItem>;
   I: Integer;
 begin
   if lbToc.Count = 0 then
     Exit;
-  FMenuContents := True;
+  FMenuMode := MODE_CONTENTS;
   SetLength(Items, lbToc.Count);
   for I := 0 to lbToc.Count - 1 do
-    Items[I] := lbToc.Items[I];
-  FPadMenu.SetColors(View1.BackgroundColor, View1.TextColor, $40808080);
-  FPadMenu.Show('Contents', Items, lbToc.ItemIndex);
+    Items[I] := TPadMenu.Item(lbToc.Items[I]);
+  PadMenuColors;
+  FPadMenu.Show('Contents', Items, lbToc.ItemIndex, PadMenuFoot(False));
+end;
+
+procedure TfrmMain.ShowControlsMenu;
+type
+  { A row: what it does, the pad's buttons for it (-1 = the stick), and
+    the names shown when Steam has none (no pad, not a Steam build). }
+  TControlRow = record
+    Text: string;
+    A, B: Integer;
+    Fallback: string;
+  end;
+const
+  NO_BUTTON = -2;
+  THE_STICK = -1;
+  ROWS: array[0..10] of TControlRow = (
+    (Text: 'Play / pause; choose'; A: PAD_PLAY; B: NO_BUTTON; Fallback: 'A  /  P, Enter'),
+    (Text: 'Back; close the menu or the library'; A: PAD_BACK; B: NO_BUTTON; Fallback: 'B  /  Esc'),
+    (Text: 'Say it again (Learn to read)'; A: PAD_AGAIN; B: NO_BUTTON; Fallback: 'X  /  R'),
+    (Text: 'Dark mode'; A: PAD_DARK; B: NO_BUTTON; Fallback: 'Y  /  D'),
+    (Text: 'Scroll a little'; A: PAD_UP; B: PAD_DOWN; Fallback: 'D-pad up / down'),
+    (Text: 'Page back / on'; A: PAD_LEFT; B: PAD_RIGHT; Fallback: 'D-pad left / right'),
+    (Text: 'Scroll'; A: THE_STICK; B: NO_BUTTON; Fallback: 'Right stick'),
+    (Text: 'Sentence back / on'; A: PAD_SENTENCE_PREV; B: PAD_SENTENCE_NEXT; Fallback: 'LB / RB'),
+    (Text: 'Chapter back / on'; A: PAD_CHAPTER_PREV; B: PAD_CHAPTER_NEXT; Fallback: 'LT / RT'),
+    (Text: 'This menu'; A: PAD_MENU; B: NO_BUTTON; Fallback: 'Start  /  Esc'),
+    (Text: 'Library'; A: PAD_LIBRARY; B: NO_BUTTON; Fallback: 'Select'));
+
+  { Action AIndex (or the stick) on the pad in hand. }
+  function Origin(AIndex: Integer): TSteamPadOrigin;
+  begin
+    if AIndex = THE_STICK then
+      Result := FPad.Origin(FPad.Count, FDark)
+    else
+      Result := FPad.Origin(AIndex, FDark);
+  end;
+
+var
+  Items: TArray<TPadMenuItem>;
+  I: Integer;
+  O1, O2: TSteamPadOrigin;
+  Names, Title: string;
+begin
+  FMenuMode := MODE_CONTROLS;
+  SetLength(Items, Length(ROWS));
+  for I := 0 to High(ROWS) do
+  begin
+    Items[I] := TPadMenu.Item(ROWS[I].Text);
+    O1 := Origin(ROWS[I].A);
+    O2.Name := '';
+    O2.Glyph := '';
+    if ROWS[I].B <> NO_BUTTON then
+      O2 := Origin(ROWS[I].B);
+    // Steam's pictures; the names on the right when there are none
+    if O1.Glyph <> '' then
+      Items[I].Glyphs := Items[I].Glyphs + [O1.Glyph];
+    if O2.Glyph <> '' then
+      Items[I].Glyphs := Items[I].Glyphs + [O2.Glyph];
+    Names := O1.Name;
+    if O2.Name <> '' then
+      Names := Names + ' / ' + O2.Name;
+    if Length(Items[I].Glyphs) = 0 then
+    begin
+      if Names <> '' then
+        Items[I].Value := Names
+      else
+        Items[I].Value := ROWS[I].Fallback;
+    end;
+  end;
+  Title := 'Controls';
+  if FPad.PadName <> '' then
+    Title := 'Controls - ' + FPad.PadName;
+  PadMenuColors;
+  FPadMenu.Show(Title, Items, 0, PadMenuFoot(False));
 end;
 
 procedure TfrmMain.PadMenuChoose(Sender: TObject; AIndex: Integer);
 begin
   if AIndex < 0 then
     Exit;
-  if FMenuContents then
+  if FMenuMode = MODE_CONTROLS then
+  begin
+    // nothing to choose: back to the menu
+    ShowPadMenu;
+    FPadMenu.Move(MENU_CONTROLS);
+    Exit;
+  end;
+  if FMenuMode = MODE_CONTENTS then
   begin
     FPadMenu.Hide;
     if AIndex >= lbToc.Count then
@@ -2292,7 +2438,6 @@ begin
     MENU_DARK:
       begin
         btnDarkClick(nil);
-        FPadMenu.SetText(MENU_DARK, PadMenuText(MENU_DARK));
         // the box in the new colours
         ShowPadMenu;
         FPadMenu.Move(MENU_DARK);
@@ -2301,8 +2446,9 @@ begin
       if EpubUnum1.Book <> nil then
       begin
         btnLearnClick(nil);
-        FPadMenu.SetText(MENU_LEARN, PadMenuText(MENU_LEARN));
+        FPadMenu.SetValue(MENU_LEARN, PadMenuValue(MENU_LEARN));
       end;
+    MENU_CONTROLS: ShowControlsMenu;
     MENU_EXIT:
       begin
         FPadMenu.Hide;
@@ -2316,9 +2462,9 @@ begin
   FPadMenu.Hide;
 end;
 
-procedure TfrmMain.PadMenuValue(ADelta: Integer);
+procedure TfrmMain.PadMenuStep(ADelta: Integer);
 begin
-  if FMenuContents then
+  if FMenuMode <> MODE_MAIN then
     Exit;
   case FPadMenu.Selected of
     MENU_SIZE:
@@ -2331,7 +2477,7 @@ begin
   else
     Exit;
   end;
-  FPadMenu.SetText(FPadMenu.Selected, PadMenuText(FPadMenu.Selected));
+  FPadMenu.SetValue(FPadMenu.Selected, PadMenuValue(FPadMenu.Selected));
 end;
 
 procedure TfrmMain.MoveCover(ADX, ADY: Integer);

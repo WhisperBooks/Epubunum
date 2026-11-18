@@ -452,7 +452,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 122.
+Last number used: 125.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -2842,6 +2842,66 @@ the filename this should be the default".
   new output folder renames only an unchanged name. Output... opens in
   the output's folder. StartJob makes the output's folder.
 - README (builder): Folders. NOT COMPILED.
+
+## Zip 123 (on top of 7959de0): gen_reader_input.py finds TSteamAPI
+Owner: "--tsteamapi ../TSteamAPI" -> not found under C:\src\TSteamAPI.
+--tsteamapi is optional now: else $TSTEAMAPI, else a sibling folder
+TSteamAPI / steamworks / tsteamapi with tools/gen_input_mapping.py; the
+error lists what was tried. README: the plain command.
+Push 7959de0 ("Steam Controls") checked = zips 113 - 122 (CR LF aside),
+but: EpubReader.dproj lacks uSteamPad / uPadMenu / uReaderInput (the IDE
+adds them on a save; project_check 3 warnings), and timings.txt was
+committed - ~110 "worth a look" lines (copyrighted book text) and ~60
+absolute paths: the owner removes it (git rm --cached) and ignores it.
+
+## Zip 124 (on top of zip 123): steaminput/ in the build output
+Owner: "where's my manifest + vdfs? SteamAPI's VirtualGamepad put them in
+the output exe folder" ... "Doesn't steam need them before we do?" - with
+the partner site's "Custom Configuration (Bundled with Game)" Steam reads
+the depot's file at launch, before the program's first write; and a
+fresh install has none until the first run.
+- tools/postbuild.bat: :steaminput (from :reader, every configuration)
+  robocopies demos\EpubReader\steaminput to <output>\steaminput (a
+  warning when missing). CRLF.
+- tools/deploy_redist.py: OWN_FOLDERS - EpubReader.dproj gets Linux64
+  DeployFile entries LocalName steaminput\..., RemoteDir .\steaminput\
+  (and \controllers\), replaced per platform on each run (not on macOS:
+  the reader writes them beside its settings there). Tested on a copy:
+  twice in a row = 12 entries, an OSXARM64 run leaves them.
+- The runtime write (uReaderInput) stays: same files, so no rewrite.
+- Owner: run deploy_redist.py --platform Linux64 again (with the usual
+  --skip "^(rocblas|hipblaslt)/") for the Linux entries.
+
+## Zip 125 (on top of zip 124): Controls with Steam's glyphs; Big Picture page only
+Owner 18:14 (zip 121 tested on Windows): "Works great on reader. There is
+no longer a need for the top menu controls or the sidebar contents when
+in big picture mode. One improvement would be a menu option for
+Controls. Ideally this shows an image of the controller with buttons
+labelled ... For now a list will do ... Make them look a little prettier
+too." then "Steam also supply all the controller glyphs".
+- uSteamPad: TSteamPadOrigin (Name, Glyph); Origin(index | Count = the
+  stick, dark): the bound origin with the shortest name, its PNG
+  (GetGlyphPNGForActionOrigin, Medium; Dark / Light style with
+  SolidABXY, then plain, then Knockout, then the legacy picture);
+  PadName (GetInputTypeForHandle); the pad that pressed last is "in
+  hand" (FActivePad, else the first).
+- uPadMenu rewritten: TPadMenuItem (Text, Value on the right, Glyphs on
+  the left in a column of one width), title (bold, larger) + rule, a foot
+  line of hints, rounded box with a faint border, rounded selected row,
+  fade-in (TAnimator, 0.15 s), pictures cached per file; SetValue
+  replaces SetText.
+- uMain: menu rows Back to the book / Library / Contents / Text size /
+  Speed / Dark mode / Learn to read / Controls / Exit, values on the right
+  (< 18 > with U+2039 / U+203A); FMenuMode (main / contents / controls),
+  Back returns to the menu on that row; ShowControlsMenu - 11 rows (Play,
+  Back, Again, Dark, scroll a little, page, stick, sentence, chapter,
+  menu, library), Steam's glyphs, else Steam's names, else fixed names
+  (no pad / no Steam); title "Controls - <pad>"; PadMenuColors (dark
+  $FF23262E / accent $FF34405A, light $FFFBFAF7 / $FFD9E5F6); the foot
+  names the pad's own choose / back buttons.
+- Big Picture: layTop (tool bar), lbToc and Splitter1 hidden at start;
+  HideLibrary does not show the panel again there.
+- NOT COMPILED. The glyph styles' look on each theme NOT YET SEEN.
 
 ## Pushes checked
 - a6ea67b ("SteamOS good") = zips 87 - 89: identical (CR LF aside) but

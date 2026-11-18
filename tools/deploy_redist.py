@@ -30,7 +30,12 @@ What each program gets:
                (the calibration's recording; macOS Contents/Resources/media)
   EpubReader   FFmpeg and its licence texts (it plays sound, it does not
                transcribe); on Linux also FreeType + brotli (Skia crashes
-               with Steam Linux Runtime 3's FreeType 2.10.4)
+               with Steam Linux Runtime 3's FreeType 2.10.4), and its
+               Steam Input files from demos/EpubReader/steaminput (made
+               by tools/gen_reader_input.py) into steaminput/ beside the
+               program - in the depot, where the partner site's "Custom
+               Configuration (Bundled with Game)" names them (not on
+               macOS: the reader writes them beside its settings there)
   EpubConsole  nothing (no libraries)
 
 The entries it writes are the DeployFile entries whose LocalName starts
@@ -82,6 +87,14 @@ PROJECTS = {
     "demos/EpubReader/EpubReader.dproj": reader_file,
 }
 
+# program -> its own folders deployed as they are, besides
+# redistributable_bin: (folder in the repository, prefix of its entries'
+# LocalName - relative to the .dproj -, RemoteDir below the program), on
+# Linux only
+OWN_FOLDERS = {
+    "demos/EpubReader/EpubReader.dproj": [("demos/EpubReader/steaminput", "steaminput\\", "steaminput")],
+}
+
 # libX.so.N.M.P / libX.N.M.P.dylib: the stem and the version
 VERSIONED = re.compile(r"^(lib.+?\.so)((?:\.[0-9]+)+)$")
 VERSIONED_DYLIB = re.compile(r"^(lib.+?)((?:\.[0-9]+)+)\.dylib$")
@@ -126,9 +139,22 @@ def collect(folder):
     return out
 
 
-def entry(rel, nl):
-    """One DeployFile entry, indented as Delphi writes them."""
+def entry(rel, nl, local_prefix=None, remote_base=""):
+    """One DeployFile entry, indented as Delphi writes them (an own
+    folder's file: local_prefix and remote_base given)."""
     d, _, name = rel.rpartition("/")
+    if local_prefix is not None:
+        sub = remote_base + ("/" + d if d else "")
+        lines = [
+            '                <DeployFile LocalName="%s" Class="File">' % (local_prefix + rel.replace("/", "\\")),
+            '                    <Platform Name="%s">' % PLATFORM,
+            '                        <RemoteDir>.\\%s\\</RemoteDir>' % sub.replace("/", "\\"),
+            '                        <RemoteName>%s</RemoteName>' % name,
+            '                        <Overwrite>true</Overwrite>',
+            '                    </Platform>',
+            '                </DeployFile>',
+        ]
+        return nl.join(lines) + nl
     if is_mac():
         # libraries into the bundle's Frameworks (where the loaders look);
         # the licence texts and the calibration recording are no code:
@@ -152,8 +178,10 @@ def entry(rel, nl):
     return nl.join(lines) + nl
 
 
-def update(dproj, files):
-    """Replaces the project's generated entries; returns how many it wrote."""
+def update(dproj, files, own=()):
+    """Replaces the project's generated entries (redistributable_bin's and
+    those of its own folders, for this platform); returns how many it
+    removed. own: (local prefix, remote base, [relative paths])."""
     path = os.path.join(ROOT, dproj)
     raw = open(path, "rb").read()
     bom = raw.startswith(b"\xef\xbb\xbf")
@@ -162,6 +190,13 @@ def update(dproj, files):
     old = re.compile(r'[ \t]*<DeployFile LocalName="' + re.escape(LOCAL_PREFIX)
                      + r'[^"]*"[^>]*>.*?</DeployFile>[ \t]*' + re.escape(nl), re.S)
     text, removed = old.subn("", text)
+    for _, prefix, _ in OWN_FOLDERS.get(dproj, []):
+        # this platform's entries only (another platform's stay)
+        old_own = re.compile(r'[ \t]*<DeployFile LocalName="' + re.escape(prefix) + r'[^"]*"[^>]*>[ \t]*'
+                             + re.escape(nl) + r'[ \t]*<Platform Name="' + re.escape(PLATFORM)
+                             + r'">.*?</DeployFile>[ \t]*' + re.escape(nl), re.S)
+        text, n = old_own.subn("", text)
+        removed += n
     anchor = re.search(r'<Deployment Version="[0-9]+">' + re.escape(nl), text)
     if anchor is None:
         # a project the IDE has not written a deployment for yet: an empty
@@ -174,6 +209,8 @@ def update(dproj, files):
                 + text[end.start():])
         anchor = re.search(r'<Deployment Version="[0-9]+">' + re.escape(nl), text)
     block = "".join(entry(rel, nl) for rel in files)
+    for prefix, remote_base, rels in own:
+        block += "".join(entry(rel, nl, prefix, remote_base) for rel in rels)
     text = text[:anchor.end()] + block + text[anchor.end():]
     data = text.encode("utf-8")
     open(path, "wb").write((b"\xef\xbb\xbf" if bom else b"") + data)
@@ -201,7 +238,14 @@ def main():
     files = [(r, s) for r, s in collect(folder) if not any(x.search(r) for x in skips)]
     for dproj, want in PROJECTS.items():
         mine = [(r, s) for r, s in files if want(r)]
-        removed = update(dproj, [r for r, _ in mine])
+        own = []
+        if not is_mac():
+            for folder_rel, prefix, remote_base in OWN_FOLDERS.get(dproj, []):
+                found = collect(os.path.join(ROOT, folder_rel))
+                own.append((prefix, remote_base, [r for r, _ in found]))
+        removed = update(dproj, [r for r, _ in mine], own)
+        # the count includes the own folders' files
+        mine = mine + [(prefix + r, 0) for prefix, _, rels in own for r in rels]
         longest = max((r for r, _ in mine), key=len, default="")
         print("%s: %d file(s), %.0f MB, longest name %d characters (replacing %d earlier entries)"
               % (dproj, len(mine), sum(s for _, s in mine) / 1048576.0, len(longest), removed))

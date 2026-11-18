@@ -276,6 +276,9 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <DCCReference Include="..\common\uDebugLog.pas"/>
         <DCCReference Include="..\common\uInhibit.pas"/>
         <DCCReference Include="..\common\uQuitSignal.pas"/>
+        <DCCReference Include="..\common\uSteamPad.pas"/>
+        <DCCReference Include="src\uPadMenu.pas"/>
+        <DCCReference Include="src\uReaderInput.pas"/>
         <DCCReference Include="..\common\uSteam.pas"/>
         <DCCReference Include="src\uMain.pas">
             <Form>frmMain</Form>
@@ -885,6 +888,90 @@ $(PreBuildEvent)]]></PreBuildEvent>
                     <Platform Name="Linux64">
                         <RemoteDir>.\</RemoteDir>
                         <RemoteName>EpubReader.sh</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="steaminput\controllers\reader_controller_generic.vdf" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\steaminput\controllers\</RemoteDir>
+                        <RemoteName>reader_controller_generic.vdf</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="steaminput\controllers\reader_controller_neptune.vdf" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\steaminput\controllers\</RemoteDir>
+                        <RemoteName>reader_controller_neptune.vdf</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="steaminput\controllers\reader_controller_ps4.vdf" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\steaminput\controllers\</RemoteDir>
+                        <RemoteName>reader_controller_ps4.vdf</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="steaminput\controllers\reader_controller_ps5.vdf" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\steaminput\controllers\</RemoteDir>
+                        <RemoteName>reader_controller_ps5.vdf</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="steaminput\controllers\reader_controller_steamcontroller_gordon.vdf" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\steaminput\controllers\</RemoteDir>
+                        <RemoteName>reader_controller_steamcontroller_gordon.vdf</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="steaminput\controllers\reader_controller_switch2_pro.vdf" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\steaminput\controllers\</RemoteDir>
+                        <RemoteName>reader_controller_switch2_pro.vdf</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="steaminput\controllers\reader_controller_switch_joycon_pair.vdf" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\steaminput\controllers\</RemoteDir>
+                        <RemoteName>reader_controller_switch_joycon_pair.vdf</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="steaminput\controllers\reader_controller_switch_pro.vdf" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\steaminput\controllers\</RemoteDir>
+                        <RemoteName>reader_controller_switch_pro.vdf</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="steaminput\controllers\reader_controller_triton.vdf" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\steaminput\controllers\</RemoteDir>
+                        <RemoteName>reader_controller_triton.vdf</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="steaminput\controllers\reader_controller_xbox360.vdf" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\steaminput\controllers\</RemoteDir>
+                        <RemoteName>reader_controller_xbox360.vdf</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="steaminput\controllers\reader_controller_xboxone.vdf" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\steaminput\controllers\</RemoteDir>
+                        <RemoteName>reader_controller_xboxone.vdf</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="steaminput\epubreader_controllers.vdf" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\steaminput\</RemoteDir>
+                        <RemoteName>epubreader_controllers.vdf</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>

@@ -9,7 +9,9 @@ rem   OUTPUT_FOLDER may be relative ($(OUTPUTDIR) is .\Win64\Steam\ when
 rem   the project's output path is): it is taken from PROJECT_FOLDER, else
 rem   from the current folder.
 rem
-rem   EpubReader   FFmpeg (av*, sw*, postproc*) and its licence texts
+rem   EpubReader   FFmpeg (av*, sw*, postproc*) and its licence texts, and
+rem                its Steam Input files (demos\EpubReader\steaminput ->
+rem                steaminput\ beside the program; every configuration)
 rem   EpubBuilder  whisper.cpp, ggml, FFmpeg and their licences:
 rem                Steam / SteamDebug - the CPU and Vulkan backends only
 rem                (CUDA and ROCm are to be free DLC; owner 2026-11-17);
@@ -55,6 +57,7 @@ if /i "%PROG%"=="EpubBuilder" goto builder
 goto usage
 
 :reader
+call :steaminput
 set "STEP=FFmpeg's DLLs"
 robocopy "%SRC%" "%OUT%" av*.dll sw*.dll postproc*.dll %RC% >nul
 if errorlevel 8 goto failed
@@ -120,6 +123,22 @@ if errorlevel 8 (
   exit /b 0
 )
 echo postbuild: media\aladdin.m4a copied to %OUT%\media
+exit /b 0
+
+:steaminput
+rem EpubReader's action manifest and layouts (tools\gen_reader_input.py):
+rem in the depot, where the partner site's "Custom Configuration (Bundled
+rem with Game)" names them - Steam may read them before the program runs
+if not exist "%ROOT%\demos\EpubReader\steaminput\epubreader_controllers.vdf" (
+  echo postbuild: warning - no demos\EpubReader\steaminput: run tools\gen_reader_input.py
+  exit /b 0
+)
+robocopy "%ROOT%\demos\EpubReader\steaminput" "%OUT%\steaminput" /e %RC% >nul
+if errorlevel 8 (
+  echo postbuild: warning - steaminput not copied ^(code %errorlevel%^)
+  exit /b 0
+)
+echo postbuild: steaminput copied to %OUT%\steaminput
 exit /b 0
 
 :licences

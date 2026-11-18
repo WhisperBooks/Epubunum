@@ -35,6 +35,15 @@ type
     list, True when pressed (or repeated) since the last Poll. }
   TSteamPadPresses = TArray<Boolean>;
 
+  { How an action is reached on the pad in hand (TSteamPad.Origin): the
+    control's name in Steam's language and Steam's picture of it. }
+  TSteamPadOrigin = record
+    { The control's name ('' = not bound, or no Steam). }
+    Name: string;
+    { Steam's PNG of it ('' = none). }
+    Glyph: string;
+  end;
+
   { The pad: see the unit's text. }
   TSteamPad = class
   private
@@ -67,6 +76,13 @@ type
     { What happened worth a line in the log since the last call of
       TakeNote. }
     FNote: string;
+    { The pad that pressed last (0 = none yet). }
+    FActivePad: UInt64;
+    { The pads at the last Poll. }
+    FPads: TArray<UInt64>;
+    { The pad whose controls Origin describes: the one that pressed last,
+      else the first. }
+    function TargetPad: UInt64;
     { The handles looked up again. }
     procedure Resolve;
   public
@@ -95,6 +111,18 @@ type
       handles found, the number of pads changed, a failure.
       @returns(the line) }
     function TakeNote: string;
+    { How action AIndex is reached on the pad in hand: of the controls
+      bound to it, the one with the shortest name ("D-Pad Up" rather than
+      "Left Stick Move Up"), with Steam's picture for a dark or a light
+      background.
+      @param(AIndex  a button's place in the constructor's list, or
+        Count for the stick)
+      @param(ADark  the pictures are shown on a dark background)
+      @returns(empty Name and Glyph when not known) }
+    function Origin(AIndex: Integer; ADark: Boolean): TSteamPadOrigin;
+    { The pad in hand, for a title: "Xbox One / Series controller", ...
+      @returns('' when there is none) }
+    function PadName: string;
     { Number of buttons. }
     function Count: Integer;
     { True once started. }
@@ -188,6 +216,124 @@ begin
   {$ENDIF}
 end;
 
+function TSteamPad.TargetPad: UInt64;
+var
+  Pad: UInt64;
+begin
+  for Pad in FPads do
+    if Pad = FActivePad then
+      Exit(Pad);
+  if Length(FPads) > 0 then
+    Result := FPads[0]
+  else
+    Result := 0;
+end;
+
+function TSteamPad.Origin(AIndex: Integer; ADark: Boolean): TSteamPadOrigin;
+{$IFDEF STEAMBUILD}
+var
+  P: TSteamInputPlugin;
+  Pad: UInt64;
+  Origins: TSteamInputOriginArray;
+  Best: EInputActionOrigin;
+  Name, Path: string;
+  I: Integer;
+  Styles: array[0..3] of UInt32;
+{$ENDIF}
+begin
+  Result.Name := '';
+  Result.Glyph := '';
+  {$IFDEF STEAMBUILD}
+  P := InputPlugin;
+  Pad := TargetPad;
+  if (P = nil) or not P.Started or not FResolved or (Pad = 0) then
+    Exit;
+  try
+    if (AIndex >= 0) and (AIndex < Length(FNames)) then
+      Origins := P.DigitalActionOrigins(Pad, FSet, FButtons[AIndex])
+    else if (AIndex = Length(FNames)) and (FStick <> 0) then
+      Origins := P.AnalogActionOrigins(Pad, FSet, FStick)
+    else
+      Exit;
+    if Length(Origins) = 0 then
+      Exit;
+    Best := Origins[0];
+    for I := 0 to High(Origins) do
+    begin
+      Name := P.GetStringForActionOrigin(Origins[I]);
+      if (Result.Name = '') or ((Name <> '') and (Length(Name) < Length(Result.Name))) then
+      begin
+        Result.Name := Name;
+        Best := Origins[I];
+      end;
+    end;
+    // coloured face buttons first, on the background's style; then plain;
+    // then white (knockout); then the legacy picture
+    if ADark then
+      Styles[0] := UInt32(ESteamInputGlyphStyle_Dark) or UInt32(ESteamInputGlyphStyle_SolidABXY)
+    else
+      Styles[0] := UInt32(ESteamInputGlyphStyle_Light) or UInt32(ESteamInputGlyphStyle_SolidABXY);
+    if ADark then
+      Styles[1] := UInt32(ESteamInputGlyphStyle_Dark)
+    else
+      Styles[1] := UInt32(ESteamInputGlyphStyle_Light);
+    Styles[2] := UInt32(ESteamInputGlyphStyle_Knockout);
+    Styles[3] := UInt32(ESteamInputGlyphStyle_Knockout) or UInt32(ESteamInputGlyphStyle_SolidABXY);
+    for I := 0 to High(Styles) do
+    begin
+      Path := P.GetGlyphPNGForActionOrigin(Best, k_ESteamInputGlyphSize_Medium, Styles[I]);
+      if (Path <> '') and FileExists(Path) then
+      begin
+        Result.Glyph := Path;
+        Exit;
+      end;
+    end;
+    Path := P.GetGlyphForActionOrigin_Legacy(Best);
+    if (Path <> '') and FileExists(Path) then
+      Result.Glyph := Path;
+  except
+    on E: Exception do
+      FNote := 'pad: the controls'' names / pictures FAILED: ' + E.Message;
+  end;
+  {$ENDIF}
+end;
+
+function TSteamPad.PadName: string;
+{$IFDEF STEAMBUILD}
+var
+  P: TSteamInputPlugin;
+  Pad: UInt64;
+{$ENDIF}
+begin
+  Result := '';
+  {$IFDEF STEAMBUILD}
+  P := InputPlugin;
+  Pad := TargetPad;
+  if (P = nil) or not P.Started or (Pad = 0) then
+    Exit;
+  try
+    case P.GetInputTypeForHandle(Pad) of
+      k_ESteamInputType_SteamController: Result := 'Steam Controller (2015)';
+      k_ESteamInputType_XBox360Controller: Result := 'Xbox 360 controller';
+      k_ESteamInputType_XBoxOneController: Result := 'Xbox controller';
+      k_ESteamInputType_GenericGamepad: Result := 'game pad';
+      k_ESteamInputType_PS4Controller: Result := 'PlayStation 4 controller';
+      k_ESteamInputType_PS5Controller: Result := 'PlayStation 5 DualSense';
+      k_ESteamInputType_SwitchJoyConPair: Result := 'Joy-Con pair';
+      k_ESteamInputType_SwitchProController: Result := 'Switch Pro controller';
+      k_ESteamInputType_Switch2ProController: Result := 'Switch 2 Pro controller';
+      k_ESteamInputType_SteamDeckController: Result := 'Steam Deck';
+      k_ESteamInputType_SteamOSHandheld: Result := 'SteamOS handheld';
+      k_ESteamInputType_SteamController2026: Result := 'Steam Controller';
+    else
+      Result := 'controller';
+    end;
+  except
+    Result := 'controller';
+  end;
+  {$ENDIF}
+end;
+
 procedure TSteamPad.Resolve;
 {$IFDEF STEAMBUILD}
 var
@@ -249,6 +395,9 @@ begin
   try
     P.RunFrame(False);
     Pads := P.ConnectedControllers;
+    SetLength(FPads, Length(Pads));
+    for I := 0 to High(Pads) do
+      FPads[I] := Pads[I];
     if Length(Pads) <> FPadCount then
     begin
       FPadCount := Length(Pads);
@@ -269,7 +418,12 @@ begin
       begin
         D := P.GetDigitalActionData(Pad, FButtons[I]);
         if D.bState then
+        begin
           Down[I] := True;
+          // a new press: this pad is in the user's hands
+          if not FHeld[I] then
+            FActivePad := Pad;
+        end;
       end;
       if FStick <> 0 then
       begin
