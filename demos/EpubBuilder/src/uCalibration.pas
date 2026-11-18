@@ -156,6 +156,10 @@ procedure CalibrationSave(const AIniFile: string; const AResults: TWhisperBenchm
   @returns(False when the model was not calibrated) }
 function CalibrationBest(const AIniFile, AModelFile: string; out ADevice: string; out ASpeed: Double): Boolean;
 
+{ The calibration's speed of AModelFile (by file name) on ADevice.
+  @returns(x real time; 0 when not timed there or it failed) }
+function CalibrationSpeed(const AIniFile, AModelFile, ADevice: string): Double;
+
 { Why AModelFile failed on ADevice in the calibration ('' when it did not
   or was not timed there).
   @returns(the reason) }
@@ -198,6 +202,14 @@ function FindCalibrationAudio(const ASaved: string): string;
   @returns(True for Start calibration) }
 function AskCalibration(AOwner: TComponent; const AText: string; out ADontAsk: Boolean): Boolean;
 
+{ Tools > Build history: the history (uHistory) as a table, newest first,
+  under a line per model and device of this machine; Copy puts it on the
+  clipboard as tab-separated text. Modal.
+  @param(AOwner  the window it is centred on)
+  @param(AFile  the history file)
+  @param(AMachine  this computer's name (HistoryMachine)) }
+procedure ShowBuildHistory(AOwner: TComponent; const AFile, AMachine: string);
+
 implementation
 
 uses
@@ -206,8 +218,27 @@ uses
   Posix.Unistd,
   {$ENDIF}
   System.Types, System.Math, System.StrUtils, System.IOUtils,
-  FMX.Types, FMX.Controls, FMX.Forms, FMX.StdCtrls, FMX.Layouts,
-  uDebugLog;
+  System.Rtti,
+  FMX.Types, FMX.Controls, FMX.Forms, FMX.StdCtrls, FMX.Layouts, FMX.Grid, FMX.Grid.Style, FMX.Platform,
+  uDebugLog, uHistory;
+
+type
+  { The history window's Copy button (an event needs a method). }
+  THistoryCopy = class(TComponent)
+  public
+    { The text Copy puts on the clipboard. }
+    Text: string;
+    { Copy: Text to the clipboard. }
+    procedure Click(Sender: TObject);
+  end;
+
+procedure THistoryCopy.Click(Sender: TObject);
+var
+  Svc: IFMXClipboardService;
+begin
+  if TPlatformServices.Current.SupportsPlatformService(IFMXClipboardService, Svc) then
+    Svc.SetClipboard(TValue.From<string>(Text));
+end;
 
 const
   { A result that heard fewer words than this share of the best-heard one
@@ -436,6 +467,22 @@ begin
     ASpeed := StrToFloatDef(Ini.ReadString(ModelSection(AModelFile), 'BestSpeed', '0'), 0,
       TFormatSettings.Invariant);
     Result := ADevice <> '';
+  finally
+    Ini.Free;
+  end;
+end;
+
+function CalibrationSpeed(const AIniFile, AModelFile, ADevice: string): Double;
+var
+  Ini: TMemIniFile;
+begin
+  Result := 0;
+  if (AModelFile = '') or (ADevice = '') or not FileExists(AIniFile) then
+    Exit;
+  Ini := TMemIniFile.Create(AIniFile, TEncoding.UTF8);
+  try
+    // the speed, or 'failed: ...' (which does not read: 0)
+    Result := StrToFloatDef(Ini.ReadString(ModelSection(AModelFile), ADevice, ''), 0, TFormatSettings.Invariant);
   finally
     Ini.Free;
   end;
@@ -695,6 +742,96 @@ begin
     L.Text := AText;
     Result := F.ShowModal = mrOk;
     ADontAsk := C.IsChecked;
+  finally
+    F.Free;
+  end;
+end;
+
+procedure ShowBuildHistory(AOwner: TComponent; const AFile, AMachine: string);
+var
+  F: TForm;
+  L: TLabel;
+  Bar: TLayout;
+  B: TButton;
+  G: TStringGrid;
+  Col: TStringColumn;
+  H: TBuildHistory;
+  Cells: TArray<string>;
+  Copier: THistoryCopy;
+  Summary: string;
+  C, R: Integer;
+begin
+  H := HistoryLoad(AFile);
+  F := TForm.CreateNew(AOwner);
+  try
+    F.Caption := Format('Build history - %d build(s)', [Length(H)]);
+    F.ClientWidth := 1180;
+    F.ClientHeight := 560;
+    F.Position := TFormPosition.OwnerFormCenter;
+    Copier := THistoryCopy.Create(F);
+    Copier.Text := HistoryTable(H);
+    // bottom up: the buttons, the file's name on their left
+    Bar := TLayout.Create(F);
+    Bar.Parent := F;
+    Bar.Align := TAlignLayout.Bottom;
+    Bar.Position.Y := 10000;
+    Bar.Height := 44;
+    Bar.Margins.Rect := RectF(12, 0, 12, 10);
+    B := TButton.Create(F);
+    B.Parent := Bar;
+    B.Align := TAlignLayout.Right;
+    B.Position.X := 10000;
+    B.Width := 100;
+    B.Margins.Rect := RectF(8, 0, 0, 0);
+    B.Text := 'Close';
+    B.ModalResult := mrOk;
+    B.Cancel := True;
+    B.Default := True;
+    B := TButton.Create(F);
+    B.Parent := Bar;
+    B.Align := TAlignLayout.Right;
+    B.Position.X := 0;
+    B.Width := 100;
+    B.Text := 'Copy';
+    B.OnClick := Copier.Click;
+    B.Enabled := Length(H) > 0;
+    L := TLabel.Create(F);
+    L.Parent := Bar;
+    L.Align := TAlignLayout.Client;
+    L.Text := AFile;
+    // the summary over the table
+    Summary := HistorySummary(H, AMachine);
+    L := TLabel.Create(F);
+    L.Parent := F;
+    L.Align := TAlignLayout.Top;
+    L.Margins.Rect := RectF(12, 10, 12, 6);
+    L.AutoSize := False;
+    L.StyledSettings := L.StyledSettings - [TStyledSetting.Other];
+    L.WordWrap := True;
+    L.TextSettings.VertAlign := TTextAlign.Leading;
+    L.Height := 20 * (Length(Summary) - Length(StringReplace(Summary, #10, '', [rfReplaceAll])) + 1) + 4;
+    L.Text := Summary;
+    G := TStringGrid.Create(F);
+    G.Parent := F;
+    G.Align := TAlignLayout.Client;
+    G.Margins.Rect := RectF(12, 0, 12, 8);
+    G.Options := G.Options - [TGridOption.Editing] + [TGridOption.RowSelect];
+    for C := 0 to High(HISTORY_HEADERS) do
+    begin
+      Col := TStringColumn.Create(G);
+      Col.Header := HISTORY_HEADERS[C];
+      Col.Width := HISTORY_WIDTHS[C];
+      G.AddObject(Col);
+    end;
+    G.RowCount := Length(H);
+    for R := 0 to High(H) do
+    begin
+      // newest first
+      Cells := HistoryCells(H[High(H) - R]);
+      for C := 0 to High(Cells) do
+        G.Cells[C, R] := Cells[C];
+    end;
+    F.ShowModal;
   finally
     F.Free;
   end;

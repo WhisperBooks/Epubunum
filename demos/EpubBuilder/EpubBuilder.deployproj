@@ -116,18 +116,18 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\OSXARM64\libavcodec.dylib">
-            <RemoteDir>EpubBuilder.app\Contents\Frameworks\</RemoteDir>
-            <RemoteName>libavcodec.dylib</RemoteName>
+        <DeployFile Include="..\..\redistributable_bin\OSXARM64\licences\FFmpeg-COPYING.LGPLv2.1">
+            <RemoteDir>EpubBuilder.app\Contents\Resources\licences\</RemoteDir>
+            <RemoteName>FFmpeg-COPYING.LGPLv2.1</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\OSXARM64\licences\FFmpeg-COPYING.LGPLv2.1">
-            <RemoteDir>EpubBuilder.app\Contents\Resources\licences\</RemoteDir>
-            <RemoteName>FFmpeg-COPYING.LGPLv2.1</RemoteName>
+        <DeployFile Include="..\..\redistributable_bin\OSXARM64\libavcodec.dylib">
+            <RemoteDir>EpubBuilder.app\Contents\Frameworks\</RemoteDir>
+            <RemoteName>libavcodec.dylib</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
@@ -161,9 +161,27 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\OSXARM64\libggml-cpu-apple_m2_m3.so">
+            <RemoteDir>EpubBuilder.app\Contents\Frameworks\</RemoteDir>
+            <RemoteName>libggml-cpu-apple_m2_m3.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
         <DeployFile Include="..\..\redistributable_bin\OSXARM64\libwhisper.dylib">
             <RemoteDir>EpubBuilder.app\Contents\Frameworks\</RemoteDir>
             <RemoteName>libwhisper.dylib</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\OSXARM64\media\aladdin.m4a">
+            <RemoteDir>EpubBuilder.app\Contents\Resources\media\</RemoteDir>
+            <RemoteName>aladdin.m4a</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
@@ -188,6 +206,15 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\OSXARM64\libggml-cpu-apple_m1.so">
+            <RemoteDir>EpubBuilder.app\Contents\Frameworks\</RemoteDir>
+            <RemoteName>libggml-cpu-apple_m1.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
         <DeployFile Include="..\..\redistributable_bin\OSXARM64\libggml-base.0.dylib">
             <RemoteDir>EpubBuilder.app\Contents\Frameworks\</RemoteDir>
             <RemoteName>libggml-base.0.dylib</RemoteName>
@@ -200,6 +227,15 @@
         <DeployFile Include="..\..\redistributable_bin\OSXARM64\libavformat.62.dylib">
             <RemoteDir>EpubBuilder.app\Contents\Frameworks\</RemoteDir>
             <RemoteName>libavformat.62.dylib</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\OSXARM64\libggml-metal.so">
+            <RemoteDir>EpubBuilder.app\Contents\Frameworks\</RemoteDir>
+            <RemoteName>libggml-metal.so</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
@@ -273,6 +309,15 @@
         <DeployFile Include="..\..\redistributable_bin\OSXARM64\libggml-base.dylib">
             <RemoteDir>EpubBuilder.app\Contents\Frameworks\</RemoteDir>
             <RemoteName>libggml-base.dylib</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\OSXARM64\libggml-cpu-apple_m4.so">
+            <RemoteDir>EpubBuilder.app\Contents\Frameworks\</RemoteDir>
+            <RemoteName>libggml-cpu-apple_m4.so</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
@@ -824,18 +869,18 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\Linux64\librocblas.so.5">
+        <DeployFile Include="..\..\redistributable_bin\Linux64\librocm_kpack.so.0">
             <RemoteDir>EpubBuilder\</RemoteDir>
-            <RemoteName>librocblas.so.5</RemoteName>
+            <RemoteName>librocm_kpack.so.0</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\Linux64\librocm_kpack.so.0">
+        <DeployFile Include="..\..\redistributable_bin\Linux64\librocblas.so.5">
             <RemoteDir>EpubBuilder\</RemoteDir>
-            <RemoteName>librocm_kpack.so.0</RemoteName>
+            <RemoteName>librocblas.so.5</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
@@ -1401,15 +1446,6 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-rocprofiler-sdk-roctx-LICENSE.md">
-            <RemoteDir>EpubBuilder\licences\</RemoteDir>
-            <RemoteName>ROCm-rocprofiler-sdk-roctx-LICENSE.md</RemoteName>
-            <DeployClass>File</DeployClass>
-            <Operation>0</Operation>
-            <LocalCommand/>
-            <RemoteCommand/>
-            <Overwrite>True</Overwrite>
-        </DeployFile>
         <DeployFile Include="..\..\redistributable_bin\Linux64\libggml-cpu-cannonlake.so">
             <RemoteDir>EpubBuilder\</RemoteDir>
             <RemoteName>libggml-cpu-cannonlake.so</RemoteName>
@@ -1422,6 +1458,15 @@
         <DeployFile Include="..\..\redistributable_bin\Linux64\libcublasLt.so.13">
             <RemoteDir>EpubBuilder\</RemoteDir>
             <RemoteName>libcublasLt.so.13</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\ROCm-rocprofiler-sdk-roctx-LICENSE.md">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>ROCm-rocprofiler-sdk-roctx-LICENSE.md</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>

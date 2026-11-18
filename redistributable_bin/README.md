@@ -31,7 +31,7 @@ licence - they go with the libraries.
 | EpubReader | FFmpeg | FFmpeg |
 | EpubBuilder, Debug / Release | everything here: CPU, Vulkan, CUDA, ROCm, FFmpeg | - |
 | EpubBuilder, Steam / SteamDebug | CPU and Vulkan backends, FFmpeg (CUDA and ROCm are to be free DLC) | - |
-| EpubBuilder (macOS) | - | CPU and Metal backends, FFmpeg (no Vulkan, CUDA or HIP) |
+| EpubBuilder (macOS) | - | CPU and Metal backends, `libwhisper.coreml.dylib` (Core ML builds), FFmpeg (no Vulkan, CUDA or HIP) |
 
 On **Windows** every build of either program copies its share next to
 the .exe itself: the projects' post-build step runs

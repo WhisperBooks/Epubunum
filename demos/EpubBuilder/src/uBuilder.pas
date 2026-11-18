@@ -17,9 +17,9 @@ uses
   FMX.Types, FMX.Controls, FMX.Forms, FMX.Dialogs, FMX.DialogService, FMX.DialogService.Sync, FMX.StdCtrls, FMX.Layouts,
   FMX.ListBox, FMX.Edit, FMX.Memo, FMX.Memo.Types, FMX.ScrollBox, FMX.Controls.Presentation, FMX.Menus,
   Epub.Zip, Epub.Book, Epub.Layout, Epub.Writer,
-  FFmpeg.API,
+  FFmpeg.API, FFmpeg.Media,
   Whisper.Types, Whisper.API, Whisper.Audio, Whisper.Core, Whisper.Words, Whisper.Align, Whisper.AudioSet,
-  uDebugLog, uMachine, uCalibration, uSteam;
+  uDebugLog, uMachine, uCalibration, uHistory, uModels, uSteam;
 
 type
   { The figures of one build, for the queue's report (filled by the
@@ -109,6 +109,9 @@ type
     FOnLog: TProc<string>;
     { Receives the progress, 0 .. 100 (on the main thread). }
     FOnProgress: TProc<Double>;
+    { Receives the length of the audio once it is read, s (on the main
+      thread). }
+    FOnAudioLength: TProc<Double>;
     { Receives what is being done now (on the main thread). }
     FOnStatus: TProc<string>;
     { Number of the part being transcribed (from 1). }
@@ -125,6 +128,8 @@ type
     procedure Log(const AText: string);
     { Sends APercent to OnProgress. }
     procedure Progress(APercent: Double);
+    { Sends ASeconds to OnAudioLength. }
+    procedure AudioLength(ASeconds: Double);
     { Sends AText to OnStatus. }
     procedure Status(const AText: string);
     { A segment was transcribed: shown as the status, so the window shows
@@ -173,6 +178,9 @@ type
     property OnLog: TProc<string> read FOnLog write FOnLog;
     { Receives the progress. }
     property OnProgress: TProc<Double> read FOnProgress write FOnProgress;
+    { Receives the length of the audio (the transcription's 5 - 90 % of
+      progress cover it evenly). }
+    property OnAudioLength: TProc<Double> read FOnAudioLength write FOnAudioLength;
     { Receives what is being done now. }
     property OnStatus: TProc<string> read FOnStatus write FOnStatus;
     { The build's figures (complete once it has ended). }
@@ -259,8 +267,23 @@ type
     mmBook: TMemo;
     { The audio files, in reading order. }
     lbAudio: TListBox;
-    { The model file. }
-    edModel: TEdit;
+    { The model by name (uModels' catalogue: downloaded the first time it
+      is chosen), other models in the models folder, the model chosen
+      elsewhere, and "Other model file ...". }
+    cbModel: TComboBox;
+    { Model > Folder...: where the models are kept (not in Steam builds:
+      there they are in the program's folder). }
+    btnModelFolder: TButton;
+    { The model file chosen ('' = none). }
+    FModelPath: string;
+    { The models folder (uModels.ModelsDefaultFolder, or the user's). }
+    FModelsFolder: string;
+    { cbModel's items: the model file of each ('' = "Other model file ..."). }
+    FModelItems: TStringList;
+    { True while FillModels fills cbModel (its OnChange does nothing). }
+    FFillingModels: Boolean;
+    { The model being downloaded, nil when none. }
+    FDownload: TModelDownload;
     { The device to transcribe on. }
     cbDevice: TComboBox;
     { The EPUB to write. }
@@ -295,6 +318,22 @@ type
     FRateFrom: TDateTime;
     { The progress at FRateFrom; -1 = not there yet. }
     FRatePercent: Double;
+    { The audio of the build running, s (0 until the thread has read it). }
+    FAudioTotal: Double;
+    { The audio transcribed at FRateFrom, s. }
+    FRateAudio: Double;
+    { When the transcription ended (progress 90 %); 0 = not yet. }
+    FAfterFrom: TDateTime;
+    { The speed the build running is expected to run at, x real time, from
+      the history or the calibration (0 = nothing to go on). }
+    FExpSpeed: Double;
+    { Aligning and writing per second of audio, s (0 = not known). }
+    FExpAfter: Double;
+    { The audio after which the build's own rate counts as much as
+      FExpSpeed, s. }
+    FExpPrior: Double;
+    { Where FExpSpeed comes from (for the log). }
+    FExpSource: string;
     { The book of the build running (copied to FMadeBook when it ends well). }
     FRunBook: string;
     { The output of the build running (copied to FMadeOut when it ends well). }
@@ -352,6 +391,12 @@ type
     FCalib: TCalibrationThread;
     { whisper.cpp's version and folder, for the logs ('' = not loaded). }
     FWhisperText: string;
+    { whisper.cpp was built with Core ML (macOS, whisper-dev zip 22: its
+      system info says COREML = 1): models get their Core ML encoder. }
+    FCoreML: Boolean;
+    { The device of the build running as the history names it (with
+      '+CoreML' when the model's encoder is used). }
+    FExpDevice: string;
     { The window has been shown (the calibration question comes once). }
     FShown: Boolean;
     { The menu bar (Windows, macOS: the system's). }
@@ -397,6 +442,23 @@ type
     procedure btnDownClick(Sender: TObject);
     { Choose the model file. }
     procedure btnModelClick(Sender: TObject);
+    { cbModel: a downloaded model is chosen; one not downloaded yet is
+      downloaded first (asked); "Other model file ..." = btnModelClick. }
+    procedure cbModelChange(Sender: TObject);
+    { Model > Folder...: another models folder (kept in the settings). }
+    procedure btnModelFolderClick(Sender: TObject);
+    { Fills cbModel from the catalogue and the models folder, FModelPath
+      selected. }
+    procedure FillModels;
+    { Downloads model AName (AWithModel) and / or its Core ML encoder
+      (AWithEncoder) into the models folder (TModelDownload); the model
+      is chosen when it is complete. }
+    procedure StartDownload(const AName: string; AWithModel, AWithEncoder: Boolean);
+    { The download's OnTerminate. }
+    procedure DownloadDone(Sender: TObject);
+    { True when model file AModel's Core ML encoder is used: a Core ML
+      build and the encoder beside the model. }
+    function UsesCoreML(const AModel: string): Boolean;
     { Choose where the EPUB goes. }
     procedure btnOutClick(Sender: TObject);
     { Checks the choices; asks before replacing an EPUB this program did
@@ -471,8 +533,23 @@ type
     procedure LoadSettings;
     { Keeps them for the next session (SettingsFile). }
     procedure SaveSettings;
-    { Writes the time taken, the time left and FStatusText into lblStatus. }
+    { Writes the time taken, the time left and FStatusText into lblStatus.
+      The time left: the transcription's remaining audio at a rate that
+      blends the expected speed (FExpSpeed) with the build's own (seconds
+      per second of audio, the build's counting more as more audio is
+      done), plus the aligning and writing; without an expectation the
+      build's own rate after a minute of it, as before. }
     procedure ShowStatus;
+    { The history file beside the settings (uHistory). }
+    function HistoryFile: string;
+    { Sets FExpSpeed, FExpAfter, FExpPrior and FExpSource for a build of
+      AModel on ADevice ('' = whisper.cpp's choice). }
+    procedure PrepareEstimate(const AModel, ADevice: string);
+    { The audio transcribed at progress APercent (5 .. 90 %), s. }
+    function AudioDoneAt(APercent: Double): Double;
+    { Adds the build that ended to the history (when it transcribed) and
+      logs its speed against the expectation. }
+    procedure RecordHistory(const ASummary: TBuildSummary);
     { tmStatus: ShowStatus. }
     procedure tmStatusTimer(Sender: TObject);
     { Makes the menu bar: File (Exit), Tools (the calibration). }
@@ -501,6 +578,8 @@ type
     procedure miCalibrateAllClick(Sender: TObject);
     { Tools > Calibration results: what is kept, model by model. }
     procedure miCalibrationClick(Sender: TObject);
+    { Tools > Build history: every build's speed and accuracy, a table. }
+    procedure miHistoryClick(Sender: TObject);
     { File > Exit. }
     procedure miExitClick(Sender: TObject);
     { The machine, whisper.cpp and the device a build of AModel on ADevice
@@ -722,6 +801,19 @@ begin
       procedure
       begin
         P(APercent);
+      end);
+end;
+
+procedure TBuildThread.AudioLength(ASeconds: Double);
+var
+  P: TProc<Double>;
+begin
+  P := FOnAudioLength;
+  if Assigned(P) then
+    TThread.Queue(nil,
+      procedure
+      begin
+        P(ASeconds);
       end);
 end;
 
@@ -1188,6 +1280,7 @@ begin
       FSummary.Language := FLanguage;
       Log(Format('Audio: %d file(s), %d part(s), about %s', [Audio.Files.Count, Length(Audio.Parts),
         WhisperTimeToStr(Round(FTotalSeconds * 100))]));
+      AudioLength(FTotalSeconds);
       Progress(5);
       if Terminated then
         Exit;
@@ -1350,11 +1443,13 @@ begin
   layBottom.Height := 360;
 
   Row := AddRow(layBottom, 'Model');
-  edModel := TEdit.Create(Self);
-  edModel.Parent := Row;
-  edModel.Align := TAlignLayout.Client;
-  edModel.ReadOnly := True;
-  AddButton(Row, 'Choose...', btnModelClick, TAlignLayout.Right);
+  cbModel := TComboBox.Create(Self);
+  cbModel.Parent := Row;
+  cbModel.Align := TAlignLayout.Client;
+  cbModel.OnChange := cbModelChange;
+  btnModelFolder := AddButton(Row, 'Folder...', btnModelFolderClick, TAlignLayout.Right);
+  // Steam: the models are in the program's folder
+  btnModelFolder.Visible := not SteamBuild;
 
   Row := AddRow(layBottom, 'Device');
   cbDevice := TComboBox.Create(Self);
@@ -1521,6 +1616,7 @@ begin
   Application.OnException := AppException;
   FJob := -1;
   FBuildLog := TStringList.Create;
+  FModelItems := TStringList.Create;
   BuildWindow;
   BuildMenu;
   cbDevice.Items.Add('Default (whisper.cpp chooses)');
@@ -1538,6 +1634,7 @@ begin
     // visible anywhere)
     cbDevice.Items[0] := DefaultDeviceItem;
     FWhisperText := Format('whisper.cpp %s from %s', [Lib.Version, Lib.LibraryFolder]);
+    FCoreML := Pos('COREML = 1', Lib.SystemInfo) > 0;
     LogLine(Format('whisper.cpp %s loaded from %s', [Lib.Version, Lib.LibraryFolder]));
   except
     on E: Exception do
@@ -1553,14 +1650,24 @@ begin
     end;
   end;
   cbDevice.ItemIndex := 0;
+  // the models folder before the settings (which may name another)
+  FModelsFolder := ModelsDefaultFolder(SteamBuild, ExtractFilePath(SettingsFile));
+  if SteamBuild and not FolderWritable(FModelsFolder) then
+    FModelsFolder := ModelsDefaultFolder(False, ExtractFilePath(SettingsFile));
   LoadSettings;
+  FillModels;
+  LogLine('Models folder: ' + FModelsFolder);
+  if FCoreML then
+    LogLine('Core ML: built in - a model''s Core ML encoder is downloaded with it (the encoder then runs on the ' +
+      'Neural Engine).');
   LogLine('Machine: ' + MachineText);
   LogLine('Build: ' + BuildStamp);
   // Steam (started in the .dpr, before the log was open)
   LogLine(SteamText);
   for Line in SteamNotes do
     DebugLog(Line);
-  LogLine('Choose the EPUB, add its audio files in reading order, choose the model (ggml-*.bin), Create.');
+  LogLine('Choose the EPUB, add its audio files in reading order, choose the model (one not downloaded yet is ' +
+    'downloaded when chosen), Create.');
   LogLine('Debug log: ' + DebugLogFile);
   UpdateControls;
 end;
@@ -1581,9 +1688,15 @@ begin
   try
     Ini := TMemIniFile.Create(SettingsFile, TEncoding.UTF8);
     try
-      edModel.Text := Ini.ReadString('Build', 'Model', '');
-      if (edModel.Text <> '') and not FileExists(edModel.Text) then
-        edModel.Text := '';
+      // the models folder: the user's (not in Steam builds)
+      if not SteamBuild and (Ini.ReadString('Models', 'Folder', '') <> '') then
+        FModelsFolder := Ini.ReadString('Models', 'Folder', '');
+      // the model: a name (in the models folder) or a file
+      FModelPath := Ini.ReadString('Build', 'Model', '');
+      if (FModelPath <> '') and (ExtractFilePath(FModelPath) = '') then
+        FModelPath := TPath.Combine(FModelsFolder, ModelFileName(FModelPath));
+      if (FModelPath <> '') and not FileExists(FModelPath) then
+        FModelPath := '';
       // the device by its name: the list's order can change
       Device := Ini.ReadString('Build', 'Device', '');
       for I := 0 to High(FDevices) do
@@ -1609,7 +1722,15 @@ begin
     ForceDirectories(ExtractFilePath(SettingsFile));
     Ini := TMemIniFile.Create(SettingsFile, TEncoding.UTF8);
     try
-      Ini.WriteString('Build', 'Model', edModel.Text);
+      // a model in the models folder by its name, another by its file
+      if (FModelPath <> '') and SameFileName(ExcludeTrailingPathDelimiter(ExtractFilePath(FModelPath)),
+        ExcludeTrailingPathDelimiter(FModelsFolder)) and SameText(Copy(ExtractFileName(FModelPath), 1, 5),
+        'ggml-') then
+        Ini.WriteString('Build', 'Model', ModelShortName(FModelPath))
+      else
+        Ini.WriteString('Build', 'Model', FModelPath);
+      if not SteamBuild then
+        Ini.WriteString('Models', 'Folder', FModelsFolder);
       if cbDevice.ItemIndex > 0 then
         Ini.WriteString('Build', 'Device', FDevices[cbDevice.ItemIndex - 1].Name)
       else
@@ -1677,6 +1798,7 @@ begin
     FBuild.FreeOnTerminate := False;
     FBuild.OnLog := nil;
     FBuild.OnProgress := nil;
+    FBuild.OnAudioLength := nil;
     FBuild.OnStatus := nil;
     FBuild.OnTerminate := nil;
     tmStatus.Enabled := False;
@@ -1684,7 +1806,19 @@ begin
     FBuild.WaitFor;
     FreeAndNil(FBuild);
   end;
+  if FDownload <> nil then
+  begin
+    // as a build: wait for it here (the part downloaded is deleted)
+    FDownload.FreeOnTerminate := False;
+    FDownload.OnLog := nil;
+    FDownload.OnProgress := nil;
+    FDownload.OnTerminate := nil;
+    FDownload.Cancel;
+    FDownload.WaitFor;
+    FreeAndNil(FDownload);
+  end;
   FreeAndNil(FBuildLog);
+  FreeAndNil(FModelItems);
 end;
 
 procedure TfrmBuilder.LogLine(const AText: string);
@@ -1701,14 +1835,17 @@ var
   Busy, Ready, Waiting: Boolean;
   I: Integer;
 begin
-  Busy := (FBuild <> nil) or FQueueRunning or (FCalib <> nil);
+  Busy := (FBuild <> nil) or FQueueRunning or (FCalib <> nil) or (FDownload <> nil);
   Ready := (FWhisperNote = '') and (edBook.Text <> '') and (lbAudio.Count > 0) and (edOut.Text <> '') and
-    ((edModel.Text <> '') or chkReuse.IsChecked);
+    ((FModelPath <> '') or chkReuse.IsChecked);
   // the window stays usable while building: books are added to the queue
   // while it runs (owner)
   btnCreate.Enabled := not Busy and Ready;
   btnAddJob.Enabled := Ready;
-  btnCancel.Enabled := (FBuild <> nil) or (FCalib <> nil);
+  btnCancel.Enabled := (FBuild <> nil) or (FCalib <> nil) or (FDownload <> nil);
+  // one download at a time; the model stays while it runs
+  cbModel.Enabled := FDownload = nil;
+  btnModelFolder.Enabled := FDownload = nil;
   if miCalibrate <> nil then
   begin
     miCalibrate.Enabled := not Busy and (FWhisperNote = '');
@@ -1785,6 +1922,7 @@ procedure TfrmBuilder.AddAudio(AFiles: TStrings);
 var
   L: TStringList;
   I: Integer;
+  Protection: string;
 begin
   L := TStringList.Create;
   try
@@ -1793,7 +1931,21 @@ begin
     L.CustomSort(NaturalFileOrder);
     for I := 0 to L.Count - 1 do
       if lbAudio.Items.IndexOf(L[I]) < 0 then
-        lbAudio.Items.Add(L[I]);
+      begin
+        // copy protection (an .aax straight from Audible, FairPlay) is
+        // refused here, never removed; a DRM-free .aax is added like an m4b
+        try
+          Protection := FFmpegMp4Protection(L[I]);
+        except
+          on E: Exception do
+            Protection := '';   // unreadable: the build reports it
+        end;
+        if Protection <> '' then
+          LogLine(Format('%s is copy protected (%s) and was not added. EpubBuilder does not remove copy ' +
+            'protection: a DRM-free copy of the audio is needed.', [ExtractFileName(L[I]), Protection]))
+        else
+          lbAudio.Items.Add(L[I]);
+      end;
   finally
     L.Free;
   end;
@@ -1824,8 +1976,8 @@ var
 begin
   D := TOpenDialog.Create(Self);
   try
-    D.Filter := 'Audio (*.m4b;*.m4a;*.mp3;*.wav;*.flac;*.ogg;*.opus;*.aac)|*.m4b;*.m4a;*.mp3;*.wav;*.flac;*.ogg;' +
-      '*.opus;*.aac|All files (*.*)|*.*';
+    D.Filter := 'Audio (*.m4b;*.m4a;*.aax;*.mp3;*.wav;*.flac;*.ogg;*.opus;*.aac)|*.m4b;*.m4a;*.aax;*.mp3;*.wav;' +
+      '*.flac;*.ogg;*.opus;*.aac|All files (*.*)|*.*';
     D.Options := D.Options + [TOpenOption.ofAllowMultiSelect];
     D.InitialDir := FAudioFolder;
     if D.Execute then
@@ -1898,11 +2050,11 @@ begin
   D := TOpenDialog.Create(Self);
   try
     D.Filter := 'Whisper models (ggml-*.bin)|ggml-*.bin|All files (*.*)|*.*';
-    if edModel.Text <> '' then
-      D.InitialDir := ExtractFileDir(edModel.Text);
+    if FModelPath <> '' then
+      D.InitialDir := ExtractFileDir(FModelPath);
     if D.Execute then
     begin
-      edModel.Text := D.FileName;
+      FModelPath := D.FileName;
       // the device the calibration found fastest for this model
       ApplyCalibration(True);
       SaveSettings;
@@ -1910,6 +2062,211 @@ begin
   finally
     D.Free;
   end;
+  FillModels;
+  UpdateControls;
+end;
+
+procedure TfrmBuilder.cbModelChange(Sender: TObject);
+var
+  Path, Name, Amount: string;
+  I: Integer;
+begin
+  if FFillingModels or (cbModel.ItemIndex < 0) or (cbModel.ItemIndex >= FModelItems.Count) then
+    Exit;
+  Path := FModelItems[cbModel.ItemIndex];
+  if Path = '' then
+  begin
+    btnModelClick(nil);
+    Exit;
+  end;
+  Name := ModelShortName(Path);
+  I := ModelCatalogueIndex(Name);
+  if FileExists(Path) then
+  begin
+    FModelPath := Path;
+    // the device the calibration found fastest for this model
+    ApplyCalibration(True);
+    SaveSettings;
+    UpdateControls;
+    // Core ML: a model there without its encoder works (on Metal); the
+    // encoder is offered
+    if FCoreML and (I >= 0) and not UsesCoreML(Path) then
+      TDialogService.MessageDialog(Format('%s has no Core ML encoder here: its encoder runs on Metal.' +
+        sLineBreak + sLineBreak + 'Download the Core ML encoder (about %s) so it runs on the Neural Engine? ' +
+        'Its first use is slow: macOS compiles it for this Mac.', [Name,
+        ModelSizeText(MODEL_CATALOGUE[I].EncoderMB)]), TMsgDlgType.mtConfirmation,
+        [TMsgDlgBtn.mbYes, TMsgDlgBtn.mbNo], TMsgDlgBtn.mbNo, 0,
+        procedure(const AResult: TModalResult)
+        begin
+          if AResult = mrYes then
+            StartDownload(Name, False, True);
+        end);
+    Exit;
+  end;
+  if I < 0 then
+  begin
+    FillModels;
+    Exit;
+  end;
+  if FCoreML then
+    Amount := Format('about %s, and %s for its Core ML encoder', [ModelSizeText(MODEL_CATALOGUE[I].SizeMB),
+      ModelSizeText(MODEL_CATALOGUE[I].EncoderMB)])
+  else
+    Amount := 'about ' + ModelSizeText(MODEL_CATALOGUE[I].SizeMB);
+  TDialogService.MessageDialog(Format('%s is not downloaded yet.' + sLineBreak + sLineBreak + 'Download it now? ' +
+    '%s, from whisper.cpp''s model repository on Hugging Face, into' + sLineBreak + '%s',
+    [Name, Amount, FModelsFolder]), TMsgDlgType.mtConfirmation,
+    [TMsgDlgBtn.mbYes, TMsgDlgBtn.mbNo], TMsgDlgBtn.mbYes, 0,
+    procedure(const AResult: TModalResult)
+    begin
+      if AResult = mrYes then
+        StartDownload(Name, True, FCoreML)
+      else
+        FillModels;   // back to the model chosen before
+    end);
+end;
+
+procedure TfrmBuilder.btnModelFolderClick(Sender: TObject);
+var
+  Folder, Same: string;
+begin
+  Folder := FModelsFolder;
+  if not SelectDirectory('Folder for the Whisper models', '', Folder) then
+    Exit;
+  Folder := ExcludeTrailingPathDelimiter(Folder);
+  if not FolderWritable(Folder) then
+    LogLine('Note: ' + Folder + ' cannot be written - models cannot be downloaded into it.');
+  FModelsFolder := Folder;
+  // the model chosen: the same one in the new folder when it is there
+  if FModelPath <> '' then
+  begin
+    Same := TPath.Combine(FModelsFolder, ExtractFileName(FModelPath));
+    if FileExists(Same) then
+      FModelPath := Same;
+  end;
+  LogLine('Models folder: ' + FModelsFolder);
+  SaveSettings;
+  FillModels;
+  UpdateControls;
+end;
+
+procedure TfrmBuilder.FillModels;
+var
+  I, Sel: Integer;
+  Path, Item: string;
+begin
+  FFillingModels := True;
+  try
+    cbModel.Items.BeginUpdate;
+    try
+      cbModel.Items.Clear;
+      FModelItems.Clear;
+      Sel := -1;
+      // the catalogue, smallest first
+      for I := Low(MODEL_CATALOGUE) to High(MODEL_CATALOGUE) do
+      begin
+        Path := TPath.Combine(FModelsFolder, ModelFileName(MODEL_CATALOGUE[I].Name));
+        if not FileExists(Path) then
+          Item := Format('%s - %s (%s to download)', [MODEL_CATALOGUE[I].Name, MODEL_CATALOGUE[I].Note,
+            ModelSizeText(MODEL_CATALOGUE[I].SizeMB)])
+        else if FCoreML and UsesCoreML(Path) then
+          Item := Format('%s - %s (Core ML)', [MODEL_CATALOGUE[I].Name, MODEL_CATALOGUE[I].Note])
+        else if FCoreML then
+          Item := Format('%s - %s (no Core ML encoder)', [MODEL_CATALOGUE[I].Name, MODEL_CATALOGUE[I].Note])
+        else
+          Item := Format('%s - %s', [MODEL_CATALOGUE[I].Name, MODEL_CATALOGUE[I].Note]);
+        cbModel.Items.Add(Item);
+        FModelItems.Add(Path);
+        if SameFileName(Path, FModelPath) then
+          Sel := FModelItems.Count - 1;
+      end;
+      // other models in the folder (quantised, fine-tuned, older ones)
+      if TDirectory.Exists(FModelsFolder) then
+        for Path in TDirectory.GetFiles(FModelsFolder, 'ggml-*.bin') do
+          if ModelCatalogueIndex(ModelShortName(Path)) < 0 then
+          begin
+            cbModel.Items.Add(ModelShortName(Path) + ' - in the models folder');
+            FModelItems.Add(Path);
+            if SameFileName(Path, FModelPath) then
+              Sel := FModelItems.Count - 1;
+          end;
+      // a model chosen in another folder
+      if (FModelPath <> '') and (Sel < 0) then
+      begin
+        cbModel.Items.Add(ModelShortName(FModelPath) + ' - ' + FModelPath);
+        FModelItems.Add(FModelPath);
+        Sel := FModelItems.Count - 1;
+      end;
+      cbModel.Items.Add('Other model file ...');
+      FModelItems.Add('');
+    finally
+      cbModel.Items.EndUpdate;
+    end;
+    cbModel.ItemIndex := Sel;
+  finally
+    FFillingModels := False;
+  end;
+end;
+
+procedure TfrmBuilder.StartDownload(const AName: string; AWithModel, AWithEncoder: Boolean);
+begin
+  if FDownload <> nil then
+    Exit;
+  if not FolderWritable(FModelsFolder) then
+  begin
+    LogLine(Format('%s cannot be written: choose another models folder (Folder...).', [FModelsFolder]));
+    FillModels;
+    Exit;
+  end;
+  FDownload := TModelDownload.Create(AName, FModelsFolder, AWithModel, AWithEncoder);
+  FDownload.OnLog :=
+    procedure(AText: string)
+    begin
+      LogLine(AText);
+    end;
+  FDownload.OnProgress :=
+    procedure(AReceived, ATotal: Int64)
+    begin
+      if ATotal > 0 then
+      begin
+        pbBuild.Value := AReceived * 100 / ATotal;
+        lblStatus.Text := Format('Downloading %s: %d of %d MB', [AName, AReceived div 1000000,
+          ATotal div 1000000]);
+      end
+      else
+        lblStatus.Text := Format('Downloading %s: %d MB', [AName, AReceived div 1000000]);
+    end;
+  FDownload.OnTerminate := DownloadDone;
+  FDownload.FreeOnTerminate := True;
+  pbBuild.Value := 0;
+  lblStatus.Text := Format('Downloading %s ...', [AName]);
+  UpdateControls;
+  FDownload.Start;
+end;
+
+procedure TfrmBuilder.DownloadDone(Sender: TObject);
+var
+  D: TModelDownload;
+begin
+  // the thread frees itself after this (FreeOnTerminate)
+  D := Sender as TModelDownload;
+  FDownload := nil;
+  pbBuild.Value := 0;
+  if D.Succeeded then
+  begin
+    FModelPath := D.Target;
+    lblStatus.Text := 'Downloaded ' + D.ModelName;
+    ApplyCalibration(True);
+    if CalibrationSummary(SettingsFile, FModelPath) = '' then
+      LogLine(D.ModelName + ' is not calibrated yet: Tools > Re-calibrate (this model) finds its fastest device.')
+    else if D.WithEncoder then
+      LogLine(D.ModelName + ' was calibrated without its Core ML encoder: Tools > Re-calibrate (this model) ' +
+        'times it with it (the first run compiles the encoder - slow once).');
+    SaveSettings;
+  end
+  else
+    lblStatus.Text := 'Download not finished: ' + D.ModelName;
+  FillModels;
   UpdateControls;
 end;
 
@@ -1949,7 +2306,7 @@ begin
     LogLine('The output must not be the book itself: choose another output file.');
     Exit;
   end;
-  if (edModel.Text = '') and not (chkReuse.IsChecked and FileExists(TranscriptFileOf(edOut.Text))) then
+  if (FModelPath = '') and not (chkReuse.IsChecked and FileExists(TranscriptFileOf(edOut.Text))) then
   begin
     LogLine('Choose a model: there is no saved transcript to use.');
     Exit;
@@ -1972,14 +2329,14 @@ begin
   // the calibration saw this model fail on this device (owner: large-v3 on
   // the 4 GB GTX 1650 failed): asked first, No by default
   Why := '';
-  if (edModel.Text <> '') and BuilderFindDevice(Device, D) then
-    Why := CalibrationFailure(SettingsFile, edModel.Text, D.Name);
+  if (FModelPath <> '') and BuilderFindDevice(Device, D) then
+    Why := CalibrationFailure(SettingsFile, FModelPath, D.Name);
   if Why <> '' then
   begin
     TDialogService.MessageDialog(Format('In the calibration, %s FAILED on %s:' + sLineBreak + sLineBreak + '%s' +
       sLineBreak + sLineBreak + 'A build would most likely fail the same way (a model too big for the card''s ' +
       'memory fails like this). Choose another device, or a smaller model.' + sLineBreak + sLineBreak +
-      'Build on it anyway?', [ExtractFileName(edModel.Text), WhisperDeviceText(D), Why]), TMsgDlgType.mtWarning,
+      'Build on it anyway?', [ExtractFileName(FModelPath), WhisperDeviceText(D), Why]), TMsgDlgType.mtWarning,
       [TMsgDlgBtn.mbYes, TMsgDlgBtn.mbNo], TMsgDlgBtn.mbNo, 0,
       procedure(const AResult: TModalResult)
       begin
@@ -1987,7 +2344,7 @@ begin
           CheckBookThen(Device, Q)
         else
           LogLine(Format('Not started: %s failed on %s in the calibration (Tools > Calibration results).',
-            [ExtractFileName(edModel.Text), D.Name]));
+            [ExtractFileName(FModelPath), D.Name]));
       end);
     Exit;
   end;
@@ -2096,7 +2453,7 @@ begin
   SetLength(Result.Audio, lbAudio.Count);
   for I := 0 to lbAudio.Count - 1 do
     Result.Audio[I] := lbAudio.Items[I];
-  Result.Model := edModel.Text;
+  Result.Model := FModelPath;
   Result.Device := ADevice;
   Result.Output := edOut.Text;
   Result.Chapters := chkChapters.IsChecked;
@@ -2130,6 +2487,7 @@ begin
       ExtractFileName(AJob.Output), FormatDateTime('yyyy-mm-dd hh:nn', Now)]));
   end;
   LogMachine(AJob.Model, AJob.Device);
+  PrepareEstimate(AJob.Model, AJob.Device);
   Audio := TStringList.Create;
   try
     for I := 0 to High(AJob.Audio) do
@@ -2155,7 +2513,23 @@ begin
       begin
         FRateFrom := Now;
         FRatePercent := APercent;
+        FRateAudio := AudioDoneAt(APercent);
       end;
+      // the transcription's end: aligning and writing from here
+      if (APercent >= 90) and (FAfterFrom = 0) then
+        FAfterFrom := Now;
+    end;
+  FBuild.OnAudioLength :=
+    procedure(ASeconds: Double)
+    begin
+      FAudioTotal := ASeconds;
+      if FExpSpeed > 0 then
+        LogLine(Format('Expected: about %s for %s of audio - %.1fx real time, from %s.',
+          [WhisperTimeToStr(Round((ASeconds / FExpSpeed + FExpAfter * ASeconds) * 100)),
+          WhisperTimeToStr(Round(ASeconds * 100)), FExpSpeed, FExpSource]))
+      else
+        LogLine('Expected: no figure yet (no earlier build of this model on this device here, not calibrated) - ' +
+          'the time left comes from this build''s own rate.');
     end;
   FBuild.OnStatus :=
     procedure(AText: string)
@@ -2165,6 +2539,9 @@ begin
     end;
   FPercent := 0;
   FRatePercent := -1;
+  FAudioTotal := 0;
+  FRateAudio := 0;
+  FAfterFrom := 0;
   FStatusText := 'Starting ...';
   tmStatus.Enabled := True;
   FBuild.OnTerminate := BuildDone;
@@ -2698,7 +3075,10 @@ begin
     lbAudio.Items.Add(Job.Audio[K]);
   edOut.Text := Job.Output;
   if Job.Model <> '' then
-    edModel.Text := Job.Model;
+  begin
+    FModelPath := Job.Model;
+    FillModels;
+  end;
   cbDevice.ItemIndex := 0;
   for K := 0 to High(FDevices) do
     if SameText(FDevices[K].Name, Job.Device) then
@@ -2718,6 +3098,11 @@ end;
 
 procedure TfrmBuilder.btnCancelClick(Sender: TObject);
 begin
+  if FDownload <> nil then
+  begin
+    LogLine('Cancelling the download ...');
+    FDownload.Cancel;
+  end;
   if FCalib <> nil then
   begin
     LogLine('Cancelling the calibration ...');
@@ -2745,6 +3130,8 @@ begin
   Ok := (Sender as TBuildThread).Succeeded;
   if Ok then
   begin
+    // before the log is saved: the line goes into the build's .log too
+    RecordHistory((Sender as TBuildThread).Summary);
     LogLine('Open ' + FRunOut + ' in EpubReader.');
     FMadeBook := FRunBook;
     FMadeOut := FRunOut;
@@ -2822,22 +3209,57 @@ procedure TfrmBuilder.ShowStatus;
 var
   Taken, Since, Left: Int64;
   S: string;
+  Done, Remaining, Own, PerSecond, W: Double;
 begin
   Taken := MilliSecondsBetween(Now, FStarted);
   S := Format('%s taken', [WhisperTimeToStr((Taken div 1000) * 100)]);
-  // the time left from the transcription's own rate: only after a minute
-  // of it and 1 % of progress (counted from the start of the build, the
-  // loading made the first figures hours too high - owner, Night Watch on
-  // Linux: 14 - 20 h shown, 20 min taken)
-  if (FBuild <> nil) and (FPercent < 100) and (FRatePercent >= 0) then
+  Left := -1;
+  if (FBuild <> nil) and (FPercent < 100) then
   begin
-    Since := MilliSecondsBetween(Now, FRateFrom);
-    if (Since >= 60000) and (FPercent - FRatePercent >= 1) then
+    if FPercent >= 90 then
     begin
-      Left := Round(Since * (100 - FPercent) / (FPercent - FRatePercent));
-      S := S + Format(', about %s left', [WhisperTimeToStr((Left div 1000) * 100)]);
+      // aligning and writing: what earlier builds here took for that
+      // much audio
+      if (FExpAfter > 0) and (FAudioTotal > 0) and (FAfterFrom <> 0) then
+        Left := Max(Int64(0), Round(FExpAfter * FAudioTotal * 1000) - MilliSecondsBetween(Now, FAfterFrom));
     end
-    else
+    else if FAudioTotal > 0 then
+    begin
+      // the transcription's own rate, s per s of audio, counted from its
+      // first progress (the book, the audio and the model's loading do
+      // not repeat - counted from the start the first figures were hours
+      // too high: owner, Night Watch on Linux)
+      Own := 0;
+      Done := 0;
+      Since := 0;
+      if FRatePercent >= 0 then
+      begin
+        Since := MilliSecondsBetween(Now, FRateFrom);
+        Done := AudioDoneAt(FPercent) - FRateAudio;
+        if (Since >= 30000) and (Done > 0) then
+          Own := Since / 1000 / Done;
+      end;
+      PerSecond := 0;
+      if FExpSpeed > 0 then
+      begin
+        // the expectation, giving way to the build's own rate as audio is
+        // done (owner, M4 / base.en: first "about an hour", then 18 min)
+        W := 0;
+        if Own > 0 then
+          W := Done / (Done + FExpPrior);
+        PerSecond := W * Own + (1 - W) / FExpSpeed;
+      end
+      else if (Own > 0) and (Since >= 60000) and (FPercent - FRatePercent >= 1) then
+        PerSecond := Own;
+      if PerSecond > 0 then
+      begin
+        Remaining := FAudioTotal - AudioDoneAt(Max(FPercent, 5.0));
+        Left := Round((Remaining * PerSecond + FExpAfter * FAudioTotal) * 1000);
+      end;
+    end;
+    if Left >= 0 then
+      S := S + Format(', about %s left', [WhisperTimeToStr((Left div 1000) * 100)])
+    else if FPercent < 90 then
       S := S + ', estimating the time left ...';
   end;
   if (FBuild <> nil) and (FJob >= 0) then
@@ -2883,6 +3305,7 @@ begin
   miCalibrateAll := Item(M, 'Re-calibrate &every model in its folder...', miCalibrateAllClick);
   Item(M, '-', nil);
   Item(M, '&Calibration results', miCalibrationClick);
+  Item(M, 'Build &history...', miHistoryClick);
   // a menu made in code reaches the window (Windows' / macOS' own menu
   // bar) only when it is recreated (EpubReader: without it, no menu)
   if mnuMain <> nil then
@@ -2936,10 +3359,10 @@ begin
   begin
     LogLine(Format('Calibrated %s (Tools > Calibration results; Tools > Re-calibrate after a new graphics card ' +
       'or driver).', [Made]));
-    if (edModel.Text <> '') and (CalibrationSummary(SettingsFile, edModel.Text) <> '') then
-      LogLine(ExtractFileName(edModel.Text) + ': ' + CalibrationSummary(SettingsFile, edModel.Text))
-    else if edModel.Text <> '' then
-      LogLine(ExtractFileName(edModel.Text) + ' is not calibrated yet: Tools > Re-calibrate times it.');
+    if (FModelPath <> '') and (CalibrationSummary(SettingsFile, FModelPath) <> '') then
+      LogLine(ExtractFileName(FModelPath) + ': ' + CalibrationSummary(SettingsFile, FModelPath))
+    else if FModelPath <> '' then
+      LogLine(ExtractFileName(FModelPath) + ' is not calibrated yet: Tools > Re-calibrate times it.');
     Exit;
   end;
   Why := '';
@@ -2951,8 +3374,8 @@ begin
       'choose, and it takes the first GPU in its list, not the fastest. Tools > Re-calibrate.');
     Exit;
   end;
-  if edModel.Text <> '' then
-    Model := ExtractFileName(edModel.Text)
+  if FModelPath <> '' then
+    Model := ExtractFileName(FModelPath)
   else
     Model := 'the model you choose next';
   Names := '';
@@ -3037,11 +3460,10 @@ begin
     LogLine('whisper.cpp is not available: there is nothing to calibrate.');
     Exit;
   end;
-  if edModel.Text = '' then
-    btnModelClick(nil);
-  if edModel.Text = '' then
+  if FModelPath = '' then
   begin
-    LogLine('Calibration not started: choose a model (ggml-*.bin) first.');
+    LogLine('Calibration not started: choose a model in the Model list first (one not downloaded yet is ' +
+      'downloaded when chosen; large-v3-turbo is a good first choice).');
     Exit;
   end;
   // the recording: the one used before, else media/aladdin.m4a beside the
@@ -3064,8 +3486,8 @@ begin
     D := TOpenDialog.Create(Self);
     try
       D.Title := 'A recording for the calibration (English speech, a few minutes)';
-      D.Filter := 'Audio (*.m4b;*.m4a;*.mp3;*.wav;*.flac;*.ogg;*.opus;*.aac)|*.m4b;*.m4a;*.mp3;*.wav;*.flac;' +
-        '*.ogg;*.opus;*.aac|All files (*.*)|*.*';
+      D.Filter := 'Audio (*.m4b;*.m4a;*.aax;*.mp3;*.wav;*.flac;*.ogg;*.opus;*.aac)|*.m4b;*.m4a;*.aax;*.mp3;' +
+        '*.wav;*.flac;*.ogg;*.opus;*.aac|All files (*.*)|*.*';
       D.InitialDir := FAudioFolder;
       if D.Execute then
         Audio := D.FileName;
@@ -3079,11 +3501,11 @@ begin
     end;
   end;
   if AAllModels then
-    Models := ModelFilesOf(ExtractFileDir(edModel.Text))
+    Models := ModelFilesOf(ExtractFileDir(FModelPath))
   else
   begin
     Models := TStringList.Create;
-    Models.Add(edModel.Text);
+    Models.Add(FModelPath);
   end;
   if ARetry then
   begin
@@ -3095,7 +3517,7 @@ begin
   try
     if Models.Count = 0 then
     begin
-      LogLine('No ggml-*.bin in ' + ExtractFileDir(edModel.Text) + ': nothing to calibrate.');
+      LogLine('No ggml-*.bin in ' + ExtractFileDir(FModelPath) + ': nothing to calibrate.');
       Exit;
     end;
     // the calibration's lines: in the window and in <settings>-calibration.log
@@ -3200,9 +3622,9 @@ var
   Speed: Double;
   I: Integer;
 begin
-  if (edModel.Text = '') or (FWhisperNote <> '') then
+  if (FModelPath = '') or (FWhisperNote <> '') then
     Exit;
-  if CalibrationBest(SettingsFile, edModel.Text, Dev, Speed) then
+  if CalibrationBest(SettingsFile, FModelPath, Dev, Speed) then
   begin
     for I := 0 to High(FDevices) do
       if SameText(FDevices[I].Name, Dev) then
@@ -3210,16 +3632,21 @@ begin
         cbDevice.ItemIndex := I + 1;
         if ALog then
           LogLine(Format('Device: %s - the fastest for %s in the calibration (%s)', [Dev,
-            ExtractFileName(edModel.Text), CalibrationSummary(SettingsFile, edModel.Text)]));
+            ExtractFileName(FModelPath), CalibrationSummary(SettingsFile, FModelPath)]));
         Exit;
       end;
     if ALog then
       LogLine(Format('The calibration chose %s for %s, and whisper.cpp lists no %s now: Tools > Re-calibrate.',
-        [Dev, ExtractFileName(edModel.Text), Dev]));
+        [Dev, ExtractFileName(FModelPath), Dev]));
   end
   else if ALog then
     LogLine(Format('%s is not calibrated on this machine: the device stays "%s". Tools > Re-calibrate times it ' +
-      'on every device.', [ExtractFileName(edModel.Text), cbDevice.Items[Max(0, cbDevice.ItemIndex)]]));
+      'on every device.', [ExtractFileName(FModelPath), cbDevice.Items[Max(0, cbDevice.ItemIndex)]]));
+end;
+
+procedure TfrmBuilder.miHistoryClick(Sender: TObject);
+begin
+  ShowBuildHistory(Self, HistoryFile, HistoryMachine(MachineText));
 end;
 
 procedure TfrmBuilder.miCalibrationClick(Sender: TObject);
@@ -3270,6 +3697,84 @@ begin
   LogLine('Log of the last calibration: ' + ChangeFileExt(SettingsFile, CALIBRATION_LOG_SUFFIX));
 end;
 
+function TfrmBuilder.UsesCoreML(const AModel: string): Boolean;
+begin
+  Result := FCoreML and (AModel <> '') and TDirectory.Exists(ModelEncoderPath(AModel));
+end;
+
+function TfrmBuilder.HistoryFile: string;
+begin
+  Result := ChangeFileExt(SettingsFile, HISTORY_SUFFIX);
+end;
+
+procedure TfrmBuilder.PrepareEstimate(const AModel, ADevice: string);
+var
+  D: TWhisperDevice;
+  Dev: string;
+begin
+  FExpSpeed := 0;
+  FExpAfter := 0;
+  FExpPrior := 0;
+  FExpSource := '';
+  FExpDevice := '';
+  if AModel = '' then
+    Exit;
+  // the device by name, as the history has it (whisper.cpp's choice
+  // resolved)
+  Dev := ADevice;
+  if BuilderFindDevice(ADevice, D) then
+    Dev := D.Name;
+  // Core ML is history of its own: the same device, another speed
+  FExpDevice := Dev;
+  if UsesCoreML(AModel) then
+    FExpDevice := Dev + '+CoreML';
+  HistoryExpect(HistoryLoad(HistoryFile), HistoryMachine(MachineText), ExtractFileName(AModel), FExpDevice,
+    CalibrationSpeed(SettingsFile, AModel, Dev), FExpSpeed, FExpAfter, FExpPrior, FExpSource);
+end;
+
+function TfrmBuilder.AudioDoneAt(APercent: Double): Double;
+begin
+  Result := FAudioTotal * EnsureRange((APercent - 5) / 85, 0.0, 1.0);
+end;
+
+procedure TfrmBuilder.RecordHistory(const ASummary: TBuildSummary);
+var
+  R: TBuildHistoryRow;
+  Why: string;
+begin
+  // a saved transcript was not transcribed: nothing to learn
+  if ASummary.SavedTranscript or (ASummary.TranscribeSeconds <= 0) or (ASummary.AudioSeconds <= 0) then
+    Exit;
+  R.Made := Now;
+  R.Machine := HistoryMachine(ASummary.Machine);
+  R.Model := ASummary.Model;
+  R.Device := ASummary.Device;
+  // with '+CoreML' when the model's encoder was used (PrepareEstimate)
+  if SameText(Copy(FExpDevice, 1, Length(ASummary.Device)), ASummary.Device) and (FExpDevice <> '') then
+    R.Device := FExpDevice;
+  R.AudioSeconds := ASummary.AudioSeconds;
+  R.TranscribeSeconds := ASummary.TranscribeSeconds;
+  R.AfterSeconds := 0;
+  if FAfterFrom <> 0 then
+    R.AfterSeconds := MilliSecondsBetween(Now, FAfterFrom) / 1000;
+  R.CalibrationSpeed := CalibrationSpeed(SettingsFile, ASummary.Model, ASummary.Device);
+  R.ExactPercent := 0;
+  if ASummary.Stats.BookWords > 0 then
+    R.ExactPercent := ASummary.Stats.Exact * 100 / ASummary.Stats.BookWords;
+  R.MatchedPercent := ASummary.Matched;
+  if FExpSpeed > 0 then
+    LogLine(Format('Speed: %.1fx real time (expected %.1fx); exact %.1f %%, matched %.1f %%.',
+      [HistorySpeed(R), FExpSpeed, R.ExactPercent, R.MatchedPercent]))
+  else
+    LogLine(Format('Speed: %.1fx real time; exact %.1f %%, matched %.1f %%.', [HistorySpeed(R), R.ExactPercent,
+      R.MatchedPercent]));
+  Why := HistoryAdd(HistoryFile, R);
+  if Why = '' then
+    LogLine('Kept in the build history: ' + HistoryFile)
+  else
+    LogLine('The build history was not written: ' + Why);
+end;
+
 procedure TfrmBuilder.LogMachine(const AModel, ADevice: string);
 var
   D: TWhisperDevice;
@@ -3285,6 +3790,10 @@ begin
   if AModel = '' then
     Exit;
   LogLine('Device: ' + BuilderDeviceText(ADevice));
+  if UsesCoreML(AModel) then
+    LogLine('  Core ML encoder: ' + ModelEncoderPath(AModel))
+  else if FCoreML then
+    LogLine('  no Core ML encoder for this model: its encoder runs on the device above');
   if not BuilderFindDevice(ADevice, D) then
     Exit;
   if CalibrationBest(SettingsFile, AModel, Best, Speed) then

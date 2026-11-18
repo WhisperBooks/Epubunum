@@ -149,7 +149,9 @@ type
       @code(<package folder>/audio/<AName>) (AName '' = the file's name;
       characters other than ASCII letters, digits, '.', '-' and '_' become
       '_'). Returns its index for @link(AddWord). It is stored, not
-      compressed. Use MP3 or AAC in MP4 (core media types of EPUB 3). }
+      compressed. Use MP3 or AAC in MP4 (core media types of EPUB 3). A
+      DRM-free Audible .aax (AAC in MP4) goes in as .m4b, so other readers
+      know it; a copy-protected one must be refused before this. }
     function AddAudioFile(const AFileName: string; const AName: string = ''): Integer;
     { Uses audio file APath already inside the book. Returns its index.
       @raises(EEpubError when the book has no such file.) }
@@ -429,7 +431,7 @@ begin
   E := LowerCase(ExtractFileExt(APath));
   if E = '.mp3' then
     Result := 'audio/mpeg'
-  else if (E = '.mp4') or (E = '.m4a') or (E = '.m4b') or (E = '.aac') then
+  else if (E = '.mp4') or (E = '.m4a') or (E = '.m4b') or (E = '.aac') or (E = '.aax') then
     Result := 'audio/mp4'
   else if (E = '.ogg') or (E = '.oga') or (E = '.opus') then
     Result := 'audio/ogg'
@@ -700,6 +702,12 @@ begin
   Name := SafeName(Name);
   Ext := ExtractFileExt(Name);
   Base := Copy(Name, 1, Length(Name) - Length(Ext));
+  // a DRM-free .aax is AAC in MP4: named .m4b in the book (audio/mp4)
+  if SameText(Ext, '.aax') then
+  begin
+    Ext := '.m4b';
+    Name := Base + Ext;
+  end;
   Path := PackageFolder + 'audio/' + Name;
   N := 1;
   // never over a file of the book or one added before

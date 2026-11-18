@@ -29,6 +29,8 @@ uses
   uSteam in '..\common\uSteam.pas',
   uMachine in '..\common\uMachine.pas',
   uCalibration in 'src\uCalibration.pas',
+  uHistory in 'src\uHistory.pas',
+  uModels in 'src\uModels.pas',
   uBuilder in 'src\uBuilder.pas' {frmBuilder};
 
 {$R *.res}

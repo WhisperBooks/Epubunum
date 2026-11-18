@@ -28,8 +28,8 @@ Next to the program, or on PATH:
   `avcodec-62.dll`, `avformat-62.dll`); when they are not found there,
   the builder also looks in whisper.cpp's folder.
 
-A Whisper model file (`ggml-large-v3-turbo.bin` is a good choice) is
-chosen in the window.
+The Whisper model is chosen by name in the window's **Model** list
+(below).
 
 For the calibration (below), `media/aladdin.m4a` - a LibriVox recording
 - beside the program, or in a folder up to five levels above it (the
@@ -39,6 +39,42 @@ macOS also the bundle's `Contents/Resources/media`. On Linux and macOS
 so `tools/deploy_redist.py` and `tools/redist.sh deploy` put it there.
 Without it the calibration asks for another recording of English speech,
 a few minutes long.
+
+## Models
+
+The **Model** list offers whisper.cpp's models by name, smallest first:
+tiny.en, tiny, base.en, base, small.en, small, medium.en, medium,
+large-v3-turbo (a good choice: accurate and much faster than large-v3)
+and large-v3. One not downloaded yet says how large it is; choosing it
+asks, then downloads it from whisper.cpp's model repository on Hugging
+Face (the progress bar shows it; **Cancel** stops it). The file is checked
+- its size, and its SHA-256 when Hugging Face gives one - before it is
+used. Other `ggml-*.bin` files in the models folder are listed too, and
+**Other model file ...** takes one from anywhere.
+
+Where the models are kept:
+
+- Steam builds: the `models` folder in the program's folder in Steam's
+  library (macOS: beside the `.app`); uninstalling removes them.
+- Otherwise the folder chosen with **Folder...** next to the list (kept in
+  the settings); at first `models` beside the settings. A folder that
+  already holds `ggml-*.bin` files can be chosen as it is.
+
+The settings name a model in the models folder by its name
+(`Model=large-v3-turbo`), any other by its file.
+
+**Core ML (macOS).** When whisper.cpp is built with Core ML (whisper-dev's
+default on a Mac; the log says `Core ML: built in`), a model's encoder can
+run on the Neural Engine. It needs the model's Core ML encoder - a folder
+`ggml-<name>-encoder.mlmodelc` beside the `.bin`, from the same model
+repository (about as large again as the model for the big ones). A model
+downloaded on such a build comes with it; for a model already there the
+list says `(no Core ML encoder)` and choosing it offers the encoder. Without
+the encoder the model runs on Metal as before. The first use of an encoder
+on a Mac is slow (macOS compiles it once), so re-calibrate after
+downloading one - the calibration's warm-up takes that time. Builds with
+the encoder are kept apart in the build history (device `MTL0+CoreML`),
+so the two can be compared.
 
 ## Calibration (which device is fastest here)
 
@@ -82,6 +118,28 @@ Every build's log (and the queue report) starts with the machine
 the device in full. "Default" is shown as the device whisper.cpp takes,
 with whether the calibration found it fastest for the model.
 
+## Build history and the time left
+
+Every build that transcribes adds a row to `EpubBuilder-history.csv`
+beside the settings: when, the computer, model, device, the audio's
+length, how long the transcription and the aligning / writing took, the
+speed (x real time), the calibration's speed at the time, and the exact
+and matched shares of the book's words. A spreadsheet opens it, and
+**Tools > Build history...** shows it as a table, newest first, under a
+line per model and device of this machine (builds, median speed, exact
+and matched); **Copy** puts the table on the clipboard as tab-separated
+text.
+
+A new build starts from what it can expect, logged as `Expected: about
+... from ...`: the median speed of the last builds of that model on that
+device here; else the calibration's speed, corrected by how this
+machine's builds compared with their calibrations; else the calibration
+alone. The time left then moves from that expectation towards the build's
+own rate as more audio is done, plus the aligning and writing earlier
+builds here took. Without either (no build, no calibration) it is the
+build's own rate after a minute, as before. At the end the log says
+`Speed: ...x real time (expected ...x)`.
+
 ## Which build is this?
 
 Every build of EpubReader and EpubBuilder is stamped: a pre-build step
@@ -118,6 +176,10 @@ doing. The previous run's log is kept as `EpubBuilder-debug.log.old`.
    in reading order (**Up** / **Down**; added files are sorted as people
    read them: chapter2 before chapter10). With **Chapters of a file are
    parts** ticked, each chapter of an m4b is transcribed as a part.
+   A DRM-free Audible `.aax` is taken like an m4b (in the book it becomes
+   `.m4b`, so other readers play it). A copy-protected file - an `.aax`
+   straight from Audible, a FairPlay m4b - is not added: the log says why.
+   EpubBuilder never removes copy protection.
 3. Choose the model; the device is the calibration's fastest for it
    (or choose one: Default lets whisper.cpp take its first GPU).
 4. Check the output name (`<book>-synced.epub` by default) and press

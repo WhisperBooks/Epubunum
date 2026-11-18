@@ -70,7 +70,7 @@ the history, one per zip.
 | Repo | Pushed | = zip | Last zip number used |
 |---|---|---|---|
 | WhisperBooks/TWhisper | d669a06 | TWhisper-30 | 31 (review fixes) |
-| WhisperBooks/Epubunum | 51bb81e | EpubUnum-94 | 96 (95 Mac ggml backends in redist.sh, 96 aladdin.m4a deployed - NOT pushed; 93 Big Picture full screen and 94 this handover NOT pushed; 90 screen log, 91 DPI awareness, 92 Big Picture late maximise; 77 calibration, 78 Steam builds, 79 libraries copied by the builds, 80 - 83 fixes from the first Steam build, 84 EpubBuilder's Linux launcher, 85 Mac libraries through Deploy, 86 Deck crash diagnostics, 87 build stamp, 88 crash place in the log, 89 FreeType for Steam's Linux runtime) |
+| WhisperBooks/Epubunum | 51bb81e | EpubUnum-94 | 98 (95 Mac ggml backends in redist.sh, 96 aladdin.m4a deployed, 97 Later tests 7 Core ML, 98 DRM-free .aax in EpubBuilder, 99 build history + time left, 100 Tools > Build history, 101 models by name + download, 102 Core ML encoders - 96 - 102 NOT pushed; 93 Big Picture full screen and 94 this handover NOT pushed; 90 screen log, 91 DPI awareness, 92 Big Picture late maximise; 77 calibration, 78 Steam builds, 79 libraries copied by the builds, 80 - 83 fixes from the first Steam build, 84 EpubBuilder's Linux launcher, 85 Mac libraries through Deploy, 86 Deck crash diagnostics, 87 build stamp, 88 crash place in the log, 89 FreeType for Steam's Linux runtime) |
 | G3DGames/TFFMpegAPI | 0795d19 | FFmpegAPI-14 | 14 (macOS sound) |
 | G3DGames/ffmpeg-dev | 4d7b7be | ffmpeg-dev-09 | 09 |
 | WhisperBooks/whisper-dev | 9fa21dc | whisper-dev-20 | 21 (review fixes; its own CLAUDE.md) |
@@ -199,6 +199,13 @@ notes.
 | base.en, GTX 1650 4 GB, Linux, CUDA0 | 34:54 | 25 | 91.2 % | 95.6 % |
 | base.en, GTX 1650, Linux, Vulkan1 | 27:57 | 32 | 91.1 % | 95.7 % |
 | base.en, RTX 5090 laptop, Windows | 15:57 | 55 | 91.1 % | 95.4 % |
+| base.en, M4 Mac mini, MTL0 | (running 2026-11-18) | | | |
+
+Calibration, M4 Mac mini 16 GB (2026-11-18; 30 s of Aladdin, median of 3,
+DTW + book prompt): base.en CPU 34.0x, MTL0 69.1x; large-v3-turbo CPU
+2.5x, MTL0 11.4x. The M4's CPU alone beats the GTX 1650's whole-book
+base.en rate (25x CUDA) - fits Later tests 1 (fixed cost per window).
+Calibration figures of the 5090 and the 1650: not recorded here yet.
 | turbo, GTX 1650, Linux, Vulkan1 | running at handover, about an hour | | | |
 Linux loses nothing in quality. On the 1650 Vulkan beats CUDA for base.
 German Night Watch: a German colleague: "Feels like a real speaker.
@@ -257,6 +264,22 @@ busy testing base functionality")
    that has audio are spoken - time them between the part's start and the
    first match (interpolated); only words before the first part's audio
    stay unhighlighted.
+7. CORE ML ON THE MAC - BUILT (owner 2026-11-18 10:30: "can we have
+   coreml for deployment when I build?"; whisper-dev zip 22 + zip 102
+   below); what is left is the comparison. Originally (agreed after the
+   Metal calibration): whisper.cpp's figure: Core ML encoder on the Neural
+   Engine > 3x the CPU alone; against Metal unknown - only the encoder
+   (once per 30 s window) moves, the decoder and DTW stay on Metal / CPU.
+   Steps: a second whisper-dev build with -DWHISPER_COREML=ON
+   -DWHISPER_COREML_ALLOW_FALLBACK=ON (without the fallback a model with
+   no .mlmodelc fails); ggml-<model>-encoder.mlmodelc for base.en and
+   large-v3-turbo (whisper.cpp models/generate-coreml-model.sh; Python
+   coremltools, ane_transformers, openai-whisper); time both against
+   Metal on the same 30 s of Aladdin (calibration / WhisperConsole
+   --bench). First load per model is slow (macOS compiles for the ANE;
+   minutes for large) - keep it out of the timing. Ship it only if it
+   clearly wins on turbo: one more folder per model to carry; redist /
+   deploy would need the .mlmodelc beside the model, not in the bundle.
 
 ### Plans agreed or parked (detail in the CLAUDE.md files)
 
@@ -416,7 +439,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 96.
+Last number used: 102.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -2233,6 +2256,178 @@ MODELS: not deployed (1.6 GB for turbo; a Clean would delete them):
 whisper.cpp's models/download-ggml-model.sh NAME FOLDER into a folder on
 the Mac, chosen in the window; Tools > Re-calibrate every model in its
 folder.
+
+## Zip 98 (on top of zip 97): DRM-free .aax in EpubBuilder
+Owner, 2026-11-18 09:52: "Assign aax as a format Builder can load (with no
+DRM)". Standing rule: never remove DRM, refuse protected files.
+- uBuilder: both audio dialogs list *.aax. AddAudio (Add files, Add folder
+  - TWhisper's folder list already had .aax, queue loading aside) calls
+  TFFMpegAPI's FFmpegMp4Protection (FFmpeg.Media; header only, no FFmpeg
+  needed, returns at once for non-MP4) and refuses a protected file with a
+  log line (adrm / drms / sinf / enca): "... copy protected (...) and was
+  not added. EpubBuilder does not remove copy protection: a DRM-free copy
+  of the audio is needed." No decryption, no hint how.
+- lib/Epub.Writer (PACKAGE EpubUnum): AddAudioFile stores a .aax as
+  <name>.m4b in the book (AAC in MP4; audio/mp4); AudioMediaType knows
+  .aax as audio/mp4 too.
+- EpubBuilder README: step 2.
+NOT COMPILED (no FPC or Delphi in this session; pasdoc_check,
+project_check 0). TO TEST: Add files with a DRM-free .aax -> listed;
+build -> the book has audio/<name>.m4b, plays in EpubReader; epubcheck;
+an .aax straight from Audible -> the log line, not listed.
+Not done: a saved queue naming a protected file is not checked on load
+(the build refuses it - TWhisper / FFmpeg.Media raise the same message);
+the brand 'aax ' stays in the file's ftyp (readers go by the media type).
+
+## Zip 99 (on top of zip 98): build history and the time left
+Owner, 2026-11-18 09:59: "we should be building up a history of encoding
+speed + accuracy by model. This would then allow a better estimate of
+time for completion as it still is extremely far off - base started
+claiming it was going to need about an hour for Night Watch but now says
+18m" (M4 Mac mini, MTL0); "even more extreme for turbo".
+- NEW demos/EpubBuilder/src/uHistory.pas (framework-free; in the .dpr and
+  one DCCReference in the .dproj - the .dproj NOT in the zip: the
+  owner's has deploy_redist.py's OSXARM64 / Linux64 media entries newer
+  than git; the IDE adds the reference from the .dpr, or Project > Add):
+  <settings>-history.csv (EpubBuilder-history.csv), header + one row per
+  build that TRANSCRIBED (saved transcripts left out): made, machine (the
+  computer's name - MachineText before ' - ', so a system update keeps
+  it), model file, device name, audio_s, transcribe_s (model loading
+  included), after_s (aligning + writing, from progress 90 % to the end),
+  speed, calibration_speed (the pair's at the time), exact_pct (Exact /
+  book words), matched_pct (the verdict's figure). Quoted strings, '.'
+  decimals. HistoryExpect: (1) median of the last 5 builds of machine +
+  model + device, prior 3600 s of audio; (2) calibration speed x median of
+  (build speed / its calibration speed) over this machine's last 10, prior
+  1800 s; (3) the calibration alone, prior 1200 s; after-share = median of
+  after_s / audio_s here.
+- uCalibration: CalibrationSpeed(ini, model, device) - one pair's speed.
+- uBuilder: TBuildThread.OnAudioLength (queued once the audio's length is
+  known; FormClose clears it). StartJob -> PrepareEstimate (device
+  resolved as the history names it); the log: "Expected: about H:MM for
+  H:MM of audio - N.Nx real time, from <source>." or "no figure yet".
+  ShowStatus: transcribing = remaining audio x blended s-per-s-of-audio
+  (W = done / (done + prior); own rate from the first progress past 5 %,
+  after 30 s) + after-share x audio; at 90 %+ the after-share left;
+  nothing to go on = the old rule (own rate after 60 s and 1 %).
+  BuildDone (Ok, before the .log is saved) -> RecordHistory: "Speed: N.Nx
+  real time (expected N.Nx); exact .. %, matched .. %." and the row.
+- EpubBuilder README: "Build history and the time left".
+NOT COMPILED (no Delphi / FPC here); pasdoc_check, project_check 0.
+Names to look at if the compile complains: TArray.Sort<Double>
+(System.Generics.Collections), TryEncodeDateTime (System.DateUtils),
+Format with TFormatSettings, Max(Int64, Int64), EnsureRange(Double).
+WHY THE OLD ESTIMATE WAS OFF: not known yet - the from-start rate stays
+pulled by the first parts (Night Watch's 75 parts: short ones first?
+Metal's first shader compile?). The debug log of the base.en run shows
+the parts' times; worth a look before tuning the priors.
+Offered, not done: import earlier builds from the queue reports' CSVs
+(Windows / Linux runs) to seed the history; a Tools > Build history view.
+
+## Zip 100 (on top of zip 99): Tools > Build history
+Owner, 2026-11-18 10:06: "It would be nice to display the build history
+in tabular form via the tools menu". Also asked: "Is aladdin.m4a
+deployed to Linux?" - only if redistributable_bin\Linux64\media holds it
+and deploy_redist.py ran for Linux64 after that (this morning's run was
+--platform OSXARM64, which leaves the Linux64 entries alone).
+- uHistory: HISTORY_HEADERS / HISTORY_WIDTHS (12 columns: When, Machine,
+  Model - without ggml- / .bin, Device, Audio, Transcription, Speed,
+  Calibration, Book / calibration, Align + write, Exact %, Matched %),
+  HistoryCells, HistoryTable (tab-separated, newest first, header),
+  HistorySummary (a line per model + device of this machine: builds,
+  median speed / exact / matched; other machines' count).
+- uCalibration: ShowBuildHistory (TForm.CreateNew as AskCalibration):
+  summary label, TStringGrid (FMX.Grid + FMX.Grid.Style; not editable,
+  row select), the file's name, Copy (IFMXClipboardService, THistoryCopy
+  for the event), Close. Modal, 1180 x 560.
+- uBuilder: Tools > Build history... (miHistoryClick).
+- EpubBuilder README: the window.
+NOT COMPILED. Names to look at: TStringColumn / TGridOption.RowSelect /
+TStringGrid.Cells (FMX.Grid), string.Join with a static array,
+TValue.From<string>.
+
+## Zip 101 (on top of zip 100): models by name, downloaded when chosen
+Owner, 2026-11-18 10:13: "for steam we also want to deploy turbo", then
+10:18 (instead): "rather than deploy we let the app download models and
+store them in some known location. For Steam this would be in the steam
+app directory while on desktop you can elect a folder for model storage.
+This then means we can refer to the models by their short names allowing
+selection from a drop-down." (Deploying turbo would also have put a Linux
+deploy over PAServer's 2 GiB - Later tests 4.)
+- NEW demos/EpubBuilder/src/uModels.pas (framework-free; System.Net):
+  MODEL_CATALOGUE (tiny.en .. large-v3, 10 names, sizes as whisper.cpp's
+  README; turbo 1549 MB measured), ModelFileName / ModelShortName /
+  ModelUrl (https://huggingface.co/ggerganov/whisper.cpp/resolve/main/
+  ggml-<name>.bin, as whisper.cpp's download-ggml-model.sh),
+  ModelsDefaultFolder (Steam: <program folder>/models, macOS beside the
+  .app - never inside: its signature; else <settings folder>/models),
+  FolderWritable, TModelDownload (THTTPClient: HEAD without redirects for
+  X-Linked-Size / X-Linked-ETag = SHA-256, then GET into <file>.part with
+  OnReceiveData progress / cancel, size checked, SHA-256 checked when
+  given, renamed; .part deleted on failure or cancel).
+- uBuilder: edModel (TEdit + Choose...) -> cbModel (TComboBox) +
+  Folder... (hidden in Steam builds); every edModel.Text -> FModelPath.
+  FillModels: catalogue (downloaded: "name - note"; else "(N GB to
+  download)"), other ggml-*.bin in the folder, a model elsewhere, "Other
+  model file ..." (= the old file dialog). Choosing one not downloaded
+  asks (Yes by default) -> StartDownload (progress bar + status line,
+  Cancel, one at a time; the list disabled meanwhile) -> DownloadDone
+  chooses it, ApplyCalibration, "not calibrated yet" hint. Settings:
+  [Models] Folder (not in Steam builds); [Build] Model = the name when in
+  the models folder, else the file (old settings with a path still read).
+  Steam: the program's folder not writable -> the settings' models folder.
+  Calibration without a model: a log line (no file dialog any more).
+  FormClose waits for a download (deleted part).
+- .dpr: uModels. The .dproj is NOT in the zip (as zip 99: the IDE adds
+  uHistory and uModels from the .dpr).
+- EpubBuilder README: "Models".
+NOT COMPILED. Names to look at: THTTPClient.Head / Get(URL, Stream),
+IHTTPResponse.HeaderValue / StatusCode / StatusText, TReceiveDataEvent's
+signature, THashSHA2.GetHashStringFromFile, record constants with
+strings (MODEL_CATALOGUE), TProc<Int64, Int64>.
+TO TEST: each platform downloads base.en (small) once; Cancel halfway
+(no .part left); turbo; the X-Linked headers really come (log says
+"checksum right" or "no checksum given"). LINUX: THTTPClient uses
+libcurl (libcurl.so.4) - Ubuntu desktops without the libcurl4 package
+and Steam's runtime: check; macOS: NSURLSession (HTTPS, fine).
+Steam: Steam's "verify files" leaves extra files alone; the depot must
+not ship a models folder.
+
+## Zip 102 (on top of zip 101): Core ML encoders (with whisper-dev zip 22)
+Owner, 2026-11-18 10:30: "can we have coreml for deployment when I
+build?" - whisper-dev zip 22 builds whisper with WHISPER_COREML +
+WHISPER_COREML_ALLOW_FALLBACK on macOS and collects
+libwhisper.coreml.dylib (redist.sh collect / deploy_redist.py take it as
+any dylib - no change there). whisper.cpp's own download-coreml-model.sh
+says it is "not functional" (an old dataset); the main model repository
+has ggml-<name>-encoder.mlmodelc.zip for tiny .. large-v3 and
+large-v3-turbo (turbo's added by a later commit; ~1.17 GB; base 38 MB,
+small 163 MB, medium 568 MB, large-v3 1.18 GB; tiny's size not listed).
+- uModels: EncoderMB in the catalogue; ModelEncoderPath (as whisper.cpp's
+  whisper_get_coreml_path_encoder: '.bin' and a -qX_Y suffix dropped,
+  '-encoder.mlmodelc'); ModelEncoderUrl; TModelDownload(name, folder,
+  AWithModel, AWithEncoder) - Fetch (the old body: HEAD for size / SHA-256,
+  .part, checks, rename) for the model and / or the zip, then
+  TZipFile.ExtractZipFile beside the model (the zip holds the folder),
+  zip deleted, the folder checked. ModelSizeText(0) = 'a few MB'.
+- uBuilder: FCoreML = whisper_print_system_info has 'COREML = 1' (logged
+  at start). The list: "(Core ML)" / "(no Core ML encoder)". Choosing a
+  model not there: the download asks with both sizes, gets both. A model
+  there without its encoder: chosen at once, the encoder offered (No by
+  default). DownloadDone: "calibrated without its Core ML encoder:
+  re-calibrate". LogMachine: the encoder used, or none. History /
+  estimate device key MTL0+CoreML when the encoder is used (calibration
+  still by device name).
+- EpubBuilder README: Core ML paragraph; redistributable_bin README: the
+  dylib in EpubBuilder's macOS set.
+NOT COMPILED. Names to look at: System.Zip TZipFile.ExtractZipFile,
+TDirectory.Delete(path, True).
+TO DO on the Mac: whisper-dev ./build.sh (zip 22) -> "Core ML encoder ON";
+redist.sh collect -> libwhisper.coreml.dylib there; to Windows,
+deploy_redist.py --platform OSXARM64, Deploy; EpubBuilder log "Core ML:
+built in"; choose large-v3-turbo -> encoder offered; Re-calibrate (slow
+first warm-up); Night Watch turbo with it vs without (rename the
+.mlmodelc folder to compare) - Later tests 7.
 
 ## Pushes checked
 - a6ea67b ("SteamOS good") = zips 87 - 89: identical (CR LF aside) but
