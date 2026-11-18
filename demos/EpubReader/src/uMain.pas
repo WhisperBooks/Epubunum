@@ -278,8 +278,15 @@ type
     FPadTick: UInt64;
     { The pad's menu (uPadMenu). }
     FPadMenu: TPadMenu;
-    { What FPadMenu shows: MODE_MAIN, MODE_CONTENTS or MODE_CONTROLS. }
+    { What FPadMenu shows: MODE_MAIN, MODE_CONTENTS, MODE_CONTROLS or
+      MODE_BOOKS. }
     FMenuMode: Integer;
+    { The books folder: the menu's Open a book lists its EPUBs (a Steam
+      build: Books beside the program, on the Mac in Documents - see
+      BooksFolderDefault; settings key "booksFolder" for another). }
+    FBooksFolder: string;
+    { The books Open a book lists, in its order. }
+    FBookFiles: TArray<string>;
     { The library's cover chosen with the pad (-1 = none yet). }
     FCoverSel: Integer;
     { Its frame. }
@@ -308,6 +315,8 @@ type
     { The pad's controls: Steam's picture of each control and what it
       does. }
     procedure ShowControlsMenu;
+    { Open a book: the EPUBs in the books folder (and its folders). }
+    procedure ShowBooksMenu;
     { Row AIndex of the main menu's value as it reads now (text size,
       speed, on / off).
       @param(AIndex  MENU_RESUME .. MENU_EXIT)
@@ -501,7 +510,7 @@ uses
   // System.SysUtils.DeleteFile's inline body expands only with it (H2443)
   Posix.Unistd,
   {$ENDIF}
-  System.Hash, System.UIConsts, System.Skia,
+  System.Hash, System.UIConsts, System.Skia, System.Generics.Defaults,
   FmxWineCanvas, FmxSkiaCanvas, uSteam, uInhibit, uQuitSignal, uReaderInput;
 
 const
@@ -540,28 +549,32 @@ const
     'SentencePrev', 'SentenceNext', 'ChapterPrev', 'ChapterNext', 'Menu', 'Library');
   { The pad's menu rows. }
   MENU_RESUME = 0;
+  { Open a book from the books folder. }
+  MENU_OPEN = 1;
   { The library. }
-  MENU_LIBRARY = 1;
+  MENU_LIBRARY = 2;
   { The contents. }
-  MENU_CONTENTS = 2;
+  MENU_CONTENTS = 3;
   { Text size (left / right). }
-  MENU_SIZE = 3;
+  MENU_SIZE = 4;
   { Speed (left / right). }
-  MENU_SPEED = 4;
+  MENU_SPEED = 5;
   { Dark mode. }
-  MENU_DARK = 5;
+  MENU_DARK = 6;
   { Learn to read. }
-  MENU_LEARN = 6;
+  MENU_LEARN = 7;
   { The pad's controls. }
-  MENU_CONTROLS = 7;
+  MENU_CONTROLS = 8;
   { Exit. }
-  MENU_EXIT = 8;
+  MENU_EXIT = 9;
   { FMenuMode: the main menu. }
   MODE_MAIN = 0;
   { The contents. }
   MODE_CONTENTS = 1;
   { The controls. }
   MODE_CONTROLS = 2;
+  { The books of the books folder. }
+  MODE_BOOKS = 3;
   { The stick's scrolling at full tilt, units a second. }
   PAD_SCROLL_SPEED = 1500;
   { The stick's dead zone. }
@@ -832,6 +845,21 @@ end;
   %APPDATA%\EpubReader\EpubReader.json, macOS ~/Library/Application
   Support/EpubReader/EpubReader.json, Linux $XDG_CONFIG_HOME (else
   ~/.config)/EpubReader/EpubReader.json. }
+{ The books folder at first. A Steam build on Windows and Linux: Books
+  beside the program - a Steam Deck has no file dialog to reach anything
+  else, and the folder is easy to find from Steam (Manage > Browse local
+  files). The Mac (the program is a signed bundle) and other builds:
+  Documents/EpubReader/Books. Owner, 2026-11-18. }
+function BooksFolderDefault: string;
+begin
+  {$IF Defined(STEAMBUILD) and not Defined(MACOS)}
+  Result := System.IOUtils.TPath.Combine(ExtractFileDir(ParamStr(0)), 'Books');
+  {$ELSE}
+  Result := System.IOUtils.TPath.Combine(System.IOUtils.TPath.Combine(System.IOUtils.TPath.GetDocumentsPath,
+    'EpubReader'), 'Books');
+  {$ENDIF}
+end;
+
 function SettingsFile: string;
 var
   Base: string;
@@ -1881,7 +1909,9 @@ var
   I: Integer;
   Size, Speed: Double;
   R: TRecentBook;
+  Folder: string;
 begin
+  FBooksFolder := BooksFolderDefault;
   if not FileExists(SettingsFile) then
     Exit;
   try
@@ -1892,6 +1922,9 @@ begin
       O := TJSONObject(V);
       O.TryGetValue<Boolean>('dark', FDark);
       O.TryGetValue<Boolean>('debug', FDebug);
+      // another books folder, put in the settings by hand (not written)
+      if O.TryGetValue<string>('booksFolder', Folder) and (Folder <> '') then
+        FBooksFolder := Folder;
       if O.TryGetValue<Double>('textSize', Size) and (Size >= 10) and (Size <= 60) then
         View1.FontSize := Size;
       if O.TryGetValue<Double>('speed', Speed) then
@@ -1980,6 +2013,7 @@ end;
 procedure TfrmMain.FormCreate(Sender: TObject);
 var
   Line: string;
+  OK: Boolean;
 begin
   // the debug log: next to the settings, started afresh at every run
   DebugLogOpen(ChangeFileExt(SettingsFile, '-debug.log'));
@@ -2043,6 +2077,28 @@ begin
   end;
   // dark mode, text size, speed, the recent books and their positions
   LoadSettings;
+  // the books folder there from the start (Open a book lists it); where
+  // it cannot be made (a program folder the user cannot write to), the
+  // one in Documents
+  OK := False;
+  try
+    OK := ForceDirectories(FBooksFolder);
+  except
+    on E: Exception do
+      DebugLog('books folder: ' + E.Message);
+  end;
+  if not OK then
+  begin
+    DebugLog('books folder: ' + FBooksFolder + ' could not be made - the one in Documents instead');
+    FBooksFolder := System.IOUtils.TPath.Combine(System.IOUtils.TPath.Combine(
+      System.IOUtils.TPath.GetDocumentsPath, 'EpubReader'), 'Books');
+    try
+      ForceDirectories(FBooksFolder);
+    except
+      // listed as empty
+    end;
+  end;
+  DebugLog('books folder: ' + FBooksFolder);
   StartPad;
   // Big Picture: the pad and its menu do it all - no tool bar, no
   // contents panel (owner, 2026-11-18; the menu bar is left off already)
@@ -2187,6 +2243,11 @@ begin
           ShowPadMenu;
           FPadMenu.Move(MENU_CONTROLS);
         end
+        else if FMenuMode = MODE_BOOKS then
+        begin
+          ShowPadMenu;
+          FPadMenu.Move(MENU_OPEN);
+        end
         else
           FPadMenu.Hide;
       PAD_LIBRARY:
@@ -2291,7 +2352,8 @@ end;
 
 procedure TfrmMain.ShowPadMenu;
 const
-  TEXTS: array[MENU_RESUME..MENU_EXIT] of string = ('Back to the book', 'Library', 'Contents', 'Text size',
+  TEXTS: array[MENU_RESUME..MENU_EXIT] of string = ('Back to the book', 'Open a book', 'Library', 'Contents',
+    'Text size',
     'Speed', 'Dark mode', 'Learn to read', 'Controls', 'Exit');
 var
   Items: TArray<TPadMenuItem>;
@@ -2393,6 +2455,49 @@ begin
   FPadMenu.Show(Title, Items, 0, PadMenuFoot(False));
 end;
 
+procedure TfrmMain.ShowBooksMenu;
+var
+  Items: TArray<TPadMenuItem>;
+  Files: TArray<string>;
+  I, Sel: Integer;
+  Rel: string;
+begin
+  FMenuMode := MODE_BOOKS;
+  FBookFiles := nil;
+  try
+    if TDirectory.Exists(FBooksFolder) then
+      Files := TDirectory.GetFiles(FBooksFolder, '*.epub', TSearchOption.soAllDirectories);
+  except
+    on E: Exception do
+      DebugLog('books folder: ' + E.Message);
+  end;
+  // by name, as a person reads them (sub-folders' books by their path)
+  TArray.Sort<string>(Files, TComparer<string>.Construct(
+    function(const A, B: string): Integer
+    begin
+      Result := CompareText(A, B);
+    end));
+  FBookFiles := Files;
+  Sel := 0;
+  SetLength(Items, Length(FBookFiles));
+  for I := 0 to High(FBookFiles) do
+  begin
+    Rel := ExtractRelativePath(IncludeTrailingPathDelimiter(FBooksFolder), FBookFiles[I]);
+    Items[I] := TPadMenu.Item(ChangeFileExt(Rel, ''));
+    if (FBookFile <> '') and SameFileName(ExpandFileName(FBookFiles[I]), FBookFile) then
+    begin
+      Items[I].Value := 'open';
+      Sel := I;
+    end;
+  end;
+  if Length(Items) = 0 then
+    Items := [TPadMenu.Item('No books there yet - copy EPUB files into the folder below')];
+  DebugLog(Format('books folder: %d book(s) in %s', [Length(FBookFiles), FBooksFolder]));
+  PadMenuColors;
+  // the foot says where the books are: where to copy more
+  FPadMenu.Show('Open a book', Items, Sel, FBooksFolder);
+end;
+
 procedure TfrmMain.PadMenuChoose(Sender: TObject; AIndex: Integer);
 begin
   if AIndex < 0 then
@@ -2402,6 +2507,24 @@ begin
     // nothing to choose: back to the menu
     ShowPadMenu;
     FPadMenu.Move(MENU_CONTROLS);
+    Exit;
+  end;
+  if FMenuMode = MODE_BOOKS then
+  begin
+    if AIndex > High(FBookFiles) then
+    begin
+      // "no books there": back to the menu
+      ShowPadMenu;
+      FPadMenu.Move(MENU_OPEN);
+      Exit;
+    end;
+    FPadMenu.Hide;
+    // later, not inside the pad's timer (opening takes a while)
+    TThread.ForceQueue(nil,
+      procedure
+      begin
+        OpenBook(FBookFiles[AIndex]);
+      end);
     Exit;
   end;
   if FMenuMode = MODE_CONTENTS then
@@ -2423,6 +2546,7 @@ begin
         if LibraryShowing and (EpubUnum1.Book <> nil) then
           HideLibrary;
       end;
+    MENU_OPEN: ShowBooksMenu;
     MENU_LIBRARY:
       begin
         FPadMenu.Hide;

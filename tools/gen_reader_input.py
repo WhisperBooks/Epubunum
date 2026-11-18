@@ -3,7 +3,11 @@
 per controller type, and demos/EpubReader/src/uReaderInput.pas, which
 carries them all inside the program.
 
-    python3 tools/gen_reader_input.py --tsteamapi PATH_TO_TSTEAMAPI
+    python3 tools/gen_reader_input.py [--tsteamapi PATH_TO_TSTEAMAPI]
+
+Without --tsteamapi: the TSTEAMAPI environment variable, else a folder
+beside this repository named TSteamAPI or steamworks (the repository's
+name before 2026-11) - the first that has tools/gen_input_mapping.py.
 
 The VDF writing is TSteamAPI's (tools/gen_input_mapping.py, imported from
 the TSteamAPI checkout given): the same writer, the same controller list
@@ -108,10 +112,27 @@ BINDINGS = {
 MODES = {"joystick": "dpad"}
 
 
+# folders beside this repository that may hold TSteamAPI
+GUESSES = ["TSteamAPI", "steamworks", "tsteamapi"]
+
+
+def find_tsteamapi(given):
+    """The TSteamAPI checkout: given, else $TSTEAMAPI, else a guess."""
+    if given:
+        tries = [given]
+    elif os.environ.get("TSTEAMAPI"):
+        tries = [os.environ["TSTEAMAPI"]]
+    else:
+        tries = [os.path.join(os.path.dirname(ROOT), g) for g in GUESSES]
+    for t in tries:
+        if os.path.isfile(os.path.join(t, "tools", "gen_input_mapping.py")):
+            return os.path.abspath(t)
+    sys.exit("TSteamAPI's tools/gen_input_mapping.py not found in: " + ", ".join(os.path.abspath(t) for t in tries)
+             + "\nGive the folder with --tsteamapi or the TSTEAMAPI environment variable.")
+
+
 def load_generator(path):
     gen = os.path.join(path, "tools", "gen_input_mapping.py")
-    if not os.path.isfile(gen):
-        sys.exit("TSteamAPI's tools/gen_input_mapping.py not found under " + path)
     # no __pycache__ left in the TSteamAPI checkout
     sys.dont_write_bytecode = True
     spec = importlib.util.spec_from_file_location("gen_input_mapping", gen)
@@ -216,9 +237,11 @@ def put(path, data):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--tsteamapi", required=True, help="the TSteamAPI checkout (has tools/gen_input_mapping.py)")
+    ap.add_argument("--tsteamapi", help="the TSteamAPI checkout (has tools/gen_input_mapping.py)")
     args = ap.parse_args()
-    g = load_generator(os.path.abspath(args.tsteamapi))
+    path = find_tsteamapi(args.tsteamapi)
+    print("TSteamAPI:", path)
+    g = load_generator(path)
     pr = g.Profile([OUT_DIR], MANIFEST_NAME, "reader_controller_", TITLE, DESCRIPTION, "EpubReader",
                    SETS, LOCALIZATION, BINDINGS, {}, MODES, LAYOUT_REVISION, True, SUMMARY,
                    bound_sources_only=True)

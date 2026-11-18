@@ -452,7 +452,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 127.
+Last number used: 130.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -2928,6 +2928,52 @@ sound player freed, done) and uSteam's finalization "Steam: shutting
 down" / "shut down", so the next log ends at the step that hangs.
 Suspects: FPlayer's AudioQueue dispose, ISteamInput's Shutdown in
 TSteamAPI's free, the uQuitSignal thread (zip 126 removed its wake-up).
+
+## Zip 128 (on top of 667070c): zip 123's script again; checks
+Push 667070c ("Reader Steam Tests", after 43e5cb9 "Remove local timings
+file" and 21fd6cc) checked: zips 124 - 127 as delivered (CR LF aside);
+timings.txt gone and in .gitignore; EpubReader.dproj has the three pad
+units and 12 Linux64 steaminput entries (deploy_redist run), XML valid;
+project_check, pasdoc_check 0. NOT pushed: zip 123's
+tools/gen_reader_input.py (the README already says the plain command) -
+here again. .gitignore given its last line end.
+TESTED (owner, 19:17): Windows desktop and Big Picture, PS5 pad, and a
+ROG Ally - "tested perfect". Open: the Mac's hang on Exit (zips 126 /
+127, owner tries tomorrow); Steam Deck and Steam Machine (the Linux-only
+code: uQuitSignal, D-Bus keep-awake, the steaminput deploy entries); the
+default text size in Big Picture (the big-screen layout, next).
+
+## Zip 129 (on top of zip 128): Open a book from the books folder
+Owner, 2026-11-18 20:46: "There's no way to open a new book on a Steam
+Deck. As it's Steam make the default folder Books next to the
+application on Linux and present a list of *.epub in there for hte user
+to open via the menu. Apple we'll need an alternate location but Windows
+and Linux can use this."
+- uMain: BooksFolderDefault - STEAMBUILD and not MACOS: <program
+  folder>/Books; else Documents/EpubReader/Books. FBooksFolder (settings
+  key "booksFolder" read, never written), made at start-up (falls back
+  to the Documents one when it cannot be made), logged.
+- Pad menu row Open a book (MENU_OPEN = 1; the rows after it moved down
+  one, MENU_EXIT = 9): ShowBooksMenu (MODE_BOOKS) lists *.epub there and
+  below, sorted by path, shown as the relative path without .epub, the
+  open book marked "open" and selected; none -> one row saying so; the
+  foot shows the folder. Choosing queues OpenBook. Back -> the menu on
+  Open a book.
+- README (reader): Books folder.
+- TESTED (owner, 21:18): "ok, stop-gap but it worked". A STOP-GAP: the
+  books folder and Open a book are what a Steam Deck has for now; to
+  come when it is taken further:
+  * the folder chosen in the program (no setting UI yet - only the
+    settings file's "booksFolder");
+  * Open a book's books shown in the library (covers) rather than a
+    list;
+  * EpubBuilder's Steam build writing into the reader's Books folder
+    (sibling installs under steamapps/common);
+  * the Mac: Documents/EpubReader/Books (not beside the .app);
+  * Books beside the program may go with an uninstall (README says so).
+- Possible next: EpubBuilder's Steam build making its books straight
+  into the reader's Books folder (two installs: EPubUnum Playtest /
+  EPubUnum - siblings under steamapps/common).
 
 ## Pushes checked
 - a6ea67b ("SteamOS good") = zips 87 - 89: identical (CR LF aside) but

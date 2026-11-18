@@ -670,18 +670,18 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="steaminput\controllers\reader_controller_ps4.vdf">
+        <DeployFile Include="steaminput\controllers\reader_controller_neptune.vdf">
             <RemoteDir>EpubReader\steaminput\controllers\</RemoteDir>
-            <RemoteName>reader_controller_ps4.vdf</RemoteName>
+            <RemoteName>reader_controller_neptune.vdf</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="steaminput\controllers\reader_controller_neptune.vdf">
+        <DeployFile Include="steaminput\controllers\reader_controller_ps4.vdf">
             <RemoteDir>EpubReader\steaminput\controllers\</RemoteDir>
-            <RemoteName>reader_controller_neptune.vdf</RemoteName>
+            <RemoteName>reader_controller_ps4.vdf</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
@@ -742,18 +742,18 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="steaminput\controllers\reader_controller_switch_pro.vdf">
-            <RemoteDir>EpubReader\steaminput\controllers\</RemoteDir>
-            <RemoteName>reader_controller_switch_pro.vdf</RemoteName>
+        <DeployFile Include="src\EpubReader.sh" Condition="'$(Config)'=='Steam'">
+            <RemoteDir>EpubReader\</RemoteDir>
+            <RemoteName>EpubReader.sh</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="src\EpubReader.sh" Condition="'$(Config)'=='Steam'">
-            <RemoteDir>EpubReader\</RemoteDir>
-            <RemoteName>EpubReader.sh</RemoteName>
+        <DeployFile Include="steaminput\controllers\reader_controller_switch_pro.vdf">
+            <RemoteDir>EpubReader\steaminput\controllers\</RemoteDir>
+            <RemoteName>reader_controller_switch_pro.vdf</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>

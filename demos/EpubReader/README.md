@@ -119,8 +119,8 @@ this is needed only when the controls change.
 | Start / Menu | the menu | the menu | close |
 | Select / View | the library | back to the book | the library |
 
-The menu: Back to the book, Library, Contents, Text size, Speed, Dark
-mode, Learn to read, Controls, Exit. Controls lists what each control
+The menu: Back to the book, Open a book, Library, Contents, Text size,
+Speed, Dark mode, Learn to read, Controls, Exit. Controls lists what each control
 does, with Steam's own pictures of the buttons of the pad in hand (the
 names, without Steam). Esc on the page opens the menu with the keyboard
 (arrows, Enter, Esc there); a click or tap on a row works too.
@@ -133,6 +133,20 @@ layout revision, restart Steam (on SteamOS, Steam or the machine). For
 players, the partner site's Steam Input setting should be "Custom
 Configuration (Bundled with Game)" naming
 `steaminput/epubreader_controllers.vdf`.
+
+## Books folder
+
+Open a book (in the menu) lists the EPUB files in the books folder and
+its folders - on a Steam Deck the only way to a new book, with no file
+dialog to reach. The folder, made at start-up:
+
+- Steam builds on Windows and Linux: `Books` beside the program - in
+  Steam, the reader's Manage > Browse local files, then Books;
+- the Mac and builds without Steam: Documents/EpubReader/Books.
+
+Copy books there (on a Steam Deck in Desktop Mode). Another folder can
+be named in the settings file, `"booksFolder": "..."`. Uninstalling the
+reader from Steam may delete a Books folder beside the program with it.
 
 ## Ended from outside (Steam's Exit Game)
 
