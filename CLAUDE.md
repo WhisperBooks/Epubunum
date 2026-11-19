@@ -197,7 +197,7 @@ the history, one per zip.
 | Repo | Pushed | = zip | Last zip number used |
 |---|---|---|---|
 | WhisperBooks/TWhisper | d669a06 | TWhisper-30 | 31 (review fixes) |
-| WhisperBooks/Epubunum | 8a9a67d | EpubUnum-138 | 147 (147 a queue's jobs shown on a click, Update job; 146 the Mac save panel's name; 145 zip 140 confirmed; 144 Windows on Arm notes + probe; 143 notes/Building-distributions.md; 139 the morning queue's results, 140 App Nap on the Mac, 141 Mac Books / steaminput beside the .app, 142 Power / Window GPU - NOT pushed; session 9: 95 - 138, see its handover above. Earlier: 94 handover; 93 Big Picture full screen; 77 - 92 calibration, Steam builds, libraries, Deck crash, build stamp, screen log, DPI, Big Picture maximise) |
+| WhisperBooks/Epubunum | 8a9a67d | EpubUnum-138 | 148 (148 EpubBuilder in Big Picture; 147 a queue's jobs shown on a click, Update job; 146 the Mac save panel's name; 145 zip 140 confirmed; 144 Windows on Arm notes + probe; 143 notes/Building-distributions.md; 139 the morning queue's results, 140 App Nap on the Mac, 141 Mac Books / steaminput beside the .app, 142 Power / Window GPU - NOT pushed; session 9: 95 - 138, see its handover above. Earlier: 94 handover; 93 Big Picture full screen; 77 - 92 calibration, Steam builds, libraries, Deck crash, build stamp, screen log, DPI, Big Picture maximise) |
 | G3DGames/TFFMpegAPI | 0795d19 | FFmpegAPI-14 | 14 (macOS sound) |
 | G3DGames/ffmpeg-dev | 4d7b7be | ffmpeg-dev-09 | 09 |
 | WhisperBooks/whisper-dev | 2071815 | whisper-dev-22 | 22 (Core ML; its own CLAUDE.md) |
@@ -583,7 +583,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 147.
+Last number used: 148.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -3170,6 +3170,53 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 148 (on top of zip 147): EpubBuilder in Big Picture (the pad)
+Owner 2026-11-19 18:31 "Can we add Big Picture mode to Builder"; asked:
+FULL PAD FLOW, audio MATCHED THEN CONFIRMED.
+- uBuilder.StartPad (FormShow, before CheckCalibrationAtStart): FPadMenu
+  (the reader's TPadMenu, font 30 in Big Picture / 20), TSteamPad on the
+  READER'S action set "Reader" (Steam Input: one manifest per app -
+  ReaderInputWrite into steaminput/ beside the program, as the reader;
+  else beside the settings) with Up Down Left Right Play(A) Back(B)
+  Menu(Start) Library(View); no stick. Linux's mnuBar hidden in Big
+  Picture (Windows' / Mac's system menus left). In Big Picture the home
+  list opens at once.
+- Lists (FPadMode BPM_*): HOME (Book, Audio, Model / Device / Language /
+  Power / Chapters with left / right turning the combo boxes - their own
+  OnChange does the rest, Output, Create, Add to queue, Update job,
+  Queue, Cancel, Calibrate, Exit - only what UpdateControls enables);
+  BOOKS (TDirectory *.epub of FBookFolder, all folders, by name; ShowBook,
+  then AUDIO); AUDIO (PadAudioCandidates: every audio file of
+  FAudioFolder (BP_AUDIO_EXTS = Add files' filter) and every folder of
+  2+ files (NaturalFileOrder), scored by PadScore = share of the title's
+  words (PadWords: lower case, small words out; title else file name) +
+  0.01 x share of the name's; best 8 with a score > 0, "best match" on
+  the first; All the audio ... (by name); Keep the list; Back); QUEUE (Run
+  queue, JobText rows); JOB (Show it in the window, Up, Down, Remove).
+  B one list back, Start closes, View the queue. The foot shows
+  lblStatus while working (SetFoot, new in uPadMenu).
+- Ask(...): the five TDialogService.MessageDialog calls (Core ML
+  encoder, download, calibration failure, the book / output checks, an
+  output already there) now go through it - a dialog, or in Big Picture
+  the pad menu (the text in lines of 60, then Yes / No / OK / Cancel; B
+  = no / cancel). CheckCalibrationAtStart asks through it in Big Picture
+  (no AskCalibration dialog there). Exit while building asks with the pad;
+  FForceClose skips FormCloseQuery's sync dialog.
+- uPadMenu (reader): SetFoot. EpubBuilder.dpr / .dproj: uSteamPad,
+  uPadMenu and uReaderInput (the reader's src) added.
+- README (builder): Big Picture (a pad), at the end. NOT COMPILED.
+OPEN: the reader's manifest titles say "Play", "Library" (Steam's
+controller screen); a builder action set would need gen_reader_input.py
+and a layout revision - not needed for the bindings. Save / Load of a
+queue: desktop only. Windows' / the Mac's system menu bar stays in Big
+Picture.
+TEST (owner): Steam Machine / Deck in Game Mode - the menu at start;
+Book -> the list; a book -> its audio matched (the Belgariad layout:
+"<Book> by <Author>/<Book>.m4b" should top the list); Create; the foot's
+progress; an output already there asks with the pad; Queue / Run queue;
+Exit while building. Desktop: Start opens the same menu; dialogs as
+before.
 
 ## Zip 147 (on top of zip 146): a click shows a job; Update job
 Owner 2026-11-19 18:14: "when you load a queue clicking in an item shows

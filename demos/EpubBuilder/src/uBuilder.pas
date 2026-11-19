@@ -19,9 +19,21 @@ uses
   Epub.Zip, Epub.Book, Epub.Layout, Epub.Writer,
   FFmpeg.API, FFmpeg.Media,
   Whisper.Types, Whisper.API, Whisper.Audio, Whisper.Core, Whisper.Words, Whisper.Align, Whisper.AudioSet,
-  uDebugLog, uMachine, uCalibration, uHistory, uModels, uSteam, uInhibit, uQuitSignal;
+  uDebugLog, uMachine, uCalibration, uHistory, uModels, uSteam, uInhibit, uQuitSignal, uSteamPad, uPadMenu;
 
 type
+  { Audio for a book, offered in Big Picture: one file, or a folder's
+    files in name order, and how well its name matches the book's. }
+  TPadAudio = record
+    { What the list shows: the file's or the folder's path in the audio
+      folder. }
+    Name: string;
+    { The files, in reading order. }
+    Files: TArray<string>;
+    { 0 (nothing in common) .. 1 (every word of the book's title). }
+    Score: Double;
+  end;
+
   { The figures of one build, for the queue's report (filled by the
     thread as it goes; read in BuildDone). }
   TBuildSummary = record
@@ -407,6 +419,38 @@ type
     { The job Update job replaces once the checks pass, -1 = Add to queue
       adds a new one. }
     FUpdateJob: Integer;
+    { Big Picture (owner, 2026-11-19 "Can we add Big Picture mode to
+      Builder" - the full pad flow, audio matched then confirmed): Steam
+      runs in Big Picture; the window is driven by FPadMenu with the pad. }
+    FBigPicture: Boolean;
+    { The pad (Steam Input; the reader's action set "Reader" - one manifest
+      per Steam app), nil without Steam. }
+    FPad: TSteamPad;
+    { Polls FPad. }
+    tmPad: TTimer;
+    { The pad's menu over the window. }
+    FPadMenu: TPadMenu;
+    { Which list FPadMenu shows (BPM_*). }
+    FPadMode: Integer;
+    { What each row of it does (BPC_* on the home list, PADROW_* or an
+      index elsewhere). }
+    FPadCmds: TArray<Integer>;
+    { The EPUB files listed (Books). }
+    FPadBooks: TArray<string>;
+    { The audio offered (Audio). }
+    FPadAudio: TArray<TPadAudio>;
+    { The job the job list is about. }
+    FPadJob: Integer;
+    { The question's answer goes to it (Ask in Big Picture). }
+    FAskProc: TInputCloseDialogProc;
+    { The answers of the question's rows (mrNone for its text). }
+    FAskResults: TArray<TModalResult>;
+    { The answer when the question is left with B / Start. }
+    FAskCancel: TModalResult;
+    { When the foot's progress was last written (ms). }
+    FPadFootTick: UInt64;
+    { Exit was confirmed with the pad: no second question on closing. }
+    FForceClose: Boolean;
     { Starts the next job once the last one's thread has gone. }
     tmQueue: TTimer;
     { The queue. }
@@ -575,6 +619,46 @@ type
     { Job AIndex into the window - book, audio, model, device, output,
       language and options; AAnnounce says so in the log. }
     procedure ShowJobInWindow(AIndex: Integer; AAnnounce: Boolean);
+    { Asks AText with AButtons: a dialog, or in Big Picture the pad's
+      menu; AResult gets the answer.
+      @param(AText  the question)
+      @param(AType  its kind)
+      @param(AButtons  the answers)
+      @param(ADefault  the answer selected first)
+      @param(AResult  called with the answer) }
+    procedure Ask(const AText: string; AType: TMsgDlgType; const AButtons: TMsgDlgButtons; ADefault: TMsgDlgBtn;
+      const AResult: TInputCloseDialogProc);
+    { Starts the pad (Steam Input) and, in Big Picture, the pad's menu. }
+    procedure StartPad;
+    { Polls the pad; keeps the menu's progress line current. }
+    procedure tmPadTimer(Sender: TObject);
+    { A press of pad button AButton (BP_*). }
+    procedure PadPress(AButton: Integer);
+    { The home list: the book, its audio, the choices, the actions;
+      ACommand (a BPC_*) selected. }
+    procedure PadHome(ACommand: Integer);
+    { The EPUB files of the books folder. }
+    procedure PadBooks;
+    { The audio for the book: the best matches first (AAll: every
+      candidate, by name). }
+    procedure PadAudioList(AAll: Boolean);
+    { The queue; job ASelected selected (-1: the first row). }
+    procedure PadQueue(ASelected: Integer);
+    { What can be done with job AIndex. }
+    procedure PadJob(AIndex: Integer);
+    { A row chosen (A, or a click / tap). }
+    procedure PadChoose(Sender: TObject; AIndex: Integer);
+    { The menu closed by a click beside it. }
+    procedure PadClosed(Sender: TObject);
+    { Left / right on the home list: the selected choice's value. }
+    procedure PadStep(ADelta: Integer);
+    { B: one list back (a question: its "no"). }
+    procedure PadBack;
+    { The question's row AIndex answered. }
+    procedure PadAnswer(AIndex: Integer);
+    { The audio of the audio folder, scored against the book's title.
+      @returns(the candidates, best first) }
+    function PadAudioCandidates: TArray<TPadAudio>;
     { Run queue: every job not done (failed and cancelled ones again). }
     procedure btnRunQueueClick(Sender: TObject);
     { Removes the selected job (not the one running). }
@@ -713,6 +797,9 @@ var
   frmBuilder: TfrmBuilder;
 
 implementation
+
+uses
+  System.Character, System.Generics.Defaults, uReaderInput;
 
 {$R *.fmx}
 
@@ -1800,6 +1887,8 @@ begin
   OnShow := FormShow;
   FEditJob := -1;
   FUpdateJob := -1;
+  FPadMode := -1;
+  FPadJob := -1;
   // the debug log: next to the settings, started afresh at every run
   DebugLogOpen(ChangeFileExt(SettingsFile, '-debug.log'));
   // Steam's Exit Game ends the program with SIGTERM: save first (owner)
@@ -1996,7 +2085,7 @@ var
   Queue: string;
   I, N: Integer;
 begin
-  if FBuild = nil then
+  if (FBuild = nil) or FForceClose then
     Exit;
   // the answer is needed now: the synchronous dialog (desktop platforms)
   Queue := '';
@@ -2534,11 +2623,11 @@ begin
     // Core ML: a model there without its encoder works (on Metal); the
     // encoder is offered
     if FCoreML and (I >= 0) and not UsesCoreML(Path) then
-      TDialogService.MessageDialog(Format('%s has no Core ML encoder here: its encoder runs on Metal.' +
+      Ask(Format('%s has no Core ML encoder here: its encoder runs on Metal.' +
         sLineBreak + sLineBreak + 'Download the Core ML encoder (about %s) so it runs on the Neural Engine? ' +
         'Its first use is slow: macOS compiles it for this Mac.', [Name,
         ModelSizeText(MODEL_CATALOGUE[I].EncoderMB)]), TMsgDlgType.mtConfirmation,
-        [TMsgDlgBtn.mbYes, TMsgDlgBtn.mbNo], TMsgDlgBtn.mbNo, 0,
+        [TMsgDlgBtn.mbYes, TMsgDlgBtn.mbNo], TMsgDlgBtn.mbNo,
         procedure(const AResult: TModalResult)
         begin
           if AResult = mrYes then
@@ -2556,10 +2645,10 @@ begin
       ModelSizeText(MODEL_CATALOGUE[I].EncoderMB)])
   else
     Amount := 'about ' + ModelSizeText(MODEL_CATALOGUE[I].SizeMB);
-  TDialogService.MessageDialog(Format('%s is not downloaded yet.' + sLineBreak + sLineBreak + 'Download it now? ' +
+  Ask(Format('%s is not downloaded yet.' + sLineBreak + sLineBreak + 'Download it now? ' +
     '%s, from whisper.cpp''s model repository on Hugging Face, into' + sLineBreak + '%s',
     [Name, Amount, FModelsFolder]), TMsgDlgType.mtConfirmation,
-    [TMsgDlgBtn.mbYes, TMsgDlgBtn.mbNo], TMsgDlgBtn.mbYes, 0,
+    [TMsgDlgBtn.mbYes, TMsgDlgBtn.mbNo], TMsgDlgBtn.mbYes,
     procedure(const AResult: TModalResult)
     begin
       if AResult = mrYes then
@@ -2798,11 +2887,11 @@ begin
     Why := CalibrationFailure(SettingsFile, FModelPath, D.Name);
   if Why <> '' then
   begin
-    TDialogService.MessageDialog(Format('In the calibration, %s FAILED on %s:' + sLineBreak + sLineBreak + '%s' +
+    Ask(Format('In the calibration, %s FAILED on %s:' + sLineBreak + sLineBreak + '%s' +
       sLineBreak + sLineBreak + 'A build would most likely fail the same way (a model too big for the card''s ' +
       'memory fails like this). Choose another device, or a smaller model.' + sLineBreak + sLineBreak +
       'Build on it anyway?', [ExtractFileName(FModelPath), WhisperDeviceText(D), Why]), TMsgDlgType.mtWarning,
-      [TMsgDlgBtn.mbYes, TMsgDlgBtn.mbNo], TMsgDlgBtn.mbNo, 0,
+      [TMsgDlgBtn.mbYes, TMsgDlgBtn.mbNo], TMsgDlgBtn.mbNo,
       procedure(const AResult: TModalResult)
       begin
         if AResult = mrYes then
@@ -2836,8 +2925,8 @@ begin
       Msg := Format('%s already has synced audio (%d clips).' + sLineBreak + sLineBreak +
         'The new book gets its own; the old audio stays in it.' + sLineBreak + sLineBreak +
         'Build from it anyway?', [ExtractFileName(edBook.Text), FBookClips]);
-    TDialogService.MessageDialog(Msg, TMsgDlgType.mtWarning, [TMsgDlgBtn.mbYes, TMsgDlgBtn.mbNo],
-      TMsgDlgBtn.mbNo, 0,
+    Ask(Msg, TMsgDlgType.mtWarning, [TMsgDlgBtn.mbYes, TMsgDlgBtn.mbNo],
+      TMsgDlgBtn.mbNo,
       procedure(const AResult: TModalResult)
       begin
         if AResult = mrYes then
@@ -2873,9 +2962,9 @@ begin
   if FileExists(edOut.Text) and not (SameFileName(ExpandFileName(edOut.Text), FMadeOut) and
     SameFileName(ExpandFileName(edBook.Text), FMadeBook)) then
   begin
-    TDialogService.MessageDialog(Format('%s already exists.' + sLineBreak + sLineBreak +
+    Ask(Format('%s already exists.' + sLineBreak + sLineBreak +
       'Replace it with the book this build makes?', [edOut.Text]), TMsgDlgType.mtConfirmation,
-      [TMsgDlgBtn.mbYes, TMsgDlgBtn.mbNo], TMsgDlgBtn.mbNo, 0,
+      [TMsgDlgBtn.mbYes, TMsgDlgBtn.mbNo], TMsgDlgBtn.mbNo,
       procedure(const AResult: TModalResult)
       begin
         if AResult = mrYes then
@@ -3866,6 +3955,881 @@ begin
     Result := 'Default (whisper.cpp chooses)';
 end;
 
+const
+  { The pad's buttons, in the order of BP_ACTIONS - the reader's action set
+    "Reader" (uReaderInput: one manifest per Steam app, both programs). }
+  BP_UP = 0;
+  { Down. }
+  BP_DOWN = 1;
+  { Left: a choice's value back. }
+  BP_LEFT = 2;
+  { Right: a choice's value on. }
+  BP_RIGHT = 3;
+  { A ("Play" in the reader): choose. }
+  BP_CHOOSE = 4;
+  { B: back. }
+  BP_BACK = 5;
+  { Start: the menu, or close it. }
+  BP_MENU = 6;
+  { View / Select ("Library" in the reader): the queue. }
+  BP_QUEUE = 7;
+  { The actions' names in the manifest. }
+  BP_ACTIONS: array[0..7] of string = ('Up', 'Down', 'Left', 'Right', 'Play', 'Back', 'Menu', 'Library');
+  { The lists of the pad's menu. }
+  BPM_HOME = 0;
+  { The books folder's EPUB files. }
+  BPM_BOOKS = 1;
+  { Audio for the book. }
+  BPM_AUDIO = 2;
+  { The queue. }
+  BPM_QUEUE = 3;
+  { One job. }
+  BPM_JOB = 4;
+  { A question (Ask). }
+  BPM_ASK = 5;
+  { The home list's rows. }
+  BPC_BOOK = 0;
+  { The audio. }
+  BPC_AUDIO = 1;
+  { The model (left / right). }
+  BPC_MODEL = 2;
+  { The device (left / right). }
+  BPC_DEVICE = 3;
+  { The language (left / right). }
+  BPC_LANGUAGE = 4;
+  { Power (left / right). }
+  BPC_POWER = 5;
+  { Chapters of a file are parts (left / right). }
+  BPC_CHAPTERS = 6;
+  { The output (shown). }
+  BPC_OUTPUT = 7;
+  { Create. }
+  BPC_CREATE = 8;
+  { Add to queue. }
+  BPC_ADD = 9;
+  { Update job. }
+  BPC_UPDATE = 10;
+  { The queue's list. }
+  BPC_QUEUE = 11;
+  { Cancel. }
+  BPC_CANCEL = 12;
+  { Calibrate (this model). }
+  BPC_CALIBRATE = 13;
+  { Exit. }
+  BPC_EXIT = 14;
+  { Rows of the other lists that are not an entry. }
+  PADROW_BACK = -1;
+  { Every audio candidate. }
+  PADROW_BROWSE = -2;
+  { The audio list as it is. }
+  PADROW_KEEP = -3;
+  { Run queue. }
+  PADROW_RUN = -4;
+  { Text only. }
+  PADROW_NONE = -5;
+  { The job into the window. }
+  PADROW_SHOW = -6;
+  { The job up. }
+  PADROW_UP = -7;
+  { The job down. }
+  PADROW_DOWN = -8;
+  { The job removed. }
+  PADROW_REMOVE = -9;
+  { Audio files the folder lists (as Add files...). }
+  BP_AUDIO_EXTS: array[0..8] of string = ('.m4b', '.m4a', '.aax', '.mp3', '.wav', '.flac', '.ogg', '.opus', '.aac');
+  { Words a title match leaves out. }
+  BP_SMALL_WORDS: array[0..7] of string = ('the', 'a', 'an', 'of', 'and', 'by', 'in', 'to');
+  { How many matches the audio list offers first. }
+  BP_AUDIO_FIRST = 8;
+  { A question's lines, characters. }
+  BP_ASK_WIDTH = 60;
+  { The foot of the lists when nothing runs. }
+  BP_FOOT = 'A choose   B back   Left / Right change   Start close   View the queue';
+
+{ AText's words, lower case, without the small ones. }
+function PadWords(const AText: string): TArray<string>;
+var
+  W: string;
+  C: Char;
+  Words: TArray<string>;
+
+  procedure Flush;
+  begin
+    if (W <> '') and (IndexText(W, BP_SMALL_WORDS) < 0) and (IndexText(W, Words) < 0) then
+      Words := Words + [W];
+    W := '';
+  end;
+
+begin
+  Words := nil;
+  W := '';
+  for C in AnsiLowerCase(AText) do
+    if C.IsLetterOrDigit then
+      W := W + C
+    else
+      Flush;
+  Flush;
+  Result := Words;
+end;
+
+{ How much of AKey's words AName has: the share of them (0 .. 1), a little
+  more for a name with fewer other words. }
+function PadScore(const AKey, AName: TArray<string>): Double;
+var
+  W: string;
+  N: Integer;
+begin
+  Result := 0;
+  if (Length(AKey) = 0) or (Length(AName) = 0) then
+    Exit;
+  N := 0;
+  for W in AKey do
+    if IndexText(W, AName) >= 0 then
+      Inc(N);
+  Result := N / Length(AKey) + 0.01 * N / Length(AName);
+end;
+
+{ The text up to ' - ' or ' (' - a combo box item's short form. }
+function PadShort(const AText: string): string;
+var
+  P: Integer;
+begin
+  Result := AText;
+  P := Pos(' - ', Result);
+  if P > 0 then
+    SetLength(Result, P - 1);
+  P := Pos(' (', Result);
+  if P > 1 then
+    SetLength(Result, P - 1);
+end;
+
+{ AText in lines of at most AWidth characters (at spaces; its own line
+  breaks kept). }
+function PadWrap(const AText: string; AWidth: Integer): TArray<string>;
+var
+  Para, Line, W: string;
+begin
+  Result := nil;
+  for Para in AText.Replace(#13, '').Split([#10]) do
+  begin
+    if Trim(Para) = '' then
+      Continue;
+    Line := '';
+    for W in Para.Split([' ']) do
+    begin
+      if W = '' then
+        Continue;
+      if (Line <> '') and (Length(Line) + 1 + Length(W) > AWidth) then
+      begin
+        Result := Result + [Line];
+        Line := '';
+      end;
+      if Line = '' then
+        Line := W
+      else
+        Line := Line + ' ' + W;
+    end;
+    if Line <> '' then
+      Result := Result + [Line];
+  end;
+end;
+
+procedure TfrmBuilder.Ask(const AText: string; AType: TMsgDlgType; const AButtons: TMsgDlgButtons;
+  ADefault: TMsgDlgBtn; const AResult: TInputCloseDialogProc);
+const
+  TITLES: array[TMsgDlgType] of string = ('Warning', 'Error', 'Note', 'Question', 'EpubBuilder');
+var
+  Items: TArray<TPadMenuItem>;
+  L: string;
+  Sel: Integer;
+
+  procedure Answer(AButton: TMsgDlgBtn; const ALabel: string; AResultValue: TModalResult);
+  begin
+    if not (AButton in AButtons) then
+      Exit;
+    if AButton = ADefault then
+      Sel := Length(Items);
+    Items := Items + [TPadMenu.Item(ALabel)];
+    FPadCmds := FPadCmds + [PADROW_NONE];
+    FAskResults := FAskResults + [AResultValue];
+  end;
+
+begin
+  if not FBigPicture or (FPadMenu = nil) then
+  begin
+    TDialogService.MessageDialog(AText, AType, AButtons, ADefault, 0, AResult);
+    Exit;
+  end;
+  DebugLog('pad question: ' + AText.Replace(sLineBreak, ' '));
+  Items := nil;
+  FPadCmds := nil;
+  FAskResults := nil;
+  Sel := -1;
+  for L in PadWrap(AText, BP_ASK_WIDTH) do
+  begin
+    Items := Items + [TPadMenu.Item(L)];
+    FPadCmds := FPadCmds + [PADROW_NONE];
+    FAskResults := FAskResults + [mrNone];
+  end;
+  Answer(TMsgDlgBtn.mbYes, 'Yes', mrYes);
+  Answer(TMsgDlgBtn.mbNo, 'No', mrNo);
+  Answer(TMsgDlgBtn.mbOK, 'OK', mrOk);
+  Answer(TMsgDlgBtn.mbCancel, 'Cancel', mrCancel);
+  if Sel < 0 then
+    Sel := Length(Items) - 1;
+  if TMsgDlgBtn.mbNo in AButtons then
+    FAskCancel := mrNo
+  else if TMsgDlgBtn.mbCancel in AButtons then
+    FAskCancel := mrCancel
+  else
+    FAskCancel := mrOk;
+  FAskProc := AResult;
+  FPadMode := BPM_ASK;
+  FPadMenu.Show(TITLES[AType], Items, Sel, 'A answer   B ' + IfThen(FAskCancel = mrNo, 'no', 'cancel'));
+end;
+
+procedure TfrmBuilder.PadAnswer(AIndex: Integer);
+var
+  P: TInputCloseDialogProc;
+  R: TModalResult;
+begin
+  if AIndex < 0 then
+    R := FAskCancel
+  else if (AIndex <= High(FAskResults)) and (FAskResults[AIndex] <> mrNone) then
+    R := FAskResults[AIndex]
+  else
+    Exit;   // a line of the question
+  P := FAskProc;
+  FAskProc := nil;
+  FAskResults := nil;
+  FPadMode := BPM_HOME;
+  FPadMenu.Hide;
+  if Assigned(P) then
+    P(R);
+  // the answer may ask again (or start a build: the window shows it)
+  if (FPadMode <> BPM_ASK) and (FBuild = nil) and (FCalib = nil) and (FDownload = nil) then
+    PadHome(BPC_CREATE);
+end;
+
+procedure TfrmBuilder.StartPad;
+var
+  I: Integer;
+  Folder, Manifest: string;
+begin
+  FBigPicture := SteamBigPicture;
+  FPadMenu := TPadMenu.Create(Self, Self);
+  FPadMenu.OnChoose := PadChoose;
+  FPadMenu.OnClose := PadClosed;
+  if FBigPicture then
+    FPadMenu.FontSize := 30
+  else
+    FPadMenu.FontSize := 20;
+  // Big Picture: the pad's menu has the menu bar's commands (Linux's drawn
+  // bar hidden; Windows' and the Mac's are the system's - left)
+  {$IF Defined(LINUX) and not Defined(ANDROID)}
+  if FBigPicture and (mnuBar <> nil) then
+    mnuBar.Visible := False;
+  {$ENDIF}
+  FPad := TSteamPad.Create('Reader', BP_ACTIONS, '');
+  for I := BP_UP to BP_RIGHT do
+    FPad.SetRepeat(I, True);
+  if not SteamRunning then
+  begin
+    DebugLog(FPad.Start(''));
+    Exit;
+  end;
+  // the reader's manifest (the same Steam app): written beside the program
+  // as the reader does (on the Mac beside the .app), else beside the
+  // settings
+  Manifest := '';
+  Folder := TPath.Combine(ExtractFileDir(ModelsDefaultFolder(True, '')), 'steaminput');
+  try
+    Manifest := ReaderInputWrite(Folder);
+  except
+    on E: Exception do
+      DebugLog('pad: ' + Folder + ' not writable (' + E.Message + '): the settings'' folder instead');
+  end;
+  if Manifest = '' then
+  begin
+    Folder := ExtractFilePath(SettingsFile) + 'steaminput';
+    try
+      Manifest := ReaderInputWrite(Folder);
+    except
+      on E: Exception do
+        DebugLog('pad: the action manifest was not written to ' + Folder + ': ' + E.Message);
+    end;
+  end;
+  if Manifest <> '' then
+    DebugLog(FPad.Start(Manifest) + Format(' (the reader''s manifest, layout revision %d)', [READER_INPUT_REVISION]));
+  if not FPad.Started then
+    Exit;
+  tmPad := TTimer.Create(Self);
+  tmPad.Interval := 16;
+  tmPad.OnTimer := tmPadTimer;
+  tmPad.Enabled := True;
+  if FBigPicture then
+  begin
+    LogLine('Big Picture: the pad drives EpubBuilder - Start (Menu) opens its menu, View (Select) the queue.');
+    PadHome(BPC_BOOK);
+  end;
+end;
+
+procedure TfrmBuilder.tmPadTimer(Sender: TObject);
+var
+  Presses: TSteamPadPresses;
+  Y: Single;
+  I: Integer;
+  Note: string;
+  T: UInt64;
+begin
+  try
+    FPad.Poll(Presses, Y);
+    Note := FPad.TakeNote;
+    if Note <> '' then
+      DebugLog(Note);
+    for I := 0 to High(Presses) do
+      if Presses[I] then
+        PadPress(I);
+    // the build's progress at the menu's foot, twice a second
+    T := TThread.GetTickCount64;
+    if FPadMenu.Showing and (FPadMode in [BPM_HOME, BPM_QUEUE]) and (T - FPadFootTick > 500) then
+    begin
+      FPadFootTick := T;
+      if (FBuild <> nil) or (FCalib <> nil) or (FDownload <> nil) then
+        FPadMenu.SetFoot(lblStatus.Text)
+      else
+        FPadMenu.SetFoot(BP_FOOT);
+    end;
+  except
+    on E: Exception do
+      DebugLog('pad: ' + E.ClassName + ': ' + E.Message);
+  end;
+end;
+
+procedure TfrmBuilder.PadPress(AButton: Integer);
+begin
+  if not (AButton in [BP_UP, BP_DOWN, BP_LEFT, BP_RIGHT]) then
+    DebugLog('pad: ' + BP_ACTIONS[AButton]);
+  if not FPadMenu.Showing then
+  begin
+    case AButton of
+      BP_MENU, BP_CHOOSE: PadHome(BPC_BOOK);
+      BP_QUEUE: PadQueue(-1);
+    end;
+    Exit;
+  end;
+  case AButton of
+    BP_UP: FPadMenu.Move(-1);
+    BP_DOWN: FPadMenu.Move(1);
+    BP_LEFT: PadStep(-1);
+    BP_RIGHT: PadStep(1);
+    BP_CHOOSE: PadChoose(FPadMenu, FPadMenu.Selected);
+    BP_BACK: PadBack;
+    BP_MENU:
+      if FPadMode = BPM_ASK then
+        PadAnswer(-1)
+      else
+        FPadMenu.Hide;
+    BP_QUEUE:
+      if FPadMode <> BPM_ASK then
+        PadQueue(-1);
+  end;
+end;
+
+procedure TfrmBuilder.PadClosed(Sender: TObject);
+begin
+  // a click beside a question answers it as B does
+  if FPadMode = BPM_ASK then
+    PadAnswer(-1);
+end;
+
+procedure TfrmBuilder.PadBack;
+begin
+  case FPadMode of
+    BPM_ASK: PadAnswer(-1);
+    BPM_BOOKS, BPM_AUDIO, BPM_QUEUE: PadHome(BPC_BOOK);
+    BPM_JOB: PadQueue(FPadJob);
+  else
+    FPadMenu.Hide;
+  end;
+end;
+
+procedure TfrmBuilder.PadHome(ACommand: Integer);
+var
+  Items: TArray<TPadMenuItem>;
+  Sel: Integer;
+
+  procedure Add(ACmd: Integer; const AText, AValue: string);
+  begin
+    if ACmd = ACommand then
+      Sel := Length(Items);
+    Items := Items + [TPadMenu.Item(AText, AValue)];
+    FPadCmds := FPadCmds + [ACmd];
+  end;
+
+  function Combo(ACombo: TComboBox): string;
+  begin
+    Result := '';
+    if (ACombo <> nil) and (ACombo.ItemIndex >= 0) then
+      Result := '< ' + PadShort(ACombo.Items[ACombo.ItemIndex]) + ' >';
+  end;
+
+var
+  Book, Audio: string;
+begin
+  if FPadMenu = nil then
+    Exit;
+  UpdateControls;
+  Items := nil;
+  FPadCmds := nil;
+  Sel := 0;
+  if FBookTitle <> '' then
+    Book := FBookTitle
+  else if edBook.Text <> '' then
+    Book := ChangeFileExt(ExtractFileName(edBook.Text), '')
+  else
+    Book := 'choose ...';
+  case lbAudio.Count of
+    0: Audio := 'choose ...';
+    1: Audio := ExtractFileName(lbAudio.Items[0]);
+  else
+    Audio := Format('%d files', [lbAudio.Count]);
+  end;
+  Add(BPC_BOOK, 'Book', Book);
+  Add(BPC_AUDIO, 'Audio', Audio);
+  Add(BPC_MODEL, 'Model', Combo(cbModel));
+  Add(BPC_DEVICE, 'Device', Combo(cbDevice));
+  if cbLanguage <> nil then
+    Add(BPC_LANGUAGE, 'Language', Combo(cbLanguage));
+  Add(BPC_POWER, 'Power', Combo(cbPower));
+  Add(BPC_CHAPTERS, 'Chapters of a file are parts', IfThen(chkChapters.IsChecked, '< Yes >', '< No >'));
+  Add(BPC_OUTPUT, 'Output', ExtractFileName(edOut.Text));
+  if btnCreate.Enabled then
+    Add(BPC_CREATE, 'Create', '');
+  if btnAddJob.Enabled then
+    Add(BPC_ADD, 'Add to queue', '');
+  if btnUpdateJob.Enabled then
+    Add(BPC_UPDATE, Format('Update job %d', [FEditJob + 1]), '');
+  Add(BPC_QUEUE, 'Queue', Format('%d job(s)%s', [Length(FJobs), IfThen(FQueueRunning, ', running', '')]));
+  if btnCancel.Enabled then
+    Add(BPC_CANCEL, 'Cancel', PadShort(FStatusText));
+  if (miCalibrate <> nil) and miCalibrate.Enabled then
+    Add(BPC_CALIBRATE, 'Calibrate (this model)', '');
+  Add(BPC_EXIT, 'Exit', '');
+  FPadMode := BPM_HOME;
+  FPadFootTick := 0;
+  FPadMenu.Show('EpubBuilder', Items, Sel, BP_FOOT);
+end;
+
+procedure TfrmBuilder.PadStep(ADelta: Integer);
+var
+  Cmd: Integer;
+
+  procedure Turn(ACombo: TComboBox);
+  begin
+    if (ACombo = nil) or (ACombo.Count = 0) then
+      Exit;
+    // the combo box's own change handler does the rest (a model not here
+    // yet asks to download it)
+    ACombo.ItemIndex := (Max(ACombo.ItemIndex, 0) + ADelta + ACombo.Count) mod ACombo.Count;
+  end;
+
+begin
+  if (FPadMode <> BPM_HOME) or (FPadMenu.Selected < 0) or (FPadMenu.Selected > High(FPadCmds)) then
+    Exit;
+  Cmd := FPadCmds[FPadMenu.Selected];
+  case Cmd of
+    BPC_MODEL: Turn(cbModel);
+    BPC_DEVICE: Turn(cbDevice);
+    BPC_LANGUAGE: Turn(cbLanguage);
+    BPC_POWER: Turn(cbPower);
+    BPC_CHAPTERS: chkChapters.IsChecked := not chkChapters.IsChecked;
+  else
+    Exit;
+  end;
+  // a question asked by the change (a model to download) stays
+  if FPadMode = BPM_HOME then
+    PadHome(Cmd);
+end;
+
+procedure TfrmBuilder.PadChoose(Sender: TObject; AIndex: Integer);
+var
+  Cmd, I: Integer;
+  L: TStringList;
+begin
+  if FPadMode = BPM_ASK then
+  begin
+    PadAnswer(AIndex);
+    Exit;
+  end;
+  if (AIndex < 0) or (AIndex > High(FPadCmds)) then
+    Exit;
+  Cmd := FPadCmds[AIndex];
+  case FPadMode of
+    BPM_HOME:
+      case Cmd of
+        BPC_BOOK: PadBooks;
+        BPC_AUDIO: PadAudioList(False);
+        BPC_MODEL, BPC_DEVICE, BPC_LANGUAGE, BPC_POWER, BPC_CHAPTERS: PadStep(1);
+        BPC_OUTPUT: WindowLine('Output: ' + edOut.Text);
+        BPC_CREATE, BPC_ADD, BPC_UPDATE:
+          begin
+            FPadMenu.Hide;
+            FPadMode := BPM_HOME;
+            case Cmd of
+              BPC_CREATE: btnCreateClick(nil);
+              BPC_ADD: btnAddJobClick(nil);
+              BPC_UPDATE: btnUpdateJobClick(nil);
+            end;
+            // no question asked: the home list again (a build shows in the
+            // window - Start brings the menu back)
+            if (FPadMode <> BPM_ASK) and (Cmd <> BPC_CREATE) then
+              PadHome(BPC_QUEUE);
+          end;
+        BPC_QUEUE: PadQueue(-1);
+        BPC_CANCEL:
+          begin
+            btnCancelClick(nil);
+            PadHome(BPC_QUEUE);
+          end;
+        BPC_CALIBRATE:
+          begin
+            FPadMenu.Hide;
+            miCalibrateClick(nil);
+          end;
+        BPC_EXIT:
+          if FBuild <> nil then
+            Ask('A build is running (' + PadShort(FStatusText) + '). Closing stops it, and its work so far ' +
+              'is lost.' + sLineBreak + sLineBreak + 'Stop the build and close?', TMsgDlgType.mtWarning,
+              [TMsgDlgBtn.mbYes, TMsgDlgBtn.mbNo], TMsgDlgBtn.mbNo,
+              procedure(const AResult: TModalResult)
+              begin
+                if AResult = mrYes then
+                begin
+                  FForceClose := True;
+                  Close;
+                end;
+              end)
+          else
+            Close;
+      end;
+    BPM_BOOKS:
+      if (Cmd >= 0) and (Cmd <= High(FPadBooks)) then
+      begin
+        ShowBook(FPadBooks[Cmd]);
+        UpdateControls;
+        // its audio: the best matches, to confirm
+        PadAudioList(False);
+      end
+      else if Cmd = PADROW_BACK then
+        PadHome(BPC_BOOK);
+    BPM_AUDIO:
+      if (Cmd >= 0) and (Cmd <= High(FPadAudio)) then
+      begin
+        L := TStringList.Create;
+        try
+          for I := 0 to High(FPadAudio[Cmd].Files) do
+            L.Add(FPadAudio[Cmd].Files[I]);
+          lbAudio.Clear;
+          AddAudio(L);
+        finally
+          L.Free;
+        end;
+        WindowLine(Format('Audio: %s (%d file(s))', [FPadAudio[Cmd].Name, lbAudio.Count]));
+        PadHome(BPC_CREATE);
+      end
+      else
+        case Cmd of
+          PADROW_BROWSE: PadAudioList(True);
+          PADROW_KEEP, PADROW_BACK: PadHome(BPC_AUDIO);
+        end;
+    BPM_QUEUE:
+      if (Cmd >= 0) and (Cmd <= High(FJobs)) then
+        PadJob(Cmd)
+      else
+        case Cmd of
+          PADROW_RUN:
+            begin
+              FPadMenu.Hide;
+              btnRunQueueClick(nil);
+            end;
+          PADROW_BACK: PadHome(BPC_QUEUE);
+        end;
+    BPM_JOB:
+      if (FPadJob >= 0) and (FPadJob <= High(FJobs)) then
+      begin
+        lbJobs.ItemIndex := FPadJob;
+        case Cmd of
+          PADROW_SHOW:
+            begin
+              ShowJobInWindow(FPadJob, True);
+              PadHome(BPC_UPDATE);
+            end;
+          PADROW_UP:
+            begin
+              btnJobUpClick(nil);
+              PadQueue(lbJobs.ItemIndex);
+            end;
+          PADROW_DOWN:
+            begin
+              btnJobDownClick(nil);
+              PadQueue(lbJobs.ItemIndex);
+            end;
+          PADROW_REMOVE:
+            begin
+              btnJobRemoveClick(nil);
+              PadQueue(-1);
+            end;
+          PADROW_BACK: PadQueue(FPadJob);
+        end;
+      end
+      else
+        PadQueue(-1);
+  end;
+end;
+
+procedure TfrmBuilder.PadBooks;
+var
+  Items: TArray<TPadMenuItem>;
+  Files: TArray<string>;
+  I: Integer;
+  Sub: string;
+begin
+  Items := nil;
+  FPadCmds := nil;
+  FPadBooks := nil;
+  Files := nil;
+  try
+    if TDirectory.Exists(FBookFolder) then
+      Files := TDirectory.GetFiles(FBookFolder, '*.epub', TSearchOption.soAllDirectories);
+  except
+    on E: Exception do
+      DebugLog('pad: the books folder: ' + E.Message);
+  end;
+  TArray.Sort<string>(Files, TComparer<string>.Construct(
+    function(const A, B: string): Integer
+    begin
+      Result := CompareText(ExtractFileName(A), ExtractFileName(B));
+    end));
+  for I := 0 to High(Files) do
+  begin
+    Sub := ExtractRelativePath(IncludeTrailingPathDelimiter(FBookFolder), ExtractFilePath(Files[I]));
+    Items := Items + [TPadMenu.Item(ChangeFileExt(ExtractFileName(Files[I]), ''),
+      ExcludeTrailingPathDelimiter(Sub))];
+    FPadCmds := FPadCmds + [I];
+  end;
+  FPadBooks := Files;
+  if Length(Files) = 0 then
+  begin
+    Items := Items + [TPadMenu.Item('No EPUB files in ' + FBookFolder)];
+    FPadCmds := FPadCmds + [PADROW_NONE];
+  end;
+  Items := Items + [TPadMenu.Item('Back')];
+  FPadCmds := FPadCmds + [PADROW_BACK];
+  FPadMode := BPM_BOOKS;
+  FPadMenu.Show('Books', Items, 0, 'The books folder: ' + FBookFolder);
+end;
+
+function TfrmBuilder.PadAudioCandidates: TArray<TPadAudio>;
+var
+  Files: TArray<string>;
+  Dirs: TDictionary<string, TList<string>>;
+  F, D, Base: string;
+  Key: TArray<string>;
+  C: TPadAudio;
+  L: TStringList;
+  Pair: TPair<string, TList<string>>;
+begin
+  Result := nil;
+  Files := nil;
+  try
+    if TDirectory.Exists(FAudioFolder) then
+      Files := TDirectory.GetFiles(FAudioFolder, '*', TSearchOption.soAllDirectories);
+  except
+    on E: Exception do
+      DebugLog('pad: the audio folder: ' + E.Message);
+  end;
+  // the book's title, else its file's name
+  Key := PadWords(FBookTitle);
+  if Length(Key) = 0 then
+    Key := PadWords(ChangeFileExt(ExtractFileName(edBook.Text), ''));
+  Base := IncludeTrailingPathDelimiter(FAudioFolder);
+  Dirs := TObjectDictionary<string, TList<string>>.Create([doOwnsValues]);
+  try
+    for F in Files do
+    begin
+      if IndexText(ExtractFileExt(F), BP_AUDIO_EXTS) < 0 then
+        Continue;
+      // each file
+      C.Name := ExtractRelativePath(Base, F);
+      C.Files := [F];
+      C.Score := PadScore(Key, PadWords(ChangeFileExt(ExtractFileName(F), '')));
+      Result := Result + [C];
+      D := ExtractFileDir(F);
+      if not Dirs.ContainsKey(D) then
+        Dirs.Add(D, TList<string>.Create);
+      Dirs[D].Add(F);
+    end;
+    // each folder of two or more: all its files, in name order (a book in
+    // parts); scored by the folder's name
+    for Pair in Dirs do
+      if Pair.Value.Count >= 2 then
+      begin
+        L := TStringList.Create;
+        try
+          for F in Pair.Value do
+            L.Add(F);
+          L.CustomSort(NaturalFileOrder);
+          C.Name := ExcludeTrailingPathDelimiter(ExtractRelativePath(Base, IncludeTrailingPathDelimiter(Pair.Key)));
+          if C.Name = '' then
+            C.Name := ExtractFileName(ExcludeTrailingPathDelimiter(FAudioFolder));
+          C.Files := L.ToStringArray;
+          C.Score := PadScore(Key, PadWords(ExtractFileName(Pair.Key)));
+          Result := Result + [C];
+        finally
+          L.Free;
+        end;
+      end;
+  finally
+    Dirs.Free;
+  end;
+  TArray.Sort<TPadAudio>(Result, TComparer<TPadAudio>.Construct(
+    function(const A, B: TPadAudio): Integer
+    begin
+      Result := CompareValue(B.Score, A.Score);
+      if Result = 0 then
+        Result := CompareText(A.Name, B.Name);
+    end));
+end;
+
+procedure TfrmBuilder.PadAudioList(AAll: Boolean);
+var
+  Items: TArray<TPadMenuItem>;
+  All: TArray<TPadAudio>;
+  I, N: Integer;
+  Title, Value: string;
+begin
+  All := PadAudioCandidates;
+  if AAll then
+    TArray.Sort<TPadAudio>(All, TComparer<TPadAudio>.Construct(
+      function(const A, B: TPadAudio): Integer
+      begin
+        Result := CompareText(A.Name, B.Name);
+      end))
+  else
+  begin
+    // the matches first: those with anything in common, at most
+    // BP_AUDIO_FIRST
+    N := 0;
+    while (N < Length(All)) and (N < BP_AUDIO_FIRST) and (All[N].Score > 0) do
+      Inc(N);
+    SetLength(All, N);
+  end;
+  FPadAudio := All;
+  Items := nil;
+  FPadCmds := nil;
+  for I := 0 to High(All) do
+  begin
+    if Length(All[I].Files) > 1 then
+      Value := Format('%d files', [Length(All[I].Files)])
+    else
+      Value := '';
+    if (I = 0) and not AAll then
+      Value := IfThen(Value = '', 'best match', Value + ', best match');
+    Items := Items + [TPadMenu.Item(All[I].Name, Value)];
+    FPadCmds := FPadCmds + [I];
+  end;
+  if Length(All) = 0 then
+  begin
+    if AAll then
+      Items := Items + [TPadMenu.Item('No audio files in ' + FAudioFolder)]
+    else
+      Items := Items + [TPadMenu.Item('No audio whose name matches the book')];
+    FPadCmds := FPadCmds + [PADROW_NONE];
+  end;
+  if not AAll then
+  begin
+    Items := Items + [TPadMenu.Item('All the audio in the folder ...')];
+    FPadCmds := FPadCmds + [PADROW_BROWSE];
+  end;
+  if lbAudio.Count > 0 then
+  begin
+    Items := Items + [TPadMenu.Item('Keep the list as it is', Format('%d file(s)', [lbAudio.Count]))];
+    FPadCmds := FPadCmds + [PADROW_KEEP];
+  end;
+  Items := Items + [TPadMenu.Item('Back')];
+  FPadCmds := FPadCmds + [PADROW_BACK];
+  Title := 'Audio';
+  if FBookTitle <> '' then
+    Title := 'Audio for ' + FBookTitle;
+  FPadMode := BPM_AUDIO;
+  FPadMenu.Show(Title, Items, 0, 'The audio folder: ' + FAudioFolder);
+end;
+
+procedure TfrmBuilder.PadQueue(ASelected: Integer);
+var
+  Items: TArray<TPadMenuItem>;
+  I, Sel: Integer;
+begin
+  Items := nil;
+  FPadCmds := nil;
+  Sel := 0;
+  if btnRunQueue.Enabled then
+  begin
+    Items := Items + [TPadMenu.Item(btnRunQueue.Text)];
+    FPadCmds := FPadCmds + [PADROW_RUN];
+  end;
+  for I := 0 to High(FJobs) do
+  begin
+    if I = ASelected then
+      Sel := Length(Items);
+    Items := Items + [TPadMenu.Item(JobText(I))];
+    FPadCmds := FPadCmds + [I];
+  end;
+  if Length(FJobs) = 0 then
+  begin
+    Items := Items + [TPadMenu.Item('No jobs: Add to queue adds the book in the window')];
+    FPadCmds := FPadCmds + [PADROW_NONE];
+  end;
+  Items := Items + [TPadMenu.Item('Back')];
+  FPadCmds := FPadCmds + [PADROW_BACK];
+  FPadMode := BPM_QUEUE;
+  FPadFootTick := 0;
+  FPadMenu.Show('Queue', Items, Sel, BP_FOOT);
+end;
+
+procedure TfrmBuilder.PadJob(AIndex: Integer);
+var
+  Items: TArray<TPadMenuItem>;
+  Running: Boolean;
+begin
+  FPadJob := AIndex;
+  Running := FJobs[AIndex].State = jsRunning;
+  Items := nil;
+  FPadCmds := nil;
+  Items := Items + [TPadMenu.Item('Show it in the window', 'to check or change')];
+  FPadCmds := FPadCmds + [PADROW_SHOW];
+  if not Running then
+  begin
+    if AIndex > 0 then
+    begin
+      Items := Items + [TPadMenu.Item('Up')];
+      FPadCmds := FPadCmds + [PADROW_UP];
+    end;
+    if AIndex < High(FJobs) then
+    begin
+      Items := Items + [TPadMenu.Item('Down')];
+      FPadCmds := FPadCmds + [PADROW_DOWN];
+    end;
+    Items := Items + [TPadMenu.Item('Remove')];
+    FPadCmds := FPadCmds + [PADROW_REMOVE];
+  end;
+  Items := Items + [TPadMenu.Item('Back')];
+  FPadCmds := FPadCmds + [PADROW_BACK];
+  FPadMode := BPM_JOB;
+  FPadMenu.Show(JobText(AIndex), Items, 0, ExtractFileName(FJobs[AIndex].Output));
+end;
+
 procedure TfrmBuilder.FormShow(Sender: TObject);
 begin
   if FShown then
@@ -3877,6 +4841,7 @@ begin
     begin
       // the display it is on (big-screen work, 2026-11-17: numbers first)
       DebugLog(SteamScreenText(Self));
+      StartPad;
       CheckCalibrationAtStart;
     end);
 end;
@@ -3930,6 +4895,20 @@ begin
     'the settings of a build, and makes the fastest the device for that model. It takes a minute or two per ' +
     'device - longer on the processor with a large model.', [Model, Names]) + sLineBreak + sLineBreak +
     'Tools > Re-calibrate does it again later (a new graphics card or driver, another model).';
+  if FBigPicture then
+  begin
+    // no dialog to reach with the pad: the question in the pad's menu
+    Ask(Text, TMsgDlgType.mtConfirmation, [TMsgDlgBtn.mbYes, TMsgDlgBtn.mbNo], TMsgDlgBtn.mbYes,
+      procedure(const AResult: TModalResult)
+      begin
+        if AResult = mrYes then
+          StartCalibration(False, False)
+        else
+          LogLine('Not calibrated: "Default" lets whisper.cpp choose. Calibrate (this model) in the pad''s ' +
+            'menu does it later.');
+      end);
+    Exit;
+  end;
   if AskCalibration(Self, Text, DontShow) then
   begin
     if DontShow then

@@ -109,6 +109,10 @@ type
       @param(AIndex  the row)
       @param(AValue  its value) }
     procedure SetValue(AIndex: Integer; const AValue: string);
+    { Changes the hints at the foot while the menu shows (EpubBuilder: the
+      build's progress).
+      @param(AFoot  the new text ('' = hidden)) }
+    procedure SetFoot(const AFoot: string);
     { The colours: box, text, selected row (the reader's theme).
       @param(ABack  the box)
       @param(AFore  the text)
@@ -402,6 +406,26 @@ procedure TPadMenu.SetValue(AIndex: Integer; const AValue: string);
 begin
   if (AIndex >= 0) and (AIndex <= High(FValues)) then
     FValues[AIndex].Text := AValue;
+end;
+
+procedure TPadMenu.SetFoot(const AFoot: string);
+begin
+  if FFoot.Text = AFoot then
+    Exit;
+  FFoot.Text := AFoot;
+  if FFoot.Visible <> (AFoot <> '') then
+  begin
+    FFoot.Visible := AFoot <> '';
+    if FFoot.Height <= 0 then
+      FFoot.Height := FFontSize * 1.5;
+    FFoot.TextSettings.Font.Size := FFontSize * 0.75;
+    FFoot.TextSettings.FontColor := Faded(FFore, $A0);
+    // the box's height follows the foot
+    if FFoot.Visible then
+      FBox.Height := FBox.Height + FFoot.Height + PAD / 2
+    else
+      FBox.Height := FBox.Height - FFoot.Height - PAD / 2;
+  end;
 end;
 
 procedure TPadMenu.SetColors(ABack, AFore, AAccent: TAlphaColor);

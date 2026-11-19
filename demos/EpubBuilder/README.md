@@ -387,3 +387,39 @@ another model chosen means a new transcription - and the log says, in
 capitals, which transcript was used, when it was made and with which
 model. It is the same JSON as WhisperConsole `--json`, so
 `WhisperConsole --from-json` reads it too.
+
+## Big Picture (a pad)
+
+Started from Steam in Big Picture (or Game Mode on a Steam Deck / Steam
+Machine), EpubBuilder opens its pad menu over the window - no file
+dialogs or mouse needed:
+
+- **Book**: the EPUB files of the books folder (and its folders) to choose
+  from;
+- **Audio**: chosen with the book - the audio folder's files and folders
+  whose names best match the book's title come first (a folder of two or
+  more files is all of them, in name order), *best match* on top; choose
+  one, see **All the audio in the folder ...**, or keep the list;
+- **Model**, **Device**, **Language**, **Power**, **Chapters of a file are
+  parts**: left / right change them (a model not here yet asks to be
+  downloaded);
+- **Output** (shown), **Create**, **Add to queue**, **Update job**,
+  **Queue** (Run queue; each job: show it in the window, Up, Down,
+  Remove), **Cancel**, **Calibrate (this model)**, **Exit**.
+
+| Pad | |
+|---|---|
+| D-pad / stick | up / down; left / right change a value |
+| A | choose |
+| B | back (a question: no) |
+| Start / Menu | the menu / close it |
+| View / Select | the queue |
+
+While a build runs the menu's foot shows its progress; close the menu
+to see the window. Questions (an output already there, a model to
+download, the calibration) are asked in the same menu. The pad uses
+EpubReader's Steam Input actions (one manifest per Steam app); outside
+Big Picture Start opens the same menu on the desktop too. Copy books into
+the books folder and audio into the audio folder first (on a Steam Deck in
+Desktop Mode); Tools > Folders changes them on the desktop. Save... and
+Load... of a queue need the desktop (file dialogs).

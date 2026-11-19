@@ -31,6 +31,11 @@ uses
   uQuitSignal in '..\common\uQuitSignal.pas',
   // Steam: only in the Steam / SteamDebug configurations (STEAMBUILD)
   uSteam in '..\common\uSteam.pas',
+  // the pad in Big Picture: Steam Input with the reader's manifest (one per
+  // Steam app) and the reader's pad menu
+  uSteamPad in '..\common\uSteamPad.pas',
+  uPadMenu in '..\EpubReader\src\uPadMenu.pas',
+  uReaderInput in '..\EpubReader\src\uReaderInput.pas',
   uMachine in '..\common\uMachine.pas',
   uCalibration in 'src\uCalibration.pas',
   uHistory in 'src\uHistory.pas',
