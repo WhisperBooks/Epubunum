@@ -74,6 +74,13 @@ Go to Footnote - a list of the book's notes. Any book opens where you
 left it - the sentence lit, and Play starts there. Books are matched by
 file name for now (a book moved to another folder keeps its place).
 
+## Graphics (Windows)
+
+View > Graphics stores Windows' graphics preference for the reader (as
+Settings > System > Display > Graphics does): Windows decides, the power
+saving GPU (a laptop's integrated one - longer on battery), or the high
+performance GPU. Windows uses it from the reader's next start.
+
 ## Screen kept on while it reads aloud
 
 While the audio plays, EpubReader asks the system to keep the screen on
@@ -92,8 +99,9 @@ puts them there (Win64: tools/postbuild.bat, every configuration;
 Linux64: the Deploy entries tools/deploy_redist.py writes), so they are
 in the Steam depot before the program first runs - Steam may read them
 before it starts. The program also carries them and writes them there
-at start-up when they are missing or out of date (beside the settings
-when that folder cannot be written, and always on the Mac), then gives
+at start-up when they are missing or out of date (on the Mac beside
+EpubReader.app, never inside the bundle; beside the settings when that
+folder cannot be written), then gives
 Steam the manifest. They are made by `tools/gen_reader_input.py` from one
 table, with TSteamAPI's generator:
 
@@ -140,9 +148,10 @@ Open a book (in the menu) lists the EPUB files in the books folder and
 its folders - on a Steam Deck the only way to a new book, with no file
 dialog to reach. The folder, made at start-up:
 
-- Steam builds on Windows and Linux: `Books` beside the program - in
-  Steam, the reader's Manage > Browse local files, then Books;
-- the Mac and builds without Steam: Documents/EpubReader/Books.
+- Steam builds: `Books` beside the program (on the Mac beside
+  EpubReader.app) - in Steam, the reader's Manage > Browse local files,
+  then Books;
+- builds without Steam: Documents/EpubReader/Books.
 
 Copy books there (on a Steam Deck in Desktop Mode). Another folder can
 be named in the settings file, `"booksFolder": "..."`. Uninstalling the

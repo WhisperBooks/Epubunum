@@ -77,7 +77,9 @@ type
     { The calibration's speed of this model on this device when it was
       built (x real time; 0 = not calibrated). }
     CalibrationSpeed: Double;
-    { Words heard exactly as the book has them, % of the book's words. }
+    { Words heard exactly as the book has them, % of the book's words
+      between the first and the last word read (front and back matter left
+      out; rows from before 2026-11-19: % of all the book's words). }
     ExactPercent: Double;
     { Timed words matched to what was heard, % (the verdict's figure). }
     MatchedPercent: Double;

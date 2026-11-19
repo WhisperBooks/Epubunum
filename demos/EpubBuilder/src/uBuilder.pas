@@ -295,6 +295,16 @@ type
     { The computer is kept awake (a build, queue, calibration or download
       runs) - see uInhibit. }
     FAwake: Boolean;
+    { InhibitStart(ikSleep) is held (Power: not Let it sleep). }
+    FInhibited: Boolean;
+    { The power choice in force (see EffectivePower), 0 = none. }
+    FPowerNow: Integer;
+    { How the computer is kept while building (owner, 2026-11-19: "saving
+      power or time"): Automatic, Fastest, Save power, Let it sleep. }
+    cbPower: TComboBox;
+    { Windows' graphics preference for this program (Windows only; at the
+      next start). }
+    cbGpu: TComboBox;
     { The device to transcribe on. }
     cbDevice: TComboBox;
     { The language: the book's (the first item) or one chosen (owner,
@@ -388,6 +398,15 @@ type
     btnRunQueue: TButton;
     { Adds the window's book, audio and settings to the queue. }
     btnAddJob: TButton;
+    { Writes the window's book, audio, model, device, output and options
+      back into the job shown in it (the selected one; owner, 2026-11-19:
+      a loaded queue's jobs checked and their output names changed). }
+    btnUpdateJob: TButton;
+    { The job the window shows (clicked in the queue), -1 = none. }
+    FEditJob: Integer;
+    { The job Update job replaces once the checks pass, -1 = Add to queue
+      adds a new one. }
+    FUpdateJob: Integer;
     { Starts the next job once the last one's thread has gone. }
     tmQueue: TTimer;
     { The queue. }
@@ -451,8 +470,39 @@ type
     procedure AddAudio(AFiles: TStrings);
     { Enables what can be used now. }
     procedure UpdateControls;
-    { Appends a line to the log. }
+    { Applies the Power choice: kept awake or not, the speed (uInhibit);
+      at the end of the work the system's own again. Logs what was done.
+      @param(ABusy  work starts (or goes on: Automatic looks at the
+        battery again))
+      @param(AOnlyOnChange  log and apply only when the choice in force
+        changes) }
+    procedure ApplyPower(ABusy, AOnlyOnChange: Boolean);
+    { The Power choice in force: 1 Fastest, 2 Save power, 3 Let it sleep
+      (Automatic: Fastest on mains, Save power on battery).
+      @returns(the choice) }
+    function EffectivePower: Integer;
+    { cbPower changed: kept, and in force at once while working. }
+    procedure cbPowerChange(Sender: TObject);
+    { cbGpu changed: stored for Windows (used at the next start). }
+    procedure cbGpuChange(Sender: TObject);
+    { The device's name to use for AName saved with description
+      ADescription: the device of that description when the numbers moved
+      (a driver update, Windows' graphics preference reorder Vulkan's
+      list). @returns(the name) }
+    function DeviceMatch(const AName, ADescription: string): string;
+    { The description of device AName ('' when none). @returns(it) }
+    function DeviceDescription(const AName: string): string;
+    { Appends a line to the log (and to the running build's log). }
     procedure LogLine(const AText: string);
+    { Appends a line about the window - a book or audio chosen, the queue
+      changed - to the log, but not to the running build's log: what is
+      done in the window during a queue is not part of that book's build. }
+    procedure WindowLine(const AText: string);
+    { Appends a line of the build or the calibration to the log (and to
+      the running build's log) - not to the debug log, which the thread
+      wrote it to already, with the time it was written (each part's line
+      was there twice). }
+    procedure ThreadLine(const AText: string);
     { Choose the EPUB. }
     procedure btnBookClick(Sender: TObject);
     { Add audio files. }
@@ -517,6 +567,14 @@ type
     procedure tmQueueTimer(Sender: TObject);
     { Add to queue. }
     procedure btnAddJobClick(Sender: TObject);
+    { Update job: the window's job checked (as Add to queue), then in place
+      of the selected one - waiting again. }
+    procedure btnUpdateJobClick(Sender: TObject);
+    { A click in the queue: the job into the window, as it was added. }
+    procedure lbJobsClick(Sender: TObject);
+    { Job AIndex into the window - book, audio, model, device, output,
+      language and options; AAnnounce says so in the log. }
+    procedure ShowJobInWindow(AIndex: Integer; AAnnounce: Boolean);
     { Run queue: every job not done (failed and cancelled ones again). }
     procedure btnRunQueueClick(Sender: TObject);
     { Removes the selected job (not the one running). }
@@ -1226,6 +1284,14 @@ begin
   if Edges > 0 then
     Log(Format('  Of the not spoken words, %d are before the first or after the last word read: front and back ' +
       'matter, normal (not listed below; the text is still in the book).', [Edges]));
+  // a tenth of the book or more around what was read is more than title
+  // pages and a licence: extras in the EPUB (an introduction, a preview,
+  // another book) or a recording of only part of the book - the verdict
+  // counts only the timed words and does not show it
+  if Edges > AStats.BookWords div 10 then
+    Log(Format('  %d words (%.1f %%) are before the first or after the last word read - more front and back ' +
+      'matter than a book usually has: extras in the EPUB, another edition, or a recording of only part of ' +
+      'the book. Check where the reading starts and ends.', [Edges, Edges * 100 / AStats.BookWords]));
   if AStats.NotSpoken - Edges > AStats.BookWords div 10 then
     Log(Format('  %d words inside the book are not in the recording: check that every audio file is in the ' +
       'list, in order.', [AStats.NotSpoken - Edges]));
@@ -1515,7 +1581,7 @@ begin
   layBottom := TLayout.Create(Self);
   layBottom.Parent := Self;
   layBottom.Align := TAlignLayout.Bottom;
-  layBottom.Height := 360;
+  layBottom.Height := 360 + ROW_HEIGHT + GAP div 2;
 
   Row := AddRow(layBottom, 'Model');
   cbModel := TComboBox.Create(Self);
@@ -1544,6 +1610,37 @@ begin
   cbLanguage.Position.X := 200000;
   cbLanguage.Width := 220;
   FillLanguages('');
+
+  Row := AddRow(layBottom, 'Power');
+  cbPower := TComboBox.Create(Self);
+  cbPower.Parent := Row;
+  cbPower.Align := TAlignLayout.Left;
+  cbPower.Width := 420;
+  cbPower.Items.Add('Automatic - fastest on mains power, saving power on battery');
+  cbPower.Items.Add('Fastest - kept awake, at full speed');
+  cbPower.Items.Add('Save power - kept awake, the system may slow it down');
+  cbPower.Items.Add('Let it sleep - the computer may sleep while building');
+  cbPower.ItemIndex := 0;
+  cbPower.OnChange := cbPowerChange;
+  {$IFDEF MSWINDOWS}
+  L := TLabel.Create(Self);
+  L.Parent := Row;
+  L.Align := TAlignLayout.Left;
+  L.Position.X := 100000;
+  L.Margins.Left := GAP * 2;
+  L.Width := 90;
+  L.Text := 'Window GPU';
+  cbGpu := TComboBox.Create(Self);
+  cbGpu.Parent := Row;
+  cbGpu.Align := TAlignLayout.Left;
+  cbGpu.Position.X := 200000;
+  cbGpu.Width := 260;
+  cbGpu.Items.Add('Windows decides');
+  cbGpu.Items.Add('Power saving GPU (next start)');
+  cbGpu.Items.Add('High performance GPU (next start)');
+  cbGpu.ItemIndex := Ord(GpuPreference);
+  cbGpu.OnChange := cbGpuChange;
+  {$ENDIF}
 
   Row := AddRow(layBottom, 'Output EPUB');
   edOut := TEdit.Create(Self);
@@ -1574,6 +1671,8 @@ begin
   btnCreate := AddButton(Buttons, 'Create', btnCreateClick, TAlignLayout.Left, 120);
   btnAddJob := AddButton(Buttons, 'Add to queue', btnAddJobClick, TAlignLayout.Left, 120);
   btnAddJob.Position.X := 100000;
+  btnUpdateJob := AddButton(Buttons, 'Update job', btnUpdateJobClick, TAlignLayout.Left, 120);
+  btnUpdateJob.Position.X := 150000;
   btnCancel := AddButton(Buttons, 'Cancel', btnCancelClick, TAlignLayout.Left, 120);
   btnCancel.Position.X := 200000;
   pbBuild := TProgressBar.Create(Self);
@@ -1629,6 +1728,7 @@ begin
   lbJobs.Align := TAlignLayout.Client;
   lbJobs.Margins.Rect := RectF(GAP, GAP, GAP, 0);
   lbJobs.OnDblClick := lbJobsDblClick;
+  lbJobs.OnClick := lbJobsClick;
   splQueue := TSplitter.Create(Self);
   splQueue.Parent := Self;
   splQueue.Position.X := 1;
@@ -1698,6 +1798,8 @@ var
 begin
   OnCloseQuery := FormCloseQuery;
   OnShow := FormShow;
+  FEditJob := -1;
+  FUpdateJob := -1;
   // the debug log: next to the settings, started afresh at every run
   DebugLogOpen(ChangeFileExt(SettingsFile, '-debug.log'));
   // Steam's Exit Game ends the program with SIGTERM: save first (owner)
@@ -1819,11 +1921,19 @@ begin
       if (FModelPath <> '') and not FileExists(FModelPath) then
         FModelPath := '';
       // the device by its name: the list's order can change
-      Device := Ini.ReadString('Build', 'Device', '');
+      Device := DeviceMatch(Ini.ReadString('Build', 'Device', ''), Ini.ReadString('Build', 'DeviceDescription', ''));
       for I := 0 to High(FDevices) do
         if SameText(FDevices[I].Name, Device) then
           cbDevice.ItemIndex := I + 1;
       chkChapters.IsChecked := Ini.ReadBool('Build', 'Chapters', True);
+      // not a change of the user's (which saves the settings half read)
+      cbPower.OnChange := nil;
+      try
+        cbPower.ItemIndex := EnsureRange(IndexStr(Ini.ReadString('Build', 'Power', 'Automatic'),
+          ['Automatic', 'Fastest', 'SavePower', 'Sleep']), 0, 3);
+      finally
+        cbPower.OnChange := cbPowerChange;
+      end;
       FBookFolder := FolderSetting('Book', FBookFolder);
       FAudioFolder := FolderSetting('Audio', FAudioFolder);
       FOutFolder := FolderSetting('Output', FOutFolder);
@@ -1854,9 +1964,17 @@ begin
       if not SteamBuild then
         Ini.WriteString('Models', 'Folder', FModelsFolder);
       if cbDevice.ItemIndex > 0 then
-        Ini.WriteString('Build', 'Device', FDevices[cbDevice.ItemIndex - 1].Name)
+      begin
+        Ini.WriteString('Build', 'Device', FDevices[cbDevice.ItemIndex - 1].Name);
+        // found again by it when the list's numbers move
+        Ini.WriteString('Build', 'DeviceDescription', FDevices[cbDevice.ItemIndex - 1].Description);
+      end
       else
+      begin
         Ini.WriteString('Build', 'Device', '');
+        Ini.DeleteKey('Build', 'DeviceDescription');
+      end;
+      Ini.WriteString('Build', 'Power', ['Automatic', 'Fastest', 'SavePower', 'Sleep'][EnsureRange(cbPower.ItemIndex, 0, 3)]);
       Ini.WriteBool('Build', 'Chapters', chkChapters.IsChecked);
       // no longer kept (off at every start)
       Ini.DeleteKey('Build', 'UseSavedTranscript');
@@ -2004,6 +2122,138 @@ begin
     FBuildLog.Add(AText);
 end;
 
+procedure TfrmBuilder.ThreadLine(const AText: string);
+begin
+  mmLog.Lines.Add(AText);
+  mmLog.GoToTextEnd;
+  if FLogging and (FBuildLog <> nil) then
+    FBuildLog.Add(AText);
+end;
+
+procedure TfrmBuilder.WindowLine(const AText: string);
+begin
+  DebugLog(AText);
+  mmLog.Lines.Add(AText);
+  mmLog.GoToTextEnd;
+end;
+
+function TfrmBuilder.EffectivePower: Integer;
+begin
+  Result := EnsureRange(cbPower.ItemIndex, 0, 3);
+  if Result = 0 then
+  begin
+    if OnBattery then
+      Result := 2
+    else
+      Result := 1;
+  end;
+end;
+
+procedure TfrmBuilder.ApplyPower(ABusy, AOnlyOnChange: Boolean);
+const
+  NAMES: array[1..3] of string = ('Fastest', 'Save power', 'Let it sleep');
+var
+  P: Integer;
+  Text, How: string;
+begin
+  if not ABusy then
+  begin
+    Text := '';
+    if FInhibited then
+    begin
+      InhibitStop(ikSleep);
+      FInhibited := False;
+      Text := 'letting the computer sleep: ' + InhibitText + '; ';
+    end;
+    if FPowerNow > 0 then
+      LogLine(Text + 'speed: ' + InhibitSpeed(isSystem));
+    FPowerNow := 0;
+    Exit;
+  end;
+  P := EffectivePower;
+  if AOnlyOnChange and (P = FPowerNow) then
+    Exit;
+  FPowerNow := P;
+  How := '';
+  if cbPower.ItemIndex = 0 then
+    How := IfThen(P = 2, ' (Automatic: on battery)', ' (Automatic: on mains power)');
+  Text := '';
+  if (P <> 3) and not FInhibited then
+  begin
+    // SteamOS (Game Mode) and laptops sleep with nobody at the controls,
+    // half way through an hour's transcription (owner, Steam Machine)
+    InhibitStart(ikSleep, 'Building an audiobook');
+    FInhibited := True;
+    Text := 'keeping the computer awake: ' + InhibitText;
+  end
+  else if (P = 3) and FInhibited then
+  begin
+    InhibitStop(ikSleep);
+    FInhibited := False;
+    Text := 'letting the computer sleep: ' + InhibitText;
+  end
+  else if P = 3 then
+    Text := 'the computer may sleep'
+  else
+    Text := 'kept awake';
+  case P of
+    1: Text := Text + '; speed: ' + InhibitSpeed(isFast);
+    2: Text := Text + '; speed: ' + InhibitSpeed(isSaving);
+  else
+    Text := Text + '; speed: ' + InhibitSpeed(isSystem);
+  end;
+  LogLine('Power: ' + NAMES[P] + How + ' - ' + Text);
+end;
+
+procedure TfrmBuilder.cbPowerChange(Sender: TObject);
+begin
+  SaveSettings;
+  if FAwake then
+    ApplyPower(True, True);
+end;
+
+procedure TfrmBuilder.cbGpuChange(Sender: TObject);
+begin
+  if cbGpu.ItemIndex < 0 then
+    Exit;
+  if SetGpuPreference(TGpuPreference(cbGpu.ItemIndex)) then
+    WindowLine('Window GPU: ' + cbGpu.Items[cbGpu.ItemIndex] + ' - Windows uses it from the next start of ' +
+      'EpubBuilder (the device list may then be in another order: devices are found again by name)')
+  else
+    WindowLine('Window GPU: not stored (the registry could not be written)');
+end;
+
+function TfrmBuilder.DeviceDescription(const AName: string): string;
+var
+  I: Integer;
+begin
+  Result := '';
+  for I := 0 to High(FDevices) do
+    if SameText(FDevices[I].Name, AName) then
+      Exit(FDevices[I].Description);
+end;
+
+function TfrmBuilder.DeviceMatch(const AName, ADescription: string): string;
+
+  { The name without its number: 'Vulkan', 'CUDA', 'MTL'. }
+  function Kind(const AText: string): string;
+  begin
+    Result := AText;
+    while (Result <> '') and CharInSet(Result[Length(Result)], ['0'..'9']) do
+      SetLength(Result, Length(Result) - 1);
+  end;
+
+var
+  I: Integer;
+begin
+  Result := AName;
+  if (ADescription = '') or SameText(DeviceDescription(AName), ADescription) then
+    Exit;
+  for I := 0 to High(FDevices) do
+    if SameText(FDevices[I].Description, ADescription) and SameText(Kind(FDevices[I].Name), Kind(AName)) then
+      Exit(FDevices[I].Name);
+end;
+
 procedure TfrmBuilder.UpdateControls;
 var
   Busy, Ready, Waiting: Boolean;
@@ -2015,11 +2265,7 @@ begin
     // SteamOS (Game Mode) and laptops sleep with nobody at the controls,
     // half way through an hour's transcription (owner, Steam Machine)
     FAwake := Busy;
-    if Busy then
-      InhibitStart(ikSleep, 'Building an audiobook')
-    else
-      InhibitStop(ikSleep);
-    LogLine(IfThen(Busy, 'keeping the computer awake: ', 'letting the computer sleep: ') + InhibitText);
+    ApplyPower(Busy, False);
   end;
   Ready := (FWhisperNote = '') and (edBook.Text <> '') and (lbAudio.Count > 0) and (edOut.Text <> '') and
     ((FModelPath <> '') or chkReuse.IsChecked);
@@ -2027,6 +2273,9 @@ begin
   // while it runs (owner)
   btnCreate.Enabled := not Busy and Ready;
   btnAddJob.Enabled := Ready;
+  // the job shown is still the one selected, and not the one building
+  btnUpdateJob.Enabled := Ready and (FEditJob >= 0) and (FEditJob <= High(FJobs)) and
+    (lbJobs.ItemIndex = FEditJob) and (FJobs[FEditJob].State <> jsRunning);
   btnCancel.Enabled := (FBuild <> nil) or (FCalib <> nil) or (FDownload <> nil);
   // one download at a time; the model stays while it runs
   cbModel.Enabled := FDownload = nil;
@@ -2085,7 +2334,7 @@ begin
       if not SameFileName(edBook.Text, AFileName) then
       begin
         if lbAudio.Count > 0 then
-          LogLine('Another book: the audio list was emptied.');
+          WindowLine('Another book: the audio list was emptied.');
         lbAudio.Clear;
         // the EPUB 3 in the output folder, under the book's own name
         // (numbered when taken) - the user may change it (owner)
@@ -2130,7 +2379,7 @@ begin
             Protection := '';   // unreadable: the build reports it
         end;
         if Protection <> '' then
-          LogLine(Format('%s is copy protected (%s) and was not added. EpubBuilder does not remove copy ' +
+          WindowLine(Format('%s is copy protected (%s) and was not added. EpubBuilder does not remove copy ' +
             'protection: a DRM-free copy of the audio is needed.', [ExtractFileName(L[I]), Protection]))
         else
           lbAudio.Items.Add(L[I]);
@@ -2202,7 +2451,7 @@ begin
     end;
   except
     on E: Exception do
-      LogLine(E.Message);
+      WindowLine(E.Message);
   end;
 end;
 
@@ -2476,7 +2725,10 @@ begin
       D.InitialDir := ExtractFileDir(edOut.Text)
     else
       D.InitialDir := FOutFolder;
-    D.FileName := edOut.Text;
+    // the name only: the folder is InitialDir - the Mac's save panel takes
+    // a whole path as a NAME, '/' shown as ':' (owner, 2026-11-19: a
+    // file ':Users:simon:Downloads:....epub' to rename by hand)
+    D.FileName := ExtractFileName(edOut.Text);
     if D.Execute then
     begin
       edOut.Text := D.FileName;
@@ -2498,6 +2750,15 @@ end;
 
 procedure TfrmBuilder.btnAddJobClick(Sender: TObject);
 begin
+  FUpdateJob := -1;
+  CheckThen(True);
+end;
+
+procedure TfrmBuilder.btnUpdateJobClick(Sender: TObject);
+begin
+  if (FEditJob < 0) or (FEditJob > High(FJobs)) or (FJobs[FEditJob].State = jsRunning) then
+    Exit;
+  FUpdateJob := FEditJob;
   CheckThen(True);
 end;
 
@@ -2507,12 +2768,12 @@ var
 begin
   if SameFileName(ExpandFileName(edOut.Text), ExpandFileName(edBook.Text)) then
   begin
-    LogLine('The output must not be the book itself: choose another output file.');
+    WindowLine('The output must not be the book itself: choose another output file.');
     Exit;
   end;
   if (FModelPath = '') and not (chkReuse.IsChecked and FileExists(TranscriptFileOf(edOut.Text))) then
   begin
-    LogLine('Choose a model: there is no saved transcript to use.');
+    WindowLine('Choose a model: there is no saved transcript to use.');
     Exit;
   end;
   Device := '';
@@ -2547,7 +2808,7 @@ begin
         if AResult = mrYes then
           CheckBookThen(Device, Q)
         else
-          LogLine(Format('Not started: %s failed on %s in the calibration (Tools > Calibration results).',
+          WindowLine(Format('Not started: %s failed on %s in the calibration (Tools > Calibration results).',
             [ExtractFileName(FModelPath), D.Name]));
       end);
     Exit;
@@ -2582,7 +2843,7 @@ begin
         if AResult = mrYes then
           CheckOutputThen(Device, Q)
         else
-          LogLine('Not started: choose the original EPUB (Choose... above the book).');
+          WindowLine('Not started: choose the original EPUB (Choose... above the book).');
       end);
     Exit;
   end;
@@ -2600,10 +2861,10 @@ begin
   Q := AQueue;
   // a job waiting in the queue writes this output already
   for I := 0 to High(FJobs) do
-    if (FJobs[I].State in [jsWaiting, jsRunning]) and SameFileName(ExpandFileName(FJobs[I].Output),
-      ExpandFileName(edOut.Text)) then
+    if (I <> FUpdateJob) and (FJobs[I].State in [jsWaiting, jsRunning]) and
+      SameFileName(ExpandFileName(FJobs[I].Output), ExpandFileName(edOut.Text)) then
     begin
-      LogLine(Format('Job %d of the queue writes %s already: choose another output file (or remove that ' +
+      WindowLine(Format('Job %d of the queue writes %s already: choose another output file (or remove that ' +
         'job).', [I + 1, edOut.Text]));
       Exit;
     end;
@@ -2625,7 +2886,7 @@ begin
             StartBuild(Device);
         end
         else
-          LogLine('Not done: ' + edOut.Text + ' is kept. Choose another output file to keep both.');
+          WindowLine('Not done: ' + edOut.Text + ' is kept. Choose another output file to keep both.');
       end);
     Exit;
   end;
@@ -2700,6 +2961,9 @@ begin
       ExtractFileName(AJob.Output), FormatDateTime('yyyy-mm-dd hh:nn', Now)]));
   end;
   LogMachine(AJob.Model, AJob.Device);
+  // Automatic: unplugged (or plugged in) during a queue
+  if FAwake then
+    ApplyPower(True, True);
   PrepareEstimate(AJob.Model, AJob.Device);
   Audio := TStringList.Create;
   try
@@ -2713,7 +2977,7 @@ begin
   FBuild.OnLog :=
     procedure(AText: string)
     begin
-      LogLine(AText);
+      ThreadLine(AText);
     end;
   FBuild.OnProgress :=
     procedure(APercent: Double)
@@ -2764,12 +3028,28 @@ begin
 end;
 
 procedure TfrmBuilder.AddJob(const AJob: TBuildJob);
+var
+  I: Integer;
 begin
   SaveSettings;
+  I := FUpdateJob;
+  FUpdateJob := -1;
+  if (I >= 0) and (I <= High(FJobs)) and (FJobs[I].State <> jsRunning) then
+  begin
+    // in place: the same position, waiting again (a done one is built again)
+    FJobs[I] := AJob;
+    ShowJobs;
+    lbJobs.ItemIndex := I;
+    FEditJob := I;
+    WindowLine(Format('Job %d updated: %s -> %s', [I + 1, AJob.Title, ExtractFileName(AJob.Output)]));
+    UpdateControls;
+    Exit;
+  end;
   FJobs := FJobs + [AJob];
   ShowJobs;
   lbJobs.ItemIndex := High(FJobs);
-  LogLine(Format('Added to the queue as job %d: %s -> %s', [Length(FJobs), AJob.Title,
+  FEditJob := High(FJobs);
+  WindowLine(Format('Added to the queue as job %d: %s -> %s', [Length(FJobs), AJob.Title,
     ExtractFileName(AJob.Output)]));
   UpdateControls;
 end;
@@ -3040,12 +3320,14 @@ procedure TfrmBuilder.btnJobRemoveClick(Sender: TObject);
 var
   I: Integer;
 begin
+  // the jobs' numbers change: the window no longer stands for one
+  FEditJob := -1;
   I := lbJobs.ItemIndex;
   if (I < 0) or (I > High(FJobs)) then
     Exit;
   if I = FJob then
   begin
-    LogLine('The job running cannot be removed: Cancel stops it.');
+    WindowLine('The job running cannot be removed: Cancel stops it.');
     Exit;
   end;
   Delete(FJobs, I, 1);
@@ -3061,6 +3343,8 @@ var
   I: Integer;
   T: TBuildJob;
 begin
+  // the jobs' numbers change: the window no longer stands for one
+  FEditJob := -1;
   I := lbJobs.ItemIndex;
   if (I < 1) or (I > High(FJobs)) then
     Exit;
@@ -3081,6 +3365,8 @@ var
   I: Integer;
   T: TBuildJob;
 begin
+  // the jobs' numbers change: the window no longer stands for one
+  FEditJob := -1;
   I := lbJobs.ItemIndex;
   if (I < 0) or (I >= High(FJobs)) then
     Exit;
@@ -3119,6 +3405,8 @@ begin
       J.AddPair('audio', A);
       J.AddPair('model', FJobs[I].Model);
       J.AddPair('device', FJobs[I].Device);
+      // found again by it when the list's numbers move
+      J.AddPair('deviceDescription', DeviceDescription(FJobs[I].Device));
       J.AddPair('output', FJobs[I].Output);
       J.AddPair('chapters', TJSONBool.Create(FJobs[I].Chapters));
       J.AddPair('useSavedTranscript', TJSONBool.Create(FJobs[I].Reuse));
@@ -3142,9 +3430,10 @@ var
   Jobs, A: TJSONArray;
   I, K, Dup: Integer;
   Job: TBuildJob;
-  St: string;
+  St, Desc: string;
 begin
   Result := 0;
+  FEditJob := -1;
   V := TJSONObject.ParseJSONValue(TFile.ReadAllText(AFileName, TEncoding.UTF8));
   try
     if not (V is TJSONObject) then
@@ -3162,6 +3451,8 @@ begin
       J.TryGetValue<string>('title', Job.Title);
       J.TryGetValue<string>('model', Job.Model);
       J.TryGetValue<string>('device', Job.Device);
+      if J.TryGetValue<string>('deviceDescription', Desc) then
+        Job.Device := DeviceMatch(Job.Device, Desc);
       J.TryGetValue<string>('output', Job.Output);
       J.TryGetValue<Boolean>('chapters', Job.Chapters);
       J.TryGetValue<Boolean>('useSavedTranscript', Job.Reuse);
@@ -3187,7 +3478,7 @@ begin
       // the checks Add to queue makes: a file is not asked, so it says
       if SameFileName(ExpandFileName(Job.Output), ExpandFileName(Job.Book)) then
       begin
-        LogLine(Format('Left out: %s - its output is the book itself.', [Job.Title]));
+        WindowLine(Format('Left out: %s - its output is the book itself.', [Job.Title]));
         Continue;
       end;
       Dup := -1;
@@ -3200,12 +3491,12 @@ begin
         end;
       if Dup >= 0 then
       begin
-        LogLine(Format('Left out: %s - job %d of the queue writes %s already.', [Job.Title, Dup + 1,
+        WindowLine(Format('Left out: %s - job %d of the queue writes %s already.', [Job.Title, Dup + 1,
           Job.Output]));
         Continue;
       end;
       if (Job.State <> jsDone) and FileExists(Job.Output) then
-        LogLine(Format('Note: %s is there already and will be replaced by job %d (%s) - remove the job to ' +
+        WindowLine(Format('Note: %s is there already and will be replaced by job %d (%s) - remove the job to ' +
           'keep it.', [Job.Output, Length(FJobs) + 1, Job.Title]));
       FJobs := FJobs + [Job];
       Inc(Result);
@@ -3230,10 +3521,10 @@ begin
     FQueueFile := D.FileName;
     try
       N := LoadQueue(D.FileName);
-      LogLine(Format('%d job(s) added from %s', [N, D.FileName]));
+      WindowLine(Format('%d job(s) added from %s', [N, D.FileName]));
     except
       on E: Exception do
-        LogLine('The queue file cannot be read: ' + E.Message);
+        WindowLine('The queue file cannot be read: ' + E.Message);
     end;
   finally
     D.Free;
@@ -3248,7 +3539,7 @@ var
 begin
   if Length(FJobs) = 0 then
   begin
-    LogLine('The queue is empty: nothing to save.');
+    WindowLine('The queue is empty: nothing to save.');
     Exit;
   end;
   D := TSaveDialog.Create(Self);
@@ -3266,10 +3557,10 @@ begin
     FQueueFile := D.FileName;
     try
       SaveQueue(D.FileName);
-      LogLine(Format('The queue (%d job(s)) was saved to %s', [Length(FJobs), D.FileName]));
+      WindowLine(Format('The queue (%d job(s)) was saved to %s', [Length(FJobs), D.FileName]));
     except
       on E: Exception do
-        LogLine('The queue was not saved: ' + E.Message);
+        WindowLine('The queue was not saved: ' + E.Message);
     end;
   finally
     D.Free;
@@ -3277,19 +3568,36 @@ begin
 end;
 
 procedure TfrmBuilder.lbJobsDblClick(Sender: TObject);
+begin
+  ShowJobInWindow(lbJobs.ItemIndex, True);
+end;
+
+procedure TfrmBuilder.lbJobsClick(Sender: TObject);
+begin
+  ShowJobInWindow(lbJobs.ItemIndex, False);
+end;
+
+procedure TfrmBuilder.ShowJobInWindow(AIndex: Integer; AAnnounce: Boolean);
 var
   I, K: Integer;
   Job: TBuildJob;
 begin
-  I := lbJobs.ItemIndex;
+  I := AIndex;
   if (I < 0) or (I > High(FJobs)) then
     Exit;
+  // the same job again (a double click after the click): nothing to do
+  if (I = FEditJob) and not AAnnounce then
+    Exit;
   Job := FJobs[I];
+  // emptied first: ShowBook's "another book" note is for a book chosen
+  lbAudio.Clear;
   ShowBook(Job.Book);
   lbAudio.Clear;
   for K := 0 to High(Job.Audio) do
     lbAudio.Items.Add(Job.Audio[K]);
   edOut.Text := Job.Output;
+  // the job's own output, not one made from the book's name
+  FAutoOut := '';
   if Job.Model <> '' then
   begin
     FModelPath := Job.Model;
@@ -3301,8 +3609,16 @@ begin
       cbDevice.ItemIndex := K + 1;
   chkChapters.IsChecked := Job.Chapters;
   chkReuse.IsChecked := Job.Reuse;
-  LogLine(Format('Job %d put into the window: change it and Add to queue (then remove the old one), or ' +
-    'Create.', [I + 1]));
+  if cbLanguage <> nil then
+  begin
+    cbLanguage.ItemIndex := 0;
+    for K := 0 to High(LANGUAGES) do
+      if SameText(LANGUAGES[K, 0], Job.Language) and (Job.Language <> '') then
+        cbLanguage.ItemIndex := K + 1;
+  end;
+  FEditJob := I;
+  WindowLine(Format('Job %d in the window: change it and Update job (or Add to queue for a new one), or ' +
+      'Create.', [I + 1]));
   UpdateControls;
 end;
 
@@ -3773,7 +4089,7 @@ begin
   FCalib.OnLog :=
     procedure(AText: string)
     begin
-      LogLine(AText);
+      ThreadLine(AText);
     end;
   FCalib.OnProgress :=
     procedure(APercent: Double)
@@ -4126,9 +4442,12 @@ begin
   if FAfterFrom <> 0 then
     R.AfterSeconds := MilliSecondsBetween(Now, FAfterFrom) / 1000;
   R.CalibrationSpeed := CalibrationSpeed(SettingsFile, ASummary.Model, ASummary.Device);
+  // exact of the words between the first and the last word read: front
+  // and back matter left out, so an EPUB with extras (Hitchhiker's Guide:
+  // 28253 words around the reading) does not look like a poor build
   R.ExactPercent := 0;
-  if ASummary.Stats.BookWords > 0 then
-    R.ExactPercent := ASummary.Stats.Exact * 100 / ASummary.Stats.BookWords;
+  if ASummary.Stats.BookWords - ASummary.EdgeWords > 0 then
+    R.ExactPercent := ASummary.Stats.Exact * 100 / (ASummary.Stats.BookWords - ASummary.EdgeWords);
   R.MatchedPercent := ASummary.Matched;
   // which book (owner, 2026-11-19: the history "lacks a title")
   R.Title := ASummary.Title;

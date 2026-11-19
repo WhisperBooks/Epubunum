@@ -107,6 +107,9 @@ type
     procedure tmSpeedTimer(Sender: TObject);
     { Dark / light page and panels. }
     procedure btnDarkClick(Sender: TObject);
+    { View > Graphics: Windows' graphics preference for the reader (its
+      Tag), used from the next start. }
+    procedure miGpuClick(Sender: TObject);
     { Play / pause. }
     procedure btnPlayClick(Sender: TObject);
     { Smaller text. }
@@ -254,6 +257,9 @@ type
     miDark: TMenuItem;
     { View > Learn to read (checked when on). }
     miLearn: TMenuItem;
+    { View > Graphics (Windows): Windows decides, power saving GPU, high
+      performance GPU - TGpuPreference's order (uInhibit); nil elsewhere. }
+    miGpu: array[0..2] of TMenuItem;
     { Recently opened books, the latest first (at most RECENT_MAX), with
       their reading positions. }
     FRecent: TArray<TRecentBook>;
@@ -848,15 +854,32 @@ end;
   %APPDATA%\EpubReader\EpubReader.json, macOS ~/Library/Application
   Support/EpubReader/EpubReader.json, Linux $XDG_CONFIG_HOME (else
   ~/.config)/EpubReader/EpubReader.json. }
-{ The books folder at first. A Steam build on Windows and Linux: Books
-  beside the program - a Steam Deck has no file dialog to reach anything
-  else, and the folder is easy to find from Steam (Manage > Browse local
-  files). The Mac (the program is a signed bundle) and other builds:
-  Documents/EpubReader/Books. Owner, 2026-11-18. }
+{ The folder the program is in - on the Mac the one that holds
+  EpubReader.app (ParamStr(0) is inside the signed bundle, which must not
+  be written to): Steam's install folder, Manage > Browse local files. }
+function ProgramFolder: string;
+var
+  D: string;
+begin
+  D := ExtractFileDir(ParamStr(0));
+  {$IFDEF MACOS}
+  // .../EpubReader.app/Contents/MacOS -> ...
+  if SameText(ExtractFileName(D), 'MacOS') and SameText(ExtractFileName(ExtractFileDir(D)), 'Contents') and
+    SameText(ExtractFileExt(ExtractFileDir(ExtractFileDir(D))), '.app') then
+    D := ExtractFileDir(ExtractFileDir(ExtractFileDir(D)));
+  {$ENDIF}
+  Result := D;
+end;
+
+{ The books folder at first. A Steam build: Books beside the program (on
+  the Mac beside EpubReader.app) - a Steam Deck has no file dialog to
+  reach anything else, and the folder is easy to find from Steam (Manage
+  > Browse local files). Other builds: Documents/EpubReader/Books. Owner,
+  2026-11-18; the Mac's Steam build beside the .app, owner 2026-11-19. }
 function BooksFolderDefault: string;
 begin
-  {$IF Defined(STEAMBUILD) and not Defined(MACOS)}
-  Result := System.IOUtils.TPath.Combine(ExtractFileDir(ParamStr(0)), 'Books');
+  {$IF Defined(STEAMBUILD)}
+  Result := System.IOUtils.TPath.Combine(ProgramFolder, 'Books');
   {$ELSE}
   Result := System.IOUtils.TPath.Combine(System.IOUtils.TPath.Combine(System.IOUtils.TPath.GetDocumentsPath,
     'EpubReader'), 'Books');
@@ -1217,6 +1240,10 @@ procedure TfrmMain.BuildMenu;
 var
   M: TMenuItem;
   Bar: TFmxObject;
+  {$IFDEF MSWINDOWS}
+  G: TMenuItem;
+  I: Integer;
+  {$ENDIF}
 begin
   {$IF Defined(LINUX) and not Defined(ANDROID)}
   mnuBar := TMenuBar.Create(Self);
@@ -1254,10 +1281,41 @@ begin
   Item(M, '-', nil);
   Item(M, '&Larger text'#9'Ctrl+Plus', btnLargerClick);
   Item(M, '&Smaller text'#9'Ctrl+Minus', btnSmallerClick);
+  {$IFDEF MSWINDOWS}
+  // which GPU draws the page on a laptop with two: Windows' own setting
+  // (Settings > System > Display > Graphics), read when the program starts
+  Item(M, '-', nil);
+  G := Item(M, '&Graphics (from the next start)', nil);
+  miGpu[0] := Item(G, '&Windows decides', miGpuClick);
+  miGpu[1] := Item(G, '&Power saving GPU', miGpuClick);
+  miGpu[2] := Item(G, '&High performance GPU', miGpuClick);
+  for I := 0 to 2 do
+  begin
+    miGpu[I].Tag := I;
+    miGpu[I].IsChecked := Ord(GpuPreference) = I;
+  end;
+  {$ENDIF}
   BuildRecentMenu;
   // a menu made in code reaches the window (Windows' / macOS' own menu
   // bar) only when it is recreated - without this there was no menu
   RefreshMenu;
+end;
+
+procedure TfrmMain.miGpuClick(Sender: TObject);
+var
+  I, P: Integer;
+begin
+  P := TMenuItem(Sender).Tag;
+  if SetGpuPreference(TGpuPreference(P)) then
+  begin
+    for I := 0 to 2 do
+      if miGpu[I] <> nil then
+        miGpu[I].IsChecked := I = P;
+    DebugLog('graphics preference: ' + TMenuItem(Sender).Text + ' (from the next start)');
+    ShowMessage('Windows uses this graphics choice from the next start of EpubReader.');
+  end
+  else
+    ShowMessage('The graphics choice could not be stored (the registry could not be written).');
 end;
 
 procedure TfrmMain.RefreshMenu;
@@ -2166,19 +2224,18 @@ begin
   end;
   // the manifest and its layouts written by the program (afresh when it
   // brings other ones), so nothing has to be deployed: into steaminput/
-  // beside the program - where the partner site's "Custom Configuration
+  // beside the program (on the Mac beside EpubReader.app, never inside
+  // the signed bundle) - where the partner site's "Custom Configuration
   // (Bundled with Game)" can name it - else beside the settings (a
-  // folder the user cannot write to; the Mac's signed bundle always)
+  // folder the user cannot write to)
   Manifest := '';
-  {$IFNDEF MACOS}
-  Folder := ExtractFilePath(ParamStr(0)) + 'steaminput';
+  Folder := System.IOUtils.TPath.Combine(ProgramFolder, 'steaminput');
   try
     Manifest := ReaderInputWrite(Folder);
   except
     on E: Exception do
       DebugLog('pad: ' + Folder + ' not writable (' + E.Message + '): the settings'' folder instead');
   end;
-  {$ENDIF}
   if Manifest = '' then
   begin
     Folder := ExtractFilePath(SettingsFile) + 'steaminput';

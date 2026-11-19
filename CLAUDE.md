@@ -12,6 +12,14 @@ in claude.md as this one's rather long"). One section per zip below
 ("Zip 95" - "Zip 138"); this is the map. Brought up to date at 06:14
 ("session handover again please") - zip 138.
 
+PUSHED SINCE (2026-11-19 08:18): 8a9a67d "Reader Steam Tests" (after
+a170de0, 298b504) - the zips up to 138 (not compared file by file: the
+zips are not here; the logs of the morning's queue match its code). NOT
+PUSHED: 139 (the morning queue's results), 140 (App Nap on the Mac), 141 (the Mac
+Steam reader's Books and steaminput beside the .app), 142 (Power, Window
+GPU, devices by description), 143 (notes/Building-distributions.md), 144
+(notes/Windows-on-Arm.md + Arm64ECProbe.dpr); see their sections.
+
 Pushes, checked file by file (CR LF aside):
 - Epubunum 667070c "Reader Steam Tests" = zips up to 127 (with 43e5cb9
   "Remove local timings file", 21fd6cc). NOT PUSHED: 128 (zip 123's
@@ -189,7 +197,7 @@ the history, one per zip.
 | Repo | Pushed | = zip | Last zip number used |
 |---|---|---|---|
 | WhisperBooks/TWhisper | d669a06 | TWhisper-30 | 31 (review fixes) |
-| WhisperBooks/Epubunum | 667070c | EpubUnum-127 | 138 (session 9: 95 - 138, see its handover above; 128 - 138 NOT pushed. Earlier: 94 handover; 93 Big Picture full screen; 77 - 92 calibration, Steam builds, libraries, Deck crash, build stamp, screen log, DPI, Big Picture maximise) |
+| WhisperBooks/Epubunum | 8a9a67d | EpubUnum-138 | 147 (147 a queue's jobs shown on a click, Update job; 146 the Mac save panel's name; 145 zip 140 confirmed; 144 Windows on Arm notes + probe; 143 notes/Building-distributions.md; 139 the morning queue's results, 140 App Nap on the Mac, 141 Mac Books / steaminput beside the .app, 142 Power / Window GPU - NOT pushed; session 9: 95 - 138, see its handover above. Earlier: 94 handover; 93 Big Picture full screen; 77 - 92 calibration, Steam builds, libraries, Deck crash, build stamp, screen log, DPI, Big Picture maximise) |
 | G3DGames/TFFMpegAPI | 0795d19 | FFmpegAPI-14 | 14 (macOS sound) |
 | G3DGames/ffmpeg-dev | 4d7b7be | ffmpeg-dev-09 | 09 |
 | WhisperBooks/whisper-dev | 2071815 | whisper-dev-22 | 22 (Core ML; its own CLAUDE.md) |
@@ -383,6 +391,10 @@ busy testing base functionality")
    that has audio are spoken - time them between the part's start and the
    first match (interpolated); only words before the first part's audio
    stay unhighlighted.
+   BACK EDGE too (zip 139, Night Watch turbo 2026-11-19): a few words of
+   the closing credits matched the back matter, so ~570 words of it were
+   timed over the credits. Both edges: count the first / last word read
+   only inside a run of several matches, not a lone one.
 7. CORE ML ON THE MAC - BUILT (owner 2026-11-18 10:30: "can we have
    coreml for deployment when I build?"; whisper-dev zip 22 + zip 102
    below); what is left is the comparison. Originally (agreed after the
@@ -571,7 +583,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 138.
+Last number used: 147.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -3158,6 +3170,265 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 147 (on top of zip 146): a click shows a job; Update job
+Owner 2026-11-19 18:14: "when you load a queue clicking in an item shows
+no files involved - this would be better if the fields were populated to
+look the same as when the queue was saved ... allow the user to make
+modifications to the output name and verify the inputs". uBuilder:
+lbJobs.OnClick -> ShowJobInWindow(I, False) (the double click's code,
+now shared; the double click still announces): the audio list emptied
+before ShowBook (no "Another book" note per click), book, audio, model,
+device, output (FAutoOut := '' - the job's own), chapters, saved
+transcript, and now the LANGUAGE too (cbLanguage from LANGUAGES).
+FEditJob = the job the window shows (-1 after Remove / Up / Down / Load:
+numbers move). New button Update job (between Add to queue and Cancel):
+enabled when Ready, FEditJob is the selected job and not running; it
+sets FUpdateJob and runs the Add to queue checks (CheckThen(True));
+CheckOutputThen's "a job writes this output already" skips FUpdateJob;
+AddJob replaces FJobs[FUpdateJob] in place (waiting again - a done job
+is built again), logs "Job N updated: ...". Add to queue resets
+FUpdateJob (a new job as before). README (builder): Job queue. NOT
+COMPILED. TEST (owner): load a queue, click jobs (fields as saved, the
+language too), change an output name, Update job; the queue's list and
+a Save show the new name; Up / Down disables Update job until a click.
+
+## Zip 146 (on top of zip 145): the Mac save panel got a path as a name
+btnOutClick set D.FileName := edOut.Text (the whole path; InitialDir its
+folder). Windows' dialog takes a path there; the Mac's NSSavePanel puts
+it into the NAME box, '/' becoming ':' - the owner had to rename
+':Users:simon:Downloads:Pawn of Prophecy.epub' by hand (zip 145). Now
+D.FileName := ExtractFileName(edOut.Text). The queue's Save dialog
+already gave the name only. NOT COMPILED.
+TEST (owner, Mac): Output > Choose... - the name box shows only
+"<book>.epub", the folder the output's.
+
+## Zip 145 (on top of zip 144): zip 140 (no App Nap) CONFIRMED on the M4
+RESULTS (owner, M4 Mac mini, Steam build 8a9a67d + zips 139 / 140 built
+14:37, Core ML turbo, the Belgariad queue 2026-11-19 14:55 - 16:58, 5
+books, 54:18:09 of audio in 2:02:36 = 26.6x): pmset - display on 14:38:11,
+OFF 15:06:03 - 17:59:56. Books 2 - 5 ran wholly with the display off:
+26.9x, 27.2x, 26.7x, 26.3x (Pawn of Prophecy 26.5x, half on); align +
+write 5 - 8 s per book (0.5 - 0.7 s per hour of audio - the fast rate;
+3.2 - 3.6 with App Nap). Last night with the display off: 17.1x. The
+log's keep-awake line: "IOKit assertion PreventUserIdleSystemSleep
+(41971); NSProcessInfo activity (user initiated, latency critical: no
+App Nap)", released at the end. Zip 140's debug-log fix: each part's
+line once. Zip 139's exact_pct (front / back matter left out) in the
+history: Pawn of Prophecy 97.26 (all words: 96.80). Matched 99.3 - 99.6
+%, every book very good. These m4b files have no chapters: 1 part each,
+0 chapter marks (as designed). Calibration re-done with the Core ML
+encoder: CPU 18.3x (loading 19.3 s: the encoder compiled), MTL0 21.3x.
+SOLVED in zip 146: the window's log said "Added to the queue as job 1: Pawn
+of Prophecy -> :Users:simon:Downloads:Pawn of Prophecy.epub" (colons),
+while the queue file and the report have the right POSIX path - the
+Output field at that moment held a name with ':' (a full path typed or
+pasted into the Mac save panel's name box becomes a file NAME with ':'
+for '/'), then corrected? The owner (18:10): "i renamed the : bits
+manually" - the builder's doing, see zip 146.
+Zip 142 moves the activity to Power = Fastest (Automatic on mains) - the
+same as tested here on a plugged-in Mac.
+
+## Zip 144 (on top of zip 143): Windows on Arm - notes and probe
+Owner 2026-11-19 16:24 "can the system be built on Windows ARM64ec?";
+16:29: Delphi 13.2, a Win11 Arm VM in VMware on the Mac (slow), maybe a
+rented Snapdragon laptop; "the new Spark machines will also feature
+cuda"; 16:34: "write up the tests as a .md ... probed for Vulkan as
+well". NEW notes/Windows-on-Arm.md: Delphi's Arm64EC facts (DocWiki
+"Arm64EC", 13.1 / 13.2 notes: 64-bit IDE only, Win11 on Arm only, FMX
+yes, Skia not documented, no BPLs, no asm, x64 + Arm64EC DLLs load, pure
+ARM64 not), THE RISK: Whisper.inc's WHISPER_SRET_AS_PARAM on CPUX64 and
+TSteamAPI's STEAMWORKS_CPUARM64 GetMotionData (X8) - Arm64EC needs the
+x64 ABI, wrong if the compiler defines CPUARM64; routes (x64 DLLs
+emulated / Arm64EC builds); GPUs (Adreno Vulkan, NVIDIA CUDA needs a
+loadable nvcuda.dll, no ROCm, VM = CPU); tests 1 - 5 with steps and how
+to read them; a results table; the work after (inc files, projects,
+redistributable_bin\WinARM64EC, postbuild, notes). NEW
+notes/Arm64ECProbe.dpr (console, not in the groupproj): compiler symbols,
+IsWow64Process2, vulkan-1.dll (loaded from, PE machine, devices via
+vkCreateInstance / vkEnumeratePhysicalDevices / properties read from a
+buffer: name at 20, type at 16), nvcuda.dll (cuInit, driver version,
+devices, memory), DLLs beside it or named (error 193 = wrong type). NOT
+COMPILED.
+
+## Zip 143 (on top of zip 142): notes/Building-distributions.md
+Owner 2026-11-19 15:50: "a detailed step-by-step about creating and
+collecting all the dynamic libraries and other files for creating
+distributions for all platforms ... in a folder called notes ... easy to
+follow on a machine having just cloned the system (so paths must not
+refer to my build machine)". NEW notes/Building-distributions.md: what
+ships with what (per program, platform, configuration); the machines and
+their once-only setup; the clones side by side in <repos>; building
+ffmpeg-dev / whisper-dev per platform (Linux in the container, its glibc
+and RUNPATH checks); redist collect; the Steam SDK 1.65 files and
+media/aladdin.m4a (not built, git-ignored); copying Linux64 / OSXARM64
+to Windows + deploy_redist.py; the Delphi packages in order; Build +
+Deploy per platform (postbuild, PAServer, redist.sh deploy without
+Delphi); Steam depots (steam_stage.py, launch options, Steam Input);
+release packages; checks; a problems table (F1027 dccosx64 among them).
+Written from the scripts and the READMEs of this repository, whisper-dev,
+ffmpeg-dev, TWhisper, TFFMpegAPI and TSteamAPI - no machine paths. Keep
+it in step when a script or a deployed file changes. README Layout
+points to it.
+
+## Zip 142 (on top of zip 141): Power, Window GPU, devices by description
+Owner 2026-11-19 15:31: "some people may desire power control (all
+platforms) ... saving power or time"; 15:33: Windows' per-program GPU
+registry key as in his other apps (at the next start).
+ZIP 140 TEST so far: Pawn of Prophecy 26.5x (started 14:55:53, display
+off 15:06:03 - half off: last night's rates would give ~22x; the off
+half ~25x). Queen of Sorcery and the rest of the Belgariad queue (all
+display off) to come - CHECK and record.
+1. uInhibit: InhibitSpeed(isSystem / isFast / isSaving) apart from sleep.
+   macOS: isFast = zip 140's NSProcessInfo activity (MOVED out of
+   Apply: InhibitStart no longer begins it - the reader's read-aloud
+   keeps the display on, so it does not need it); else none (App Nap
+   allowed). Windows: SetProcessInformation(ProcessPowerThrottling,
+   EXECUTION_SPEED) - control+off = full speed, control+on = EcoQoS,
+   no control = Windows decides (delayed external: Windows 8+). Linux:
+   nothing (renice could not be undone unprivileged). OnBattery: Windows
+   GetSystemPowerStatus ACLineStatus = 0; macOS IOPSCopyPowerSourcesInfo
+   / IOPSGetProvidingPowerSourceType = 'Battery Power'; Linux a
+   /sys/class/power_supply Battery 'Discharging'. GpuPreference /
+   SetGpuPreference: HKCU\Software\Microsoft\DirectX\UserGpuPreferences,
+   value = ParamStr(0), 'GpuPreference=1;' saving / '2;' high
+   performance, removed for Windows decides; other 'Name=Value;' pairs
+   in the value kept.
+2. Builder: row Power (Automatic / Fastest / Save power / Let it sleep;
+   ini [Build] Power = Automatic | Fastest | SavePower | Sleep; default
+   Automatic = Fastest on mains, Save power on battery). ApplyPower
+   replaces UpdateControls' InhibitStart/Stop: logs "Power: ... - keeping
+   the computer awake: ...; speed: ..." when work starts, again at each
+   job's start when Automatic's answer changed (unplugged mid-queue),
+   at once when the row changes while working; at the end
+   InhibitStop + InhibitSpeed(isSystem). Windows: Window GPU on the same
+   row (cbGpu, from GpuPreference; a change stored at once, "next
+   start").
+3. Devices by description: Windows' GPU preference (and drivers) can
+   reorder Vulkan's list, so "Vulkan0" may become the iGPU. ini
+   [Build] DeviceDescription and the queue's "deviceDescription" saved;
+   DeviceMatch(name, description): the name when its description still
+   matches, else the device of the same kind (letters before the number)
+   and description. The calibration's per-device speeds stay by name -
+   a changed device list changes its Devices key, which asks for a new
+   calibration already.
+4. Reader: View > Graphics (from the next start) on Windows - the three
+   choices checked from the registry; ShowMessage says next start.
+READMEs: builder Kept awake (Power, Window GPU), reader Graphics.
+NOT COMPILED - SetProcessInformation's delayed external, the IOPS calls
+and TRegistry are untested here.
+TESTS (owner): Windows laptop - Window GPU Power saving, restart: the
+Device still the RTX (by description), the log's Power line; Automatic
+unplugged -> Save power at the next book. Mac: Fastest / Save power on
+one book each with the display off (~27x / ~17x).
+
+## Zip 141 (on top of zip 140): the Mac Steam reader's folders beside the .app
+Owner 2026-11-19 15:04: the Mac Steam build's books beside
+EpubReader.app, as steaminput (he puts it there by hand). uMain: new
+ProgramFolder - ParamStr(0)'s folder, on the Mac the folder holding the
+.app when it is .../X.app/Contents/MacOS (the signed bundle is never
+written to; the folder holding it is Steam's install folder, Manage >
+Browse local files). BooksFolderDefault: every STEAMBUILD (the Mac too)
+ProgramFolder/Books; other builds Documents/EpubReader/Books (as
+before). StartPad: steaminput/ beside the program on the Mac too
+(the {$IFNDEF MACOS} gone), the settings' folder still the fallback;
+unwritable Books still falls back to Documents (FormCreate). Uninstall
+in Steam may delete Books with the folder, as on Windows / Linux.
+README (reader): Game pad, Books folder. NOT COMPILED.
+TEST (owner, Mac Steam build): the debug log's "books folder:" and
+"pad:" lines name the folder holding EpubReader.app.
+
+## Zip 140 (on top of zip 139): the Mac slows down with its display off
+RESULTS (owner, M4 Mac mini, Core ML turbo, build 9554a1f, a queue of 20
+books 2026-11-18 22:07 - 2026-11-19 12:21: 281:43:46 of audio in
+14:13:21, 19.8x; queue report + history + debug log + pmset log): each
+of the 1654 parts' times against pmset's "Display is turned on / off":
+display ON 222 h of audio at 27.6x (parts 25 - 30x), display OFF 334 h at
+17.1x (15 - 20x). 8 display changes (22:39 off, 04:17 on, 04:42 off,
+05:36 on, 06:47 off, 08:28 on, 10:10 off, 12:06 on): every one switched
+the speed within two minutes (15 min before / 2 - 17 min after: 28.7 ->
+20.4, 17.6 -> 26.4, 26.7 -> 19.8, 19.5 -> 29.4, 26.2 -> 18.4, 18.4 ->
+28.2, 29.8 -> 18.2, 17.6 -> 26.8). The owner's test: RustDesk open 08:40
+- 10:00 (keeps the display on), closed 10:00 (display off 10:10), logged
+on 12:05. The aligning and writing (CPU) was five times slower too (0.6
+against 3.2 - 3.6 s per hour of audio) - background treatment (App
+Nap), not heat. Cost: about 4 h of the 14. Ender in Exile (forced ru,
+23:23 - 00:45) was 10x on top of that: its own trouble (zip 133).
+The keep-awake (zip 114) held IOPMAssertion PreventUserIdleSystemSleep:
+no sleep, but no protection from App Nap.
+1. uInhibit (macOS): with the assertion, NSProcessInfo
+   beginActivityWithOptions:reason: (NSActivityUserInitiated |
+   NSActivityLatencyCritical) while any kind is held - one activity,
+   retained, endActivity: + release at the last stop. Through the
+   Objective-C runtime (objc_getClass, sel_registerName, objc_msgSend
+   declared once per signature - arm64 needs the exact one); the reason
+   is a CFString (toll-free an NSString). InhibitText (the log's
+   "keeping the computer awake:" line) adds "; NSProcessInfo activity
+   (user initiated, latency critical: no App Nap)".
+   TEST (owner): a book or two with the display allowed to sleep - the
+   parts should stay at ~27x. If not: Activity Monitor's App Nap column;
+   then maybe the window's occlusion (FMX stops drawing) is not it but
+   the GPU's clocks - pmset / powermetrics next.
+2. The debug log had every build and calibration line twice - the
+   thread's DebugLog and LogLine's (24 MB for the queue). New ThreadLine
+   (window + the book's log, no DebugLog) for FBuild / FCalib's OnLog;
+   the model download's Log does not DebugLog, so it keeps LogLine.
+README (builder): Kept awake - the macOS activity and why. NOT COMPILED
+(the Objective-C calls untested here).
+
+## Zip 139 (on top of 8a9a67d = zip 138): the morning queue's results
+RESULTS (owner, 2026-11-19 06:27 - 07:59, RTX 5090 laptop, Vulkan0,
+large-v3-turbo, Steam playtest build a170de0 + local = 8a9a67d): a queue
+of nine - the seven Death Gate books, Hitchhiker's Guide, Night Watch.
+128.5 h of audio transcribed in 90.8 min, 85x overall (81 - 87x per
+book); the history's estimate within 5 % every time (zip 99 works once
+a model has builds here). Matched 97.8 - 99.5 %, every book "very good"
+but Night Watch ("good", 97.8 % as on every turbo run).
+- NIGHT WATCH 10:14, 86.9x, no part out of line - against 26:08 with
+  ~15 min of stalls before: the stalls are gone on the book itself too
+  (zip 133 saw it with Ender in Exile). The fastest whole-book turbo:
+  5090 10:14, Steam Machine 23:44, M4 Core ML 30:47, M4 Metal 52:18.
+- Book / calibration on the 5090: 85 / 26.1 = 3.3 (zip 133: 3.2).
+  HISTORY_BOOK_RATIO stays 1.35 - right for the Steam Machine and the
+  M4, 2.4x too slow for the 5090's first build of a model. Not changed;
+  if it matters: a longer calibration clip, or the ratio from this
+  machine's own rows of any model.
+- Death Gate: 104 - 1276 words "moved" per book - footnotes read where
+  they are called (every longest stretch is one): as designed. Tagged
+  und, built as en with zip 136's override.
+- Worth a listen (owner): Into the Labyrinth 02:53:56 (55 not heard -
+  about 20 s where Whisper gave nothing); The Hand of Chaos 18:14:40
+  (34 not heard: a diagram's labels in the appendix, not marked as a
+  caption).
+Changes:
+1. HITCHHIKER'S GUIDE: 28253 of 75395 words outside the reading (the
+   EPUB's extras; the audio, 5:51, is the whole book) - "very good",
+   exact 60.6 % in the history. uBuilder.LogResults: a warning when the
+   front and back matter is more than a tenth of the book's words (the
+   verdict counts only timed words, so it cannot show this).
+   RecordHistory: exact_pct is now Exact / (book words - front and back
+   matter); older rows keep all words (uHistory's field doc says so).
+   That book's row would read 96.9 %.
+2. UI LINES IN A BOOK'S LOG: LogLine adds to FBuildLog while a build
+   runs, so "Added to the queue as job 8" landed in Dragon Wing's .log
+   and "Another book: the audio list was emptied." in The Hand of
+   Chaos's. New WindowLine (debug log + window, never FBuildLog) for
+   what the window does: ShowBook, AddAudio, Add folder, CheckThen /
+   CheckCalibrationThen / CheckBookThen / CheckOutputThen, AddJob, job
+   remove, LoadQueue, Load / Save queue, the job put into the window.
+   The keep-awake line stays a LogLine (it belongs to the queue's
+   start).
+3. FOR TWHISPER (not changed here - Later tests 6's other half, the BACK
+   EDGE): Night Watch's last chapter (86 s, 88 words) and the closing
+   credits matched a few words of the back matter (the names, likely),
+   so the last word read sits in the about-the-author / reviews text:
+   ~570 words of it timed over a minute of credits (123 + 43
+   interpolated) and a 404-word "not spoken" stretch at the top of the
+   worth-a-look list. Fix with the front edge: the first / last word read
+   is one inside a run of several matches (say 5 in a row), not a lone
+   one.
+README (builder): the history's exact share; the front / back matter
+warning; a book's .log holds its own build only. NOT COMPILED.
 
 ## Zip 138 (on top of zip 137): session 9 handover brought up to date
 Zips 135 - 137 in the map, the unpushed list and the repositories table.

@@ -254,6 +254,12 @@ copies it too (made executable). Keep it LF and executable in git.
 - `lib/Epub.inc` - compiler and platform defines.
 - `redistributable_bin/` - the libraries the programs need, per platform
   (not tracked; `tools/redist.sh` / `redist.bat` fill and deploy them).
+- `notes/Building-distributions.md` - step by step from fresh clones:
+  building, collecting and deploying every library and file, for every
+  platform, and the Steam depots.
+- `notes/Windows-on-Arm.md` - Windows on Arm (Delphi's Arm64EC): what is
+  known, the risks, and the tests, with `notes/Arm64ECProbe.dpr` (compiler
+  symbols, Vulkan, CUDA, which DLLs load).
 - `tools/gen_projects.py` - generates the .dproj files and the groupproj
   (missing files only; `--force` rewrites them). Once the IDE has saved a
   file, the IDE's version is authoritative.

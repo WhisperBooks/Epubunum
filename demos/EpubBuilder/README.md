@@ -124,7 +124,9 @@ Every build that transcribes adds a row to `EpubBuilder-history.csv`
 beside the settings: when, the computer, model, device, the audio's
 length, how long the transcription and the aligning / writing took, the
 speed (x real time), the calibration's speed at the time, the exact
-and matched shares of the book's words, and the book: its title, the
+share (of the words between the first and the last word read: front and
+back matter left out - rows from before 2026-11-19 count all the book's
+words) and the matched share (the verdict's), and the book: its title, the
 language transcribed and the output's file name (rows from before these
 columns have them empty; the file's header line is brought up to date
 on the next build). A spreadsheet opens it, and
@@ -214,15 +216,42 @@ Night Watch_001.epub, then _002 and so on. The name can still be changed
 
 ## Kept awake while it works
 
-While a build, the queue, a calibration or a model download runs,
-EpubBuilder asks the system not to sleep (the screen may still go dark),
-and lets it sleep again when it ends. SteamOS in Game Mode, and laptops,
+The Power row chooses how the computer is kept while a build, the queue,
+a calibration or a model download runs (kept in the settings, in force
+at once when changed):
+
+- Automatic (the first time): Fastest on mains power, Save power on
+  battery - looked at again at each book of a queue;
+- Fastest: kept awake, at full speed (the Mac: no App Nap; Windows: no
+  EcoQoS efficiency mode);
+- Save power: kept awake, but the system may slow the program down (the
+  Mac: App Nap allowed - an M4 ran at 17x real time with the display off
+  instead of 27x; Windows: EcoQoS; Linux: left to the system);
+- Let it sleep: nothing held - a computer that sleeps stops the build
+  until it wakes.
+
+The log says what was done ("Power: Fastest (Automatic: on mains power)
+- keeping the computer awake: ...; speed: ..."), and each book's log at
+  its start.
+
+On Windows, Window GPU stores Windows' graphics preference for
+EpubBuilder (as Settings > System > Display > Graphics does), used from
+the next start: which GPU draws the window on a laptop with two. Whisper
+runs on the Device chosen, not on this - but the Vulkan devices may come
+in another order after it; the device (and each queued job's) is found
+again by its description, so a build keeps its GPU.
+
+While it works, EpubBuilder asks the system not to sleep (the screen may
+still go dark), and lets it sleep again when it ends. SteamOS in Game Mode, and laptops,
 otherwise sleep after a while with nobody at the controls - half way
 through a book. The log says how it was asked ("keeping the computer
 awake: ..."):
 
 - Windows: SetThreadExecutionState.
-- macOS: an IOKit power assertion.
+- macOS: an IOKit power assertion; at Fastest also an NSProcessInfo
+  activity (user initiated) - without it macOS slows the program down
+  once the display is off (App Nap): an M4 ran a queue at 27.6x real time
+  with the display on and 17.1x with it off.
 - Linux: systemd-logind's sleep:idle inhibitor over D-Bus (libdbus-1).
 
 If the machine still sleeps, set its sleep timeout to Never while a long
@@ -284,8 +313,14 @@ not while the queue runs). **Run queue** builds the jobs one after the
 other - failed and cancelled ones again, done ones not - and books can be
 added while it runs. **Cancel** stops the job running and the queue (Run
 queue goes on with the jobs not done). **Remove**, **Up** and **Down**
-change the queue (not the job running); a double click puts a job's
-choices back into the window. **Save...** writes the queue to a JSON file
+change the queue (not the job running). A click on a job shows it in the
+window as it was added - the book, its audio files, model, device,
+output, language and options - so a loaded queue can be checked; change
+what is wrong (the output's name, say) and press **Update job**: the
+same checks as Add to queue, then the job takes the window's choices in
+its place, waiting again (a done one is built again). Add to queue still
+adds a new job. Update job is off for the job running, and after Remove,
+Up or Down until a job is clicked again. **Save...** writes the queue to a JSON file
 and **Load...** adds the jobs of one, so a list of books can be prepared
 and run later. Loading asks nothing, so it says what it did in the log: a
 job whose output is its own book, or whose output a job of the queue
@@ -303,7 +338,10 @@ verdict, EPUB size per book - and a section per book with every figure
 interpolated / not heard / not spoken, front and back matter, reading
 speed, clips, chapter marks); the CSV has all of them for a spreadsheet.
 The queue file is saved again after each job, so it always says which
-books are done.
+books are done. Each book's `.log` holds its own build only: what is done
+in the window meanwhile (another book chosen, a job added, the queue
+loaded or saved) goes to the window's log and the debug log, not into
+the log of the book being built.
 
 The book's language (its `dc:language`, e.g. `de`) is the language
 Whisper transcribes in - never translated - and the prompt that keeps
@@ -321,7 +359,11 @@ book with synced audio of its own (made elsewhere) is asked about too.
 The results after a build list the longest stretches worth a look.
 Front and back matter - text not read before the first or after the last
 word that is (title pages, a licence, about the author) - is counted but
-not listed: it is normal, and still in the book. The recording's parts
+not listed: it is normal, and still in the book. When it is more than a
+tenth of the book the results say so - the verdict counts only the timed
+words, so it stays "very good" for an EPUB with extras (an introduction,
+a preview, another book), another edition, or a recording of only part
+of the book: check where the reading starts and ends. The recording's parts
 (chapters of an M4B with **Chapters of a file are parts** ticked, else
 the files) are written into the book as chapter marks, which EpubReader
 steps by when the book's contents list has no chapters that are read.

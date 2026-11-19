@@ -29,6 +29,25 @@
       Whether Steam's Game Mode honours them was not known when this was
       written: InhibitText says which calls worked, for the logs.))
 
+  The speed (@link(InhibitSpeed)), apart from sleep - owner, 2026-11-19:
+  "some people may desire power control ... saving power or time":
+  @unorderedList(
+    @item(macOS: full speed is NSProcessInfo's beginActivityWithOptions
+      (user initiated, latency critical). Kept awake alone, the Mac does
+      not run at full speed: with the display off macOS treats the program
+      as background work (App Nap) - an M4's overnight queue, 2026-11-19:
+      27.6x real time with the display on, 17.1x with it off, the switch
+      within two minutes of each of 8 display changes, the aligning five
+      times slower too. Saving: no activity (App Nap allowed).)
+    @item(Windows: SetProcessInformation(ProcessPowerThrottling) - full
+      speed opts out of EcoQoS, saving opts in.)
+    @item(Linux: left to the system (a lower priority could not be taken
+      back without privileges).))
+  @link(OnBattery) tells mains from battery for an automatic choice.
+  @link(GpuPreference) / @link(SetGpuPreference): Windows' per-program
+  graphics preference (Settings > System > Display > Graphics), read by
+  Windows when the program starts.
+
   Nothing here raises: a way that does not work is noted in InhibitText
   and the program carries on. *)
 unit uInhibit;
@@ -43,6 +62,25 @@ type
     ikSleep,
     { The computer and its screen - the reader while it reads aloud. }
     ikDisplay);
+
+type
+  { How fast the program may run with nobody using the computer. }
+  TInhibitSpeed = (
+    { As the system decides (the start). }
+    isSystem,
+    { Full speed: no App Nap (macOS), no EcoQoS (Windows). }
+    isFast,
+    { Power before speed: App Nap allowed (macOS), EcoQoS (Windows). }
+    isSaving);
+
+  { Windows' graphics preference for this program. }
+  TGpuPreference = (
+    { Windows decides (no preference stored). }
+    gpSystem,
+    { The power saving GPU (a laptop's integrated one). }
+    gpSaving,
+    { The high performance GPU. }
+    gpFast);
 
 { Starts keeping AKind on (counted: each start needs its stop).
   @param(AKind  what is kept on)
@@ -61,17 +99,39 @@ procedure InhibitStop(AKind: TInhibitKind);
   @returns(the text) }
 function InhibitText: string;
 
+{ Sets how fast the program may run (the whole program, until the next
+  call; isSystem at the end of the work).
+  @param(ASpeed  the speed)
+  @returns(what was done, for the logs) }
+function InhibitSpeed(ASpeed: TInhibitSpeed): string;
+
+{ The computer runs on its battery (False when it has none, or when it
+  cannot be told).
+  @returns(True on battery) }
+function OnBattery: Boolean;
+
+{ Windows' graphics preference stored for this program (gpSystem
+  elsewhere).
+  @returns(the preference) }
+function GpuPreference: TGpuPreference;
+
+{ Stores Windows' graphics preference for this program - Windows uses it
+  when the program next starts. Other systems: nothing.
+  @param(APreference  the preference; gpSystem removes it)
+  @returns(True when it was stored) }
+function SetGpuPreference(APreference: TGpuPreference): Boolean;
+
 implementation
 
 uses
   {$IFDEF MSWINDOWS}
-  Winapi.Windows,
+  Winapi.Windows, System.Win.Registry,
   {$ENDIF}
   {$IF Defined(MACOS) and not Defined(IOS)}
   Macapi.CoreFoundation,
   {$ENDIF}
   {$IF Defined(LINUX) and not Defined(ANDROID)}
-  Posix.Unistd,
+  Posix.Unistd, System.IOUtils,
   {$ENDIF}
   System.SysUtils;
 
@@ -113,6 +173,74 @@ begin
 end;
 {$ENDIF}
 
+{$IFDEF MSWINDOWS}
+type
+  { PROCESS_POWER_THROTTLING_STATE. }
+  TPowerThrottling = record
+    { PROCESS_POWER_THROTTLING_CURRENT_VERSION (1). }
+    Version: ULONG;
+    { What the call decides. }
+    ControlMask: ULONG;
+    { Which of those are on. }
+    StateMask: ULONG;
+  end;
+
+const
+  { ProcessPowerThrottling (PROCESS_INFORMATION_CLASS). }
+  PROCESS_POWER_THROTTLING = 4;
+  { PROCESS_POWER_THROTTLING_EXECUTION_SPEED: EcoQoS. }
+  THROTTLE_SPEED = 1;
+  { Windows' per-program graphics preferences (HKCU). }
+  GPU_KEY = 'Software\Microsoft\DirectX\UserGpuPreferences';
+  { The preference's name in a value's 'Name=Value;' list. }
+  GPU_NAME = 'GpuPreference';
+
+{ SetProcessInformation (Windows 8 and later). }
+function SetProcessInformation(AProcess: THandle; AClass: Integer; AInfo: Pointer; ASize: DWORD): BOOL;
+  stdcall; external kernel32 name 'SetProcessInformation' delayed;
+
+{ EcoQoS on (AOn) or off, or left to Windows (not AControl). }
+function WinSpeed(AControl, AOn: Boolean): string;
+var
+  T: TPowerThrottling;
+begin
+  T.Version := 1;
+  T.ControlMask := 0;
+  T.StateMask := 0;
+  if AControl then
+    T.ControlMask := THROTTLE_SPEED;
+  if AControl and AOn then
+    T.StateMask := THROTTLE_SPEED;
+  try
+    if SetProcessInformation(GetCurrentProcess, PROCESS_POWER_THROTTLING, @T, SizeOf(T)) then
+      Result := Format('SetProcessInformation(PowerThrottling, control %d, state %d)', [T.ControlMask,
+        T.StateMask])
+    else
+      Result := Format('SetProcessInformation(PowerThrottling) failed (%d)', [GetLastError]);
+  except
+    // not on this Windows (delayed: found at the first call)
+    on E: Exception do
+      Result := 'SetProcessInformation not available: ' + E.Message;
+  end;
+end;
+
+{ The registry value's 'Name=Value;' list with GpuPreference set to
+  AValue ('' removes it). }
+function WithGpu(const AList, AValue: string): string;
+var
+  Parts: TArray<string>;
+  P: string;
+begin
+  Result := '';
+  Parts := AList.Split([';']);
+  for P in Parts do
+    if (Trim(P) <> '') and not ((Pos('=', P) > 0) and SameText(Trim(Copy(P, 1, Pos('=', P) - 1)), GPU_NAME)) then
+      Result := Result + Trim(P) + ';';
+  if AValue <> '' then
+    Result := Result + GPU_NAME + '=' + AValue + ';';
+end;
+{$ENDIF}
+
 {$IF Defined(MACOS) and not Defined(IOS)}
 const
   { IOKit. }
@@ -126,14 +254,124 @@ function IOPMAssertionCreateWithName(AType: CFStringRef; ALevel: UInt32; AName: 
 { IOPMAssertionRelease. }
 function IOPMAssertionRelease(AId: UInt32): Int32; cdecl; external IOKitLib name 'IOPMAssertionRelease';
 
+const
+  { The Objective-C runtime. }
+  ObjCLib = '/usr/lib/libobjc.dylib';
+  { NSActivityUserInitiated: no App Nap, no idle system sleep. }
+  ACTIVITY_USER_INITIATED = UInt64($00FFFFFF);
+  { NSActivityLatencyCritical: no timer coalescing either. }
+  ACTIVITY_LATENCY_CRITICAL = UInt64($FF00000000);
+
+{ objc_getClass. }
+function objc_getClass(AName: PAnsiChar): Pointer; cdecl; external ObjCLib name 'objc_getClass';
+{ sel_registerName. }
+function sel_registerName(AName: PAnsiChar): Pointer; cdecl; external ObjCLib name 'sel_registerName';
+{ objc_msgSend for a message with no arguments that returns an object
+  (each signature its own declaration: arm64 needs the exact one). }
+function MsgSendObj(ASelf, AOp: Pointer): Pointer; cdecl; external ObjCLib name 'objc_msgSend';
+{ objc_msgSend for beginActivityWithOptions:reason:. }
+function MsgSendBegin(ASelf, AOp: Pointer; AOptions: UInt64; AReason: Pointer): Pointer; cdecl;
+  external ObjCLib name 'objc_msgSend';
+{ objc_msgSend for endActivity:. }
+procedure MsgSendEnd(ASelf, AOp: Pointer; AActivity: Pointer); cdecl; external ObjCLib name 'objc_msgSend';
+
 var
   { The assertion held per kind (0 = none). }
   GAssertion: array[TInhibitKind] of UInt32;
+  { NSProcessInfo's activity, retained (nil = none). }
+  GActivity: Pointer = nil;
 
 { AText as a CFString (the caller releases it). }
 function CFStr(const AText: string): CFStringRef;
 begin
   Result := CFStringCreateWithCString(nil, PAnsiChar(UTF8String(AText)), kCFStringEncodingUTF8);
+end;
+
+{ [NSProcessInfo processInfo]. }
+function ProcessInfo: Pointer;
+var
+  C: Pointer;
+begin
+  Result := nil;
+  C := objc_getClass('NSProcessInfo');
+  if C <> nil then
+    Result := MsgSendObj(C, sel_registerName('processInfo'));
+end;
+
+{ NSProcessInfo's activity begun (AOn) or ended.
+  @returns(what was done) }
+function ApplyActivity(AOn: Boolean; const AReason: string): string;
+var
+  P, A: Pointer;
+  N: CFStringRef;
+  R: string;
+begin
+  Result := '';
+  if AOn then
+  begin
+    if GActivity <> nil then
+      Exit('NSProcessInfo activity held already');
+    P := ProcessInfo;
+    if P = nil then
+      Exit('no NSProcessInfo: macOS may slow the program down with the display off');
+    R := AReason;
+    if R = '' then
+      R := 'Working';
+    // a CFString is an NSString (toll-free bridged)
+    N := CFStr(R);
+    try
+      A := MsgSendBegin(P, sel_registerName('beginActivityWithOptions:reason:'),
+        ACTIVITY_USER_INITIATED or ACTIVITY_LATENCY_CRITICAL, N);
+    finally
+      CFRelease(N);
+    end;
+    if A = nil then
+      Exit('NSProcessInfo activity not begun: macOS may slow the program down with the display off');
+    // kept until endActivity: (the returned object may be autoreleased)
+    GActivity := MsgSendObj(A, sel_registerName('retain'));
+    Result := 'NSProcessInfo activity (user initiated, latency critical: no App Nap)';
+  end
+  else if GActivity <> nil then
+  begin
+    P := ProcessInfo;
+    if P <> nil then
+      MsgSendEnd(P, sel_registerName('endActivity:'), GActivity);
+    MsgSendObj(GActivity, sel_registerName('release'));
+    GActivity := nil;
+    Result := 'NSProcessInfo activity ended (App Nap allowed)';
+  end
+  else
+    Result := 'no NSProcessInfo activity (App Nap allowed)';
+end;
+
+const
+  { The power source's type when on battery. }
+  BATTERY_POWER = 'Battery Power';
+
+{ IOPSCopyPowerSourcesInfo. }
+function IOPSCopyPowerSourcesInfo: CFTypeRef; cdecl; external IOKitLib name 'IOPSCopyPowerSourcesInfo';
+{ IOPSGetProvidingPowerSourceType. }
+function IOPSGetProvidingPowerSourceType(ASnapshot: CFTypeRef): CFStringRef; cdecl;
+  external IOKitLib name 'IOPSGetProvidingPowerSourceType';
+
+{ The Mac's power source is its battery. }
+function MacOnBattery: Boolean;
+var
+  Snap: CFTypeRef;
+  T: CFStringRef;
+  Buf: array[0..63] of AnsiChar;
+begin
+  Result := False;
+  Snap := IOPSCopyPowerSourcesInfo;
+  if Snap = nil then
+    Exit;
+  try
+    T := IOPSGetProvidingPowerSourceType(Snap);
+    if (T <> nil) and CFStringGetCString(T, @Buf[0], Length(Buf), kCFStringEncodingUTF8) then
+      Result := string(UTF8String(PAnsiChar(@Buf[0]))) = BATTERY_POWER;
+  finally
+    CFRelease(Snap);
+  end;
 end;
 
 { The assertion of AKind taken or released from its count. }
@@ -524,6 +762,138 @@ begin
       GText := 'releasing failed: ' + E.Message;
   end;
 end;
+
+function InhibitSpeed(ASpeed: TInhibitSpeed): string;
+begin
+  try
+    {$IF Defined(MSWINDOWS)}
+    Result := WinSpeed(ASpeed <> isSystem, ASpeed = isSaving);
+    {$ELSEIF Defined(MACOS) and not Defined(IOS)}
+    Result := ApplyActivity(ASpeed = isFast, 'Building an audiobook');
+    {$ELSE}
+    Result := 'the speed is left to the system here';
+    {$ENDIF}
+  except
+    on E: Exception do
+      Result := 'setting the speed failed: ' + E.Message;
+  end;
+end;
+
+function OnBattery: Boolean;
+{$IF Defined(MSWINDOWS)}
+var
+  S: TSystemPowerStatus;
+begin
+  // ACLineStatus 0 = offline (255 = unknown: a desktop, mains)
+  Result := GetSystemPowerStatus(S) and (S.ACLineStatus = 0);
+end;
+{$ELSEIF Defined(MACOS) and not Defined(IOS)}
+begin
+  try
+    Result := MacOnBattery;
+  except
+    Result := False;
+  end;
+end;
+{$ELSEIF Defined(LINUX) and not Defined(ANDROID)}
+var
+  D, Kind: string;
+begin
+  // a battery that discharges (a Steam Deck unplugged)
+  Result := False;
+  try
+    if not TDirectory.Exists('/sys/class/power_supply') then
+      Exit;
+    for D in TDirectory.GetDirectories('/sys/class/power_supply') do
+    begin
+      if not FileExists(TPath.Combine(D, 'type')) or not FileExists(TPath.Combine(D, 'status')) then
+        Continue;
+      Kind := Trim(TFile.ReadAllText(TPath.Combine(D, 'type')));
+      if SameText(Kind, 'Battery') and SameText(Trim(TFile.ReadAllText(TPath.Combine(D, 'status'))),
+        'Discharging') then
+        Exit(True);
+    end;
+  except
+    Result := False;
+  end;
+end;
+{$ELSE}
+begin
+  Result := False;
+end;
+{$ENDIF}
+
+function GpuPreference: TGpuPreference;
+{$IFDEF MSWINDOWS}
+var
+  R: TRegistry;
+  P, V: string;
+begin
+  Result := gpSystem;
+  R := TRegistry.Create(KEY_READ);
+  try
+    R.RootKey := HKEY_CURRENT_USER;
+    if R.OpenKeyReadOnly(GPU_KEY) and R.ValueExists(ParamStr(0)) then
+      for P in R.ReadString(ParamStr(0)).Split([';']) do
+        if (Pos('=', P) > 0) and SameText(Trim(Copy(P, 1, Pos('=', P) - 1)), GPU_NAME) then
+        begin
+          V := Trim(Copy(P, Pos('=', P) + 1, MaxInt));
+          if V = '1' then
+            Result := gpSaving
+          else if V = '2' then
+            Result := gpFast;
+        end;
+  except
+    Result := gpSystem;
+  end;
+  R.Free;
+end;
+{$ELSE}
+begin
+  Result := gpSystem;
+end;
+{$ENDIF}
+
+function SetGpuPreference(APreference: TGpuPreference): Boolean;
+{$IFDEF MSWINDOWS}
+const
+  VALUES: array[TGpuPreference] of string = ('', '1', '2');
+var
+  R: TRegistry;
+  Old, Value: string;
+begin
+  Result := False;
+  R := TRegistry.Create(KEY_READ or KEY_WRITE);
+  try
+    try
+      R.RootKey := HKEY_CURRENT_USER;
+      if not R.OpenKey(GPU_KEY, True) then
+        Exit;
+      Old := '';
+      if R.ValueExists(ParamStr(0)) then
+        Old := R.ReadString(ParamStr(0));
+      // other settings of the program in the same value are kept
+      Value := WithGpu(Old, VALUES[APreference]);
+      if Value = '' then
+      begin
+        if R.ValueExists(ParamStr(0)) then
+          R.DeleteValue(ParamStr(0));
+      end
+      else
+        R.WriteString(ParamStr(0), Value);
+      Result := True;
+    except
+      Result := False;
+    end;
+  finally
+    R.Free;
+  end;
+end;
+{$ELSE}
+begin
+  Result := False;
+end;
+{$ENDIF}
 
 initialization
 
