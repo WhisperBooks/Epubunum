@@ -4,7 +4,126 @@ Read README.md first, then this file. Keep both up to date with every change.
 The rules follow TWhisper's and TFFMpegAPI's CLAUDE.md (same owner, same
 conventions); where this file is silent, theirs apply.
 
-## Handover - READ THIS FIRST (latest: session 8, 2026-11-17 evening)
+## Handover - READ THIS FIRST (latest: session 9, 2026-11-18 / 19)
+
+### Session 9 (2026-11-17 night - 2026-11-19 early) - where it stopped
+Written at the owner's request (05:15: "write session handover as well
+in claude.md as this one's rather long"). One section per zip below
+("Zip 95" - "Zip 138"); this is the map. Brought up to date at 06:14
+("session handover again please") - zip 138.
+
+Pushes, checked file by file (CR LF aside):
+- Epubunum 667070c "Reader Steam Tests" = zips up to 127 (with 43e5cb9
+  "Remove local timings file", 21fd6cc). NOT PUSHED: 128 (zip 123's
+  tools/gen_reader_input.py - the README already says the plain command
+  -, .gitignore's last line end), 129 (Open a book / books folder), 130
+  (its test note), 131 (text >= 24 on a Steam Deck), 132 (disk-space
+  note), 133 (book columns in the build history), 134 (this handover),
+  135 (four more for the OPEN list), 136 (forced language), 137 (the
+  folders follow the dialogs again), 138 (this update).
+- whisper-dev: zip 22 (WHISPER_DEV_COREML) - pushed 2071815 earlier in
+  the session. TSteamAPI: nothing changed this session (EpubReader's
+  generator imports its tools/gen_input_mapping.py; the owner's copy is
+  ..\Steamworks - the old name).
+
+Done this session, by theme:
+- MAC BUILDER: ggml backends (.so) and aladdin.m4a deployed (95, 96);
+  models by short name, downloaded by the program (101); Core ML
+  encoders (102, whisper-dev 22). DRM-free .aax (98). Justified text in
+  the reader (105, package). Build history CSV + time left + Tools >
+  Build history (99, 100), estimates x 1.35 from the calibration alone
+  (117), poor builds (< 90 % matched) left out and the book's title /
+  language / file in the rows (133).
+- STEAM: ROCm as a second depot of the builder's playtest (110, 111;
+  tools/steam_stage.py); aladdin.m4a in Win64 builds (112); keep-awake
+  while working (114, uInhibit); gamescope's WSI layer off in
+  EpubBuilder.sh - it aborted ggml's Vulkan device in Game Mode (116);
+  Steam's Exit Game (SIGTERM) saves first and is logged (119, uQuitSignal;
+  126 its finalization removed).
+- BUILDER FOLDERS: books / audio / output folders, output named after
+  the book with _001 ... (122); since 137 each follows its dialog (Book...,
+  Add audio... / Add folder..., Output...) and is saved at once.
+- BUILDER LANGUAGE: Language box beside Device - "From the book (tag)"
+  or one of 18; kept per queued job; und / mul / zxx count as no
+  language (136). After Ender in Exile tagged ru (62.7 %, a third of the
+  speed) and a book tagged und.
+- READER PAD (Big Picture, part 1 of 3): Steam Input manifest generated
+  by tools/gen_reader_input.py -> demos/EpubReader/steaminput/ +
+  src/uReaderInput.pas (121, 123); uSteamPad (common), uPadMenu (reader;
+  prettier + Steam's glyphs in 125); steaminput/ in the builds (124:
+  postbuild.bat Win64, deploy_redist.py Linux64; not Mac); Big Picture
+  shows the page only (125); Open a book from the books folder (129 -
+  STOP-GAP); Steam Deck text >= 24 (131).
+
+TESTED BY THE OWNER this session:
+- Steam Machine (gfx1102 8 GB, SteamOS, sniper): ROCm0 and Vulkan0 the
+  same (Night Watch turbo 23:44 / 23:56, 37x; calibration 27.3 / 28.8x);
+  Vulkan needs DISABLE_GAMESCOPE_WSI=1 (as a launch option; 116 puts it
+  in the launcher - the launcher itself NOT yet tested). Idle: the owner
+  set sleep Never; zip 114 untested there.
+- Night Watch turbo: M4 Metal 52:18, M4 Core ML 30:47, 5090 26:08 (with
+  stalls), Steam Machine 23:44. Ender in Exile: 5090 9:59, 83x, 99.6 %
+  matched, no stalls; the M4's run of the same book was tagged ru -> 62.7
+  % (zip 133's section).
+- Reader pad: Windows desktop + Big Picture, PS5 pad (its glyphs), ROG
+  Ally - "tested perfect"; Mac: works, but HUNG ON EXIT (zips 126 / 127,
+  owner tries "tomorrow"); Open a book on the Deck - "stop-gap but it
+  worked".
+
+OPEN - IN THE OWNER'S ORDER OR WAITING ON HIM:
+1. The Mac reader's hang on Exit: build 126 + 127, Exit from the pad
+   menu, send the debug log (its "closing: ..." / "Steam: ..." lines end
+   at the step that hangs).
+2. Steam Deck / Steam Machine run of the reader: the Linux-only code -
+   uQuitSignal (Exit Game), the D-Bus keep-awake ("screen:" line), the
+   steaminput Deploy entries; the text size (zip 131: >= 24 on a Deck -
+   owner deciding).
+3. BIG PICTURE part 2: the big-screen layout (UiScale from
+   Steamworks.FMX.Screen: the Mac's 34" ultrawide gave 2.24; a handheld
+   case for the Deck); then part 3: following Steam switching into /
+   out of Big Picture while running (session 8's plan, below).
+4. EpubBuilder with a pad: offered as "pad as mouse and keyboard" (a
+   Steam Input layout with mouse / key bindings, X = Steam's keyboard) -
+   the owner's yes NOT given.
+5. The language check before transcribing (common words vs dc:language;
+   Whisper's own detection as a backstop) - offered; a MANUAL override
+   is in (zip 136). Also: for a book with no tag, choose the prompt after
+   Whisper has detected the language (now: the English one up front).
+6. Books folder beyond the stop-gap (zip 130's list); EpubBuilder's
+   Steam build writing into the reader's Books folder.
+7. Disk space on Steam hardware (zip 132's note) - the reader's temp
+   audio (840 MB for Night Watch) already.
+8. The partner site: Steam Input "Custom Configuration (Bundled with
+   Game)" -> steaminput/epubreader_controllers.vdf; for the Mac the
+   files beside EpubReader.app in the depot (offered as a staging step).
+9. The M4 slowing through the overnight queue (28.8 -> 17 - 19x) - heat?
+Added by the owner (2026-11-19 05:22, "a few more for the list"):
+10. EpubBuilder: a LOADED QUEUE does not show the output information
+    (the jobs' outputs - check what Load fills in the list / the window
+    against Add To Queue).
+11. TOUCH as Steam input: on a Steam Deck a tap on a library cover
+    should open the book (and the rest of the reader by touch). Check
+    how FMX on Linux (and gamescope in Game Mode) delivers touch -
+    clicks, gestures, or nothing - and what Steam's touch-screen setting
+    for the game does.
+12. EpubReader: AUTOPLAY when the book opened is already part-read (it
+    goes back to its word - start playing there; not for a new book).
+    Mind Learn to read and a book without audio.
+13. CHECK EVERY WAY OF CONTROL, properly ("touch may not be the only
+    one"): keyboard, mouse, touch, pad (Steam Input), trackpads / the
+    Deck's as mouse, Steam's on-screen keyboard - every command of both
+    programs reachable by each where it makes sense; a table in the
+    READMEs of what does what.
+
+Working notes added this session:
+- Mac logs: ~/Library/Application Support/EpubReader (and EpubBuilder);
+  crash reports ~/Library/Logs/DiagnosticReports (a hang leaves none).
+  Steam Machine logs: ~/.config/EpubBuilder/; stderr via the launch
+  option  %command% > ~/eb-out.log 2>&1 .
+- Fields go before methods in a Delphi class section (zip 120: E2169).
+- Steam: the owner's SteamPipe GUI has one setup per program (builder,
+  reader), each with Deployment/<platform> folders; app 5639910
+  (builder, a Playtest: no DLC - depots) and 5639840 (reader).
 
 ### Session 8 (2026-11-17) - where it stopped
 Written at the owner's request (21:39: "write up a claude.md session
@@ -70,10 +189,10 @@ the history, one per zip.
 | Repo | Pushed | = zip | Last zip number used |
 |---|---|---|---|
 | WhisperBooks/TWhisper | d669a06 | TWhisper-30 | 31 (review fixes) |
-| WhisperBooks/Epubunum | 51bb81e | EpubUnum-94 | 98 (95 Mac ggml backends in redist.sh, 96 aladdin.m4a deployed, 97 Later tests 7 Core ML, 98 DRM-free .aax in EpubBuilder, 99 build history + time left, 100 Tools > Build history, 101 models by name + download, 102 Core ML encoders, 103 iOS reader plan, 104 mobile readers (iOS + Android), 105 justified text, 106 pasdoc_epub prototype, 107 its layout, 108 parked, 109 this note, 110 ROCm DLC, 111 staging without parts.txt + playtest, 112 aladdin in Win64 builds, 113 .gitignore for Python caches - pushed 58ebe9b = 110 - 112; 113 NOT pushed; earlier: pushed d72d7b2 WITHOUT tools/pasdoc_epub.py (owner did not apply it; 109 pushed since); 110 NOT pushed; 93 Big Picture full screen and 94 this handover NOT pushed; 90 screen log, 91 DPI awareness, 92 Big Picture late maximise; 77 calibration, 78 Steam builds, 79 libraries copied by the builds, 80 - 83 fixes from the first Steam build, 84 EpubBuilder's Linux launcher, 85 Mac libraries through Deploy, 86 Deck crash diagnostics, 87 build stamp, 88 crash place in the log, 89 FreeType for Steam's Linux runtime) |
+| WhisperBooks/Epubunum | 667070c | EpubUnum-127 | 138 (session 9: 95 - 138, see its handover above; 128 - 138 NOT pushed. Earlier: 94 handover; 93 Big Picture full screen; 77 - 92 calibration, Steam builds, libraries, Deck crash, build stamp, screen log, DPI, Big Picture maximise) |
 | G3DGames/TFFMpegAPI | 0795d19 | FFmpegAPI-14 | 14 (macOS sound) |
 | G3DGames/ffmpeg-dev | 4d7b7be | ffmpeg-dev-09 | 09 |
-| WhisperBooks/whisper-dev | 9fa21dc | whisper-dev-20 | 21 (review fixes; its own CLAUDE.md) |
+| WhisperBooks/whisper-dev | 2071815 | whisper-dev-22 | 22 (Core ML; its own CLAUDE.md) |
 | G3DGames/TSteamAPI | 7953ab9 | BigPicture1 | FullScreen2 NOT pushed (zips named by topic + number: Screen1-3, BigPicture1, FullScreen1-2; Screen4 declined) |
 
 Checked 2026-11-16 21:18 against the deliveries, file by file (CR LF /
@@ -452,7 +571,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 132.
+Last number used: 138.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -2647,8 +2766,8 @@ Linux, in the playtest's packages incl. the Developer Comp) pointing at
 Deployment\HIP - every Linux install gets ROCm (~1 GB); STEAM_DLC_ROCM
 stays 0 (nothing offered). The DLC (zip 110's offer) waits until the
 builder is a normal app / a real DLC on the base app it ships as.
-Owner's SteamPipe GUI folder: C:\src\epub_reader\Deployment (CHECK it
-is EpubBuilder's - the path says reader).
+Owner's SteamPipe GUI folder: first given as the reader's setup (it was
+the wrong one - zip 112: the builder has its own).
 - tools/steam_stage.py: without parts.txt (redist.sh collect not yet run
   on Linux with zip 110) the parts by NAME_RULES (ROCm / CUDA library
   stems as whisper-dev bundles them, kernel folders, licence prefixes),
@@ -2660,8 +2779,8 @@ Owner 13:31: "builder has no aladdin on Win Steam deployment - where
 should it go? Automate for next time". Its place: media\aladdin.m4a
 beside EpubBuilder.exe (FindCalibrationAudio's first look; Debug /
 Release found the repository's copy by searching up from the output
-folder, a Steam install cannot). Owner's SteamPipe GUI setup for the
-builder: C:\src\epub_builder (the reader's: C:\src\epub_reader).
+folder, a Steam install cannot). The owner's SteamPipe GUI has a
+setup for the builder and one for the reader (folders on his machine).
 - tools/postbuild.bat (CRLF kept): EpubBuilder, every Win64
   configuration: :media - robocopy media\aladdin.m4a to
   <output>\media\; missing -> a warning, not a failure (the calibration
@@ -2844,7 +2963,8 @@ the filename this should be the default".
 - README (builder): Folders. NOT COMPILED.
 
 ## Zip 123 (on top of 7959de0): gen_reader_input.py finds TSteamAPI
-Owner: "--tsteamapi ../TSteamAPI" -> not found under C:\src\TSteamAPI.
+Owner: "--tsteamapi ../TSteamAPI" -> not found (his copy is
+..\Steamworks, the old name).
 --tsteamapi is optional now: else $TSTEAMAPI, else a sibling folder
 TSteamAPI / steamworks / tsteamapi with tools/gen_input_mapping.py; the
 error lists what was tried. README: the plain command.
@@ -3005,6 +3125,80 @@ ALREADY RELEVANT, not just "later":
 - EpubBuilder: models (turbo 1.5 GB, large 3 GB) in the program's
   models folder; the transcript, the output EPUB (the audio inside it,
   ~ the m4b's size) and the input copies.
+
+## Zip 133 (on top of zip 132): the book in the build history; Ender in Exile
+RESULTS (owner, 2026-11-19), Ender in Exile, turbo, 13:43:48 of audio:
+- M4 Core ML in the overnight queue, book TAGGED ru (dc:language) but
+  English: 1:22:06, 10.3x (expected 26.2x), exact 61.7 %, matched 62.7 %,
+  "poor"; long interpolated stretches (200 - 330 words) where Whisper
+  wrote Russian; heard 122457 of 128278 words. Whisper does not obey the
+  language strictly: each 30 s window decides afresh, clear English
+  pulls many back (they matched), the temperature fallback too.
+- The owner fixed dc:language to en (unzip, OPF, re-zip mimetype first
+  stored) and built on the RTX 5090 laptop, Vulkan0, Steam build:
+  9:59, 83.0x (expected 35.2x from calibration 26.1 x 1.35 - the 5090's
+  book / calibration is 3.2, not 1.35: its calibration windows are mostly
+  fixed costs), exact 98.3 %, matched 99.6 % (best so far), longest
+  stretch 13 words, NO STALLS (every part 80 - 90x; the Night Watch
+  stalls were not the GPU or the model). Keep-awake logged on Windows:
+  SetThreadExecutionState($80000001).
+- The M4 queue's history: 28.8, 26.2, 22.8 then 17 - 19x for the later
+  books (one 10.3x, the ru one) - slower through the night; cause not
+  known (heat? the books?). Worth a look.
+- OFFERED, not yet done: a language check before transcribing (common
+  words of the text against dc:language; use the text's and warn), and
+  Whisper's own detection on a window of the first part as a backstop.
+Zip 133 - owner: "This lacks a title - I would expect the name of the
+book or the file at a minimum":
+- uHistory: rows get title, language, file (the output's name, no
+  folder) - CSV columns 12 - 14; older rows read with them empty; a file
+  whose first line is the old header gets the new one on the next write
+  (UpgradeHeader). Table columns: When, Book (title, else the file's
+  name), Language, then as before (14).
+- HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
+- uBuilder: TBuildSummary.Title; RecordHistory fills the three.
+- README (builder) updated. NOT COMPILED.
+
+## Zip 138 (on top of zip 137): session 9 handover brought up to date
+Zips 135 - 137 in the map, the unpushed list and the repositories table.
+
+## Zip 137 (on top of zip 136): the folders follow the dialogs again
+Owner 06:13: "Builder's open epub and audio buttons should remember the
+directory last used to load a file - one for each option with the same
+for the output folder ... these values should persist between sessions".
+Partly undoes zip 122 ("a pick in a dialog no longer changes them"):
+Book... sets FBookFolder, Add audio... / Add folder... FAudioFolder,
+Output... FOutFolder (the next book's DefaultOutput goes there; FAutoOut
+cleared - the name is the user's), each saved at once (SaveSettings).
+Tools > ... folder still sets them directly; the defaults stay
+Documents/EpubBuilder/... README (builder) Folders updated.
+
+## Zip 136 (on top of zip 135): forced language
+Owner 06:03 "what will happen if language = UND" (answer: LanguageId
+fails -> Whisper auto-detects, the first part's language kept for the
+rest, but NO prompt for the whole book - BookPrompt('und') = ''), then
+06:07 "I know 100% it's English - Can we have a forced language
+override".
+- uBuilder: cbLanguage on the Device row - "From the book (<tag>)" then
+  18 languages (LANGUAGES: en de fr es it nl pt ru pl cs sv da no fi el
+  tr ja zh); FillLanguages(tag) at every ShowBook (back to the book's);
+  ChosenLanguage. TBuildJob.Language (queue file "language", '' = the
+  book's; any code there). TBuildThread.Create(..., AForceLanguage):
+  after the Book line, und / mul / zxx -> '' (as not given: English
+  prompt + detection), then the forced one with a log line "Language:
+  en, chosen in the builder (the book says und)". The prompt, Whisper's
+  language and the history follow FLanguage.
+- README (builder): Language. NOT COMPILED.
+- Still open (handover item 5): the automatic check of the text against
+  the tag; the prompt chosen after detection for a book with no tag.
+
+## Zip 135 (on top of zip 134): four more for the list
+Items 10 - 13 of the session 9 handover's OPEN list (the owner's).
+
+## Zip 134 (on top of zip 133): session 9 handover
+The handover at the top ("Session 9") and the repositories table.
+Also: three absolute paths of the owner's machine taken out of the zip
+110 / 112 / 123 sections (the rule: none in tracked files).
 
 ## Pushes checked
 - a6ea67b ("SteamOS good") = zips 87 - 89: identical (CR LF aside) but

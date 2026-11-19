@@ -47,10 +47,15 @@ const
     better (the lowest measured, so the first estimate errs long). }
   HISTORY_BOOK_RATIO = 1.35;
   { The table's columns (HistoryCells, HistoryTable). }
-  HISTORY_HEADERS: array[0..11] of string = ('When', 'Machine', 'Model', 'Device', 'Audio', 'Transcription',
-    'Speed', 'Calibration', 'Book / calibration', 'Align + write', 'Exact %', 'Matched %');
+  HISTORY_HEADERS: array[0..13] of string = ('When', 'Book', 'Language', 'Machine', 'Model', 'Device', 'Audio',
+    'Transcription', 'Speed', 'Calibration', 'Book / calibration', 'Align + write', 'Exact %', 'Matched %');
   { Their widths in the window, units. }
-  HISTORY_WIDTHS: array[0..11] of Single = (120, 150, 120, 70, 70, 95, 65, 85, 120, 95, 65, 75);
+  HISTORY_WIDTHS: array[0..13] of Single = (120, 220, 70, 150, 120, 70, 70, 95, 65, 85, 120, 95, 65, 75);
+  { A build matched worse than this (%) is left out of the estimates: the
+    wrong recording, or the wrong language (Ender in Exile tagged ru,
+    2026-11-19: 62.7 % at 10.3x, against 99.6 % and 17 - 26x for the
+    rest) - its speed says nothing of the next book's. }
+  HISTORY_POOR_MATCH = 90;
 
 type
   { One finished build. }
@@ -76,6 +81,12 @@ type
     ExactPercent: Double;
     { Timed words matched to what was heard, % (the verdict's figure). }
     MatchedPercent: Double;
+    { The book's title ('' in rows from before 2026-11-19). }
+    Title: string;
+    { The language transcribed ('' = not given, or an older row). }
+    Language: string;
+    { The output's file name, without its folder. }
+    OutputName: string;
   end;
 
   { The rows of a history file, oldest first. }
@@ -135,12 +146,17 @@ function HistoryExpect(const AHistory: TBuildHistory; const AMachine, AModel, AD
 implementation
 
 uses
-  System.DateUtils, System.Generics.Collections;
+  System.DateUtils, System.Generics.Collections, System.IOUtils;
 
 const
   { The header line (the columns HistoryAdd writes). }
-  HEADER = 'made,machine,model,device,audio_s,transcribe_s,after_s,speed,calibration_speed,exact_pct,matched_pct';
-  { Columns of a row. }
+  HEADER = 'made,machine,model,device,audio_s,transcribe_s,after_s,speed,calibration_speed,exact_pct,matched_pct,' +
+    'title,language,file';
+  { The header before the book's columns (owner, 2026-11-19: "This lacks a
+    title"): a file that starts with it gets the new one on the next
+    write. }
+  OLD_HEADER = 'made,machine,model,device,audio_s,transcribe_s,after_s,speed,calibration_speed,exact_pct,matched_pct';
+  { Columns of a row at the least (older rows have no book columns). }
   COLUMNS = 11;
   { APriorAudio by source: earlier builds of the pair, the calibration
     corrected by builds, the calibration alone (s of audio). }
@@ -183,6 +199,17 @@ begin
   Result := FloatToStrF(AValue, ffFixed, 15, ADigits, Inv);
 end;
 
+{ AFile's first line, when it is OLD_HEADER, replaced by HEADER (the rows
+  stay: the new columns are empty in them). }
+procedure UpgradeHeader(const AFile: string);
+var
+  Text: string;
+begin
+  Text := TFile.ReadAllText(AFile, TEncoding.UTF8);
+  if Text.StartsWith(OLD_HEADER + #13) or Text.StartsWith(OLD_HEADER + #10) then
+    TFile.WriteAllText(AFile, HEADER + Copy(Text, Length(OLD_HEADER) + 1, MaxInt), TEncoding.UTF8);
+end;
+
 function HistoryAdd(const AFile: string; const ARow: TBuildHistoryRow): string;
 var
   Line: string;
@@ -195,8 +222,11 @@ begin
     Line := FormatDateTime('yyyy-mm-dd hh:nn:ss', ARow.Made) + ',' + Quoted(ARow.Machine) + ',' +
       Quoted(ARow.Model) + ',' + Quoted(ARow.Device) + ',' + Num(ARow.AudioSeconds, 1) + ',' +
       Num(ARow.TranscribeSeconds, 1) + ',' + Num(ARow.AfterSeconds, 1) + ',' + Num(HistorySpeed(ARow), 2) + ',' +
-      Num(ARow.CalibrationSpeed, 2) + ',' + Num(ARow.ExactPercent, 2) + ',' + Num(ARow.MatchedPercent, 2);
+      Num(ARow.CalibrationSpeed, 2) + ',' + Num(ARow.ExactPercent, 2) + ',' + Num(ARow.MatchedPercent, 2) + ',' +
+      Quoted(ARow.Title) + ',' + Quoted(ARow.Language) + ',' + Quoted(ARow.OutputName);
     IsNew := not FileExists(AFile);
+    if not IsNew then
+      UpgradeHeader(AFile);
     if IsNew then
     begin
       ForceDirectories(ExtractFilePath(AFile));
@@ -316,6 +346,15 @@ begin
       R.CalibrationSpeed := StrToFloatDef(F[8], 0, Inv);
       R.ExactPercent := StrToFloatDef(F[9], 0, Inv);
       R.MatchedPercent := StrToFloatDef(F[10], 0, Inv);
+      R.Title := '';
+      R.Language := '';
+      R.OutputName := '';
+      if Length(F) > 13 then
+      begin
+        R.Title := F[11];
+        R.Language := F[12];
+        R.OutputName := F[13];
+      end;
       Result[N] := R;
       Inc(N);
     end;
@@ -373,24 +412,29 @@ begin
   Speed := HistorySpeed(ARow);
   SetLength(Result, Length(HISTORY_HEADERS));
   Result[0] := FormatDateTime('yyyy-mm-dd hh:nn', ARow.Made);
-  Result[1] := ARow.Machine;
-  Result[2] := ShortModel(ARow.Model);
-  Result[3] := ARow.Device;
-  Result[4] := Hms(ARow.AudioSeconds);
-  Result[5] := Hms(ARow.TranscribeSeconds);
-  Result[6] := Format('%.1fx', [Speed]);
-  Result[7] := '';
-  Result[8] := '';
+  // the title, else the output's name; rows from before have neither
+  Result[1] := ARow.Title;
+  if Result[1] = '' then
+    Result[1] := ChangeFileExt(ARow.OutputName, '');
+  Result[2] := ARow.Language;
+  Result[3] := ARow.Machine;
+  Result[4] := ShortModel(ARow.Model);
+  Result[5] := ARow.Device;
+  Result[6] := Hms(ARow.AudioSeconds);
+  Result[7] := Hms(ARow.TranscribeSeconds);
+  Result[8] := Format('%.1fx', [Speed]);
+  Result[9] := '';
+  Result[10] := '';
   if ARow.CalibrationSpeed > 0 then
   begin
-    Result[7] := Format('%.1fx', [ARow.CalibrationSpeed]);
-    Result[8] := Format('%.2f', [Speed / ARow.CalibrationSpeed]);
+    Result[9] := Format('%.1fx', [ARow.CalibrationSpeed]);
+    Result[10] := Format('%.2f', [Speed / ARow.CalibrationSpeed]);
   end;
-  Result[9] := '';
+  Result[11] := '';
   if ARow.AfterSeconds > 0 then
-    Result[9] := Hms(ARow.AfterSeconds);
-  Result[10] := Format('%.1f', [ARow.ExactPercent]);
-  Result[11] := Format('%.1f', [ARow.MatchedPercent]);
+    Result[11] := Hms(ARow.AfterSeconds);
+  Result[12] := Format('%.1f', [ARow.ExactPercent]);
+  Result[13] := Format('%.1f', [ARow.MatchedPercent]);
 end;
 
 function HistoryTable(const AHistory: TBuildHistory): string;
@@ -480,6 +524,9 @@ begin
   begin
     Here := SameText(AHistory[I].Machine, AMachine);
     if not Here or (HistorySpeed(AHistory[I]) <= 0) then
+      Continue;
+    // a poor build (wrong recording, wrong language) is no guide
+    if (AHistory[I].MatchedPercent > 0) and (AHistory[I].MatchedPercent < HISTORY_POOR_MATCH) then
       Continue;
     if SameText(AHistory[I].Model, AModel) and SameText(AHistory[I].Device, ADevice) and
       (Length(Same) < HISTORY_RECENT) then

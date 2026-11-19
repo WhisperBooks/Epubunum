@@ -47,6 +47,8 @@ type
     Machine: string;
     { The language transcribed ('' = not given). }
     Language: string;
+    { The book's title. }
+    Title: string;
     { Words Whisper heard. }
     HeardWords: Integer;
     { The aligner's figures. }
@@ -89,6 +91,9 @@ type
     FChapters: Boolean;
     { Read FJsonFile instead of transcribing when it fits the audio. }
     FReuse: Boolean;
+    { The language to transcribe in, whatever the book says ('' = the
+      book's own). }
+    FForceLanguage: string;
     { The saved transcript's model (file name; '' = not recorded: made
       before the builder recorded it), read by ReadSaved. }
     FSavedModel: string;
@@ -166,9 +171,10 @@ type
     procedure Execute; override;
   public
     { A build of ABookFile with AAudioFiles into AOutFile (not started:
-      call Start). }
+      call Start); AForceLanguage ('' = the book's) overrides the book's
+      language tag. }
     constructor Create(const ABookFile: string; AAudioFiles: TStrings; const AModelFile, ADevice,
-      AOutFile: string; AChapters, AReuse: Boolean);
+      AOutFile: string; AChapters, AReuse: Boolean; const AForceLanguage: string);
     { Frees the file list. }
     destructor Destroy; override;
     { Stops the build: the transcription at its next check, the rest
@@ -222,6 +228,8 @@ type
     Chapters: Boolean;
     { Use a saved transcript when it fits. }
     Reuse: Boolean;
+    { The language to transcribe in ('' = the book's). }
+    Language: string;
     { Where it is. }
     State: TJobState;
     { What happened ('' = nothing yet): the time taken, or why it failed. }
@@ -289,6 +297,9 @@ type
     FAwake: Boolean;
     { The device to transcribe on. }
     cbDevice: TComboBox;
+    { The language: the book's (the first item) or one chosen (owner,
+      2026-11-19: "Can we have a forced language override"). }
+    cbLanguage: TComboBox;
     { The EPUB to write. }
     edOut: TEdit;
     { Chapters of a file (m4b) are parts. }
@@ -603,6 +614,13 @@ type
     procedure miHistoryClick(Sender: TObject);
     { Tools > Get AMD ROCm acceleration: SteamGetDlc. }
     procedure miRocmClick(Sender: TObject);
+    { cbLanguage's items: the book's language (ATag, '' = none) first,
+      then the languages to choose; the book's selected.
+      @param(ATag  the book's dc:language) }
+    procedure FillLanguages(const ATag: string);
+    { The language chosen in cbLanguage ('' = the book's).
+      @returns(the code) }
+    function ChosenLanguage: string;
     { Tools > Books folder... / Audio folder... / Output folder...: the
       three folders (Tag 0, 1, 2 of the item). }
     procedure miFolderClick(Sender: TObject);
@@ -788,7 +806,7 @@ end;
 { TBuildThread }
 
 constructor TBuildThread.Create(const ABookFile: string; AAudioFiles: TStrings; const AModelFile, ADevice,
-  AOutFile: string; AChapters, AReuse: Boolean);
+  AOutFile: string; AChapters, AReuse: Boolean; const AForceLanguage: string);
 begin
   inherited Create(True);
   FreeOnTerminate := False;
@@ -801,6 +819,7 @@ begin
   FJsonFile := TranscriptFileOf(AOutFile);
   FChapters := AChapters;
   FReuse := AReuse;
+  FForceLanguage := AForceLanguage;
 end;
 
 destructor TBuildThread.Destroy;
@@ -1297,6 +1316,18 @@ begin
       FLanguage := PrimaryLanguage(Book.Language);
       Log(Format('Book: %s - %d words, language %s', [Book.Title, N, IfThen(FLanguage = '', 'not given',
         FLanguage)]));
+      // ISO 639's "undetermined", "multiple", "no linguistic content": as
+      // good as not given (Whisper detects it; the English prompt)
+      if (FLanguage = 'und') or (FLanguage = 'mul') or (FLanguage = 'zxx') then
+        FLanguage := '';
+      // the user's language over the book's tag (owner, 2026-11-19: a tag
+      // can be wrong - Ender in Exile said ru - or und)
+      if FForceLanguage <> '' then
+      begin
+        Log(Format('Language: %s, chosen in the builder (the book says %s)', [FForceLanguage,
+          IfThen(Book.Language = '', 'nothing', Book.Language)]));
+        FLanguage := FForceLanguage;
+      end;
 
       // 2. the audio, in parts
       Status('Opening the audio ...');
@@ -1320,6 +1351,7 @@ begin
         FSummary.Device := FDevice;
       FSummary.Machine := MachineText;
       FSummary.Language := FLanguage;
+      FSummary.Title := Book.Title;
       Log(Format('Audio: %d file(s), %d part(s), about %s', [Audio.Files.Count, Length(Audio.Parts),
         WhisperTimeToStr(Round(FTotalSeconds * 100))]));
       AudioLength(FTotalSeconds);
@@ -1477,6 +1509,7 @@ end;
 procedure TfrmBuilder.BuildWindow;
 var
   Row, Buttons: TLayout;
+  L: TLabel;
 begin
   // below: settings, Create / Cancel, progress, log
   layBottom := TLayout.Create(Self);
@@ -1498,6 +1531,19 @@ begin
   cbDevice.Parent := Row;
   cbDevice.Align := TAlignLayout.Left;
   cbDevice.Width := 420;
+  L := TLabel.Create(Self);
+  L.Parent := Row;
+  L.Align := TAlignLayout.Left;
+  L.Position.X := 100000;
+  L.Margins.Left := GAP * 2;
+  L.Width := 70;
+  L.Text := 'Language';
+  cbLanguage := TComboBox.Create(Self);
+  cbLanguage.Parent := Row;
+  cbLanguage.Align := TAlignLayout.Left;
+  cbLanguage.Position.X := 200000;
+  cbLanguage.Width := 220;
+  FillLanguages('');
 
   Row := AddRow(layBottom, 'Output EPUB');
   edOut := TEdit.Create(Self);
@@ -2024,6 +2070,7 @@ begin
       mmBook.Lines.Add('Title: ' + Book.Title);
       if Book.Language <> '' then
         mmBook.Lines.Add('Language: ' + Book.Language);
+      FillLanguages(Book.Language);
       mmBook.Lines.Add(Format('%d documents, %d words', [Length(Book.Documents), Book.WordCount]));
       Audio := Book.AudioFiles;
       try
@@ -2103,7 +2150,12 @@ begin
     D.Filter := 'EPUB books (*.epub)|*.epub';
     D.InitialDir := FBookFolder;
     if D.Execute then
+    begin
+      // the next Book... opens here (owner, 2026-11-19; kept between runs)
+      FBookFolder := ExtractFileDir(D.FileName);
+      SaveSettings;
       ShowBook(D.FileName);
+    end;
   finally
     D.Free;
   end;
@@ -2120,7 +2172,12 @@ begin
     D.Options := D.Options + [TOpenOption.ofAllowMultiSelect];
     D.InitialDir := FAudioFolder;
     if D.Execute then
+    begin
+      // the next Add audio... opens here
+      FAudioFolder := ExtractFileDir(D.FileName);
+      SaveSettings;
       AddAudio(D.Files);
+    end;
   finally
     D.Free;
   end;
@@ -2134,6 +2191,8 @@ begin
   Folder := FAudioFolder;
   if not SelectDirectory('Folder of audio files', '', Folder) then
     Exit;
+  FAudioFolder := ExcludeTrailingPathDelimiter(Folder);
+  SaveSettings;
   try
     L := WhisperListAudioFiles(Folder);
     try
@@ -2419,7 +2478,13 @@ begin
       D.InitialDir := FOutFolder;
     D.FileName := edOut.Text;
     if D.Execute then
+    begin
       edOut.Text := D.FileName;
+      FAutoOut := '';
+      // the next book's output goes to this folder by default
+      FOutFolder := ExtractFileDir(D.FileName);
+      SaveSettings;
+    end;
   finally
     D.Free;
   end;
@@ -2597,6 +2662,7 @@ begin
   Result.Output := edOut.Text;
   Result.Chapters := chkChapters.IsChecked;
   Result.Reuse := chkReuse.IsChecked;
+  Result.Language := ChosenLanguage;
   Result.State := jsWaiting;
 end;
 
@@ -2640,7 +2706,7 @@ begin
     for I := 0 to High(AJob.Audio) do
       Audio.Add(AJob.Audio[I]);
     FBuild := TBuildThread.Create(AJob.Book, Audio, AJob.Model, AJob.Device, AJob.Output, AJob.Chapters,
-      AJob.Reuse);
+      AJob.Reuse, AJob.Language);
   finally
     Audio.Free;
   end;
@@ -3056,6 +3122,8 @@ begin
       J.AddPair('output', FJobs[I].Output);
       J.AddPair('chapters', TJSONBool.Create(FJobs[I].Chapters));
       J.AddPair('useSavedTranscript', TJSONBool.Create(FJobs[I].Reuse));
+      // '' = the book's own
+      J.AddPair('language', FJobs[I].Language);
       // the job running is saved as waiting (it has not ended)
       J.AddPair('state', STATE_NAME[FJobs[I].State]);
       J.AddPair('note', FJobs[I].Note);
@@ -3097,6 +3165,7 @@ begin
       J.TryGetValue<string>('output', Job.Output);
       J.TryGetValue<Boolean>('chapters', Job.Chapters);
       J.TryGetValue<Boolean>('useSavedTranscript', Job.Reuse);
+      J.TryGetValue<string>('language', Job.Language);
       J.TryGetValue<string>('note', Job.Note);
       if J.TryGetValue<TJSONArray>('audio', A) then
         for K := 0 to A.Count - 1 do
@@ -3848,6 +3917,41 @@ begin
   ShowBuildHistory(Self, HistoryFile, HistoryMachine(MachineText));
 end;
 
+const
+  { The languages offered (code, name); any other Whisper knows can be
+    named in a queue file ("language"). }
+  LANGUAGES: array[0..17, 0..1] of string = (('en', 'English'), ('de', 'German'), ('fr', 'French'),
+    ('es', 'Spanish'), ('it', 'Italian'), ('nl', 'Dutch'), ('pt', 'Portuguese'), ('ru', 'Russian'),
+    ('pl', 'Polish'), ('cs', 'Czech'), ('sv', 'Swedish'), ('da', 'Danish'), ('no', 'Norwegian'),
+    ('fi', 'Finnish'), ('el', 'Greek'), ('tr', 'Turkish'), ('ja', 'Japanese'), ('zh', 'Chinese'));
+
+procedure TfrmBuilder.FillLanguages(const ATag: string);
+var
+  I: Integer;
+begin
+  cbLanguage.Items.BeginUpdate;
+  try
+    cbLanguage.Items.Clear;
+    if ATag = '' then
+      cbLanguage.Items.Add('From the book (none given)')
+    else
+      cbLanguage.Items.Add('From the book (' + ATag + ')');
+    for I := 0 to High(LANGUAGES) do
+      cbLanguage.Items.Add(Format('%s (%s)', [LANGUAGES[I, 1], LANGUAGES[I, 0]]));
+  finally
+    cbLanguage.Items.EndUpdate;
+  end;
+  // a new book: its own language, until the user says otherwise
+  cbLanguage.ItemIndex := 0;
+end;
+
+function TfrmBuilder.ChosenLanguage: string;
+begin
+  Result := '';
+  if (cbLanguage <> nil) and (cbLanguage.ItemIndex >= 1) and (cbLanguage.ItemIndex - 1 <= High(LANGUAGES)) then
+    Result := LANGUAGES[cbLanguage.ItemIndex - 1, 0];
+end;
+
 procedure TfrmBuilder.miFolderClick(Sender: TObject);
 const
   NAMES: array[0..2] of string = ('Books folder (the EPUBs to read along)', 'Audio folder (the recordings)',
@@ -4026,6 +4130,10 @@ begin
   if ASummary.Stats.BookWords > 0 then
     R.ExactPercent := ASummary.Stats.Exact * 100 / ASummary.Stats.BookWords;
   R.MatchedPercent := ASummary.Matched;
+  // which book (owner, 2026-11-19: the history "lacks a title")
+  R.Title := ASummary.Title;
+  R.Language := ASummary.Language;
+  R.OutputName := ExtractFileName(FRunOut);
   if FExpSpeed > 0 then
     LogLine(Format('Speed: %.1fx real time (expected %.1fx); exact %.1f %%, matched %.1f %%.',
       [HistorySpeed(R), FExpSpeed, R.ExactPercent, R.MatchedPercent]))

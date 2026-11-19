@@ -123,8 +123,11 @@ with whether the calibration found it fastest for the model.
 Every build that transcribes adds a row to `EpubBuilder-history.csv`
 beside the settings: when, the computer, model, device, the audio's
 length, how long the transcription and the aligning / writing took, the
-speed (x real time), the calibration's speed at the time, and the exact
-and matched shares of the book's words. A spreadsheet opens it, and
+speed (x real time), the calibration's speed at the time, the exact
+and matched shares of the book's words, and the book: its title, the
+language transcribed and the output's file name (rows from before these
+columns have them empty; the file's header line is brought up to date
+on the next build). A spreadsheet opens it, and
 **Tools > Build history...** shows it as a table, newest first, under a
 line per model and device of this machine (builds, median speed, exact
 and matched); **Copy** puts the table on the clipboard as tab-separated
@@ -134,7 +137,10 @@ A new build starts from what it can expect, logged as `Expected: about
 ... from ...`: the median speed of the last builds of that model on that
 device here; else the calibration's speed, corrected by how this
 machine's builds compared with their calibrations; else the calibration
-alone. The time left then moves from that expectation towards the build's
+times 1.35 (a whole book usually runs that much faster than the
+calibration's 30 s windows). Builds that matched less than 90 % of the
+book (the wrong recording, or a book tagged with the wrong language)
+are left out: their speed says nothing of the next book's. The time left then moves from that expectation towards the build's
 own rate as more audio is done, plus the aligning and writing earlier
 builds here took. Without either (no build, no calibration) it is the
 build's own rate after a minute, as before. At the end the log says
@@ -177,14 +183,28 @@ script: on Linux, Steam starts `EpubBuilder.sh`, which starts
 `EpubBuilder` next to it. Deploy puts the script there in every
 configuration.
 
+## Language
+
+Whisper is told the book's language (its `dc:language`). A wrong tag
+costs dearly - an English book tagged `ru` came out at 62.7 % matched
+and a third of the speed - so **Language** (beside Device) can override
+it: "From the book (...)" shows the tag, or choose the language the
+recording is in. The choice goes back to "From the book" for every new
+book, and is kept with a queued job (`"language"` in the queue file,
+where any code Whisper knows can be written). `und`, `mul` and `zxx`
+in a book count as no language (Whisper detects it). The log says
+`Language: en, chosen in the builder (the book says ...)`.
+
 ## Folders
 
 EpubBuilder works with three folders: books (the EPUBs to read along),
 audio (the recordings) and output (the books it makes). At first they
 are Documents/EpubBuilder/Books, Audio and Output, made at start-up;
 Tools > Books folder... / Audio folder... / Output folder... choose
-others (kept in the settings). Book... and Add audio... open in their
-folder.
+others (kept in the settings). Each also follows its dialog: Book... and
+Add audio... (and Add folder...) open where a file was last chosen, and
+an output chosen with Output... makes its folder the output folder for
+the next books - all kept between runs.
 
 A chosen book's output is its own file name in the output folder - the
 EPUB 3 it becomes, with the audio and the overlays. When that name is
