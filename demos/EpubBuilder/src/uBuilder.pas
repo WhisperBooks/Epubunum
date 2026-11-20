@@ -16,10 +16,11 @@ uses
   System.Generics.Collections,
   FMX.Types, FMX.Controls, FMX.Forms, FMX.Dialogs, FMX.DialogService, FMX.DialogService.Sync, FMX.StdCtrls, FMX.Layouts,
   FMX.ListBox, FMX.Edit, FMX.Memo, FMX.Memo.Types, FMX.ScrollBox, FMX.Controls.Presentation, FMX.Menus,
-  Epub.Zip, Epub.Book, Epub.Layout, Epub.Writer,
+  Epub.Zip, Epub.Book, Epub.Layout, Epub.Writer, Epub.Mobi,
   FFmpeg.API, FFmpeg.Media,
   Whisper.Types, Whisper.API, Whisper.Audio, Whisper.Core, Whisper.Words, Whisper.Align, Whisper.AudioSet,
-  uDebugLog, uMachine, uCalibration, uHistory, uModels, uSteam, uInhibit, uQuitSignal, uSteamPad, uPadMenu;
+  uDebugLog, uMachine, uCalibration, uHistory, uModels, uSteam, uInhibit, uQuitSignal, uSteamPad, uPadMenu, uCards,
+  uRedraw, uLink, uCovers, uCoverPick, uEpubUnum;
 
 type
   { Audio for a book, offered in Big Picture: one file, or a folder's
@@ -141,6 +142,31 @@ type
     FSummary: TBuildSummary;
     { Backing field of @link(Succeeded). }
     FSucceeded: Boolean;
+    { The transcription so far, part by part, beside the output
+      (PartialFileOf): a build stopped part way goes on from there. }
+    FPartialFile: string;
+    { Time paused for the system's sleep in this run, s (not counted as
+      transcribing). }
+    FPausedSeconds: Double;
+    { Time the parts taken from FPartialFile took to transcribe, s (earlier
+      runs). }
+    FPriorSeconds: Double;
+    { Backing field of @link(CoverChoice). }
+    FCoverChoice: string;
+    { Waits while the system sleeps (Steam's Game Mode: GSleepGate reset by
+      the window), then counts the time in FPausedSeconds. Called between
+      30 s windows and between parts. }
+    procedure PausePoint;
+    { Saves the parts transcribed so far (AResult, ADone of AParts) as
+      FPartialFile, with the model, the language heard (ALanguage) and the
+      time they took (ASeconds). }
+    procedure SavePartial(const AResult: TWhisperTranscription; const AParts: TWhisperAudioPartArray;
+      ADone: Integer; const ALanguage: string; ASeconds: Double);
+    { The parts transcribed before (FPartialFile) when it was made from
+      these parts (AParts) with this model.
+      @returns(False when there is none to go on from) }
+    function ReadPartial(const AParts: TWhisperAudioPartArray; out AResult: TWhisperTranscription;
+      out ADone: Integer; out ALanguage: string; out ASeconds: Double): Boolean;
     { Sends AText to OnLog. }
     procedure Log(const AText: string);
     { Sends APercent to OnProgress. }
@@ -206,6 +232,9 @@ type
     { True when the book was written: every step ran to its end (False
       while it runs, and after a failure or Cancel). }
     property Succeeded: Boolean read FSucceeded;
+    { The cover chosen ('' automatic, 'book', 'audio', a picture's path):
+      set before Start. }
+    property CoverChoice: string read FCoverChoice write FCoverChoice;
   end;
 
   { Where a job of the queue is. }
@@ -242,6 +271,9 @@ type
     Reuse: Boolean;
     { The language to transcribe in ('' = the book's). }
     Language: string;
+    { The cover chosen: '' automatic, 'book', 'audio' or a picture's path
+      (uCovers). }
+    Cover: string;
     { Where it is. }
     State: TJobState;
     { What happened ('' = nothing yet): the time taken, or why it failed. }
@@ -314,9 +346,11 @@ type
     { How the computer is kept while building (owner, 2026-11-19: "saving
       power or time"): Automatic, Fastest, Save power, Let it sleep. }
     cbPower: TComboBox;
+    {$IFDEF MSWINDOWS}
     { Windows' graphics preference for this program (Windows only; at the
       next start). }
     cbGpu: TComboBox;
+    {$ENDIF}
     { The device to transcribe on. }
     cbDevice: TComboBox;
     { The language: the book's (the first item) or one chosen (owner,
@@ -451,6 +485,51 @@ type
     FPadFootTick: UInt64;
     { Exit was confirmed with the pad: no second question on closing. }
     FForceClose: Boolean;
+    { Not calibrated, and no model to calibrate at start-up: the question
+      is asked once a model is here (downloaded or chosen). }
+    FCalibPending: Boolean;
+    { In the log's place (owner, 2026-11-20: "little point in having a debug
+      output window for transcription"): what is being done, in large
+      type; the log behind View > Show the log. }
+    layProgress: TLayout;
+    { Linux (Game Mode): the window brought back after the screen saver or
+      a display that was off (uRedraw). }
+    FRedraw: TWindowRedraw;
+    { BookManager and EpubReader connect here (uLink): books and audio
+      sent in, the books made sent out, the progress and the log. }
+    FLink: TLinkServer;
+    { Steam's Game Mode: reads the system's sleep news (InhibitPoll) four
+      times a second - tmSleepTimer. }
+    tmSleep: TTimer;
+    { The system is going to sleep and the build is being paused: since
+      when (ms, TThread.GetTickCount64); 0 = not now. }
+    FSleepAsked: UInt64;
+    { The sleep delay was given back (InhibitLetSleep): the machine sleeps
+      or is about to - the wake opens GSleepGate again. }
+    FSleepLet: Boolean;
+    { When the machine went to sleep (Now); at the wake the build's clocks
+      (FStarted, FRateFrom, FAfterFrom) move on by the time asleep, so the
+      time taken and left leave it out (zip 169: the time left climbed
+      with every sleep). }
+    FSleepWall: TDateTime;
+    { The book (or Calibrating, Downloading, Idle). }
+    lblPTitle: TLabel;
+    { Job N of M. }
+    lblPJob: TLabel;
+    { Done, taken, left. }
+    lblPTime: TLabel;
+    { The speed so far. }
+    lblPSpeed: TLabel;
+    { View > Show the log. }
+    miLog: TMenuItem;
+    { The title of the book being built. }
+    FBuildTitle: string;
+    { Taken / left, as ShowStatus last worked it out. }
+    FTimeText: string;
+    { The transcription's own speed so far, x real time (0 = not yet). }
+    FSpeedNow: Double;
+    { The last build's result, shown when idle. }
+    FLastResult: string;
     { Starts the next job once the last one's thread has gone. }
     tmQueue: TTimer;
     { The queue. }
@@ -469,6 +548,16 @@ type
     FLogging: Boolean;
     { Folder of the last queue file loaded or saved. }
     FQueueFolder: string;
+    { Pictures that become a book's cover, named as the book (uCovers;
+      [Folders] Covers). }
+    FCoverFolder: string;
+    { The cover chosen in the window ('' automatic, 'book', 'audio', a
+      picture's path); goes into the job. }
+    FCoverChoice: string;
+    { The cover chooser (thumbnails). }
+    FCoverPick: TCoverPicker;
+    { RestoreQueue is loading the kept queue (not kept again meanwhile). }
+    FRestoring: Boolean;
     { The queue's file (the last loaded or saved; '' = none yet): the
       report takes its name, and it is saved again after each job. }
     FQueueFile: string;
@@ -527,8 +616,10 @@ type
     function EffectivePower: Integer;
     { cbPower changed: kept, and in force at once while working. }
     procedure cbPowerChange(Sender: TObject);
+    {$IFDEF MSWINDOWS}
     { cbGpu changed: stored for Windows (used at the next start). }
     procedure cbGpuChange(Sender: TObject);
+    {$ENDIF}
     { The device's name to use for AName saved with description
       ADescription: the device of that description when the numbers moved
       (a driver update, Windows' graphics preference reorder Vulkan's
@@ -619,6 +710,30 @@ type
     { Job AIndex into the window - book, audio, model, device, output,
       language and options; AAnnounce says so in the log. }
     procedure ShowJobInWindow(AIndex: Integer; AAnnounce: Boolean);
+    { Fills the progress panel from what is running (or idle). }
+    procedure UpdatePanel;
+    { The queue kept between runs: beside the settings.
+      @returns(its file) }
+    function KeptQueueFile: string;
+    { Keeps the queue as it is now (KeptQueueFile; deleted when empty). }
+    procedure KeepQueue;
+    { Loads the kept queue at start-up. }
+    procedure RestoreQueue;
+    { Big Picture's queue list: Save queue - named by the date and time,
+      in the queues folder. }
+    procedure PadSaveQueue;
+    { Big Picture: the queues folder's queues, newest first. }
+    procedure PadQueues;
+    { Empties the book, its audio, the output, the language and the
+      saved-transcript choice: ready for the next book (after Add to
+      queue). }
+    procedure ClearBook;
+    { Shows the log (AOn) or the progress panel in its place; kept. }
+    procedure SetLogVisible(AOn: Boolean);
+    { View > Show the log. }
+    procedure miLogClick(Sender: TObject);
+    { cbLanguage set to ACode ('' = from the book). }
+    procedure SelectLanguage(const ACode: string);
     { Asks AText with AButtons: a dialog, or in Big Picture the pad's
       menu; AResult gets the answer.
       @param(AText  the question)
@@ -628,8 +743,50 @@ type
       @param(AResult  called with the answer) }
     procedure Ask(const AText: string; AType: TMsgDlgType; const AButtons: TMsgDlgButtons; ADefault: TMsgDlgBtn;
       const AResult: TInputCloseDialogProc);
+    { Says why a build or a job was not started: the window's log, and in
+      Big Picture also the pad's menu (the log is behind it - a second
+      Add to queue refused without a word, Steam Deck 2026-11-20). }
+    procedure Tell(const AText: string);
     { Starts the pad (Steam Input) and, in Big Picture, the pad's menu. }
     procedure StartPad;
+    { Once the window shows: the display in the debug log, the calibration's
+      question. }
+    procedure AfterShow;
+    { Steam's Game Mode (GameModeSession, or Steam's Big Picture on Linux):
+      sleep is paused for, not refused - refused, Steam was left stuck
+      (owner, 2026-11-20). Logged. }
+    procedure DecideSleepMode;
+    { Starts FLink: the builder's id and the paired programs from the
+      settings ([Link]), the folders. Logged. }
+    procedure StartLink;
+    { Cover...: the covers there are for the book in the window, as
+      thumbnails to choose from (also Big Picture's Cover). }
+    procedure ShowCoverPicker;
+    { Cover... button. }
+    procedure btnCoverClick(Sender: TObject);
+    { FLink's folders: books, audio, and where books are made (the output
+      folder, the queue's outputs, the cards' Transcribed). }
+    procedure UpdateLinkFolders;
+    { FLink's /status: what the progress panel shows, as JSON. }
+    procedure UpdateLinkStatus;
+    { FLink: a program asks to pair - the code shown (told in Big
+      Picture). }
+    procedure LinkPairCode(const AClient, ACode: string);
+    { FLink: a program was paired - the tokens kept in the settings. }
+    procedure LinkPaired(const AClient, AToken: string);
+    { FLink: a file arrived - logged. }
+    procedure LinkReceived(const AKind, AFileName: string);
+    { Steam's Game Mode: the system's sleep news - going to sleep: the
+      build pauses (GSleepGate), then the sleep delay is given back; woke:
+      the build goes on. }
+    procedure tmSleepTimer(Sender: TObject);
+    { Steam's Game Mode, at Run queue: the queue's expected time and what
+      Steam's sleep timer does to it (logged; told in Big Picture). }
+    procedure QueueSleepNote;
+    { The window is active again: brought back (FRedraw). }
+    procedure FormActivated(Sender: TObject);
+    { The window is not active any more: logged (FRedraw). }
+    procedure FormDeactivated(Sender: TObject);
     { Polls the pad; keeps the menu's progress line current. }
     procedure tmPadTimer(Sender: TObject);
     { A press of pad button AButton (BP_*). }
@@ -646,6 +803,12 @@ type
     procedure PadQueue(ASelected: Integer);
     { What can be done with job AIndex. }
     procedure PadJob(AIndex: Integer);
+    { The models to choose from (here, or to download). }
+    procedure PadModels;
+    { A book on a memory card: asks whether its EPUB goes back on the card
+      (<card>/Transcribed) or stays on this machine (the output folder);
+      AThen after the answer (at once for a book not on a card). }
+    procedure AskOutputPlace(const ABook: string; const AThen: TProc);
     { A row chosen (A, or a click / tap). }
     procedure PadChoose(Sender: TObject; AIndex: Integer);
     { The menu closed by a click beside it. }
@@ -799,11 +962,23 @@ var
 implementation
 
 uses
-  System.Character, System.Generics.Defaults, uReaderInput;
+  System.Character, System.Generics.Defaults, System.SyncObjs, uReaderInput;
 
 {$R *.fmx}
 
+var
+  { Open while builds may run; reset by the window while the system goes
+    to sleep (Steam's Game Mode - TfrmBuilder.tmSleepTimer). }
+  GSleepGate: TEvent;
+  { 1 while a build waits at GSleepGate. }
+  GBuildPaused: Integer;
+  { The Covers folder (TfrmBuilder.FCoverFolder, set before each build):
+    the build looks for the book's cover there. }
+  GCoverFolder: string;
+
 const
+  { The Power row's choices in the settings (cbPower's order). }
+  POWER_KEYS: array[0..3] of string = ('Automatic', 'Fastest', 'SavePower', 'Sleep');
   { The "AMD ROCm acceleration" DLC's AppID (Steamworks: a free DLC of
     EpubBuilder whose Linux depot holds ROCm - tools/steam_stage.py's HIP
     folder). 0 = not created yet: nothing is offered. }
@@ -849,6 +1024,15 @@ const
   QUOTE_WORDS = 10;
   { Kept beside the output: '<output name>.transcript.json'. }
   TRANSCRIPT_SUFFIX = '.transcript.json';
+  { The transcription so far of a build stopped part way, beside the
+    output; gone once the whole transcript is saved. }
+  PARTIAL_SUFFIX = '.transcript-partial.json';
+  { Key of the partial transcript: the parts in it. }
+  PARTS_DONE_KEY = 'builder_parts_done';
+  { Key of the partial transcript: the language heard. }
+  LANGUAGE_KEY = 'builder_language';
+  { Key of the partial transcript: the time its parts took, s. }
+  SECONDS_KEY = 'builder_seconds';
   { Rows and buttons, px. }
   ROW_HEIGHT = 30;
   { Gap between controls, px. }
@@ -861,24 +1045,66 @@ begin
   Result := WhisperNaturalCompare(ExtractFileName(AList[A]), ExtractFileName(AList[B]));
 end;
 
-{ Where the settings live, the platform's way: Windows
-  %APPDATA%\EpubBuilder\EpubBuilder.ini, macOS ~/Library/Application
-  Support/EpubBuilder/EpubBuilder.ini, Linux $XDG_CONFIG_HOME (else
-  ~/.config)/EpubBuilder/EpubBuilder.ini. }
+{ Where the settings live: the EpubUnum settings folder shared with
+  EpubReader (uEpubUnum) - Windows %APPDATA%\EpubUnum\EpubBuilder.ini,
+  macOS ~/Library/Application Support/EpubUnum/EpubBuilder.ini, Linux
+  $XDG_CONFIG_HOME (else ~/.config)/EpubUnum/EpubBuilder.ini. }
 function SettingsFile: string;
-var
-  Base: string;
 begin
-  {$IF Defined(MSWINDOWS)}
-  Base := TPath.GetHomePath;   // %APPDATA% (Roaming)
-  {$ELSEIF Defined(MACOS)}
-  Base := TPath.Combine(TPath.GetHomePath, 'Library/Application Support');
-  {$ELSE}
-  Base := GetEnvironmentVariable('XDG_CONFIG_HOME');
-  if Base = '' then
-    Base := TPath.Combine(TPath.GetHomePath, '.config');
-  {$ENDIF}
-  Result := TPath.Combine(TPath.Combine(Base, 'EpubBuilder'), 'EpubBuilder.ini');
+  // the folder shared with EpubReader (uEpubUnum; owner, 2026-11-20)
+  Result := TPath.Combine(EpubUnumConfigFolder, 'EpubBuilder.ini');
+end;
+
+const
+  { Book files besides EPUB: Mobipocket / Kindle (converted by Epub.Mobi). }
+  MOBI_EXTS: array[0..3] of string = ('.mobi', '.prc', '.azw', '.azw3');
+
+{ The EPUB to build from for the book ABookFile: the file itself for an
+  EPUB; for a MOBI (owner, 2026-11-20) an EPUB 3 converted from it, kept
+  in the settings' Converted folder and made again when the MOBI is newer.
+  Raises for a MOBI that cannot be read (DRM, ...).
+  @param(ABookFile  the book chosen)
+  @param(ANote  what was done, for the log ('' for an EPUB))
+  @returns(the EPUB's path) }
+function BookAsEpub(const ABookFile: string; out ANote: string): string;
+var
+  Folder, Temp: string;
+  Info: TMobiInfo;
+  Src, Made: TDateTime;
+begin
+  ANote := '';
+  Result := ABookFile;
+  if SameText(ExtractFileExt(ABookFile), '.epub') or not MobiIsMobi(ABookFile) then
+    Exit;
+  Folder := TPath.Combine(ExtractFilePath(SettingsFile), 'Converted');
+  ForceDirectories(Folder);
+  Result := TPath.Combine(Folder, ChangeFileExt(ExtractFileName(ABookFile), '') + '.epub');
+  if FileAge(ABookFile, Src) and FileAge(Result, Made) and (Made >= Src) then
+  begin
+    ANote := 'MOBI: converted to EPUB 3 before - ' + Result;
+    Exit;
+  end;
+  // written whole, then put in place
+  Temp := Result + '.new';
+  MobiToEpub(ABookFile, Temp, Info);
+  if FileExists(Result) then
+    TFile.Delete(Result);
+  TFile.Move(Temp, Result);
+  ANote := 'MOBI converted to EPUB 3: ' + MobiInfoText(Info) + ' - ' + Result;
+end;
+
+{ The books in AFolder and below: EPUB and MOBI files, the extension in
+  any case (Linux's file patterns tell .MOBI from .mobi). }
+function BookFilesIn(const AFolder: string): TArray<string>;
+begin
+  Result := TDirectory.GetFiles(AFolder, '*', TSearchOption.soAllDirectories,
+    function(const APath: string; const ASearchRec: TSearchRec): Boolean
+    var
+      Ext: string;
+    begin
+      Ext := ExtractFileExt(ASearchRec.Name);
+      Result := SameText(Ext, '.epub') or (IndexText(Ext, MOBI_EXTS) >= 0);
+    end);
 end;
 
 { The language of a book's dc:language ('en-US' -> 'en'), lower case;
@@ -948,6 +1174,12 @@ begin
   Result := ChangeFileExt(AOutFile, '') + TRANSCRIPT_SUFFIX;
 end;
 
+{ The partial transcript kept for AOutFile while it is built. }
+function PartialFileOf(const AOutFile: string): string;
+begin
+  Result := ChangeFileExt(AOutFile, '') + PARTIAL_SUFFIX;
+end;
+
 { TBuildThread }
 
 constructor TBuildThread.Create(const ABookFile: string; AAudioFiles: TStrings; const AModelFile, ADevice,
@@ -962,6 +1194,7 @@ begin
   FDevice := ADevice;
   FOutFile := AOutFile;
   FJsonFile := TranscriptFileOf(AOutFile);
+  FPartialFile := PartialFileOf(AOutFile);
   FChapters := AChapters;
   FReuse := AReuse;
   FForceLanguage := AForceLanguage;
@@ -981,6 +1214,102 @@ begin
   R := FRun;
   if R <> nil then
     R.Cancel;
+end;
+
+procedure TBuildThread.PausePoint;
+var
+  T: TDateTime;
+  S: Double;
+begin
+  // the window opens the gate: never wait on its thread
+  if (GSleepGate.WaitFor(0) = wrSignaled) or (TThread.CurrentThread.ThreadID = MainThreadID) then
+    Exit;
+  T := Now;
+  TInterlocked.Exchange(GBuildPaused, 1);
+  try
+    Log('Paused: the system is going to sleep (the build goes on when it wakes)');
+    while not Terminated and (GSleepGate.WaitFor(250) <> wrSignaled) do
+      ;
+  finally
+    TInterlocked.Exchange(GBuildPaused, 0);
+  end;
+  S := MilliSecondsBetween(Now, T) / 1000;
+  FPausedSeconds := FPausedSeconds + S;
+  Log(Format('Going on after the sleep (paused %s)', [WhisperTimeToStr(Round(S * 100))]));
+end;
+
+procedure TBuildThread.SavePartial(const AResult: TWhisperTranscription; const AParts: TWhisperAudioPartArray;
+  ADone: Integer; const ALanguage: string; ASeconds: Double);
+var
+  Json, Keys: string;
+  P: Integer;
+begin
+  try
+    Json := WhisperTranscriptionToJson(AResult, AParts);
+    Keys := sLineBreak + '  "' + MODEL_KEY + '": "' + JsonText(ExtractFileName(FModelFile)) + '",' +
+      sLineBreak + '  "' + PARTS_DONE_KEY + '": "' + IntToStr(ADone) + '",' +
+      sLineBreak + '  "' + LANGUAGE_KEY + '": "' + JsonText(ALanguage) + '",' +
+      sLineBreak + '  "' + SECONDS_KEY + '": "' + FloatToStr(ASeconds, TFormatSettings.Invariant) + '",';
+    P := Pos('{', Json);
+    Insert(Keys, Json, P + 1);
+    // written whole, then put in place: a stop while writing keeps the last
+    WhisperSaveTextFile(FPartialFile + '.new', Json);
+    if FileExists(FPartialFile) then
+      TFile.Delete(FPartialFile);
+    TFile.Move(FPartialFile + '.new', FPartialFile);
+  except
+    on E: Exception do
+      Log('The transcription so far could not be kept (' + E.Message + ')');
+  end;
+end;
+
+function TBuildThread.ReadPartial(const AParts: TWhisperAudioPartArray; out AResult: TWhisperTranscription;
+  out ADone: Integer; out ALanguage: string; out ASeconds: Double): Boolean;
+var
+  Json, Model: string;
+  Saved: TWhisperAudioPartArray;
+  I: Integer;
+begin
+  Result := False;
+  AResult := Default(TWhisperTranscription);
+  ADone := 0;
+  ALanguage := '';
+  ASeconds := 0;
+  if not FileExists(FPartialFile) then
+    Exit;
+  try
+    Json := WhisperLoadTextFile(FPartialFile);
+    Model := SavedKey(Json, MODEL_KEY);
+    if not SameText(Model, ExtractFileName(FModelFile)) then
+    begin
+      Log(Format('A build stopped part way was made with %s, and %s is chosen: starting from the first part',
+        [Model, ExtractFileName(FModelFile)]));
+      Exit;
+    end;
+    ADone := StrToIntDef(SavedKey(Json, PARTS_DONE_KEY), 0);
+    ALanguage := SavedKey(Json, LANGUAGE_KEY);
+    ASeconds := StrToFloatDef(SavedKey(Json, SECONDS_KEY), 0, TFormatSettings.Invariant);
+    AResult := WhisperTranscriptionFromJson(Json, Saved);
+  except
+    on E: Exception do
+    begin
+      Log(Format('A build stopped part way cannot be read (%s): starting from the first part', [E.Message]));
+      Exit;
+    end;
+  end;
+  if (ADone <= 0) or (ADone > Length(AParts)) or (Length(Saved) <> Length(AParts)) then
+  begin
+    Log('A build stopped part way was made from other audio: starting from the first part');
+    Exit;
+  end;
+  for I := 0 to High(AParts) do
+    if not SameFileName(Saved[I].FileName, AParts[I].FileName) or not SameValue(Saved[I].Start, AParts[I].Start,
+      0.01) then
+    begin
+      Log('A build stopped part way was made from other audio: starting from the first part');
+      Exit;
+    end;
+  Result := True;
 end;
 
 procedure TBuildThread.Log(const AText: string);
@@ -1039,12 +1368,15 @@ end;
 
 procedure TBuildThread.RunSegment(Sender: TObject; const ASegment: TWhisperSegment);
 begin
+  // between two 30 s windows: the graphics card is idle here
+  PausePoint;
   Status(Format('Part %d of %d at %s: %s', [FPartNo, FPartCount,
     WhisperTimeToStr(ASegment.T0 + Round(FPartOffset * WHISPER_TICKS_PER_SECOND)), Trim(ASegment.Text)]));
 end;
 
 procedure TBuildThread.RunProgress(Sender: TObject; AProgress: Integer);
 begin
+  PausePoint;
   // the transcription is most of the work: 5 .. 90 %
   if FTotalSeconds > 0 then
     Progress(5 + 85 * (FDoneSeconds + FPartSeconds * AProgress / 100) / FTotalSeconds);
@@ -1192,11 +1524,13 @@ var
   Params: TWhisperParams;
   Samples: TWhisperSamples;
   Part: TWhisperTranscription;
-  I: Integer;
-  Started: TDateTime;
-  Prompt: string;
+  I, Done, Kept: Integer;
+  Started, RunStarted: TDateTime;
+  Prompt, Heard: string;
+  Paused: Double;
 begin
   Result := Default(TWhisperTranscription);
+  RunStarted := Now;
   Lib := TWhisperLib.Instance;
   CP := Lib.DefaultContextParams;
   if not Lib.ContextParamsFor(FDevice, CP) then
@@ -1236,11 +1570,26 @@ begin
       FRun.OnSegment := RunSegment;
       FDoneSeconds := 0;
       FPartCount := Length(AAudio.Parts);
-      for I := 0 to High(AAudio.Parts) do
+      // a build of this book stopped part way: on from the next part
+      Done := 0;
+      if ReadPartial(AAudio.Parts, Result, Done, Heard, FPriorSeconds) then
       begin
+        if (Heard <> '') and SameText(Params.Language, WHISPER_LANGUAGE_AUTO) then
+          Params.Language := Heard;
+        for I := 0 to Done - 1 do
+          FDoneSeconds := FDoneSeconds + AAudio.Parts[I].Duration;
+        Log(Format('GOING ON FROM PART %d of %d: parts 1 - %d (%d words) were transcribed by a build that was ' +
+          'stopped part way (kept in %s)', [Done + 1, FPartCount, Done, Length(Result.Words),
+          ExtractFileName(FPartialFile)]));
+      end;
+      Kept := Done;
+      for I := Done to High(AAudio.Parts) do
+      begin
+        PausePoint;
         if Terminated then
           Break;
         Started := Now;
+        Paused := FPausedSeconds;
         FPartNo := I + 1;
         FPartOffset := AAudio.Parts[I].Offset;
         Status(Format('Part %d of %d "%s": decoding the audio ...', [I + 1, FPartCount, AAudio.Parts[I].Title]));
@@ -1257,8 +1606,13 @@ begin
         // part of its audio timed, reported as done, and kept the cut
         // transcript "for next time" (review, zip 73)
         if Part.ResultCode <> 0 then
+        begin
+          if Kept > 0 then
+            Log(Format('Parts 1 - %d are kept (%s): building it again goes on from part %d', [Kept,
+              ExtractFileName(FPartialFile), Kept + 1]));
           raise EWhisperError.CreateFmt('Part %d of %d "%s" was not transcribed: %s', [I + 1, FPartCount,
             AAudio.Parts[I].Title, Part.ErrorMessage]);
+        end;
         // as WhisperConsole: take out loops and echoes, then a second pass
         // over the stretches left without words
         WhisperCleanTranscription(Part, Prompt);
@@ -1272,9 +1626,19 @@ begin
         if SameText(Params.Language, WHISPER_LANGUAGE_AUTO) and (Part.LanguageCode <> '') then
           Params.Language := Part.LanguageCode;
         FDoneSeconds := FDoneSeconds + FPartSeconds;
+        // the time paused for sleep is not the part's
         Log(Format('Part %d of %d "%s": %.0f s of audio, %d words, %.1f s', [I + 1, Length(AAudio.Parts),
-          AAudio.Parts[I].Title, FPartSeconds, Length(Part.Words), MilliSecondsBetween(Now, Started) / 1000]));
+          AAudio.Parts[I].Title, FPartSeconds, Length(Part.Words), MilliSecondsBetween(Now, Started) / 1000 -
+          (FPausedSeconds - Paused)]));
+        // kept part by part: a stop (Steam's Exit Game, a crash, Cancel)
+        // loses at most the part being transcribed
+        Kept := I + 1;
+        SavePartial(Result, AAudio.Parts, Kept, Params.Language, FPriorSeconds +
+          MilliSecondsBetween(Now, RunStarted) / 1000 - FPausedSeconds);
       end;
+      if Terminated and (Kept > 0) and (Kept < Length(AAudio.Parts)) then
+        Log(Format('Stopped after part %d of %d: parts 1 - %d are kept (%s) - building it again goes on from ' +
+          'part %d', [Kept, FPartCount, Kept, ExtractFileName(FPartialFile), Kept + 1]));
     finally
       FreeAndNil(FRun);
     end;
@@ -1440,6 +1804,8 @@ var
   I, N: Integer;
   Started: TDateTime;
   Dev: TWhisperDevice;
+  EpubFile, Note, CoverExt: string;
+  BookCover, CoverData: TBytes;
 begin
   Book := nil;
   FF := nil;
@@ -1451,7 +1817,11 @@ begin
       // 1. the book's words (the contents page left out: never read aloud)
       Progress(0);
       Status('Reading the book ...');
-      Book := TEpubBook.Create(FBookFile);
+      // a MOBI is built from an EPUB 3 made from it
+      EpubFile := BookAsEpub(FBookFile, Note);
+      if Note <> '' then
+        Log(Note);
+      Book := TEpubBook.Create(EpubFile);
       SetLength(Given, Book.WordCount);
       SetLength(Numbers, Book.WordCount);
       N := 0;
@@ -1531,8 +1901,13 @@ begin
         Status('Loading the model ...');
         Started := Now;
         R := Transcribe(Audio);
-        FSummary.TranscribeSeconds := MilliSecondsBetween(Now, Started) / 1000;
+        // the parts of an earlier run counted with their own time; the
+        // time asleep not at all
+        FSummary.TranscribeSeconds := FPriorSeconds + MilliSecondsBetween(Now, Started) / 1000 - FPausedSeconds;
         FSummary.Model := ExtractFileName(FModelFile);
+        if FPausedSeconds > 0 then
+          Log(Format('Paused for the system''s sleep: %s in all (not counted as transcribing)',
+            [WhisperTimeToStr(Round(FPausedSeconds * 100))]));
         if Terminated then
         begin
           Log('Cancelled');
@@ -1541,6 +1916,14 @@ begin
         Parts := Audio.Parts;
         SaveTranscript(R, Parts, ExtractFileName(FModelFile), FormatDateTime('yyyy-mm-dd hh:nn', Now));
         Log(Format('Transcript kept for next time: %s (%d words)', [FJsonFile, Length(R.Words)]));
+        // the whole transcript is kept: the parts so far are not needed
+        try
+          if FileExists(FPartialFile) then
+            TFile.Delete(FPartialFile);
+        except
+          // left behind: the next build of this output starts afresh anyway
+          // (ReadPartial's checks), or is read whole from FJsonFile
+        end;
       end;
       Progress(90);
       if Terminated then
@@ -1563,6 +1946,22 @@ begin
       Writer := TEpubWriter.Create(Book);
       // marked as ours: choosing this book again is warned about
       Writer.WrittenBy := 'EpubBuilder';
+      // the cover: the user's from the Covers folder, else the audiobook's
+      // when the book has none or a picture no cover is shaped like (The
+      // Sword of Shannara's MOBI: Word 2000's logo, 680 x 510)
+      BookCover := nil;
+      if Book.CoverPath <> '' then
+        try
+          BookCover := Book.Zip.ReadBytes(Book.CoverPath);
+        except
+          BookCover := nil;
+        end;
+      ChooseCover(GCoverFolder, [ChangeFileExt(ExtractFileName(FBookFile), ''),
+        ChangeFileExt(ExtractFileName(FOutFile), ''), Book.Title], BookCover, Files, FCoverChoice, CoverData,
+        CoverExt, Note);
+      Log(Note);
+      if Length(CoverData) > 0 then
+        Writer.SetCover(CoverData, CoverExt);
       for I := 0 to Files.Count - 1 do
         Writer.AddAudioFile(Files[I]);
       // the recording's chapters (or its files) as chapter marks: the
@@ -1786,6 +2185,36 @@ begin
   mmLog.Margins.Rect := RectF(GAP, GAP, GAP, GAP);
   mmLog.ReadOnly := True;
   mmLog.WordWrap := True;
+  // the progress panel in the log's place (the log behind View)
+  layProgress := TLayout.Create(Self);
+  layProgress.Parent := layBottom;
+  layProgress.Align := TAlignLayout.Client;
+  layProgress.Margins.Rect := RectF(GAP * 2, GAP, GAP * 2, GAP);
+  lblPSpeed := TLabel.Create(Self);
+  lblPTime := TLabel.Create(Self);
+  lblPJob := TLabel.Create(Self);
+  lblPTitle := TLabel.Create(Self);
+  for L in [lblPSpeed, lblPTime, lblPJob, lblPTitle] do
+  begin
+    L.Parent := layProgress;
+    L.Align := TAlignLayout.Top;
+    L.StyledSettings := L.StyledSettings - [TStyledSetting.Size, TStyledSetting.Style];
+    L.TextSettings.Font.Size := 18;
+    L.Height := 30;
+    L.WordWrap := False;
+    L.Trimming := TTextTrimming.Character;
+  end;
+  lblPTitle.TextSettings.Font.Size := 26;
+  lblPTitle.TextSettings.Font.Style := [TFontStyle.fsBold];
+  lblPTitle.Height := 44;
+  // top to bottom: title, job, time, speed (Top-aligned controls are
+  // stacked by their position)
+  lblPTitle.Position.Y := 0;
+  lblPJob.Position.Y := 100;
+  lblPTime.Position.Y := 200;
+  lblPSpeed.Position.Y := 300;
+  lblPTitle.Text := 'Idle';
+  mmLog.Visible := False;
 
   // the job queue: leftmost (owner: "a 3rd column ... on the left ... with
   // a Run Queue at the bottom of it")
@@ -1840,6 +2269,7 @@ begin
   edBook.Align := TAlignLayout.Client;
   edBook.ReadOnly := True;
   AddButton(Row, 'Choose...', btnBookClick, TAlignLayout.Right);
+  AddButton(Row, 'Cover...', btnCoverClick, TAlignLayout.Right);
   mmBook := TMemo.Create(Self);
   mmBook.Parent := layBook;
   mmBook.Align := TAlignLayout.Client;
@@ -1881,16 +2311,29 @@ procedure TfrmBuilder.FormCreate(Sender: TObject);
 var
   Lib: TWhisperLib;
   I: Integer;
-  Line: string;
+  Line, Moved: string;
 begin
   OnCloseQuery := FormCloseQuery;
   OnShow := FormShow;
+  OnActivate := FormActivated;
+  OnDeactivate := FormDeactivated;
+  FRedraw := TWindowRedraw.Create(Self);
+  tmSleep := TTimer.Create(Self);
+  tmSleep.Interval := 250;
+  tmSleep.OnTimer := tmSleepTimer;
+  tmSleep.Enabled := True;
   FEditJob := -1;
   FUpdateJob := -1;
   FPadMode := -1;
   FPadJob := -1;
+  // the folders shared with EpubReader: what was in EpubBuilder's own moved
+  // in, once - before the log and the settings are opened there
+  Moved := EpubUnumMove('EpubBuilder');
   // the debug log: next to the settings, started afresh at every run
   DebugLogOpen(ChangeFileExt(SettingsFile, '-debug.log'));
+  if Moved <> '' then
+    for Line in Moved.Split([sLineBreak], TStringSplitOptions.ExcludeEmpty) do
+      DebugLog('folders: ' + Line);
   // Steam's Exit Game ends the program with SIGTERM: save first (owner)
   if QuitSignalInstall(QuitSignalled) then
     DebugLog('SIGTERM / SIGINT / SIGHUP: saved before the program ends');
@@ -1945,10 +2388,16 @@ begin
     ForceDirectories(FBookFolder);
     ForceDirectories(FAudioFolder);
     ForceDirectories(FOutFolder);
+    ForceDirectories(FQueueFolder);
+    ForceDirectories(FCoverFolder);
   except
     on E: Exception do
       LogLine('A folder was not made: ' + E.Message);
   end;
+  // the queue as it was when the program last ended (kept as it changes)
+  RestoreQueue;
+  // BookManager and EpubReader can connect from here on
+  StartLink;
   FillModels;
   LogLine('Models folder: ' + FModelsFolder);
   LogLine(Format('Folders: books %s, audio %s, output %s (Tools to change)', [FBookFolder, FAudioFolder,
@@ -1991,10 +2440,17 @@ var
 begin
   // the three folders: books in, audio in, books out (owner, 2026-11-18) -
   // Documents/EpubBuilder/... until Tools > ... folder chooses others
-  Docs := TPath.Combine(TPath.GetDocumentsPath, 'EpubBuilder');
+  // Documents/EpubUnum, shared with EpubReader (owner, 2026-11-20)
+  Docs := EpubUnumDocsFolder;
   FBookFolder := TPath.Combine(Docs, 'Books');
   FAudioFolder := TPath.Combine(Docs, 'Audio');
-  FOutFolder := TPath.Combine(Docs, 'Output');
+  // "Transcribed": a name that also reads well as EpubReader's (owner,
+  // 2026-11-20; it lists the folder)
+  FOutFolder := TPath.Combine(Docs, 'Transcribed');
+  // saved queues (owner, 2026-11-20: "Where do queues go?")
+  FQueueFolder := TPath.Combine(Docs, 'Queues');
+  // a book's cover of the user's choice (owner, 2026-11-20)
+  FCoverFolder := TPath.Combine(Docs, 'Covers');
   if not FileExists(SettingsFile) then
     Exit;
   try
@@ -2015,17 +2471,20 @@ begin
         if SameText(FDevices[I].Name, Device) then
           cbDevice.ItemIndex := I + 1;
       chkChapters.IsChecked := Ini.ReadBool('Build', 'Chapters', True);
+      // the log, or the progress panel in its place (the panel at first)
+      SetLogVisible(Ini.ReadBool('View', 'Log', False));
       // not a change of the user's (which saves the settings half read)
       cbPower.OnChange := nil;
       try
-        cbPower.ItemIndex := EnsureRange(IndexStr(Ini.ReadString('Build', 'Power', 'Automatic'),
-          ['Automatic', 'Fastest', 'SavePower', 'Sleep']), 0, 3);
+        cbPower.ItemIndex := EnsureRange(IndexText(Ini.ReadString('Build', 'Power', 'Automatic'), POWER_KEYS), 0, 3);
       finally
         cbPower.OnChange := cbPowerChange;
       end;
       FBookFolder := FolderSetting('Book', FBookFolder);
       FAudioFolder := FolderSetting('Audio', FAudioFolder);
       FOutFolder := FolderSetting('Output', FOutFolder);
+      FQueueFolder := FolderSetting('Queues', FQueueFolder);
+      FCoverFolder := FolderSetting('Covers', FCoverFolder);
     finally
       Ini.Free;
     end;
@@ -2039,6 +2498,9 @@ procedure TfrmBuilder.SaveSettings;
 var
   Ini: TMemIniFile;
 begin
+  // the folders may have changed: the link sends and keeps the new ones
+  if FLink <> nil then
+    UpdateLinkFolders;
   try
     ForceDirectories(ExtractFilePath(SettingsFile));
     Ini := TMemIniFile.Create(SettingsFile, TEncoding.UTF8);
@@ -2063,13 +2525,15 @@ begin
         Ini.WriteString('Build', 'Device', '');
         Ini.DeleteKey('Build', 'DeviceDescription');
       end;
-      Ini.WriteString('Build', 'Power', ['Automatic', 'Fastest', 'SavePower', 'Sleep'][EnsureRange(cbPower.ItemIndex, 0, 3)]);
+      Ini.WriteString('Build', 'Power', POWER_KEYS[EnsureRange(cbPower.ItemIndex, 0, 3)]);
       Ini.WriteBool('Build', 'Chapters', chkChapters.IsChecked);
       // no longer kept (off at every start)
       Ini.DeleteKey('Build', 'UseSavedTranscript');
       Ini.WriteString('Folders', 'Book', FBookFolder);
       Ini.WriteString('Folders', 'Audio', FAudioFolder);
       Ini.WriteString('Folders', 'Output', FOutFolder);
+      Ini.WriteString('Folders', 'Queues', FQueueFolder);
+      Ini.WriteString('Folders', 'Covers', FCoverFolder);
       Ini.UpdateFile;
     finally
       Ini.Free;
@@ -2098,8 +2562,8 @@ begin
     Queue := Format(' The queue stops too: %d more job(s) waiting (Save... keeps them).', [N]);
   end;
   CanClose := TDialogServiceSync.MessageDialog(Format('A build is running (%.0f %%: %s).' + sLineBreak +
-    sLineBreak + 'Closing stops it, and its work so far is lost - a transcription is kept only when all its ' +
-    'parts are done.%s' + sLineBreak + sLineBreak + 'Stop the build and close?', [FPercent, FStatusText, Queue]),
+    sLineBreak + 'Closing stops it; the parts transcribed so far are kept, and building the book again ' +
+    'goes on from the next part.%s' + sLineBreak + sLineBreak + 'Stop the build and close?', [FPercent, FStatusText, Queue]),
     TMsgDlgType.mtWarning, [TMsgDlgBtn.mbYes, TMsgDlgBtn.mbNo], TMsgDlgBtn.mbNo, 0) = mrYes;
   if not CanClose then
     LogLine('Still building.');
@@ -2134,7 +2598,8 @@ begin
     end;
     if (FBuild <> nil) and (FRunOut <> '') and (FBuildLog <> nil) then
     begin
-      LogLine('The build was stopped part way: its transcription so far is lost (Create again).');
+      LogLine('The build was stopped part way: the parts already transcribed are kept - building it again ' +
+        'goes on from the next part.');
       FBuildLog.SaveToFile(FRunOut + '.log', TEncoding.UTF8);
     end
     else if (FCalib <> nil) and (FBuildLog <> nil) then
@@ -2159,6 +2624,7 @@ end;
 procedure TfrmBuilder.FormClose(Sender: TObject; var Action: TCloseAction);
 begin
   SaveSettings;
+  FreeAndNil(FLink);
   if FCalib <> nil then
   begin
     // as a build below: nothing of a calibration is kept unless it ends
@@ -2204,6 +2670,8 @@ end;
 
 procedure TfrmBuilder.LogLine(const AText: string);
 begin
+  if FLink <> nil then
+    FLink.AddLog(AText);
   DebugLog(AText);
   mmLog.Lines.Add(AText);
   mmLog.GoToTextEnd;
@@ -2213,6 +2681,8 @@ end;
 
 procedure TfrmBuilder.ThreadLine(const AText: string);
 begin
+  if FLink <> nil then
+    FLink.AddLog(AText);
   mmLog.Lines.Add(AText);
   mmLog.GoToTextEnd;
   if FLogging and (FBuildLog <> nil) then
@@ -2221,6 +2691,8 @@ end;
 
 procedure TfrmBuilder.WindowLine(const AText: string);
 begin
+  if FLink <> nil then
+    FLink.AddLog(AText);
   DebugLog(AText);
   mmLog.Lines.Add(AText);
   mmLog.GoToTextEnd;
@@ -2301,6 +2773,7 @@ begin
     ApplyPower(True, True);
 end;
 
+{$IFDEF MSWINDOWS}
 procedure TfrmBuilder.cbGpuChange(Sender: TObject);
 begin
   if cbGpu.ItemIndex < 0 then
@@ -2311,6 +2784,7 @@ begin
   else
     WindowLine('Window GPU: not stored (the registry could not be written)');
 end;
+{$ENDIF}
 
 function TfrmBuilder.DeviceDescription(const AName: string): string;
 var
@@ -2349,6 +2823,7 @@ var
   I: Integer;
 begin
   Busy := (FBuild <> nil) or FQueueRunning or (FCalib <> nil) or (FDownload <> nil);
+  UpdatePanel;
   if Busy <> FAwake then
   begin
     // SteamOS (Game Mode) and laptops sleep with nobody at the controls,
@@ -2385,19 +2860,28 @@ begin
     btnRunQueue.Text := 'Queue running ...'
   else
     btnRunQueue.Text := 'Run queue';
+  // BookManager sees the same: busy or not, the queue
+  UpdateLinkStatus;
 end;
 
 procedure TfrmBuilder.ShowBook(const AFileName: string);
 var
   Book: TEpubBook;
   Audio: TStringList;
+  EpubFile, Note: string;
 begin
   mmBook.Lines.Clear;
   FBookTitle := '';
   FBookWrittenBy := '';
   FBookClips := 0;
   try
-    Book := TEpubBook.Create(AFileName);
+    EpubFile := BookAsEpub(AFileName, Note);
+    if Note <> '' then
+    begin
+      mmBook.Lines.Add(Note);
+      DebugLog(Note);
+    end;
+    Book := TEpubBook.Create(EpubFile);
     try
       FBookWrittenBy := Book.WrittenBy;
       FBookTitle := Book.Title;
@@ -2485,7 +2969,10 @@ var
 begin
   D := TOpenDialog.Create(Self);
   try
-    D.Filter := 'EPUB books (*.epub)|*.epub';
+    // upper case too: Linux's file dialogs tell .MOBI from .mobi
+    D.Filter := 'Books (*.epub;*.mobi;*.prc;*.azw;*.azw3)|*.epub;*.mobi;*.prc;*.azw;*.azw3;*.EPUB;*.MOBI;*.PRC;' +
+      '*.AZW;*.AZW3|EPUB books (*.epub)|*.epub;*.EPUB|MOBI books (*.mobi;*.prc;*.azw;*.azw3)|*.mobi;*.prc;*.azw;' +
+      '*.azw3;*.MOBI;*.PRC;*.AZW;*.AZW3';
     D.InitialDir := FBookFolder;
     if D.Execute then
     begin
@@ -2493,6 +2980,7 @@ begin
       FBookFolder := ExtractFileDir(D.FileName);
       SaveSettings;
       ShowBook(D.FileName);
+      AskOutputPlace(D.FileName, nil);
     end;
   finally
     D.Free;
@@ -2632,7 +3120,13 @@ begin
         begin
           if AResult = mrYes then
             StartDownload(Name, False, True);
-        end);
+        end)
+    else if FCalibPending and (FCalib = nil) and (FBuild = nil) then
+    begin
+      // the first model here: the calibration's question now
+      FCalibPending := False;
+      CheckCalibrationAtStart;
+    end;
     Exit;
   end;
   if I < 0 then
@@ -2800,6 +3294,13 @@ begin
     lblStatus.Text := 'Download not finished: ' + D.ModelName;
   FillModels;
   UpdateControls;
+  // the first model here: the calibration's question (start-up had none to
+  // time)
+  if D.Succeeded and FCalibPending and (FCalib = nil) and (FBuild = nil) then
+  begin
+    FCalibPending := False;
+    CheckCalibrationAtStart;
+  end;
 end;
 
 procedure TfrmBuilder.btnOutClick(Sender: TObject);
@@ -2857,12 +3358,12 @@ var
 begin
   if SameFileName(ExpandFileName(edOut.Text), ExpandFileName(edBook.Text)) then
   begin
-    WindowLine('The output must not be the book itself: choose another output file.');
+    Tell('The output must not be the book itself: choose another output file.');
     Exit;
   end;
   if (FModelPath = '') and not (chkReuse.IsChecked and FileExists(TranscriptFileOf(edOut.Text))) then
   begin
-    WindowLine('Choose a model: there is no saved transcript to use.');
+    Tell('Choose a model: there is no saved transcript to use.');
     Exit;
   end;
   Device := '';
@@ -2897,7 +3398,7 @@ begin
         if AResult = mrYes then
           CheckBookThen(Device, Q)
         else
-          WindowLine(Format('Not started: %s failed on %s in the calibration (Tools > Calibration results).',
+          Tell(Format('Not started: %s failed on %s in the calibration (Tools > Calibration results).',
             [ExtractFileName(FModelPath), D.Name]));
       end);
     Exit;
@@ -2932,7 +3433,7 @@ begin
         if AResult = mrYes then
           CheckOutputThen(Device, Q)
         else
-          WindowLine('Not started: choose the original EPUB (Choose... above the book).');
+          Tell('Not started: choose the original EPUB (Choose... above the book).');
       end);
     Exit;
   end;
@@ -2953,7 +3454,7 @@ begin
     if (I <> FUpdateJob) and (FJobs[I].State in [jsWaiting, jsRunning]) and
       SameFileName(ExpandFileName(FJobs[I].Output), ExpandFileName(edOut.Text)) then
     begin
-      WindowLine(Format('Job %d of the queue writes %s already: choose another output file (or remove that ' +
+      Tell(Format('Job %d of the queue writes %s already: choose another output file (or remove that ' +
         'job).', [I + 1, edOut.Text]));
       Exit;
     end;
@@ -2975,7 +3476,7 @@ begin
             StartBuild(Device);
         end
         else
-          WindowLine('Not done: ' + edOut.Text + ' is kept. Choose another output file to keep both.');
+          Tell('Not done: ' + edOut.Text + ' is kept. Choose another output file to keep both.');
       end);
     Exit;
   end;
@@ -3013,6 +3514,7 @@ begin
   Result.Chapters := chkChapters.IsChecked;
   Result.Reuse := chkReuse.IsChecked;
   Result.Language := ChosenLanguage;
+  Result.Cover := FCoverChoice;
   Result.State := jsWaiting;
 end;
 
@@ -3025,6 +3527,9 @@ begin
     Exit;
   pbBuild.Value := 0;
   FStarted := Now;
+  FBuildTitle := AJob.Title;
+  FSpeedNow := 0;
+  FTimeText := '';
   FRunBook := ExpandFileName(AJob.Book);
   FRunOut := ExpandFileName(AJob.Output);
   // the output folder (Documents/EpubBuilder/Output at first) made when
@@ -3058,8 +3563,11 @@ begin
   try
     for I := 0 to High(AJob.Audio) do
       Audio.Add(AJob.Audio[I]);
+    // where the build looks for the book's cover (uCovers)
+    GCoverFolder := FCoverFolder;
     FBuild := TBuildThread.Create(AJob.Book, Audio, AJob.Model, AJob.Device, AJob.Output, AJob.Chapters,
       AJob.Reuse, AJob.Language);
+    FBuild.CoverChoice := AJob.Cover;
   finally
     Audio.Free;
   end;
@@ -3140,7 +3648,28 @@ begin
   FEditJob := High(FJobs);
   WindowLine(Format('Added to the queue as job %d: %s -> %s', [Length(FJobs), AJob.Title,
     ExtractFileName(AJob.Output)]));
+  // the window ready for the next book (owner, 2026-11-20): the book, its
+  // audio, output, language and saved-transcript choice emptied; the
+  // model, device, power and chapters kept
+  ClearBook;
   UpdateControls;
+end;
+
+procedure TfrmBuilder.ClearBook;
+begin
+  mmBook.Lines.Clear;
+  FBookTitle := '';
+  FBookWrittenBy := '';
+  FBookClips := 0;
+  edBook.Text := '';
+  lbAudio.Clear;
+  edOut.Text := '';
+  FAutoOut := '';
+  chkReuse.IsChecked := False;
+  SelectLanguage('');
+  FCoverChoice := '';
+  // the window no longer shows a job: Update job off until one is clicked
+  FEditJob := -1;
 end;
 
 function TfrmBuilder.JobText(AIndex: Integer): string;
@@ -3167,6 +3696,60 @@ begin
   end;
   if Sel < lbJobs.Count then
     lbJobs.ItemIndex := Sel;
+  // every change of the queue shows here: kept for the next start
+  KeepQueue;
+end;
+
+function TfrmBuilder.KeptQueueFile: string;
+begin
+  Result := ChangeFileExt(SettingsFile, '-queue.json');
+end;
+
+procedure TfrmBuilder.KeepQueue;
+begin
+  if FRestoring then
+    Exit;
+  try
+    if Length(FJobs) = 0 then
+    begin
+      if FileExists(KeptQueueFile) then
+        System.SysUtils.DeleteFile(KeptQueueFile);
+    end
+    else
+      SaveQueue(KeptQueueFile);
+  except
+    on E: Exception do
+      DebugLog('the queue was not kept: ' + E.Message);
+  end;
+end;
+
+procedure TfrmBuilder.RestoreQueue;
+var
+  N, I, Waiting: Integer;
+begin
+  if not FileExists(KeptQueueFile) then
+    Exit;
+  FRestoring := True;
+  try
+    try
+      N := LoadQueue(KeptQueueFile);
+    except
+      on E: Exception do
+      begin
+        LogLine('The queue from last time could not be read: ' + E.Message);
+        Exit;
+      end;
+    end;
+  finally
+    FRestoring := False;
+  end;
+  ShowJobs;
+  Waiting := 0;
+  for I := 0 to High(FJobs) do
+    if FJobs[I].State = jsWaiting then
+      Inc(Waiting);
+  if N > 0 then
+    LogLine(Format('The queue from last time: %d job(s), %d waiting (Run queue builds them).', [N, Waiting]));
 end;
 
 procedure TfrmBuilder.RunNextJob;
@@ -3194,6 +3777,18 @@ begin
   LogLine(Format('=== Queue finished (%s): %d done, %d failed or cancelled ===', [FormatDateTime('yyyy-mm-dd ' +
     'hh:nn', Now), Done, Failed]));
   WriteQueueReport;
+  // the books built leave the queue (owner, 2026-11-20: "If a book has
+  // been transcribed it's no longer queued, it's done"); the report above
+  // keeps them
+  if Done > 0 then
+  begin
+    for I := High(FJobs) downto 0 do
+      if FJobs[I].State = jsDone then
+        Delete(FJobs, I, 1);
+    FEditJob := -1;
+    LogLine(Format('%d book(s) built: out of the queue (the queue report lists them).', [Done]));
+    ShowJobs;
+  end;
   UpdateControls;
 end;
 
@@ -3401,6 +3996,7 @@ begin
   end;
   mmLog.Lines.Clear;
   LogLine(Format('=== Queue: %d job(s) to build (%s) ===', [N, FormatDateTime('yyyy-mm-dd hh:nn', Now)]));
+  QueueSleepNote;
   FQueueRunning := True;
   RunNextJob;
 end;
@@ -3499,6 +4095,7 @@ begin
       J.AddPair('output', FJobs[I].Output);
       J.AddPair('chapters', TJSONBool.Create(FJobs[I].Chapters));
       J.AddPair('useSavedTranscript', TJSONBool.Create(FJobs[I].Reuse));
+      J.AddPair('cover', FJobs[I].Cover);
       // '' = the book's own
       J.AddPair('language', FJobs[I].Language);
       // the job running is saved as waiting (it has not ended)
@@ -3545,6 +4142,7 @@ begin
       J.TryGetValue<string>('output', Job.Output);
       J.TryGetValue<Boolean>('chapters', Job.Chapters);
       J.TryGetValue<Boolean>('useSavedTranscript', Job.Reuse);
+      J.TryGetValue<string>('cover', Job.Cover);
       J.TryGetValue<string>('language', Job.Language);
       J.TryGetValue<string>('note', Job.Note);
       if J.TryGetValue<TJSONArray>('audio', A) then
@@ -3556,8 +4154,13 @@ begin
         Job.Title := ChangeFileExt(ExtractFileName(Job.Book), '');
       St := '';
       J.TryGetValue<string>('state', St);
+      // a book built is no longer queued (owner, 2026-11-20): its job is
+      // left out - its output is there
       if St = 'done' then
-        Job.State := jsDone
+      begin
+        WindowLine(Format('Built already, so not queued: %s (%s)', [Job.Title, Job.Output]));
+        Continue;
+      end
       else if St = 'failed' then
         Job.State := jsFailed
       else if St = 'cancelled' then
@@ -3603,10 +4206,12 @@ begin
   D := TOpenDialog.Create(Self);
   try
     D.Filter := 'Build queues (*.json)|*.json|All files (*.*)|*.*';
+    ForceDirectories(FQueueFolder);
     D.InitialDir := FQueueFolder;
     if not D.Execute then
       Exit;
-    FQueueFolder := ExtractFilePath(D.FileName);
+    FQueueFolder := ExcludeTrailingPathDelimiter(ExtractFilePath(D.FileName));
+    SaveSettings;
     FQueueFile := D.FileName;
     try
       N := LoadQueue(D.FileName);
@@ -3635,6 +4240,7 @@ begin
   try
     D.Filter := 'Build queues (*.json)|*.json';
     D.DefaultExt := 'json';
+    ForceDirectories(FQueueFolder);
     D.InitialDir := FQueueFolder;
     if FQueueFile <> '' then
       D.FileName := ExtractFileName(FQueueFile)
@@ -3642,7 +4248,8 @@ begin
       D.FileName := 'queue.json';
     if not D.Execute then
       Exit;
-    FQueueFolder := ExtractFilePath(D.FileName);
+    FQueueFolder := ExcludeTrailingPathDelimiter(ExtractFilePath(D.FileName));
+    SaveSettings;
     FQueueFile := D.FileName;
     try
       SaveQueue(D.FileName);
@@ -3698,13 +4305,8 @@ begin
       cbDevice.ItemIndex := K + 1;
   chkChapters.IsChecked := Job.Chapters;
   chkReuse.IsChecked := Job.Reuse;
-  if cbLanguage <> nil then
-  begin
-    cbLanguage.ItemIndex := 0;
-    for K := 0 to High(LANGUAGES) do
-      if SameText(LANGUAGES[K, 0], Job.Language) and (Job.Language <> '') then
-        cbLanguage.ItemIndex := K + 1;
-  end;
+  SelectLanguage(Job.Language);
+  FCoverChoice := Job.Cover;
   FEditJob := I;
   WindowLine(Format('Job %d in the window: change it and Update job (or Add to queue for a new one), or ' +
       'Create.', [I + 1]));
@@ -3872,6 +4474,8 @@ begin
       end
       else if (Own > 0) and (Since >= 60000) and (FPercent - FRatePercent >= 1) then
         PerSecond := Own;
+      if Own > 0 then
+        FSpeedNow := 1 / Own;
       if PerSecond > 0 then
       begin
         Remaining := FAudioTotal - AudioDoneAt(Max(FPercent, 5.0));
@@ -3883,14 +4487,106 @@ begin
     else if FPercent < 90 then
       S := S + ', estimating the time left ...';
   end;
+  FTimeText := S;
   if (FBuild <> nil) and (FJob >= 0) then
     S := Format('Job %d of %d: ', [FJob + 1, Length(FJobs)]) + S;
   lblStatus.Text := S + ' - ' + FStatusText;
+  UpdatePanel;
+  UpdateLinkStatus;
+end;
+
+procedure TfrmBuilder.UpdatePanel;
+var
+  Waiting, I: Integer;
+begin
+  if layProgress = nil then
+    Exit;
+  if FBuild <> nil then
+  begin
+    lblPTitle.Text := FBuildTitle;
+    if FJob >= 0 then
+      lblPJob.Text := Format('Job %d of %d in the queue', [FJob + 1, Length(FJobs)])
+    else
+      lblPJob.Text := 'The book in the window';
+    lblPTime.Text := Format('%d %%  -  %s', [Round(FPercent), FTimeText]);
+    if FSpeedNow > 0 then
+      lblPSpeed.Text := Format('%.1fx real time so far', [FSpeedNow])
+    else
+      lblPSpeed.Text := '';
+  end
+  else if FCalib <> nil then
+  begin
+    lblPTitle.Text := 'Calibrating';
+    lblPJob.Text := '';
+    lblPTime.Text := FStatusText;
+    lblPSpeed.Text := '';
+  end
+  else if FDownload <> nil then
+  begin
+    lblPTitle.Text := 'Downloading';
+    lblPJob.Text := '';
+    lblPTime.Text := lblStatus.Text;
+    lblPSpeed.Text := '';
+  end
+  else
+  begin
+    lblPTitle.Text := 'Idle';
+    Waiting := 0;
+    for I := 0 to High(FJobs) do
+      if FJobs[I].State = jsWaiting then
+        Inc(Waiting);
+    if Waiting > 0 then
+      lblPJob.Text := Format('%d job(s) waiting - Run queue', [Waiting])
+    else
+      lblPJob.Text := '';
+    lblPTime.Text := FLastResult;
+    lblPSpeed.Text := '';
+  end;
+end;
+
+procedure TfrmBuilder.SetLogVisible(AOn: Boolean);
+begin
+  mmLog.Visible := AOn;
+  layProgress.Visible := not AOn;
+  if miLog <> nil then
+    miLog.IsChecked := AOn;
+  if AOn then
+    mmLog.GoToTextEnd;
+end;
+
+procedure TfrmBuilder.miLogClick(Sender: TObject);
+var
+  Ini: TMemIniFile;
+begin
+  SetLogVisible(not mmLog.Visible);
+  try
+    ForceDirectories(ExtractFilePath(SettingsFile));
+    Ini := TMemIniFile.Create(SettingsFile, TEncoding.UTF8);
+    try
+      Ini.WriteBool('View', 'Log', mmLog.Visible);
+      Ini.UpdateFile;
+    finally
+      Ini.Free;
+    end;
+  except
+    on E: Exception do
+      DebugLog('settings: ' + E.Message);
+  end;
 end;
 
 procedure TfrmBuilder.tmStatusTimer(Sender: TObject);
 begin
   ShowStatus;
+end;
+
+procedure TfrmBuilder.FormActivated(Sender: TObject);
+begin
+  FRedraw.Activated;
+end;
+
+procedure TfrmBuilder.FormDeactivated(Sender: TObject);
+begin
+  FRedraw.Deactivated;
 end;
 
 procedure TfrmBuilder.BuildMenu;
@@ -3921,6 +4617,9 @@ begin
   {$ENDIF}
   M := Item(Bar, '&File', nil);
   Item(M, 'E&xit', miExitClick);
+  M := Item(Bar, '&View', nil);
+  miLog := Item(M, 'Show the &log', miLogClick);
+  miLog.IsChecked := (mmLog <> nil) and mmLog.Visible;
   M := Item(Bar, '&Tools', nil);
   miCalibrate := Item(M, '&Re-calibrate (this model)...', miCalibrateClick);
   miCalibrateAll := Item(M, 'Re-calibrate &every model in its folder...', miCalibrateAllClick);
@@ -3987,6 +4686,12 @@ const
   BPM_JOB = 4;
   { A question (Ask). }
   BPM_ASK = 5;
+  { The models (the Model list's: choosing one not here asks to download
+    it - turning the list with left / right asked at every step, so only
+    the first model could be reached; Steam Deck, 2026-11-20). }
+  BPM_MODELS = 6;
+  { The queues folder's queues. }
+  BPM_QUEUES = 7;
   { The home list's rows. }
   BPC_BOOK = 0;
   { The audio. }
@@ -4017,6 +4722,11 @@ const
   BPC_CALIBRATE = 13;
   { Exit. }
   BPC_EXIT = 14;
+  { Run queue (on the home list too: two lists down was not obvious -
+    owner, 2026-11-20). }
+  BPC_RUN = 15;
+  { The cover (thumbnails to choose from). }
+  BPC_COVER = 16;
   { Rows of the other lists that are not an entry. }
   PADROW_BACK = -1;
   { Every audio candidate. }
@@ -4035,14 +4745,16 @@ const
   PADROW_DOWN = -8;
   { The job removed. }
   PADROW_REMOVE = -9;
+  { Save queue. }
+  PADROW_SAVEQ = -10;
+  { Load a queue. }
+  PADROW_LOADQ = -11;
   { Audio files the folder lists (as Add files...). }
   BP_AUDIO_EXTS: array[0..8] of string = ('.m4b', '.m4a', '.aax', '.mp3', '.wav', '.flac', '.ogg', '.opus', '.aac');
   { Words a title match leaves out. }
   BP_SMALL_WORDS: array[0..7] of string = ('the', 'a', 'an', 'of', 'and', 'by', 'in', 'to');
   { How many matches the audio list offers first. }
   BP_AUDIO_FIRST = 8;
-  { A question's lines, characters. }
-  BP_ASK_WIDTH = 60;
   { The foot of the lists when nothing runs. }
   BP_FOOT = 'A choose   B back   Left / Right change   Start close   View the queue';
 
@@ -4103,44 +4815,12 @@ begin
     SetLength(Result, P - 1);
 end;
 
-{ AText in lines of at most AWidth characters (at spaces; its own line
-  breaks kept). }
-function PadWrap(const AText: string; AWidth: Integer): TArray<string>;
-var
-  Para, Line, W: string;
-begin
-  Result := nil;
-  for Para in AText.Replace(#13, '').Split([#10]) do
-  begin
-    if Trim(Para) = '' then
-      Continue;
-    Line := '';
-    for W in Para.Split([' ']) do
-    begin
-      if W = '' then
-        Continue;
-      if (Line <> '') and (Length(Line) + 1 + Length(W) > AWidth) then
-      begin
-        Result := Result + [Line];
-        Line := '';
-      end;
-      if Line = '' then
-        Line := W
-      else
-        Line := Line + ' ' + W;
-    end;
-    if Line <> '' then
-      Result := Result + [Line];
-  end;
-end;
-
 procedure TfrmBuilder.Ask(const AText: string; AType: TMsgDlgType; const AButtons: TMsgDlgButtons;
   ADefault: TMsgDlgBtn; const AResult: TInputCloseDialogProc);
 const
   TITLES: array[TMsgDlgType] of string = ('Warning', 'Error', 'Note', 'Question', 'EpubBuilder');
 var
   Items: TArray<TPadMenuItem>;
-  L: string;
   Sel: Integer;
 
   procedure Answer(AButton: TMsgDlgBtn; const ALabel: string; AResultValue: TModalResult);
@@ -4165,12 +4845,8 @@ begin
   FPadCmds := nil;
   FAskResults := nil;
   Sel := -1;
-  for L in PadWrap(AText, BP_ASK_WIDTH) do
-  begin
-    Items := Items + [TPadMenu.Item(L)];
-    FPadCmds := FPadCmds + [PADROW_NONE];
-    FAskResults := FAskResults + [mrNone];
-  end;
+  // the text over the box's whole width, the answers below it (one row
+  // per line cut every line short)
   Answer(TMsgDlgBtn.mbYes, 'Yes', mrYes);
   Answer(TMsgDlgBtn.mbNo, 'No', mrNo);
   Answer(TMsgDlgBtn.mbOK, 'OK', mrOk);
@@ -4185,7 +4861,15 @@ begin
     FAskCancel := mrOk;
   FAskProc := AResult;
   FPadMode := BPM_ASK;
-  FPadMenu.Show(TITLES[AType], Items, Sel, 'A answer   B ' + IfThen(FAskCancel = mrNo, 'no', 'cancel'));
+  FPadMenu.ShowText(TITLES[AType], AText, Items, Sel, 'A answer   B ' + IfThen(FAskCancel = mrNo, 'no',
+    'cancel'));
+end;
+
+procedure TfrmBuilder.Tell(const AText: string);
+begin
+  WindowLine(AText);
+  if FBigPicture and (FPadMenu <> nil) then
+    Ask(AText, TMsgDlgType.mtInformation, [TMsgDlgBtn.mbOK], TMsgDlgBtn.mbOK, nil);
 end;
 
 procedure TfrmBuilder.PadAnswer(AIndex: Integer);
@@ -4215,6 +4899,7 @@ procedure TfrmBuilder.StartPad;
 var
   I: Integer;
   Folder, Manifest: string;
+  Any: Boolean;
 begin
   FBigPicture := SteamBigPicture;
   FPadMenu := TPadMenu.Create(Self, Self);
@@ -4270,7 +4955,16 @@ begin
   if FBigPicture then
   begin
     LogLine('Big Picture: the pad drives EpubBuilder - Start (Menu) opens its menu, View (Select) the queue.');
-    PadHome(BPC_BOOK);
+    // no model here yet (a new machine): the models first - nothing can be
+    // built or calibrated without one (owner, Steam Deck 2026-11-20)
+    Any := False;
+    for I := 0 to FModelItems.Count - 1 do
+      if (FModelItems[I] <> '') and FileExists(FModelItems[I]) then
+        Any := True;
+    if Any then
+      PadHome(BPC_BOOK)
+    else
+      PadModels;
   end;
 end;
 
@@ -4289,7 +4983,11 @@ begin
       DebugLog(Note);
     for I := 0 to High(Presses) do
       if Presses[I] then
+      begin
+        // the first press for a minute: the screen may be black
+        FRedraw.UserInput;
         PadPress(I);
+      end;
     // the build's progress at the menu's foot, twice a second
     T := TThread.GetTickCount64;
     if FPadMenu.Showing and (FPadMode in [BPM_HOME, BPM_QUEUE]) and (T - FPadFootTick > 500) then
@@ -4310,6 +5008,21 @@ procedure TfrmBuilder.PadPress(AButton: Integer);
 begin
   if not (AButton in [BP_UP, BP_DOWN, BP_LEFT, BP_RIGHT]) then
     DebugLog('pad: ' + BP_ACTIONS[AButton]);
+  // the cover chooser over everything: the pad moves its frame
+  if (FCoverPick <> nil) and FCoverPick.Showing then
+  begin
+    case AButton of
+      BP_UP, BP_LEFT: FCoverPick.Move(-1);
+      BP_DOWN, BP_RIGHT: FCoverPick.Move(1);
+      BP_CHOOSE: FCoverPick.Choose;
+      BP_BACK, BP_MENU:
+        begin
+          FCoverPick.Hide;
+          PadHome(BPC_COVER);
+        end;
+    end;
+    Exit;
+  end;
   if not FPadMenu.Showing then
   begin
     case AButton of
@@ -4348,6 +5061,8 @@ begin
   case FPadMode of
     BPM_ASK: PadAnswer(-1);
     BPM_BOOKS, BPM_AUDIO, BPM_QUEUE: PadHome(BPC_BOOK);
+    BPM_MODELS: PadHome(BPC_MODEL);
+    BPM_QUEUES: PadQueue(-1);
     BPM_JOB: PadQueue(FPadJob);
   else
     FPadMenu.Hide;
@@ -4397,19 +5112,26 @@ begin
   end;
   Add(BPC_BOOK, 'Book', Book);
   Add(BPC_AUDIO, 'Audio', Audio);
-  Add(BPC_MODEL, 'Model', Combo(cbModel));
+  if (cbModel.ItemIndex >= 0) and (cbModel.ItemIndex < cbModel.Count) then
+    Add(BPC_MODEL, 'Model', PadShort(cbModel.Items[cbModel.ItemIndex]))
+  else
+    Add(BPC_MODEL, 'Model', 'choose ...');
   Add(BPC_DEVICE, 'Device', Combo(cbDevice));
   if cbLanguage <> nil then
     Add(BPC_LANGUAGE, 'Language', Combo(cbLanguage));
   Add(BPC_POWER, 'Power', Combo(cbPower));
   Add(BPC_CHAPTERS, 'Chapters of a file are parts', IfThen(chkChapters.IsChecked, '< Yes >', '< No >'));
   Add(BPC_OUTPUT, 'Output', ExtractFileName(edOut.Text));
+  if edBook.Text <> '' then
+    Add(BPC_COVER, 'Cover', CoverChoiceText(FCoverChoice));
   if btnCreate.Enabled then
     Add(BPC_CREATE, 'Create', '');
   if btnAddJob.Enabled then
     Add(BPC_ADD, 'Add to queue', '');
   if btnUpdateJob.Enabled then
     Add(BPC_UPDATE, Format('Update job %d', [FEditJob + 1]), '');
+  if btnRunQueue.Enabled then
+    Add(BPC_RUN, btnRunQueue.Text, '');
   Add(BPC_QUEUE, 'Queue', Format('%d job(s)%s', [Length(FJobs), IfThen(FQueueRunning, ', running', '')]));
   if btnCancel.Enabled then
     Add(BPC_CANCEL, 'Cancel', PadShort(FStatusText));
@@ -4439,7 +5161,6 @@ begin
     Exit;
   Cmd := FPadCmds[FPadMenu.Selected];
   case Cmd of
-    BPC_MODEL: Turn(cbModel);
     BPC_DEVICE: Turn(cbDevice);
     BPC_LANGUAGE: Turn(cbLanguage);
     BPC_POWER: Turn(cbPower);
@@ -4470,8 +5191,10 @@ begin
       case Cmd of
         BPC_BOOK: PadBooks;
         BPC_AUDIO: PadAudioList(False);
-        BPC_MODEL, BPC_DEVICE, BPC_LANGUAGE, BPC_POWER, BPC_CHAPTERS: PadStep(1);
+        BPC_MODEL: PadModels;
+        BPC_DEVICE, BPC_LANGUAGE, BPC_POWER, BPC_CHAPTERS: PadStep(1);
         BPC_OUTPUT: WindowLine('Output: ' + edOut.Text);
+        BPC_COVER: ShowCoverPicker;
         BPC_CREATE, BPC_ADD, BPC_UPDATE:
           begin
             FPadMenu.Hide;
@@ -4481,12 +5204,17 @@ begin
               BPC_ADD: btnAddJobClick(nil);
               BPC_UPDATE: btnUpdateJobClick(nil);
             end;
-            // no question asked: the home list again (a build shows in the
-            // window - Start brings the menu back)
+            // no question asked: the home list again, Run queue selected (a
+            // build shows in the window - Start brings the menu back)
             if (FPadMode <> BPM_ASK) and (Cmd <> BPC_CREATE) then
-              PadHome(BPC_QUEUE);
+              PadHome(BPC_RUN);
           end;
         BPC_QUEUE: PadQueue(-1);
+        BPC_RUN:
+          begin
+            FPadMenu.Hide;
+            btnRunQueueClick(nil);
+          end;
         BPC_CANCEL:
           begin
             btnCancelClick(nil);
@@ -4518,8 +5246,13 @@ begin
       begin
         ShowBook(FPadBooks[Cmd]);
         UpdateControls;
-        // its audio: the best matches, to confirm
-        PadAudioList(False);
+        // a card's book: where its EPUB goes, then its audio (the best
+        // matches, to confirm)
+        AskOutputPlace(FPadBooks[Cmd],
+          procedure
+          begin
+            PadAudioList(False);
+          end);
       end
       else if Cmd = PADROW_BACK then
         PadHome(BPC_BOOK);
@@ -4543,6 +5276,42 @@ begin
           PADROW_BROWSE: PadAudioList(True);
           PADROW_KEEP, PADROW_BACK: PadHome(BPC_AUDIO);
         end;
+    BPM_QUEUES:
+      if (Cmd >= 0) and (Cmd <= High(FPadBooks)) then
+      begin
+        // FPadBooks holds the queue files here
+        FQueueFile := FPadBooks[Cmd];
+        try
+          I := LoadQueue(FQueueFile);
+          ShowJobs;
+          UpdateControls;
+          Tell(Format('%d job(s) added from %s.', [I, ChangeFileExt(ExtractFileName(FQueueFile), '')]));
+        except
+          on E: Exception do
+            Tell('The queue file cannot be read: ' + E.Message);
+        end;
+        if FPadMode <> BPM_ASK then
+          PadQueue(-1);
+      end
+      else if Cmd = PADROW_BACK then
+        PadQueue(-1);
+    BPM_MODELS:
+      if (Cmd >= 0) and (Cmd < cbModel.Count) then
+      begin
+        FPadMode := BPM_HOME;
+        if cbModel.ItemIndex = Cmd then
+          PadHome(BPC_MODEL)
+        else
+        begin
+          // the list's own change: a model here is taken, one to download
+          // is asked about (in this menu)
+          cbModel.ItemIndex := Cmd;
+          if FPadMode <> BPM_ASK then
+            PadHome(BPC_MODEL);
+        end;
+      end
+      else if Cmd = PADROW_BACK then
+        PadHome(BPC_MODEL);
     BPM_QUEUE:
       if (Cmd >= 0) and (Cmd <= High(FJobs)) then
         PadJob(Cmd)
@@ -4553,6 +5322,8 @@ begin
               FPadMenu.Hide;
               btnRunQueueClick(nil);
             end;
+          PADROW_SAVEQ: PadSaveQueue;
+          PADROW_LOADQ: PadQueues;
           PADROW_BACK: PadHome(BPC_QUEUE);
         end;
     BPM_JOB:
@@ -4601,11 +5372,20 @@ begin
   Files := nil;
   try
     if TDirectory.Exists(FBookFolder) then
-      Files := TDirectory.GetFiles(FBookFolder, '*.epub', TSearchOption.soAllDirectories);
+      Files := BookFilesIn(FBookFolder);
   except
     on E: Exception do
       DebugLog('pad: the books folder: ' + E.Message);
   end;
+  // memory cards' Books folders too (uCards)
+  for Sub in CardFolders(CARD_BOOKS) do
+    if not SameFileName(ExcludeTrailingPathDelimiter(Sub), ExcludeTrailingPathDelimiter(FBookFolder)) then
+    try
+      Files := Files + BookFilesIn(Sub);
+    except
+      on E: Exception do
+        DebugLog('pad: ' + Sub + ': ' + E.Message);
+    end;
   TArray.Sort<string>(Files, TComparer<string>.Construct(
     function(const A, B: string): Integer
     begin
@@ -4613,15 +5393,19 @@ begin
     end));
   for I := 0 to High(Files) do
   begin
-    Sub := ExtractRelativePath(IncludeTrailingPathDelimiter(FBookFolder), ExtractFilePath(Files[I]));
-    Items := Items + [TPadMenu.Item(ChangeFileExt(ExtractFileName(Files[I]), ''),
-      ExcludeTrailingPathDelimiter(Sub))];
+    // where it is: its folder in the books folder, or the card's name
+    if CardOf(Files[I]) <> '' then
+      Sub := 'card ' + CardName(CardOf(Files[I]))
+    else
+      Sub := ExcludeTrailingPathDelimiter(ExtractRelativePath(IncludeTrailingPathDelimiter(FBookFolder),
+        ExtractFilePath(Files[I])));
+    Items := Items + [TPadMenu.Item(ChangeFileExt(ExtractFileName(Files[I]), ''), Sub)];
     FPadCmds := FPadCmds + [I];
   end;
   FPadBooks := Files;
   if Length(Files) = 0 then
   begin
-    Items := Items + [TPadMenu.Item('No EPUB files in ' + FBookFolder)];
+    Items := Items + [TPadMenu.Item('No EPUB or MOBI files in ' + FBookFolder)];
     FPadCmds := FPadCmds + [PADROW_NONE];
   end;
   Items := Items + [TPadMenu.Item('Back')];
@@ -4632,28 +5416,59 @@ end;
 
 function TfrmBuilder.PadAudioCandidates: TArray<TPadAudio>;
 var
-  Files: TArray<string>;
+  Files, Bases: TArray<string>;
   Dirs: TDictionary<string, TList<string>>;
-  F, D, Base: string;
+  F, D, B: string;
   Key: TArray<string>;
   C: TPadAudio;
   L: TStringList;
   Pair: TPair<string, TList<string>>;
+
+  { The base folder AFile is in, with a path separator. }
+  function BaseOf(const AFile: string): string;
+  var
+    X: string;
+  begin
+    Result := IncludeTrailingPathDelimiter(FAudioFolder);
+    for X in Bases do
+      if AFile.StartsWith(IncludeTrailingPathDelimiter(X)) then
+        Exit(IncludeTrailingPathDelimiter(X));
+  end;
+
+  { How the list names AFile (a file or a folder): its path in its base;
+    a card's with the card's name first. }
+  function Shown(const APath: string): string;
+  var
+    X: string;
+  begin
+    X := BaseOf(APath);
+    Result := ExcludeTrailingPathDelimiter(ExtractRelativePath(X, APath));
+    if Result = '' then
+      Result := ExtractFileName(ExcludeTrailingPathDelimiter(X));
+    if CardOf(APath) <> '' then
+      Result := CardName(CardOf(APath)) + ': ' + Result;
+  end;
+
 begin
   Result := nil;
   Files := nil;
+  // the audio folder, and memory cards' Audio folders (uCards)
+  Bases := [FAudioFolder];
+  for B in CardFolders(CARD_AUDIO) do
+    if not SameFileName(ExcludeTrailingPathDelimiter(B), ExcludeTrailingPathDelimiter(FAudioFolder)) then
+      Bases := Bases + [B];
+  for B in Bases do
   try
-    if TDirectory.Exists(FAudioFolder) then
-      Files := TDirectory.GetFiles(FAudioFolder, '*', TSearchOption.soAllDirectories);
+    if TDirectory.Exists(B) then
+      Files := Files + TDirectory.GetFiles(B, '*', TSearchOption.soAllDirectories);
   except
     on E: Exception do
-      DebugLog('pad: the audio folder: ' + E.Message);
+      DebugLog('pad: ' + B + ': ' + E.Message);
   end;
   // the book's title, else its file's name
   Key := PadWords(FBookTitle);
   if Length(Key) = 0 then
     Key := PadWords(ChangeFileExt(ExtractFileName(edBook.Text), ''));
-  Base := IncludeTrailingPathDelimiter(FAudioFolder);
   Dirs := TObjectDictionary<string, TList<string>>.Create([doOwnsValues]);
   try
     for F in Files do
@@ -4661,7 +5476,7 @@ begin
       if IndexText(ExtractFileExt(F), BP_AUDIO_EXTS) < 0 then
         Continue;
       // each file
-      C.Name := ExtractRelativePath(Base, F);
+      C.Name := Shown(F);
       C.Files := [F];
       C.Score := PadScore(Key, PadWords(ChangeFileExt(ExtractFileName(F), '')));
       Result := Result + [C];
@@ -4680,9 +5495,7 @@ begin
           for F in Pair.Value do
             L.Add(F);
           L.CustomSort(NaturalFileOrder);
-          C.Name := ExcludeTrailingPathDelimiter(ExtractRelativePath(Base, IncludeTrailingPathDelimiter(Pair.Key)));
-          if C.Name = '' then
-            C.Name := ExtractFileName(ExcludeTrailingPathDelimiter(FAudioFolder));
+          C.Name := Shown(IncludeTrailingPathDelimiter(Pair.Key));
           C.Files := L.ToStringArray;
           C.Score := PadScore(Key, PadWords(ExtractFileName(Pair.Key)));
           Result := Result + [C];
@@ -4790,12 +5603,144 @@ begin
   begin
     Items := Items + [TPadMenu.Item('No jobs: Add to queue adds the book in the window')];
     FPadCmds := FPadCmds + [PADROW_NONE];
+  end
+  else
+  begin
+    Items := Items + [TPadMenu.Item('Save queue', 'in the queues folder')];
+    FPadCmds := FPadCmds + [PADROW_SAVEQ];
   end;
+  Items := Items + [TPadMenu.Item('Load a queue ...')];
+  FPadCmds := FPadCmds + [PADROW_LOADQ];
   Items := Items + [TPadMenu.Item('Back')];
   FPadCmds := FPadCmds + [PADROW_BACK];
   FPadMode := BPM_QUEUE;
   FPadFootTick := 0;
   FPadMenu.Show('Queue', Items, Sel, BP_FOOT);
+end;
+
+procedure TfrmBuilder.PadSaveQueue;
+var
+  F: string;
+begin
+  F := TPath.Combine(FQueueFolder, 'queue-' + FormatDateTime('yyyy-mm-dd-hhnn', Now) + '.json');
+  try
+    ForceDirectories(FQueueFolder);
+    SaveQueue(F);
+    FQueueFile := F;
+    Tell(Format('The queue (%d job(s)) was saved as %s.', [Length(FJobs), ChangeFileExt(ExtractFileName(F), '')]));
+  except
+    on E: Exception do
+      Tell('The queue was not saved: ' + E.Message);
+  end;
+end;
+
+procedure TfrmBuilder.PadQueues;
+var
+  Items: TArray<TPadMenuItem>;
+  Files: TArray<string>;
+  I: Integer;
+begin
+  Items := nil;
+  FPadCmds := nil;
+  Files := nil;
+  try
+    if TDirectory.Exists(FQueueFolder) then
+      Files := TDirectory.GetFiles(FQueueFolder, '*.json');
+  except
+    on E: Exception do
+      DebugLog('pad: the queues folder: ' + E.Message);
+  end;
+  // newest first
+  TArray.Sort<string>(Files, TComparer<string>.Construct(
+    function(const A, B: string): Integer
+    begin
+      Result := CompareDateTime(TFile.GetLastWriteTime(B), TFile.GetLastWriteTime(A));
+    end));
+  FPadBooks := Files;
+  for I := 0 to High(Files) do
+  begin
+    Items := Items + [TPadMenu.Item(ChangeFileExt(ExtractFileName(Files[I]), ''),
+      FormatDateTime('yyyy-mm-dd hh:nn', TFile.GetLastWriteTime(Files[I])))];
+    FPadCmds := FPadCmds + [I];
+  end;
+  if Length(Files) = 0 then
+  begin
+    Items := Items + [TPadMenu.Item('No saved queues yet')];
+    FPadCmds := FPadCmds + [PADROW_NONE];
+  end;
+  Items := Items + [TPadMenu.Item('Back')];
+  FPadCmds := FPadCmds + [PADROW_BACK];
+  FPadMode := BPM_QUEUES;
+  FPadMenu.Show('Load a queue', Items, 0, 'Its jobs are added to the queue - ' + FQueueFolder);
+end;
+
+procedure TfrmBuilder.AskOutputPlace(const ABook: string; const AThen: TProc);
+var
+  Card, Here, There: string;
+  Next: TProc;
+begin
+  Next := AThen;
+  Card := CardOf(ABook);
+  if (Card = '') or (edOut.Text = '') then
+  begin
+    if Assigned(Next) then
+      Next;
+    Exit;
+  end;
+  Here := edOut.Text;
+  There := TPath.Combine(TPath.Combine(Card, CARD_TRANSCRIBED), ExtractFileName(Here));
+  // owner, 2026-11-20: "ask - local or back on card"
+  Ask(Format('%s is on the memory card %s.' + sLineBreak + sLineBreak +
+    'Put the transcribed book back on the card (%s)?' + sLineBreak + sLineBreak +
+    'No keeps it on this machine (%s).', [ExtractFileName(ABook), CardName(Card), ExtractFileDir(There),
+    ExtractFileDir(Here)]), TMsgDlgType.mtConfirmation, [TMsgDlgBtn.mbYes, TMsgDlgBtn.mbNo], TMsgDlgBtn.mbYes,
+    procedure(const AResult: TModalResult)
+    begin
+      if AResult = mrYes then
+      begin
+        edOut.Text := There;
+        FAutoOut := There;
+        WindowLine('Output: on the card - ' + There);
+      end;
+      UpdateControls;
+      if Assigned(Next) then
+        Next;
+    end);
+end;
+
+procedure TfrmBuilder.PadModels;
+var
+  Items: TArray<TPadMenuItem>;
+  I, P, Sel: Integer;
+  T, V: string;
+begin
+  Items := nil;
+  FPadCmds := nil;
+  Sel := 0;
+  for I := 0 to cbModel.Count - 1 do
+  begin
+    // "Other model file ..." needs a file dialog: not here
+    if (I < FModelItems.Count) and (FModelItems[I] = '') then
+      Continue;
+    T := cbModel.Items[I];
+    // "name - note (1.6 GB to download)": the name, and what is in brackets
+    V := '';
+    P := LastDelimiter('(', T);
+    if (P > 0) and T.EndsWith(')') then
+      V := Copy(T, P + 1, Length(T) - P - 1)
+    else if T.Contains(' - in the models folder') then
+      V := 'in the models folder';
+    if V = '' then
+      V := 'here';
+    if I = cbModel.ItemIndex then
+      Sel := Length(Items);
+    Items := Items + [TPadMenu.Item(PadShort(T), V)];
+    FPadCmds := FPadCmds + [I];
+  end;
+  Items := Items + [TPadMenu.Item('Back')];
+  FPadCmds := FPadCmds + [PADROW_BACK];
+  FPadMode := BPM_MODELS;
+  FPadMenu.Show('Model', Items, Sel, 'large-v3-turbo: accurate and fast - a good first choice');
 end;
 
 procedure TfrmBuilder.PadJob(AIndex: Integer);
@@ -4835,15 +5780,403 @@ begin
   if FShown then
     Exit;
   FShown := True;
-  // once the window is on the screen: the question is centred on it
-  TThread.ForceQueue(nil,
-    procedure
+  // the pad (and in Big Picture its menu) before the calibration's question,
+  // which is asked through it there
+  StartPad;
+  // once the window is on the screen: the question is centred on it (a
+  // method, not an anonymous one: ForceQueue's overloads would not take
+  // the anonymous one here - E2250 since zip 148)
+  TThread.ForceQueue(nil, AfterShow);
+end;
+
+procedure TfrmBuilder.AfterShow;
+begin
+  // the display it is on (big-screen work, 2026-11-17: numbers first)
+  DebugLog(SteamScreenText(Self));
+  DecideSleepMode;
+  CheckCalibrationAtStart;
+end;
+
+procedure TfrmBuilder.DecideSleepMode;
+var
+  Why: string;
+  Pause: Boolean;
+begin
+  Pause := GameModeSession(Why);
+  {$IF Defined(LINUX) and not Defined(ANDROID)}
+  if not Pause and SteamBigPicture then
+  begin
+    Pause := True;
+    Why := 'Steam''s Big Picture (' + Why + ')';
+  end;
+  {$ENDIF}
+  InhibitSetPauseForSleep(Pause);
+  if InhibitPauseForSleep then
+    LogLine('Steam''s Game Mode (' + Why + '): while building, the machine may sleep - the build pauses for ' +
+      'it and goes on when the machine wakes (set Steam''s sleep to Never to build unattended).')
+  else
+    DebugLog('sleep: refused while building (' + Why + ')');
+end;
+
+procedure TfrmBuilder.btnCoverClick(Sender: TObject);
+begin
+  ShowCoverPicker;
+end;
+
+procedure TfrmBuilder.ShowCoverPicker;
+var
+  Book: TEpubBook;
+  EpubFile, Note, Title: string;
+  BookCover: TBytes;
+  Audio: TStringList;
+  Options: TCoverOptionArray;
+  I: Integer;
+begin
+  if edBook.Text = '' then
+  begin
+    Tell('Choose the book first: its covers are shown then.');
+    Exit;
+  end;
+  BookCover := nil;
+  Title := FBookTitle;
+  try
+    EpubFile := BookAsEpub(edBook.Text, Note);
+    Book := TEpubBook.Create(EpubFile);
+    try
+      if Book.CoverPath <> '' then
+        BookCover := Book.Zip.ReadBytes(Book.CoverPath);
+      if Title = '' then
+        Title := Book.Title;
+    finally
+      Book.Free;
+    end;
+  except
+    on E: Exception do
+      WindowLine('The book''s cover could not be read: ' + E.Message);
+  end;
+  Audio := TStringList.Create;
+  try
+    for I := 0 to lbAudio.Count - 1 do
+      Audio.Add(lbAudio.Items[I]);
+    ForceDirectories(FCoverFolder);
+    Options := CoverOptions(FCoverFolder, [ChangeFileExt(ExtractFileName(edBook.Text), ''),
+      ChangeFileExt(ExtractFileName(edOut.Text), ''), Title], BookCover, Audio);
+  finally
+    Audio.Free;
+  end;
+  if FCoverPick = nil then
+    if FBigPicture then
+      FCoverPick := TCoverPicker.Create(Self, 1.5)
+    else
+      FCoverPick := TCoverPicker.Create(Self, 1);
+  if FPadMenu <> nil then
+    FPadMenu.Hide;
+  FCoverPick.Show(Format('Cover for %s (pictures in %s are offered too)', [Title, FCoverFolder]),
+    'Automatic' + sLineBreak + '(the Covers folder; else the audiobook''s when the book''s is missing or wide)',
+    Options, FCoverChoice,
+    procedure(const AChoice: string)
     begin
-      // the display it is on (big-screen work, 2026-11-17: numbers first)
-      DebugLog(SteamScreenText(Self));
-      StartPad;
-      CheckCalibrationAtStart;
+      FCoverChoice := AChoice;
+      WindowLine('Cover: ' + CoverChoiceText(AChoice));
+      mmBook.Lines.Add('Cover: ' + CoverChoiceText(AChoice));
+      if FBigPicture then
+        PadHome(BPC_COVER);
     end);
+end;
+
+procedure TfrmBuilder.StartLink;
+var
+  Ini: TMemIniFile;
+  Id, Tokens: string;
+begin
+  Id := '';
+  Tokens := '';
+  try
+    Ini := TMemIniFile.Create(SettingsFile, TEncoding.UTF8);
+    try
+      // the builder's own id: BookManager knows it again at a new address
+      Id := Ini.ReadString('Link', 'Id', '');
+      if Id = '' then
+      begin
+        Id := TGUID.NewGuid.ToString.Replace('{', '').Replace('}', '');
+        Ini.WriteString('Link', 'Id', Id);
+        Ini.UpdateFile;
+      end;
+      Tokens := Ini.ReadString('Link', 'Paired', '').Replace('|', sLineBreak);
+    finally
+      Ini.Free;
+    end;
+  except
+    on E: Exception do
+      DebugLog('link: the settings: ' + E.Message);
+  end;
+  try
+    FLink := TLinkServer.Create('EpubBuilder', MachineName, Id);
+    FLink.SetTokens(Tokens);
+    FLink.OnPairCode := LinkPairCode;
+    FLink.OnPaired := LinkPaired;
+    FLink.OnReceived := LinkReceived;
+    UpdateLinkFolders;
+    LogLine(FLink.Start);
+  except
+    on E: Exception do
+    begin
+      FreeAndNil(FLink);
+      LogLine('link: not started - ' + E.Message);
+    end;
+  end;
+end;
+
+procedure TfrmBuilder.UpdateLinkFolders;
+var
+  Outs: TArray<string>;
+  I: Integer;
+  D: string;
+
+  procedure AddOut(const AFolder: string);
+  var
+    X: string;
+  begin
+    if AFolder = '' then
+      Exit;
+    for X in Outs do
+      if SameFileName(ExcludeTrailingPathDelimiter(X), ExcludeTrailingPathDelimiter(AFolder)) then
+        Exit;
+    Outs := Outs + [AFolder];
+  end;
+
+begin
+  if FLink = nil then
+    Exit;
+  Outs := nil;
+  AddOut(FOutFolder);
+  for I := 0 to High(FJobs) do
+  begin
+    D := ExtractFileDir(FJobs[I].Output);
+    AddOut(D);
+  end;
+  for D in CardFolders(CARD_TRANSCRIBED) do
+    AddOut(D);
+  FLink.SetFolders(FBookFolder, FAudioFolder, FCoverFolder, Outs);
+end;
+
+procedure TfrmBuilder.UpdateLinkStatus;
+var
+  O: TJSONObject;
+  Title: string;
+  Waiting, I: Integer;
+begin
+  if FLink = nil then
+    Exit;
+  O := TJSONObject.Create;
+  try
+    Waiting := 0;
+    for I := 0 to High(FJobs) do
+      if FJobs[I].State = jsWaiting then
+        Inc(Waiting);
+    O.AddPair('busy', TJSONBool.Create(FBuild <> nil));
+    O.AddPair('queueRunning', TJSONBool.Create(FQueueRunning));
+    O.AddPair('waiting', TJSONNumber.Create(Waiting));
+    if FBuild <> nil then
+    begin
+      Title := ChangeFileExt(ExtractFileName(FRunBook), '');
+      if (FJob >= 0) and (FJob <= High(FJobs)) then
+      begin
+        Title := FJobs[FJob].Title;
+        O.AddPair('job', TJSONNumber.Create(FJob + 1));
+        O.AddPair('jobs', TJSONNumber.Create(Length(FJobs)));
+      end;
+      O.AddPair('title', Title);
+      O.AddPair('percent', TJSONNumber.Create(Round(FPercent * 10) / 10));
+      O.AddPair('time', FTimeText);
+      O.AddPair('now', FStatusText);
+      O.AddPair('speed', TJSONNumber.Create(Round(FSpeedNow * 10) / 10));
+    end;
+    FLink.SetStatus(O.ToJSON);
+  finally
+    O.Free;
+  end;
+end;
+
+procedure TfrmBuilder.LinkPairCode(const AClient, ACode: string);
+var
+  Text: string;
+begin
+  Text := Format('%s wants to connect to EpubBuilder. Type this code there: %s (it works for 5 minutes).',
+    [AClient, ACode]);
+  // in the log, and in a box (the pad's in Big Picture, a dialog else)
+  WindowLine(Text);
+  Ask(Text, TMsgDlgType.mtInformation, [TMsgDlgBtn.mbOK], TMsgDlgBtn.mbOK, nil);
+end;
+
+procedure TfrmBuilder.LinkPaired(const AClient, AToken: string);
+var
+  Ini: TMemIniFile;
+begin
+  LogLine(Format('Paired: %s can now send books and audio and get the books made.', [AClient]));
+  try
+    Ini := TMemIniFile.Create(SettingsFile, TEncoding.UTF8);
+    try
+      Ini.WriteString('Link', 'Paired', Trim(FLink.TokensText).Replace(sLineBreak, '|'));
+      Ini.UpdateFile;
+    finally
+      Ini.Free;
+    end;
+  except
+    on E: Exception do
+      LogLine('The pairing was not kept in the settings: ' + E.Message);
+  end;
+end;
+
+procedure TfrmBuilder.LinkReceived(const AKind, AFileName: string);
+begin
+  if AKind = 'book' then
+    LogLine('Received a book: ' + AFileName)
+  else if AKind = 'cover' then
+    LogLine('Received a cover: ' + AFileName + ' (the book of that name gets it when it is built)')
+  else
+    LogLine('Received audio: ' + AFileName);
+end;
+
+procedure TfrmBuilder.tmSleepTimer(Sender: TObject);
+const
+  { Longest wait for the build to pause before the sleep is let go, ms
+    (logind waits 5 s by default). }
+  PAUSE_WAIT_MS = 3500;
+  { No wake news this long after going to sleep while still running (ms
+    of the program's own clock, which stops while asleep): going on. }
+  NO_WAKE_MS = 120000;
+var
+  Busy: string;
+  Asleep: TDateTime;
+begin
+  if not InhibitPauseForSleep then
+    Exit;
+  try
+    if FBuild <> nil then
+      Busy := ': pausing the build'
+    else if (FCalib <> nil) or (FDownload <> nil) then
+      Busy := ' (the calibration or download waits for the wake)'
+    else
+      Busy := '';
+    case InhibitPoll of
+      ssGoingToSleep:
+        begin
+          LogLine('The machine is going to sleep (Steam''s sleep timer, or the power button)' + Busy);
+          GSleepGate.ResetEvent;
+          FSleepAsked := TThread.GetTickCount64;
+          FSleepLet := False;
+          FSleepWall := Now;
+        end;
+      ssWoke:
+        begin
+          GSleepGate.SetEvent;
+          FSleepAsked := 0;
+          FSleepLet := False;
+          // the time asleep is not the build's
+          if (FSleepWall <> 0) and (Now > FSleepWall) then
+          begin
+            Asleep := Now - FSleepWall;
+            if FStarted <> 0 then
+              FStarted := FStarted + Asleep;
+            if FRatePercent >= 0 then
+              FRateFrom := FRateFrom + Asleep;
+            if FAfterFrom <> 0 then
+              FAfterFrom := FAfterFrom + Asleep;
+          end;
+          FSleepWall := 0;
+          LogLine('The machine woke up' + IfThen(FBuild <> nil, ': the build goes on', '') + ' (' + InhibitText +
+            ')');
+          FRedraw.Kick('the machine woke up');
+        end;
+    end;
+    if FSleepAsked = 0 then
+      Exit;
+    // paused, or no build to wait for, or waited long enough: sleep
+    if not FSleepLet and ((FBuild = nil) or (TInterlocked.CompareExchange(GBuildPaused, 0, 0) = 1) or
+      (TThread.GetTickCount64 - FSleepAsked > PAUSE_WAIT_MS)) then
+    begin
+      if (FBuild <> nil) and (TInterlocked.CompareExchange(GBuildPaused, 0, 0) = 0) then
+        LogLine('The build did not reach a pause in time: the machine sleeps anyway (it goes on after)');
+      FSleepLet := True;
+      InhibitLetSleep;
+      DebugLog('sleep: ' + InhibitText);
+    end
+    // the wake's news never came (the sleep called off without it?): on
+    else if FSleepLet and (TThread.GetTickCount64 - FSleepAsked > NO_WAKE_MS) then
+    begin
+      LogLine('No news of the machine waking: going on');
+      GSleepGate.SetEvent;
+      FSleepAsked := 0;
+      FSleepLet := False;
+    end;
+  except
+    on E: Exception do
+      DebugLog('sleep: ' + E.ClassName + ': ' + E.Message);
+  end;
+end;
+
+procedure TfrmBuilder.QueueSleepNote;
+var
+  FF: TFFmpegLibrary;
+  Audio: TWhisperAudioSet;
+  Files: TStringList;
+  I, K, Unknown: Integer;
+  Secs, Len: Double;
+  Text: string;
+begin
+  if not InhibitPauseForSleep then
+    Exit;
+  Secs := 0;
+  Unknown := 0;
+  FF := nil;
+  Files := TStringList.Create;
+  try
+    try
+      FF := OpenBuilderFFmpeg;
+      for I := 0 to High(FJobs) do
+        if FJobs[I].State = jsWaiting then
+        begin
+          Files.Clear;
+          for K := 0 to High(FJobs[I].Audio) do
+            Files.Add(FJobs[I].Audio[K]);
+          Len := 0;
+          Audio := TWhisperAudioSet.Create(FF, Files, FJobs[I].Chapters);
+          try
+            for K := 0 to High(Audio.Parts) do
+              Len := Len + Audio.Parts[K].Duration;
+          finally
+            Audio.Free;
+          end;
+          PrepareEstimate(FJobs[I].Model, FJobs[I].Device);
+          if FExpSpeed > 0 then
+            Secs := Secs + Len / FExpSpeed + FExpAfter * Len
+          else
+            Inc(Unknown);
+        end;
+    except
+      on E: Exception do
+      begin
+        DebugLog('queue time: ' + E.Message);
+        Secs := 0;
+      end;
+    end;
+  finally
+    FF.Free;
+    Files.Free;
+  end;
+  if Secs > 0 then
+    Text := Format('This queue takes about %s%s.', [HmsText(Secs), IfThen(Unknown > 0,
+      Format(' (and %d job(s) with no time to go on)', [Unknown]), '')])
+  else
+    Text := 'How long this queue takes is not known yet.';
+  Text := Text + ' If Steam''s sleep comes on before then, the build pauses while the machine sleeps and goes ' +
+    'on when it wakes. To build unattended, set Steam''s sleep to Never (dimming and the screen saver can stay).';
+  // Tell: the window's log too, and the pad menu's box in Big Picture
+  if FBigPicture then
+    Tell(Text)
+  else
+    LogLine(Text);
 end;
 
 procedure TfrmBuilder.CheckCalibrationAtStart;
@@ -4878,10 +6211,17 @@ begin
       'choose, and it takes the first GPU in its list, not the fastest. Tools > Re-calibrate.');
     Exit;
   end;
-  if FModelPath <> '' then
-    Model := ExtractFileName(FModelPath)
-  else
-    Model := 'the model you choose next';
+  if FModelPath = '' then
+  begin
+    // nothing to time yet (a new machine: no model downloaded) - asked when
+    // one is here (owner, Steam Deck 2026-11-20: the question came with an
+    // empty Model list)
+    FCalibPending := True;
+    LogLine('Not calibrated for this machine yet, and there is no model to calibrate: choose one in Model ' +
+      '(large-v3-turbo is a good first choice; it is downloaded when chosen) - the calibration is offered then.');
+    Exit;
+  end;
+  Model := ExtractFileName(FModelPath);
   Names := '';
   for I := 0 to High(FDevices) do
     Names := Names + IfThen(Names <> '', ', ', '') + FDevices[I].Name;
@@ -4897,7 +6237,12 @@ begin
     'Tools > Re-calibrate does it again later (a new graphics card or driver, another model).';
   if FBigPicture then
   begin
-    // no dialog to reach with the pad: the question in the pad's menu
+    // no dialog to reach with the pad: the question in the pad's menu -
+    // short, for a TV (the desktop's explanation is a screenful there)
+    Text := Why + 'EpubBuilder is not calibrated for this machine yet.' + sLineBreak + sLineBreak +
+      Format('Calibrate now? It times %s on each device here (%s), a minute or two each, and then ' +
+      'builds on the fastest.', [Model, Names]) + sLineBreak + sLineBreak +
+      'Later: Calibrate (this model) in this menu.';
     Ask(Text, TMsgDlgType.mtConfirmation, [TMsgDlgBtn.mbYes, TMsgDlgBtn.mbNo], TMsgDlgBtn.mbYes,
       procedure(const AResult: TModalResult)
       begin
@@ -5240,6 +6585,20 @@ begin
   cbLanguage.ItemIndex := 0;
 end;
 
+procedure TfrmBuilder.SelectLanguage(const ACode: string);
+var
+  K: Integer;
+begin
+  if cbLanguage = nil then
+    Exit;
+  cbLanguage.ItemIndex := 0;
+  if ACode = '' then
+    Exit;
+  for K := 0 to High(LANGUAGES) do
+    if SameText(LANGUAGES[K, 0], ACode) then
+      cbLanguage.ItemIndex := K + 1;
+end;
+
 function TfrmBuilder.ChosenLanguage: string;
 begin
   Result := '';
@@ -5432,6 +6791,8 @@ begin
   R.Title := ASummary.Title;
   R.Language := ASummary.Language;
   R.OutputName := ExtractFileName(FRunOut);
+  FLastResult := Format('Last: %s - %.1fx real time, matched %.1f %%', [R.Title, HistorySpeed(R),
+    R.MatchedPercent]);
   if FExpSpeed > 0 then
     LogLine(Format('Speed: %.1fx real time (expected %.1fx); exact %.1f %%, matched %.1f %%.',
       [HistorySpeed(R), FExpSpeed, R.ExactPercent, R.MatchedPercent]))
@@ -5478,5 +6839,11 @@ begin
   else
     LogLine(Format('  %s is not calibrated on this machine (Tools > Re-calibrate)', [ExtractFileName(AModel)]));
 end;
+
+initialization
+  GSleepGate := TEvent.Create(nil, True, True, '');
+
+finalization
+  FreeAndNil(GSleepGate);
 
 end.

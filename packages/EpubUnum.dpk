@@ -16,6 +16,7 @@ contains
   Epub.Layout in '..\lib\Epub.Layout.pas',
   Epub.Book in '..\lib\Epub.Book.pas',
   Epub.Writer in '..\lib\Epub.Writer.pas',
+  Epub.Mobi in '..\lib\Epub.Mobi.pas',
   Epub.Components in '..\lib\Epub.Components.pas';
 
 end.

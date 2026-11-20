@@ -201,12 +201,22 @@ in a book count as no language (Whisper detects it). The log says
 
 EpubBuilder works with three folders: books (the EPUBs to read along),
 audio (the recordings) and output (the books it makes). At first they
-are Documents/EpubBuilder/Books, Audio and Output, made at start-up;
+are Documents/EpubUnum/Books, Audio and Transcribed, made at start-up;
 Tools > Books folder... / Audio folder... / Output folder... choose
 others (kept in the settings). Each also follows its dialog: Book... and
 Add audio... (and Add folder...) open where a file was last chosen, and
 an output chosen with Output... makes its folder the output folder for
 the next books - all kept between runs.
+
+The folders are shared with EpubReader: Documents/EpubUnum (Books,
+Audio, Transcribed, Covers, Queues) and one settings folder, EpubUnum
+(EpubBuilder.ini and EpubReader.json side by side). At the first start
+after the change, what was in Documents/EpubBuilder and EpubBuilder's
+settings folder is moved in (Documents/EpubBuilder is renamed; settings,
+the queue and the history are copied with their paths changed - the old
+files stay; the models, converted MOBIs and other folders are moved).
+It happens once; the debug log lists it ("folders: ...") and so does
+EpubUnum-moved-EpubBuilder.txt in the settings folder.
 
 A chosen book's output is its own file name in the output folder - the
 EPUB 3 it becomes, with the audio and the overlays. When that name is
@@ -257,22 +267,68 @@ awake: ..."):
 If the machine still sleeps, set its sleep timeout to Never while a long
 book builds (Steam: Settings > Display / Power).
 
+### Steam's Game Mode: the build pauses for sleep
+
+In Steam's Game Mode, refusing sleep breaks Steam: when its sleep timer
+fires and the machine may not sleep, the screen goes black, Steam's menu
+stops working, and only restarting Steam (or the machine) helps. So
+there EpubBuilder does not refuse sleep. While it builds it asks only for
+a few seconds' notice ("Game Mode - sleep allowed, the work pauses for
+it" in the log):
+
+- When the machine is about to sleep, the build pauses between two 30 s
+  windows of the transcription ("Paused: the system is going to sleep"),
+  and the machine sleeps.
+- When it wakes, the build goes on where it was ("Going on after the
+  sleep"). The time asleep is not counted in the build's time, its speed
+  or the time left.
+- Steam's sleep timer counts from the last button pressed, not from the
+  wake: a machine woken and left alone sleeps again after the timer -
+  with a 1-minute timer, every minute. Each wake goes on where it was.
+- At Run queue, EpubBuilder says how long the queue should take, and that
+  Steam's sleep pauses it. To build overnight without anyone waking the
+  machine, set Steam's sleep to Never: dimming and the screen saver can
+  stay.
+
+Game Mode is told by the environment (gamescope), or by Steam's Big
+Picture on Linux; the log's start says which.
+
+Game Mode (gamescope) can show the window black after Steam's screen
+saver or once the display comes back on. On Linux EpubBuilder then draws
+itself again and changes its size by a pixel and back (full screen, as in
+Big Picture: leaves full screen and goes back): when the window is
+active again, when a display comes back on, and at the first pad press
+after a minute without one. The debug log says each time ("redraw: ...").
+
 ## Ended from outside (Steam's Exit Game)
 
 Steam's Exit Game ends EpubBuilder with SIGTERM (Linux, macOS); so does
 the system when it shuts down. EpubBuilder then saves its settings, the
 queue file and the log so far, and ends at once when a build, calibration
-or download was running (the work in progress is lost: Create again).
+or download was running. A build's finished parts are kept (see below):
+building the book again goes on from the next part; a calibration or
+download starts again.
 The log says "Asked to end (SIGTERM ...)", and the next start's debug log
 says when and during what the last run was ended. A calibration ended
 this way is not taken for a crash of the device. On Windows nothing is
 trapped.
 
+## A build stopped part way goes on from there
+
+After each part (a chapter, or a file) is transcribed, the transcription
+so far is kept beside the output as `<output>.transcript-partial.json`.
+When the build stops part way - Steam's Exit Game, the system shutting
+down, a crash, Cancel, a part that failed - building the same output
+again with the same model and audio goes on from the next part ("GOING ON
+FROM PART n"), and the history counts the earlier parts' own time. Once
+the whole transcript is saved (`.transcript.json`) the partial file is
+deleted. Another model or other audio starts from the first part.
+
 ## Debug log
 
 Every run writes `EpubBuilder-debug.log` next to the settings
-(`%APPDATA%\EpubBuilder` on Windows, `~/Library/Application Support/
-EpubBuilder` on macOS, `~/.config/EpubBuilder` on Linux; the window's log
+(`%APPDATA%\EpubUnum` on Windows, `~/Library/Application Support/
+EpubUnum` on macOS, `~/.config/EpubUnum` on Linux; the window's log
 shows the path): the build's steps, the devices, whisper.cpp's and ggml's
 own lines, each written to the file at once. When the builder disappears
 without a message (a library crashed), the last lines say what it was
@@ -280,8 +336,8 @@ doing. The previous run's log is kept as `EpubBuilder-debug.log.old`.
 
 ## Using it
 
-1. **Choose...** the EPUB. Its title and word count are shown; a
-   copy-protected book is refused with a message.
+1. **Choose...** the EPUB (or a MOBI - see below). Its title and word
+   count are shown; a copy-protected book is refused with a message.
 2. **Add files...** or **Add folder...** for the audio, then put the files
    in reading order (**Up** / **Down**; added files are sorted as people
    read them: chapter2 before chapter10). With **Chapters of a file are
@@ -304,26 +360,51 @@ doing. The previous run's log is kept as `EpubBuilder-debug.log.old`.
    the builder made it from the same book (building again, e.g. from the
    saved transcript, does not ask).
 
+## MOBI books
+
+A DRM-free MOBI (`.mobi`, `.prc`, `.azw`, `.azw3` with the old
+Mobipocket text in it) can be chosen like an EPUB, here and in Big
+Picture's book list. EpubBuilder writes an EPUB 3 from it first
+(library unit `Epub.Mobi`) and builds from that; the read-along book it
+makes is an EPUB 3 as always. The converted copy is kept in the
+settings' folder, `Converted/<name>.epub`, and made again when the MOBI
+is newer. The log says what was read: "MOBI converted to EPUB 3: MOBI 6 -
+"title" by author, language en: 28 document(s) ...".
+
+- The book is split into documents at Kindle's page breaks; Kindle's
+  tags are dropped, its indents and alignment kept as styles, links
+  inside the book and pictures kept, the cover marked.
+- Refused with a message: copy-protected (DRM) books - never decrypted,
+  as everything bought from Amazon is; books compressed with Huffman
+  coding (HUFF/CDIC); KF8-only books (AZW3 without the old text) - not
+  read yet.
+
 ## Job queue (many books, overnight)
 
 The left column is the **job queue**. Instead of **Create**, press **Add
 to queue**: the book, its audio, the model, device, output and the two
 options are added as a job (the same questions as Create are asked then,
 not while the queue runs). **Run queue** builds the jobs one after the
-other - failed and cancelled ones again, done ones not - and books can be
-added while it runs. **Cancel** stops the job running and the queue (Run
+other - failed and cancelled ones again - and books can be added while it
+runs. A book built is no longer queued: while the queue runs its job shows
+as done, and when the queue has finished (after the report is written)
+the done jobs leave the queue. **Cancel** stops the job running and the queue (Run
 queue goes on with the jobs not done). **Remove**, **Up** and **Down**
-change the queue (not the job running). A click on a job shows it in the
+change the queue (not the job running). After Add to queue the window is
+emptied for the next book - the book, its audio, the output, the language
+and the saved-transcript choice (the model, device, power and chapters
+stay). A click on a job shows it in the
 window as it was added - the book, its audio files, model, device,
 output, language and options - so a loaded queue can be checked; change
 what is wrong (the output's name, say) and press **Update job**: the
 same checks as Add to queue, then the job takes the window's choices in
-its place, waiting again (a done one is built again). Add to queue still
+its place, waiting again. Add to queue still
 adds a new job. Update job is off for the job running, and after Remove,
 Up or Down until a job is clicked again. **Save...** writes the queue to a JSON file
 and **Load...** adds the jobs of one, so a list of books can be prepared
 and run later. Loading asks nothing, so it says what it did in the log: a
-job whose output is its own book, or whose output a job of the queue
+job saved as done is not queued (the book is built),
+a job whose output is its own book, or whose output a job of the queue
 writes already, is left out; a job whose output is there already is added
 with a note that it will be replaced. Each build's log is kept beside its output as
 `<output>.log` (Create's too), and the list shows each job's state, the
@@ -338,7 +419,15 @@ verdict, EPUB size per book - and a section per book with every figure
 interpolated / not heard / not spoken, front and back matter, reading
 speed, clips, chapter marks); the CSV has all of them for a spreadsheet.
 The queue file is saved again after each job, so it always says which
-books are done. Each book's `.log` holds its own build only: what is done
+books are done (loading it again queues only the others). Save... and Load... open in the queues folder,
+Documents/EpubUnum/Queues (the last one used is kept). The queue
+itself is kept as it changes (EpubBuilder-queue.json beside the
+settings) and comes back at the next start - closing the program, or a
+crash, loses no jobs; a job that was running then is waiting again, and
+one done by then is not queued. In
+Big Picture the Queue list has **Save queue** (named by the date and
+time, in the queues folder) and **Load a queue ...** (that folder's
+queues, newest first; their jobs are added). Each book's `.log` holds its own build only: what is done
 in the window meanwhile (another book chosen, a job added, the queue
 loaded or saved) goes to the window's log and the debug log, not into
 the log of the book being built.
@@ -371,9 +460,9 @@ steps by when the book's contents list has no chapters that are read.
 The model, the device (by name), "Chapters of a file are parts" and the
 last book and audio folders are remembered between sessions (**Use a
 saved transcript** is not: it is off at every start), in
-`%APPDATA%\EpubBuilder\EpubBuilder.ini` on Windows,
-`~/Library/Application Support/EpubBuilder/EpubBuilder.ini` on macOS and
-`~/.config/EpubBuilder/EpubBuilder.ini` (or under `$XDG_CONFIG_HOME`) on
+`%APPDATA%\EpubUnum\EpubBuilder.ini` on Windows,
+`~/Library/Application Support/EpubUnum/EpubBuilder.ini` on macOS and
+`~/.config/EpubUnum/EpubBuilder.ini` (or under `$XDG_CONFIG_HOME`) on
 Linux. Delete the file to start afresh.
 
 The transcript is kept beside the output as
@@ -392,7 +481,8 @@ model. It is the same JSON as WhisperConsole `--json`, so
 
 Started from Steam in Big Picture (or Game Mode on a Steam Deck / Steam
 Machine), EpubBuilder opens its pad menu over the window - no file
-dialogs or mouse needed:
+dialogs or mouse needed (with no model downloaded yet it opens on the
+model list):
 
 - **Book**: the EPUB files of the books folder (and its folders) to choose
   from;
@@ -400,12 +490,15 @@ dialogs or mouse needed:
   whose names best match the book's title come first (a folder of two or
   more files is all of them, in name order), *best match* on top; choose
   one, see **All the audio in the folder ...**, or keep the list;
-- **Model**, **Device**, **Language**, **Power**, **Chapters of a file are
-  parts**: left / right change them (a model not here yet asks to be
-  downloaded);
+- **Model**: a list of every model - here, or its size to download
+  (choosing one not here asks to download it; large-v3-turbo is a good
+  first choice);
+- **Device**, **Language**, **Power**, **Chapters of a file are parts**:
+  left / right change them;
 - **Output** (shown), **Create**, **Add to queue**, **Update job**,
-  **Queue** (Run queue; each job: show it in the window, Up, Down,
-  Remove), **Cancel**, **Calibrate (this model)**, **Exit**.
+  **Run queue** (when jobs wait - selected after Add to queue), **Queue**
+  (Run queue; each job: show it in the window, Up, Down, Remove),
+  **Cancel**, **Calibrate (this model)**, **Exit**.
 
 | Pad | |
 |---|---|
@@ -423,3 +516,73 @@ Big Picture Start opens the same menu on the desktop too. Copy books into
 the books folder and audio into the audio folder first (on a Steam Deck in
 Desktop Mode); Tools > Folders changes them on the desktop. Save... and
 Load... of a queue need the desktop (file dialogs).
+
+## Progress, and the log
+
+While it works, the window's lower part shows what is being done in large
+type: the book, its job in the queue, how far it is, the time taken and
+left, and the transcription's speed so far (x real time); when idle, the
+jobs waiting and the last build's result. The line above it still shows
+the words being transcribed. The log - every line also kept in the book's
+.log and the debug log - is behind **View > Show the log** (kept between
+starts).
+
+## The cover
+
+The book built gets a cover by this rule (log: "Cover: ..."):
+
+1. a picture in the **Covers** folder (Documents/EpubUnum/Covers,
+   [Folders] Covers) named as the book's file, its output or its title -
+   .jpg, .jpeg, .png, .webp or .gif;
+2. else the **audiobook's** cover art (an m4b / m4a / aax's, an mp3's ID3
+   picture, a FLAC picture) when the book has no cover, or its cover is
+   wider than it is high - a book cover never is (a calibre MOBI came
+   with Word 2000's logo, 680 x 510);
+3. else the book's own.
+
+**Cover...** (beside the book's Choose..., and Cover on Big Picture's
+list) shows the covers there are as thumbnails - Automatic (the rule
+above), the book's, the audiobook's and every picture in the Covers
+folder (those named as the book first) - click one, or move with the
+pad and press A. The choice goes into the job (queue files keep it as
+"cover"). The new cover is added to the book as its cover-image (the old
+picture stays in the book). Pictures sent from BookManager go to the
+Covers folder.
+
+## The link (BookManager and EpubReader)
+
+EpubBuilder listens on the network from the start (log: "link:
+BookManager and EpubReader can connect (port 47821 ...)"), so other
+programs can send it books and audio, fetch the books it made, and show
+its progress and log. Nothing is typed: every two seconds it says where
+it is (UDP broadcast, port 47820), and the other programs list the
+builders they hear. Its HTTP port is 47821, or the next free one up to
+47830. A firewall must let these through (Windows asks the first time).
+
+- **Pairing, once:** a program asks; EpubBuilder shows a 6-digit code
+  (a box, in Big Picture too) that works for 5 minutes; typed in the
+  other program, the two are paired for good (kept in the settings,
+  [Link] Paired). Only paired programs can send or fetch.
+- **Files sent in** go to the books folder (EPUB, MOBI) or the audio
+  folder (m4b, mp3, ...), into a sub folder when one is given (an
+  audiobook's folder of files stays together). Each is written as
+  `.part` and named when whole; the log says "Received ...". A file
+  that would leave less than 2 GB free on that drive is refused before
+  it is sent - building needs the room.
+- **Books made**: the EPUBs in the output folder, the queue's output
+  folders and the cards' Transcribed folders; a program can fetch them
+  (and go on after an interruption).
+- **Progress and log**: what the progress panel shows, and the log's
+  last 5000 lines.
+
+While the machine sleeps it is not heard; it is back when it wakes.
+
+## Memory cards
+
+On Steam hardware (Linux), a memory card's top-level folders are looked
+in too: **Books** (EPUB files) and **Audio** (audiobooks) - in Big
+Picture's book list and the audio matching. Choosing a book that is on a
+card asks where its EPUB goes: back on the card, in its **Transcribed**
+folder, or on this machine (the output folder). Only those folders are
+looked in, never the whole card. EpubReader lists a card's Books and
+Transcribed folders.

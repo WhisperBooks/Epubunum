@@ -39,7 +39,13 @@ uses
   // sound: DCUs of TFFMpegAPI's runtime package FFmpegAPI
   FFmpeg.API, FFmpeg.Player,
   // the game pad and its menu (fields of the form)
-  uSteamPad, uPadMenu;
+  uSteamPad, uPadMenu,
+  // Linux: the window brought back after the screen saver (a field)
+  uRedraw,
+  // the folders shared with EpubBuilder (SettingsFile, the books)
+  uEpubUnum,
+  // the cover chooser: EpubBuilder's units (thumbnails, the audio's art)
+  uCovers, uCoverPick;
 
 type
   { A book in the Recently Opened list, with where its reader left off. }
@@ -80,6 +86,10 @@ type
     { The first time the window is shown: the display it is on into the
       debug log (SteamScreenText). }
     procedure FormShow(Sender: TObject);
+    { The window is active again: brought back (FRedraw). }
+    procedure FormActivated(Sender: TObject);
+    { The window is not active any more: logged (FRedraw). }
+    procedure FormDeactivated(Sender: TObject);
     { Stops the audio and removes the temporary files. }
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
     { Keys: P, Ctrl+O, Ctrl+Plus / Ctrl+Minus, D, L (Learn to read), R (say
@@ -110,6 +120,13 @@ type
     { View > Graphics: Windows' graphics preference for the reader (its
       Tag), used from the next start. }
     procedure miGpuClick(Sender: TObject);
+    { View > Cover of this book: ShowCoverChoice. }
+    procedure miCoverClick(Sender: TObject);
+    { The covers there are for the open book - its own, its audiobook's
+      (the m4b inside it), the Covers folder's pictures - as thumbnails;
+      the one chosen becomes the library's picture of the book (the book
+      file is not changed: owner, 2026-11-20, "Reader only"). }
+    procedure ShowCoverChoice;
     { Play / pause. }
     procedure btnPlayClick(Sender: TObject);
     { Smaller text. }
@@ -260,6 +277,8 @@ type
     { View > Graphics (Windows): Windows decides, power saving GPU, high
       performance GPU - TGpuPreference's order (uInhibit); nil elsewhere. }
     miGpu: array[0..2] of TMenuItem;
+    { The cover chooser (thumbnails; uCoverPick). }
+    FCoverPick: TCoverPicker;
     { Recently opened books, the latest first (at most RECENT_MAX), with
       their reading positions. }
     FRecent: TArray<TRecentBook>;
@@ -293,6 +312,9 @@ type
     FBooksFolder: string;
     { The books Open a book lists, in its order. }
     FBookFiles: TArray<string>;
+    { Linux (Game Mode): the window brought back after the screen saver or
+      a display that was off (uRedraw). }
+    FRedraw: TWindowRedraw;
     { The library's cover chosen with the pad (-1 = none yet). }
     FCoverSel: Integer;
     { Its frame. }
@@ -516,8 +538,8 @@ uses
   // System.SysUtils.DeleteFile's inline body expands only with it (H2443)
   Posix.Unistd,
   {$ENDIF}
-  System.Hash, System.UIConsts, System.Skia, System.Generics.Defaults,
-  FmxWineCanvas, FmxSkiaCanvas, uSteam, uInhibit, uQuitSignal, uReaderInput;
+  System.Hash, System.UIConsts, System.Skia, System.Generics.Defaults, System.IniFiles,
+  FmxWineCanvas, FmxSkiaCanvas, uSteam, uInhibit, uQuitSignal, uReaderInput, uCards;
 
 const
   { Text size step, px. }
@@ -574,8 +596,10 @@ const
   MENU_LEARN = 7;
   { The pad's controls. }
   MENU_CONTROLS = 8;
+  { The open book's cover (thumbnails to choose from). }
+  MENU_COVER = 9;
   { Exit. }
-  MENU_EXIT = 9;
+  MENU_EXIT = 10;
   { FMenuMode: the main menu. }
   MODE_MAIN = 0;
   { The contents. }
@@ -850,10 +874,11 @@ begin
   end;
 end;
 
-{ The settings file, the platform's way (JSON: they will grow): Windows
-  %APPDATA%\EpubReader\EpubReader.json, macOS ~/Library/Application
-  Support/EpubReader/EpubReader.json, Linux $XDG_CONFIG_HOME (else
-  ~/.config)/EpubReader/EpubReader.json. }
+{ The settings file (JSON: they will grow), in the EpubUnum settings
+  folder shared with EpubBuilder (uEpubUnum): Windows
+  %APPDATA%\EpubUnum\EpubReader.json, macOS ~/Library/Application
+  Support/EpubUnum/EpubReader.json, Linux $XDG_CONFIG_HOME (else
+  ~/.config)/EpubUnum/EpubReader.json. }
 { The folder the program is in - on the Mac the one that holds
   EpubReader.app (ParamStr(0) is inside the signed bundle, which must not
   be written to): Steam's install folder, Manage > Browse local files. }
@@ -881,25 +906,15 @@ begin
   {$IF Defined(STEAMBUILD)}
   Result := System.IOUtils.TPath.Combine(ProgramFolder, 'Books');
   {$ELSE}
-  Result := System.IOUtils.TPath.Combine(System.IOUtils.TPath.Combine(System.IOUtils.TPath.GetDocumentsPath,
-    'EpubReader'), 'Books');
+  // shared with EpubBuilder (owner, 2026-11-20)
+  Result := EpubUnumFolder(EU_BOOKS);
   {$ENDIF}
 end;
 
 function SettingsFile: string;
-var
-  Base: string;
 begin
-  {$IF Defined(MSWINDOWS)}
-  Base := System.IOUtils.TPath.GetHomePath;   // %APPDATA% (Roaming)
-  {$ELSEIF Defined(MACOS)}
-  Base := System.IOUtils.TPath.Combine(System.IOUtils.TPath.GetHomePath, 'Library/Application Support');
-  {$ELSE}
-  Base := GetEnvironmentVariable('XDG_CONFIG_HOME');
-  if Base = '' then
-    Base := System.IOUtils.TPath.Combine(System.IOUtils.TPath.GetHomePath, '.config');
-  {$ENDIF}
-  Result := System.IOUtils.TPath.Combine(System.IOUtils.TPath.Combine(Base, 'EpubReader'), 'EpubReader.json');
+  // the folder shared with EpubBuilder (uEpubUnum; owner, 2026-11-20)
+  Result := System.IOUtils.TPath.Combine(EpubUnumConfigFolder, 'EpubReader.json');
 end;
 
 { The cached cover of book ABookFile: covers\<MD5 of the file name>.png
@@ -1281,6 +1296,8 @@ begin
   Item(M, '-', nil);
   Item(M, '&Larger text'#9'Ctrl+Plus', btnLargerClick);
   Item(M, '&Smaller text'#9'Ctrl+Minus', btnSmallerClick);
+  Item(M, '-', nil);
+  Item(M, '&Cover of this book...', miCoverClick);
   {$IFDEF MSWINDOWS}
   // which GPU draws the page on a laptop with two: Windows' own setting
   // (Settings > System > Display > Graphics), read when the program starts
@@ -1301,6 +1318,143 @@ begin
   RefreshMenu;
 end;
 
+procedure TfrmMain.miCoverClick(Sender: TObject);
+begin
+  ShowCoverChoice;
+end;
+
+procedure TfrmMain.ShowCoverChoice;
+var
+  B: TEpubBook;
+  Options, More: TCoverOptionArray;
+  O: TCoverOption;
+  P, I, NameLen, ExtraLen: Integer;
+  F: TFileStream;
+  W: TStreamWindow;
+  H: TBytes;
+  E: TEpubZipEntry;
+  NoAudio: TStringList;
+  Audio: TStringList;
+  Title: string;
+begin
+  B := EpubUnum1.Book;
+  if (B = nil) or (FBookFile = '') then
+  begin
+    ShowMessage('Open a book first: its covers are shown then.');
+    Exit;
+  end;
+  Options := nil;
+  Title := B.Title;
+  // its own
+  if B.CoverPath <> '' then
+    try
+      O.Data := B.ReadResource(B.CoverPath);
+      if PictureType(O.Data) <> '' then
+      begin
+        O.Choice := 'book';
+        O.Caption := 'The book''s own';
+        Options := Options + [O];
+      end;
+    except
+      on Ex: Exception do
+        DebugLog('cover: the book''s picture - ' + Ex.Message);
+    end;
+  // the audiobook's: an audio file stored in the book, read where it lies
+  Audio := B.AudioFiles;
+  try
+    for I := 0 to Audio.Count - 1 do
+    begin
+      P := B.Zip.IndexOf(Audio[I]);
+      if P < 0 then
+        Continue;
+      E := B.Zip.Entries[P];
+      // stored only (a book's audio is never compressed by EpubBuilder)
+      if E.Method <> 0 then
+        Continue;
+      try
+        F := TFileStream.Create(B.FileName, fmOpenRead or fmShareDenyWrite);
+        try
+          SetLength(H, 30);
+          F.Position := E.LocalOffset;
+          F.ReadBuffer(H[0], 30);
+          NameLen := H[26] or (H[27] shl 8);
+          ExtraLen := H[28] or (H[29] shl 8);
+          W := TStreamWindow.Create(F, E.LocalOffset + 30 + NameLen + ExtraLen, E.Size);
+          try
+            if AudioCoverStream(W, ExtractFileExt(Audio[I]), O.Data) then
+            begin
+              O.Choice := 'audio';
+              O.Caption := 'The audiobook''s';
+              Options := Options + [O];
+            end;
+          finally
+            W.Free;
+          end;
+        finally
+          F.Free;
+        end;
+      except
+        on Ex: Exception do
+          DebugLog('cover: the audio''s picture - ' + Ex.Message);
+      end;
+      if (Length(Options) > 0) and (Options[High(Options)].Choice = 'audio') then
+        Break;
+    end;
+  finally
+    Audio.Free;
+  end;
+  // the shared Covers folder's pictures (those named as the book first)
+  NoAudio := TStringList.Create;
+  try
+    More := CoverOptions(EpubUnumFolder(EU_COVERS), [ChangeFileExt(ExtractFileName(FBookFile), ''), Title], nil,
+      NoAudio);
+  finally
+    NoAudio.Free;
+  end;
+  Options := Options + More;
+  if Length(Options) = 0 then
+  begin
+    ShowMessage('This book has no pictures to choose from. Put one in ' + EpubUnumFolder(EU_COVERS) +
+      ', named as the book, and choose again.');
+    Exit;
+  end;
+  if FCoverPick = nil then
+    if SteamBigPicture then
+      FCoverPick := TCoverPicker.Create(Self, 1.5)
+    else
+      FCoverPick := TCoverPicker.Create(Self, 1);
+  FCoverPick.Show(Format('Cover of %s (in the library; pictures in %s are offered too)', [Title,
+    EpubUnumFolder(EU_COVERS)]), '', Options, '',
+    procedure(const AChoice: string)
+    var
+      X: TCoverOption;
+      Cache: string;
+    begin
+      Cache := CoverFile(FBookFile);
+      try
+        if AChoice = 'book' then
+        begin
+          // its own again: the cache made afresh from the book
+          if FileExists(Cache) then
+            System.SysUtils.DeleteFile(Cache);
+          EnsureCover(FBookFile, EpubUnum1.Book, Title);
+        end
+        else
+          for X in Options do
+            if X.Choice = AChoice then
+            begin
+              ForceDirectories(ExtractFilePath(Cache));
+              SaveImageCover(X.Data, Cache);
+              Break;
+            end;
+        DebugLog('cover: ' + CoverChoiceText(AChoice) + ' for ' + FBookFile);
+      except
+        on Ex: Exception do
+          ShowMessage('The cover was not changed: ' + Ex.Message);
+      end;
+    end);
+end;
+
 procedure TfrmMain.miGpuClick(Sender: TObject);
 var
   I, P: Integer;
@@ -1316,6 +1470,16 @@ begin
   end
   else
     ShowMessage('The graphics choice could not be stored (the registry could not be written).');
+end;
+
+procedure TfrmMain.FormActivated(Sender: TObject);
+begin
+  FRedraw.Activated;
+end;
+
+procedure TfrmMain.FormDeactivated(Sender: TObject);
+begin
+  FRedraw.Deactivated;
 end;
 
 procedure TfrmMain.RefreshMenu;
@@ -2073,14 +2237,23 @@ end;
 
 procedure TfrmMain.FormCreate(Sender: TObject);
 var
-  Line: string;
+  Line, Moved: string;
   OK: Boolean;
 begin
+  // the folders shared with EpubBuilder: what was in EpubReader's own
+  // moved in, once - before the log and the settings are opened there
+  Moved := EpubUnumMove('EpubReader');
   // the debug log: next to the settings, started afresh at every run
   DebugLogOpen(ChangeFileExt(SettingsFile, '-debug.log'));
+  if Moved <> '' then
+    for Line in Moved.Split([sLineBreak], TStringSplitOptions.ExcludeEmpty) do
+      DebugLog('folders: ' + Line);
   // a crash in a library (Steam Deck, 2026-11-17): logged with where it was
   Application.OnException := AppException;
   OnShow := FormShow;
+  OnActivate := FormActivated;
+  OnDeactivate := FormDeactivated;
+  FRedraw := TWindowRedraw.Create(Self);
   // Steam's Exit Game ends the program with SIGTERM: the place is saved
   // first (owner)
   if QuitSignalInstall(QuitSignalled) then
@@ -2151,8 +2324,7 @@ begin
   if not OK then
   begin
     DebugLog('books folder: ' + FBooksFolder + ' could not be made - the one in Documents instead');
-    FBooksFolder := System.IOUtils.TPath.Combine(System.IOUtils.TPath.Combine(
-      System.IOUtils.TPath.GetDocumentsPath, 'EpubReader'), 'Books');
+    FBooksFolder := EpubUnumFolder(EU_BOOKS);
     try
       ForceDirectories(FBooksFolder);
     except
@@ -2273,7 +2445,11 @@ begin
       DebugLog(Note);
     for I := 0 to High(Presses) do
       if Presses[I] then
+      begin
+        // the first press for a minute: the screen may be black
+        FRedraw.UserInput;
         PadPress(I);
+      end;
     // the right stick scrolls the page (up is positive)
     if (Abs(Y) > PAD_STICK_DEAD) and not FPadMenu.Showing and not LibraryShowing and
       (EpubUnum1.Book <> nil) then
@@ -2289,6 +2465,17 @@ procedure TfrmMain.PadPress(AButton: Integer);
 begin
   if not (AButton in [PAD_UP, PAD_DOWN, PAD_LEFT, PAD_RIGHT]) then
     DebugLog('pad: ' + PAD_ACTIONS[AButton]);
+  // the cover chooser over everything: the pad moves its frame
+  if (FCoverPick <> nil) and FCoverPick.Showing then
+  begin
+    case AButton of
+      PAD_UP, PAD_LEFT: FCoverPick.Move(-1);
+      PAD_DOWN, PAD_RIGHT: FCoverPick.Move(1);
+      PAD_PLAY: FCoverPick.Choose;
+      PAD_BACK, PAD_MENU: FCoverPick.Hide;
+    end;
+    Exit;
+  end;
   // the menu first: it is over everything
   if FPadMenu.Showing then
   begin
@@ -2422,7 +2609,7 @@ procedure TfrmMain.ShowPadMenu;
 const
   TEXTS: array[MENU_RESUME..MENU_EXIT] of string = ('Back to the book', 'Open a book', 'Library', 'Contents',
     'Text size',
-    'Speed', 'Dark mode', 'Learn to read', 'Controls', 'Exit');
+    'Speed', 'Dark mode', 'Learn to read', 'Controls', 'Cover of this book', 'Exit');
 var
   Items: TArray<TPadMenuItem>;
   I: Integer;
@@ -2523,15 +2710,59 @@ begin
   FPadMenu.Show(Title, Items, 0, PadMenuFoot(False));
 end;
 
+{ EpubBuilder's output folder: the one in its settings ([Folders] Output),
+  else its default, Documents/EpubBuilder/Output - the books it makes are
+  listed with the reader's own (owner, 2026-11-20). '' when it cannot be
+  told. }
+function BuilderOutputFolder: string;
+var
+  Base, Ini: string;
+  F: TMemIniFile;
+begin
+  Result := '';
+  try
+    // EpubBuilder's settings file (its uBuilder.SettingsFile)
+    {$IF Defined(MSWINDOWS)}
+    Base := System.IOUtils.TPath.GetHomePath;
+    {$ELSEIF Defined(MACOS)}
+    Base := System.IOUtils.TPath.Combine(System.IOUtils.TPath.GetHomePath, 'Library/Application Support');
+    {$ELSE}
+    Base := GetEnvironmentVariable('XDG_CONFIG_HOME');
+    if Base = '' then
+      Base := System.IOUtils.TPath.Combine(System.IOUtils.TPath.GetHomePath, '.config');
+    {$ENDIF}
+    // its settings: the shared folder (uEpubUnum); before zip 178 its own
+    Ini := System.IOUtils.TPath.Combine(EpubUnumConfigFolder, 'EpubBuilder.ini');
+    if not FileExists(Ini) then
+      Ini := System.IOUtils.TPath.Combine(System.IOUtils.TPath.Combine(Base, 'EpubBuilder'), 'EpubBuilder.ini');
+    if FileExists(Ini) then
+    begin
+      F := TMemIniFile.Create(Ini, TEncoding.UTF8);
+      try
+        Result := F.ReadString('Folders', 'Output', '');
+      finally
+        F.Free;
+      end;
+    end;
+    if Result = '' then
+      Result := EpubUnumFolder(EU_TRANSCRIBED);
+  except
+    Result := '';
+  end;
+end;
+
 procedure TfrmMain.ShowBooksMenu;
 var
   Items: TArray<TPadMenuItem>;
-  Files: TArray<string>;
-  I, Sel: Integer;
-  Rel: string;
+  Files, More, Names, Cards: TArray<string>;
+  I, J, Sel: Integer;
+  Rel, Built, Foot: string;
+  Have: Boolean;
 begin
   FMenuMode := MODE_BOOKS;
   FBookFiles := nil;
+  Files := nil;
+  More := nil;
   try
     if TDirectory.Exists(FBooksFolder) then
       Files := TDirectory.GetFiles(FBooksFolder, '*.epub', TSearchOption.soAllDirectories);
@@ -2539,19 +2770,79 @@ begin
     on E: Exception do
       DebugLog('books folder: ' + E.Message);
   end;
+  // EpubBuilder's output folder too, when it is another one
+  Built := BuilderOutputFolder;
+  if (Built <> '') and not SameFileName(ExcludeTrailingPathDelimiter(ExpandFileName(Built)),
+    ExcludeTrailingPathDelimiter(ExpandFileName(FBooksFolder))) then
+  try
+    if TDirectory.Exists(Built) then
+      More := TDirectory.GetFiles(Built, '*.epub', TSearchOption.soAllDirectories);
+  except
+    on E: Exception do
+      DebugLog('EpubBuilder''s output folder: ' + E.Message);
+  end
+  else
+    Built := '';
+  // memory cards: their Books and Transcribed folders (uCards)
+  Cards := CardFolders(CARD_BOOKS) + CardFolders(CARD_TRANSCRIBED);
+  for I := 0 to High(Cards) do
+  try
+    More := More + TDirectory.GetFiles(Cards[I], '*.epub', TSearchOption.soAllDirectories);
+  except
+    on E: Exception do
+      DebugLog('books folder: ' + Cards[I] + ': ' + E.Message);
+  end;
+  for I := 0 to High(More) do
+  begin
+    // a book in both (the books folder inside the output folder, or so)
+    Have := False;
+    for J := 0 to High(Files) do
+      if SameFileName(ExpandFileName(Files[J]), ExpandFileName(More[I])) then
+        Have := True;
+    if not Have then
+      Files := Files + [More[I]];
+  end;
+  // the name each shows: its path in the books folder; EpubBuilder's books
+  // marked as such
+  SetLength(Names, Length(Files));
+  for I := 0 to High(Files) do
+  begin
+    Names[I] := '';
+    // a card's: "<card>: <its path in the card's folder>"
+    for J := 0 to High(Cards) do
+      if Files[I].StartsWith(IncludeTrailingPathDelimiter(Cards[J])) then
+        Names[I] := CardName(CardOf(Cards[J])) + ': ' +
+          ChangeFileExt(ExtractRelativePath(IncludeTrailingPathDelimiter(Cards[J]), Files[I]), '');
+    if Names[I] <> '' then
+      Continue;
+    if (Built <> '') and Files[I].StartsWith(IncludeTrailingPathDelimiter(Built)) then
+      Names[I] := ChangeFileExt(ExtractRelativePath(IncludeTrailingPathDelimiter(Built), Files[I]), '')
+    else
+      Names[I] := ChangeFileExt(ExtractRelativePath(IncludeTrailingPathDelimiter(FBooksFolder), Files[I]), '');
+  end;
   // by name, as a person reads them (sub-folders' books by their path)
-  TArray.Sort<string>(Files, TComparer<string>.Construct(
-    function(const A, B: string): Integer
-    begin
-      Result := CompareText(A, B);
-    end));
+  for I := 1 to High(Files) do
+    for J := I downto 1 do
+      if CompareText(Names[J - 1], Names[J]) > 0 then
+      begin
+        Rel := Names[J - 1];
+        Names[J - 1] := Names[J];
+        Names[J] := Rel;
+        Rel := Files[J - 1];
+        Files[J - 1] := Files[J];
+        Files[J] := Rel;
+      end
+      else
+        Break;
   FBookFiles := Files;
   Sel := 0;
   SetLength(Items, Length(FBookFiles));
   for I := 0 to High(FBookFiles) do
   begin
-    Rel := ExtractRelativePath(IncludeTrailingPathDelimiter(FBooksFolder), FBookFiles[I]);
-    Items[I] := TPadMenu.Item(ChangeFileExt(Rel, ''));
+    Items[I] := TPadMenu.Item(Names[I]);
+    if ((Built <> '') and FBookFiles[I].StartsWith(IncludeTrailingPathDelimiter(Built))) or
+      (FBookFiles[I].Contains(PathDelim + CARD_TRANSCRIBED + PathDelim) and (CardOf(FBookFiles[I]) <> '')) then
+      Items[I].Value := 'made by EpubBuilder';
     if (FBookFile <> '') and SameFileName(ExpandFileName(FBookFiles[I]), FBookFile) then
     begin
       Items[I].Value := 'open';
@@ -2560,10 +2851,17 @@ begin
   end;
   if Length(Items) = 0 then
     Items := [TPadMenu.Item('No books there yet - copy EPUB files into the folder below')];
-  DebugLog(Format('books folder: %d book(s) in %s', [Length(FBookFiles), FBooksFolder]));
+  if Built <> '' then
+    DebugLog(Format('books folder: %d book(s) in %s and EpubBuilder''s output %s', [Length(FBookFiles),
+      FBooksFolder, Built]))
+  else
+    DebugLog(Format('books folder: %d book(s) in %s', [Length(FBookFiles), FBooksFolder]));
   PadMenuColors;
   // the foot says where the books are: where to copy more
-  FPadMenu.Show('Open a book', Items, Sel, FBooksFolder);
+  Foot := FBooksFolder;
+  if Built <> '' then
+    Foot := Foot + '  +  EpubBuilder''s output';
+  FPadMenu.Show('Open a book', Items, Sel, Foot);
 end;
 
 procedure TfrmMain.PadMenuChoose(Sender: TObject; AIndex: Integer);
@@ -2641,6 +2939,11 @@ begin
         FPadMenu.SetValue(MENU_LEARN, PadMenuValue(MENU_LEARN));
       end;
     MENU_CONTROLS: ShowControlsMenu;
+    MENU_COVER:
+      begin
+        FPadMenu.Hide;
+        ShowCoverChoice;
+      end;
     MENU_EXIT:
       begin
         FPadMenu.Hide;

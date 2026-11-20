@@ -20,7 +20,8 @@ interface
 
 uses
   System.SysUtils, System.Types, System.UITypes, System.Classes, System.Math, System.Generics.Collections,
-  FMX.Types, FMX.Controls, FMX.Forms, FMX.Objects, FMX.StdCtrls, FMX.Layouts, FMX.Graphics, FMX.Ani;
+  FMX.Types, FMX.Controls, FMX.Forms, FMX.Objects, FMX.StdCtrls, FMX.Layouts, FMX.Graphics, FMX.Ani,
+  FMX.TextLayout;
 
 type
   { A row was clicked or tapped: its index. }
@@ -47,6 +48,11 @@ type
     FTitle: TLabel;
     { The line under the title. }
     FRule: TLine;
+    { A question's text, word-wrapped over the box's width, above its
+      answers (ShowText; hidden otherwise). }
+    FBody: TLabel;
+    { The text ShowText passes to Show. }
+    FBodyText: string;
     { The hints at the foot. }
     FFoot: TLabel;
     { The rows' scroll box. }
@@ -96,6 +102,16 @@ type
       @param(ASelected  the row selected first)
       @param(AFoot  the hints at the foot ('' = none)) }
     procedure Show(const ATitle: string; const AItems: TArray<TPadMenuItem>; ASelected: Integer;
+      const AFoot: string);
+    { Shows a text - a question, a note - word-wrapped over a wide box,
+      with AItems (its answers) below it (EpubBuilder in Big Picture: one
+      text per row cut every line short, Steam Deck 2026-11-20).
+      @param(ATitle  the box's title)
+      @param(AText  the text (line breaks kept))
+      @param(AItems  the answers)
+      @param(ASelected  the answer selected first)
+      @param(AFoot  the hints at the foot) }
+    procedure ShowText(const ATitle, AText: string; const AItems: TArray<TPadMenuItem>; ASelected: Integer;
       const AFoot: string);
     { Hides the menu. }
     procedure Hide;
@@ -195,6 +211,16 @@ begin
   FRule.Position.Y := 10000;   // below the title
   FRule.Margins.Bottom := PAD / 2;
   FRule.HitTest := False;
+  FBody := TLabel.Create(Self);
+  FBody.Parent := FBox;
+  FBody.Align := TAlignLayout.Top;
+  FBody.Position.Y := 20000;   // below the rule
+  FBody.StyledSettings := FBody.StyledSettings - [TStyledSetting.FontColor, TStyledSetting.Size];
+  FBody.WordWrap := True;
+  FBody.TextSettings.VertAlign := TTextAlign.Leading;
+  FBody.Margins.Rect := TRectF.Create(PAD / 2, 0, PAD / 2, PAD / 2);
+  FBody.HitTest := False;
+  FBody.Visible := False;
   FFoot := TLabel.Create(Self);
   FFoot.Parent := FBox;
   FFoot.Align := TAlignLayout.Bottom;
@@ -265,8 +291,13 @@ var
   Img: TImage;
   B: TBitmap;
   Icons: TLayout;
-  W, H, MaxW, MaxH, Icon: Single;
+  W, H, MaxW, MaxH, Icon, BodyH: Single;
+  Body: string;
+  TL: TTextLayout;
 begin
+  // ShowText's text (a plain Show has none)
+  Body := FBodyText;
+  FBodyText := '';
   ClearRows;
   Icon := RowHeight * 0.8;
   // the widest picture column any row needs: the rows line up
@@ -323,6 +354,9 @@ begin
     V.Parent := R;
     V.Align := TAlignLayout.Right;
     V.Width := FFontSize * 8;
+    // no value: the text has the row's whole width (the empty column cut
+    // short rows' text)
+    V.Visible := AItems[I].Value <> '';
     V.StyledSettings := V.StyledSettings - [TStyledSetting.FontColor, TStyledSetting.Size];
     V.TextSettings.Font.Size := FFontSize * 0.9;
     V.TextSettings.FontColor := Faded(FFore, $C0);
@@ -355,8 +389,37 @@ begin
     MaxH := TControl(FShade.Parent).Height * BOX_HEIGHT_SHARE;
   end;
   W := FFontSize * 24 + Pics * (Icon + 4);
+  // a text: the widest box the window allows
+  if Body <> '' then
+    W := Max(W, MaxW);
   W := Max(Min(W, MaxW), FFontSize * 12);
   H := PAD * 1.5 + RowHeight * (1 + Min(Length(AItems), MAX_ROWS)) + PAD / 2 + 1;
+  // the text's height at the box's width, measured
+  BodyH := 0;
+  FBody.Visible := Body <> '';
+  if Body <> '' then
+  begin
+    FBody.TextSettings.Font.Size := FFontSize;
+    FBody.TextSettings.FontColor := FFore;
+    FBody.Text := Body;
+    TL := TTextLayoutManager.DefaultTextLayout.Create;
+    try
+      TL.BeginUpdate;
+      try
+        TL.Font.Assign(FBody.TextSettings.Font);
+        TL.WordWrap := True;
+        TL.MaxSize := TPointF.Create(W - PAD * 3, 100000);
+        TL.Text := Body;
+      finally
+        TL.EndUpdate;
+      end;
+      BodyH := TL.TextHeight + FFontSize * 0.5;
+    finally
+      TL.Free;
+    end;
+    FBody.Height := BodyH;
+    H := H + BodyH + PAD / 2;
+  end;
   if FFoot.Visible then
     H := H + FFoot.Height + PAD / 2;
   FBox.Fill.Color := FBack;
@@ -376,6 +439,13 @@ begin
   end;
   FShade.BringToFront;
   KeepVisible;
+end;
+
+procedure TPadMenu.ShowText(const ATitle, AText: string; const AItems: TArray<TPadMenuItem>;
+  ASelected: Integer; const AFoot: string);
+begin
+  FBodyText := AText;
+  Show(ATitle, AItems, ASelected, AFoot);
 end;
 
 procedure TPadMenu.Hide;

@@ -7,8 +7,9 @@
         <MainSource>EpubReader.dpr</MainSource>
         <Base>True</Base>
         <Config Condition="'$(Config)'==''">Steam</Config>
-        <Platform Condition="'$(Platform)'==''">OSXARM64</Platform>
+        <Platform Condition="'$(Platform)'==''">Win64</Platform>
         <TargetedPlatforms>135298</TargetedPlatforms>
+        <ProjectName Condition="'$(ProjectName)'==''">EpubReader</ProjectName>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Base' or '$(Base)'!=''">
         <Base>true</Base>
@@ -274,6 +275,11 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <DCCReference Include="src\FmxSkiaCanvas.pas"/>
         <DCCReference Include="..\common\uDebugLog.pas"/>
         <DCCReference Include="..\common\uInhibit.pas"/>
+        <DCCReference Include="..\common\uCards.pas"/>
+        <DCCReference Include="..\common\uRedraw.pas"/>
+        <DCCReference Include="..\common\uEpubUnum.pas"/>
+        <DCCReference Include="..\EpubBuilder\src\uCovers.pas"/>
+        <DCCReference Include="..\EpubBuilder\src\uCoverPick.pas"/>
         <DCCReference Include="..\common\uQuitSignal.pas"/>
         <DCCReference Include="..\common\uSteamPad.pas"/>
         <DCCReference Include="src\uPadMenu.pas"/>

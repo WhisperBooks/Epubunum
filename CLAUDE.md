@@ -4,7 +4,98 @@ Read README.md first, then this file. Keep both up to date with every change.
 The rules follow TWhisper's and TFFMpegAPI's CLAUDE.md (same owner, same
 conventions); where this file is silent, theirs apply.
 
-## Handover - READ THIS FIRST (latest: session 9, 2026-11-18 / 19)
+## Handover - READ THIS FIRST (latest: session 10, 2026-11-19 / 20)
+
+### Session 10 (2026-11-19 - 2026-11-20 13:00) - where it stopped
+Written at the owner's request (13:01: "this session's getting long.
+Write session handover in claude.md"). One section per zip below ("Zip
+139" - "Zip 179", newest first); this is the map.
+
+PUSH STATE: last push 8a9a67d (zips up to 138). NOTHING of 139 - 179 is
+pushed. Never commit or push unless asked. The owner applies the zips
+on Windows (Delphi 13.2), builds Win64 / Linux64 (PAServer) / OSXARM64,
+and tests on the Steam Machine (SteamOS 3.9.5, Game Mode, Big Picture),
+Steam Deck, M4 Mac and the RTX 5090 laptop.
+
+COMPILED BY THE OWNER: up to zip 174 (packages too, with 171's MOBI);
+zip 175 failed (uLink E2250, fixed in 177) - so 175 - 179 are NOT
+COMPILED yet. Expect a round of compile errors in uLink (Indy calls and
+Posix.SysStatvfs's names written from memory), uCoverPick / uCovers
+(FMX), uEpubUnum, the reader's ShowCoverChoice. PACKAGE REBUILD NEEDED
+from 176 (Epub.Book) and 177 (Epub.Writer, Epub.Mobi) - EpubUnum ->
+EpubUnumFMX -> dclEpubUnumFMX, then the programs.
+
+Zip 180 (on top of 179) = this handover + demos/EpubReader/README.md (a
+muddled paragraph about zip 176 taken out of "A book's cover in the
+library" after 179 was sent). The last zip of session 10.
+
+Done this session, by theme (details in each zip's section):
+- MAC / SPEED: App Nap made the M4 build slow with the display off ->
+  NSProcessInfo activity (140); Power setting (Automatic / Fastest /
+  Save power / Let it sleep), Windows EcoQoS, Window GPU preference
+  (142); notes/Building-distributions.md (143), notes/Windows-on-Arm.md
+  + Arm64ECProbe (144); deploy_redist --skip-rocm / --skip-cuda.
+- BUILDER IN BIG PICTURE (148 - 166): the pad drives it (uSteamPad +
+  the reader's uPadMenu, the reader's Steam Input manifest), models
+  list, Run queue on the home list, Ask / Tell boxes full width,
+  progress panel with the log on demand, memory cards (uCards: Books /
+  Audio / Transcribed on SD cards; "local or back on card"), kept queue
+  (restored at start), queues folder + Save / Load in Big Picture.
+- GAME MODE BLACK SCREEN / SLEEP (164 - 170): uRedraw (redraw, resize
+  nudge, leave/re-enter full screen; the display check reads nothing
+  inside Steam's container). Steam's SLEEP is the culprit: refusing it
+  (logind block) leaves Steam stuck (black, menu dead, restart Steam).
+  169: in Game Mode (XDG_CURRENT_DESKTOP=gamescope, else Big Picture on
+  Linux) only a logind DELAY lock; PrepareForSleep -> the build pauses
+  between 30 s windows (GSleepGate), sleep goes ahead, the build goes on
+  at the wake - TESTED, works (7 sleeps, Vulkan fine after resume).
+  Finished parts kept (.transcript-partial.json) -> a stopped build goes
+  on from the next part. Run-queue note of the expected time. 170: time
+  left / taken leave the sleep out. OPEN: the machine sometimes wakes
+  itself 3 - 5 s after suspending ("bad sleep") - not the program
+  (frozen then); suspects the pad (Bluetooth) or HDMI-CEC; asked the
+  owner for tests without EpubBuilder / without the pad and for
+  pm_debug_messages + /sys/power/pm_wakeup_irq. Steam's sleep timer
+  counts from the last button, not the wake.
+- QUEUE: done jobs leave the queue when it finishes (after the report);
+  "done" jobs in a saved / kept queue are not queued again (172).
+- MOBI -> EPUB 3 (171 - 174): lib/Epub.Mobi.pas (in the EpubUnum
+  package): PalmDOC, trailing entries, EXTH, MOBI 6 HTML cleaned to
+  XHTML, split at <mbp:pagebreak>, filepos links, recindex pictures,
+  cover; DRM / HUFF / KF8-only refused. Builder: BookAsEpub (cache
+  <settings>/Converted), MOBI in the Choose dialog and Big Picture lists
+  (any letter case, 173). TESTED: The Sword of Shannara (copyrighted
+  sample - never commit, upload or quote) built 37.4x, 99.8 % matched.
+  NEXT maybe: KF8 / AZW3, HUFF/CDIC.
+- READER CHAPTERS (176, lib): AudioChapterWords by time (the soonest
+  clip after the mark), not reading order - the Shannara title page read
+  in the end credits had put all 37 marks on one word. Not yet tested.
+- COVERS (177, 179): lib TEpubWriter.SetCover; builder uCovers (Covers
+  folder by name > the audiobook's art (MP4 covr / ID3 APIC / FLAC) when
+  the book has none or a landscape one > the book's own), uCoverPick
+  thumbnail chooser (Cover... button, Big Picture's Cover row; choice
+  kept per job as "cover"). Reader (179, "Reader only"): View / pad menu
+  "Cover of this book" - the book's own, the m4b inside the book (read
+  in place: TStreamWindow), EpubUnum/Covers - written to the library's
+  cover cache only.
+- THE LINK (175, builder side only): demos/common/uLink.pas - App
+  Tethering is not on Linux, so our own: UDP announcements (47820),
+  HTTP (Indy, 47821+), pairing by a 6-digit code shown on the builder,
+  uploads (Books / Audio / Covers, .part then renamed, refused when less
+  than 2 GB would be left), downloads of the books made (resumable),
+  /status, /log. NEXT: BookManager (a new FMX desktop app - a drop
+  target routing books / audio / pictures / folders, progress and log
+  tabs, fetches the books made), then the reader's "Get books from
+  EpubBuilder" (TLinkFinder + TLinkClient are written, unused yet).
+- SHARED FOLDERS (178): uEpubUnum - Documents/EpubUnum (Books, Audio,
+  Transcribed, Covers, Queues) and one EpubUnum settings folder;
+  EpubUnumMove moves the old EpubBuilder / EpubReader folders in once
+  (marker EpubUnum-moved-<App>.txt), settings copied with paths changed.
+
+Owner's preferences seen this session: batches tests to avoid Steam
+redeploys (each Steam build is slow); wants things found without typing
+(no IP addresses); likes clear logs; Steam Machine is the main test box.
+
 
 ### Session 9 (2026-11-17 night - 2026-11-19 early) - where it stopped
 Written at the owner's request (05:15: "write session handover as well
@@ -197,7 +288,7 @@ the history, one per zip.
 | Repo | Pushed | = zip | Last zip number used |
 |---|---|---|---|
 | WhisperBooks/TWhisper | d669a06 | TWhisper-30 | 31 (review fixes) |
-| WhisperBooks/Epubunum | 8a9a67d | EpubUnum-138 | 148 (148 EpubBuilder in Big Picture; 147 a queue's jobs shown on a click, Update job; 146 the Mac save panel's name; 145 zip 140 confirmed; 144 Windows on Arm notes + probe; 143 notes/Building-distributions.md; 139 the morning queue's results, 140 App Nap on the Mac, 141 Mac Books / steaminput beside the .app, 142 Power / Window GPU - NOT pushed; session 9: 95 - 138, see its handover above. Earlier: 94 handover; 93 Big Picture full screen; 77 - 92 calibration, Steam builds, libraries, Deck crash, build stamp, screen log, DPI, Big Picture maximise) |
+| WhisperBooks/Epubunum | 8a9a67d | EpubUnum-138 | 166 (166 queues folder, kept queue, Big Picture save / load, hints; 165 the window emptied after Add to queue; 164 Linux: whole-window redraws; 163 Transcribed, memory cards; 162 pad menu: texts fill the width; 161 zip 160's compile errors; 160 the builder's progress panel, log behind View; 159 the reader lists EpubBuilder's output; 158 Run queue on Big Picture's home list; 157 Big Picture says why a build / job was refused; 156 Big Picture opens on the models without one; 155 Big Picture's model list; 154 no calibration question without a model; 153 Big Picture questions readable; 152 Linux deploys without ROCm and CUDA; 151 deploy_redist --skip-rocm / --skip-cuda; 150 steaminput in every build; 149 zip 148's compile errors; 148 EpubBuilder in Big Picture; 147 a queue's jobs shown on a click, Update job; 146 the Mac save panel's name; 145 zip 140 confirmed; 144 Windows on Arm notes + probe; 143 notes/Building-distributions.md; 139 the morning queue's results, 140 App Nap on the Mac, 141 Mac Books / steaminput beside the .app, 142 Power / Window GPU - NOT pushed; session 9: 95 - 138, see its handover above. Earlier: 94 handover; 93 Big Picture full screen; 77 - 92 calibration, Steam builds, libraries, Deck crash, build stamp, screen log, DPI, Big Picture maximise) |
 | G3DGames/TFFMpegAPI | 0795d19 | FFmpegAPI-14 | 14 (macOS sound) |
 | G3DGames/ffmpeg-dev | 4d7b7be | ffmpeg-dev-09 | 09 |
 | WhisperBooks/whisper-dev | 2071815 | whisper-dev-22 | 22 (Core ML; its own CLAUDE.md) |
@@ -583,7 +674,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 148.
+Last number used: 180.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -3170,6 +3261,616 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 179 (on top of zip 178): the reader's cover chooser
+Owner 2026-11-20 12:54: "Reader should also be able to change covers -
+options = current, image from m4b, image from Covers folder"; asked:
+"Reader only" (the library's picture; the book file untouched).
+- uCovers: AudioCoverStream(stream, ext) (AudioCover uses it);
+  TStreamWindow (a read-only part of a stream: a ZIP entry STORED, read
+  where it lies - Mp4Cover seeks through it).
+- uCoverPick.Show(title, AAutoCaption, ...): no Automatic tile when
+  AAutoCaption is '' (the builder passes its text).
+- uMain (reader): uses EpubBuilder's uCovers + uCoverPick (dpr / dproj:
+  ..\EpubBuilder\src\...). ShowCoverChoice: options = the book's own
+  (ReadResource(CoverPath); choice 'book'), the audiobook's (B.AudioFiles
+  -> Zip entry, Method 0: local header at LocalOffset, data at +30 +
+  name + extra -> TStreamWindow -> AudioCoverStream; choice 'audio'),
+  CoverOptions(EpubUnum/Covers, [file name, title]); chosen: 'book' ->
+  the cache deleted and EnsureCover; else SaveImageCover(data,
+  CoverFile(FBookFile)). View > "Cover of this book..." (miCoverClick);
+  pad: MENU_COVER = 9 (MENU_EXIT now 10), PadPress routes to the picker
+  while it shows (Up/Left, Down/Right, Play, Back/Menu).
+- README (reader): "A book's cover in the library". (Its second
+  paragraph, a muddled note on zip 176, was taken out after delivery -
+  goes with the next zip.)
+NOT COMPILED.
+
+## Zip 178 (on top of zip 177): shared EpubUnum folders (uEpubUnum)
+Owner 2026-11-20 12:54: "the user data folder should be named epubunum
+rather than an app's name so things can be shared easier between the
+two"; asked: existing folders -> "Move them in"; the reader's cover
+change -> "Reader only" (next zip, 179).
+- NEW demos/common/uEpubUnum.pas: ConfigBase (%APPDATA% / Application
+  Support / XDG), EpubUnumConfigFolder (<base>/EpubUnum, made),
+  EpubUnumDocsFolder (Documents/EpubUnum), EpubUnumFolder(EU_BOOKS /
+  EU_AUDIO / EU_TRANSCRIBED / EU_COVERS / EU_QUEUES), EpubUnumMove(App) -
+  ONCE per program (marker EpubUnum-moved-<App>.txt in the settings
+  folder, holding what was done): Documents/EpubBuilder renamed to
+  Documents/EpubUnum (both there: children moved, a name taken left);
+  Documents/EpubReader/Books' entries moved into EpubUnum/Books; the
+  old settings folder <base>/<App>: files COPIED (.ini / .json / .csv
+  with the old paths - Documents/EpubBuilder, Documents/EpubReader/Books,
+  <base>/<App> - replaced, also JSON's \\ and '/' forms), folders
+  MOVED (models, Converted, covers, steaminput). Returns the lines.
+- uBuilder: SettingsFile = EpubUnumConfigFolder/EpubBuilder.ini;
+  FormCreate calls EpubUnumMove('EpubBuilder') before DebugLogOpen, logs
+  "folders: ..."; Docs = EpubUnumDocsFolder.
+- uMain (reader): SettingsFile = .../EpubUnum/EpubReader.json;
+  EpubUnumMove('EpubReader') before DebugLogOpen; BooksFolderDefault
+  (non-Steam) and its fallback = EpubUnum/Books; BuilderOutputFolder
+  reads EpubUnum/EpubBuilder.ini (else the old one), default
+  EpubUnum/Transcribed. Steam builds' Books beside the program unchanged.
+- dpr / dproj (both): uEpubUnum. READMEs (both): the folders.
+NOT COMPILED.
+
+## Zip 177 (on top of zip 176): covers - chosen, the audiobook's, Covers folder; zip 175 compile fix
+Owner 2026-11-20 12:02 - 12:13: the MOBI's cover was Word 2000's logo
+(EXTH 201 = 0 -> its first picture, 680 x 510, a calibre 2.30 file; the
+date 0101-01-01 is calibre's "none"). "ok [the audiobook's], but also let
+user change cover art e.g. by transferring image to builder in
+EpubBuilder\Covers"; "The user could pick from the options - show a
+thumbnail and let them choose". Zip 175 compile: uLink(1249) E2250
+TIdHTTP.Get(url, encoding) (no such overload here) -> Get into a
+TStringStream (UTF-8); uInhibit(294) W1002 'delayed' -> {$WARN
+SYMBOL_PLATFORM OFF/ON} around SetProcessInformation.
+- lib/Epub.Writer: TEpubWriter.SetCover(bytes, ext jpg/jpeg/png/gif/webp);
+  TSaveJob.CoverPath ('<pkg>/epubunum-cover.<ext>', FreePath) + CoverId
+  (FreeItemId 'eu-cover'): meta name=cover removed and written anew, the
+  old item's 'cover-image' property taken off, a new item
+  properties="cover-image" (CoverMediaType), the bytes stored.
+- lib/Epub.Mobi: W3cDate - years < 1000 are no date.
+- NEW demos/EpubBuilder/src/uCovers.pas: PictureType, PictureSize (JPEG
+  SOF, PNG IHDR, GIF, WebP VP8/VP8L/VP8X), AudioCover (MP4 moov/udta/
+  meta(+4)/ilst/covr/data(+8); ID3v2.3/2.4 APIC, front cover first, not
+  unsynchronised; FLAC block 6), ChooseCover(folder, names, book cover,
+  audio, AChoice, ...) - choice 'book' / 'audio' / a path, else: Covers
+  folder by name, else audiobook's when no cover or wider than high,
+  else the book's; CoverOptions (book's, audiobook's, Covers pictures -
+  named first, max 30), CoverChoiceText.
+- NEW uCoverPick.pas: TCoverPicker - overlay (TRectangle dimmed, panel,
+  TFlowLayout tiles: TImage Fit + caption; Automatic tile first), frame
+  on the chosen (pad Move / Choose / Hide), click a tile = choose.
+- uBuilder: FCoverFolder (Documents/EpubBuilder/Covers, [Folders]
+  Covers, made at start), GCoverFolder (set before a build),
+  TBuildJob.Cover (queue JSON "cover"), FCoverChoice (job from / to the
+  window; ClearBook ''), TBuildThread.CoverChoice; Execute: book's cover
+  bytes (Book.Zip.ReadBytes(CoverPath)) -> ChooseCover -> Log ->
+  Writer.SetCover. Cover... button (book row), ShowCoverPicker (book via
+  BookAsEpub; audio from lbAudio); Big Picture: BPC_COVER = 16 on the
+  home list when a book is chosen; PadPress routes to the picker while
+  it shows. Link: kind 'cover' (COVER_EXTS) -> FCovers (SetFolders
+  gained ACovers); received cover logged.
+- README (builder): "The cover".
+NOT COMPILED.
+
+## Zip 176 (on top of zip 175): audiobook marks found by time (Epub.Book)
+Owner 2026-11-20 11:59: The Sword of Shannara (from the MOBI, zip 171)
+built at 37.4x, exact 99.1 %, matched 99.8 % - but EpubReader showed no
+chapters, only "End Credits", which played and stopped. Cause: the title
+page's words were read in the end credits ("9 words moved, at
+26:21:16.790"), so the book's FIRST clips start at 26:21; AudioChapterWords
+searched the clips in reading order for the first ClipBegin >= the
+mark's start - clip 0 for all 37 marks -> one word, BuildChapters' "of
+two marks on one word the later is kept" -> "End Credits" only.
+- TEpubBook.AudioChapterWords: per mark, the clip of its audio file with
+  the SMALLEST ClipBegin >= start - 0.25 s, anywhere in the book (audio
+  files numbered once: FileOf). O(marks x clips) - 37 x 228k, fine.
+- Expected now: 37 marks -> the audiobook's chapters; "End Credits" at
+  the title page (its words were read there), first in the list.
+NOT COMPILED.
+
+## Zip 175 (on top of zip 174): the link - builder side (uLink)
+Owner 2026-11-20 11:06 - 11:22: Delphi App Tethering is not on Linux
+(System.Tether.Manager missing - FMXLinux issue 261; Embarcadero lists
+Windows / OS X / iOS / Android) - so our own. Wanted: Reader gets local
+copies of the books made; a BookManager desktop app - a DROP TARGET
+(book -> Books, audio -> Audio, folder -> each file to its place),
+receives the books made, real-time progress and logs (a tab); SPACE-
+AWARE (never fill the build drive); TSteamAPI's remote logger was "hard
+to connect to" - so nothing typed. Defaults taken (owner did not say):
+pairing with a code; order link + builder, BookManager, reader.
+- NEW demos/common/uLink.pas (Indy): LINK_DISCOVERY_PORT 47820 (UDP
+  broadcast every 2 s, a JSON line: link, app, name, id, port),
+  LINK_HTTP_PORT 47821 (+9), LINK_RESERVE 2 GiB. TLinkServer (TIdHTTPServer;
+  TLinkAnnouncer thread): /info (no token), /pair + /pair/confirm (6-digit
+  code, 5 min, 5 tries; token = GUID hex; token=name lines), then token
+  (X-Link-Token) for /space, /books (EPUBs in the outputs), /book?path&
+  offset (MayGet: an .epub inside an output folder), /upload/check and
+  /upload (headers X-Link-Kind / Name / Dir / Size, X-Link-Upload: 1 on
+  the real one: OnCreatePostStream -> TLinkPartStream (.part, renamed
+  when whole) or TLinkRefusedStream (reason; body dropped); SafeName /
+  SafeDir; same name other size -> 'name (2).ext'), /status, /log?from.
+  QueryValue (Params, else QueryParams). Events queued to the main
+  thread. TLinkFinder (TIdUDPServer, ReuseSocket rsTrue; peers seen in
+  10 s). TLinkClient (TIdHTTP; Download resumes a .part; Upload checks
+  first). LinkFreeSpace (GetDiskFreeSpaceEx / Posix.SysStatvfs statvfs -
+  _statvfs, f_bavail * f_frsize), LinkKindOf.
+- uBuilder: FLink; StartLink after RestoreQueue (settings [Link] Id -
+  made once - and Paired = tokens '|'-joined); UpdateLinkFolders (books,
+  audio; outputs: FOutFolder, the jobs' output folders, the cards'
+  Transcribed) also from SaveSettings; UpdateLinkStatus (busy, queue,
+  job, title, percent, time, now, speed) from ShowStatus and
+  UpdateControls; LogLine / ThreadLine / WindowLine -> FLink.AddLog;
+  LinkPairCode (WindowLine + Ask box), LinkPaired (settings), LinkReceived
+  (log). FormClose frees it. The close question no longer says the work
+  is lost (parts kept since zip 169). dpr / dproj: uLink.
+- README (builder): "The link".
+NEXT: BookManager (drop target, transfers, progress + log tabs), then
+the reader's "Get books from EpubBuilder". NOT COMPILED (Indy APIs and
+Posix.SysStatvfs's names from memory - check).
+
+## Zip 174 (on top of zip 173): Epub.Mobi hints
+Owner 2026-11-20 10:47: packages EpubUnum / EpubUnumFMX / dclEpubUnumFMX
+BUILT (Linux64, Win64) with zip 171 - only H2077 for HeaderLen and
+ExthFlags (Epub.Mobi.pas 1155 / 1157: set to 0, then only read inside
+the MOBI-header block that sets them). The two first assignments taken
+out. The MOBI still not in the books list: build of the program /
+Steam deploy to be checked (debug log asked).
+
+## Zip 173 (on top of zip 172): books found in any letter case
+Owner 2026-11-20 10:40: "mobi isn't listed in the books list" (which
+list and which build not known yet - asked; zip 171 needs the EpubUnum
+package rebuilt). Made sturdier anyway: BookFilesIn takes every file
+and keeps .epub / MOBI_EXTS by SameText / IndexText (TDirectory's
+patterns are case-sensitive on Linux); the Choose dialog's filter has
+upper-case patterns too; Big Picture's empty list says "No EPUB or MOBI
+files". NOT COMPILED.
+
+## Zip 172 (on top of zip 171): a book built leaves the queue
+Owner 2026-11-20 10:25: 4 books in the queue, all transcribed - "If a
+book has been transcribed it's no longer queued, it's done."
+- RunNextJob, at the queue's end, after WriteQueueReport: jsDone jobs
+  deleted from FJobs (FEditJob -1), logged "N book(s) built: out of the
+  queue (the queue report lists them)", ShowJobs (-> KeepQueue).
+- LoadQueue (Load... and the kept queue at start): a job saved "done" is
+  not queued - WindowLine "Built already, so not queued: ...". So his 4
+  go at the next start. The saved queue file itself keeps its "done"
+  states (written after each job) - loading it queues the others only.
+- README (builder): Run queue, Update job, Load..., the kept queue.
+NOT COMPILED.
+
+## Zip 171 (on top of zip 170): MOBI -> EPUB 3 (lib Epub.Mobi)
+Owner 2026-11-20 10:12: "Can we transcribe mobi -> epub3?", then a
+copyrighted sample (The Sword of Shannara .mobi - NEVER committed,
+uploaded or quoted). The sample: BOOKMOBI, PalmDOC compression (2),
+encryption 0, MOBI header version 6, UTF-8 (65001), 364 text records,
+1489959 bytes of HTML, no KF8 boundary, 2 JPEG records + FLIS/FCIS/EOF,
+HTML only p / br / font / tt / mbp:pagebreak (28 pages; the last holds
+several chapters - the file has no more page breaks), p with height /
+width / align, no filepos, no img. A Python port of the Pascal text path
+(no FPC here) decoded exactly 1489959 bytes and gave 28 documents, all
+well-formed XML, ~229k words.
+- NEW lib/Epub.Mobi.pas (framework-free; in EpubUnum.dpk / .dproj and
+  tools/gen_projects.py LIB): MobiIsMobi (BOOKMOBI / TEXtREAd at 60),
+  MobiToEpub(mobi, epub, out TMobiInfo), MobiInfoText. Palm database
+  offsets; record 0: compression (1 / 2; 17480 HUFF refused), encryption
+  (<> 0 refused: DRM), text length / records; MOBI header: encoding,
+  version (>= 8 = KF8 only: refused), full name, first picture (108),
+  EXTH flags (128), extra data flags (0xF2) - trailing entries
+  (WithoutTrailing, calibre's rule); EXTH 100 / 101 / 103 / 104 / 106 /
+  121 / 201 / 503 / 524. PalmDocUnpack. WithAnchors: filepos targets get
+  <a id="fpN"> in the raw bytes (moved to a tag's '<'; named by the link's
+  N). SplitPages at <mbp:pagebreak> (body only). CleanHtml: KEEP_TAGS,
+  MAP_FROM / MAP_TO (font -> span, tt -> code, center -> div ...), a
+  stack (blocks close an open p, li closes li), align / width / height ->
+  style (CssSize), filepos -> href '#fpN' then 'docNNNN.xhtml#fpN',
+  recindex -> images/imageNNNNN.ext. Empty pages left out. DocTitle =
+  first words (60). EPUB 3: OEBPS/content.opf (identifier urn:isbn or
+  urn:epubunum:mobi:<crc32>-<size>, dcterms:modified, cover-image,
+  meta epubunum:converted), nav.xhtml, style.css, text/docNNNN.xhtml,
+  images/. TEXtREAd: a paragraph per line.
+- uBuilder: MOBI_EXTS; BookAsEpub (Converted/<name>.epub beside the
+  settings, made again when the MOBI is newer; .new then moved) used by
+  ShowBook (note in mmBook) and TBuildThread.Execute (logged);
+  BookFilesIn (EPUB + MOBI) for Big Picture's books and cards; the
+  Choose dialog's filter.
+- READMEs: root (Epub.Mobi), builder ("MOBI books").
+NEXT (not done): KF8 / AZW3 (skeleton / fragment / FDST rebuild), HUFF/
+CDIC; the reader could open MOBI the same way. NOT COMPILED.
+
+## Zip 170 (on top of zip 169): the time left leaves out sleep
+Owner 2026-11-20 09:22 - 09:26, Steam Machine, build 08:51 (zip 169),
+Project Hail Mary, Steam sleep 1 min. ZIP 169 WORKS: Game Mode found
+(XDG_CURRENT_DESKTOP=gamescope); "logind sleep delay (fd 32); listening
+for PrepareForSleep"; 7 sleeps, each "Paused" within 0.5 s, delay given
+back, real s2idle suspends (journal), "Going on" at the wake; Vulkan fine
+after every resume (parts 2 - 9 at their usual speed); "Paused for the
+system's sleep: 00:12:58 in all"; Cancel kept parts 1 - 9 (partial json
+uploaded, 4.6 MB). The loop the owner saw: Steam asks logind to suspend
+(dbus-send) ~1 min after each wake - its timer counts from the last
+input, not the wake; several wakes 3 - 5 s after suspend entry came from
+outside the program (the pad dropping and coming back each time: "pad: 0
+controller(s)" right after) - not the program's doing. The time left
+climbed: ShowStatus measures from FRateFrom by the wall clock.
+- tmSleepTimer: FSleepWall at going to sleep; at the wake FStarted,
+  FRateFrom (when FRatePercent >= 0) and FAfterFrom move on by the gap.
+- README: the time left; the timer counting from the last button.
+NOT COMPILED.
+
+## Zip 169 (on top of zip 168): Game Mode - sleep paused for; parts kept
+Owner 2026-11-20 03:41 - 03:57, Steam Machine, build 03:32 (zip 168):
+SLEEP black again, "hands off"; log: "redraw: displays (none read)" (the
+Steam runtime container shows no /sys/class/drm connectors - the display
+check is useless in Steam builds), nothing else heard. The 03:40
+SteamShutdown_t was the owner restarting Steam. Owner: refusing sleep is
+the issue - black screen or a Steam menu that does not work, only
+restarting Steam / rebooting helps; a frame of the build flashed when
+sleep began. His idea, approved ("go ahead"): let it sleep, carry on
+after; warn when the queue will not finish before the sleep.
+- uInhibit: GameModeSession(out Why) (XDG_CURRENT_DESKTOP gamescope,
+  GAMESCOPE_WAYLAND_DISPLAY, SteamGamepadUI=1); InhibitSetPauseForSleep
+  / InhibitPauseForSleep; in that mode ikSleep (ikDisplay 0) takes logind
+  Inhibit("sleep", ..., "delay") instead of "sleep:idle" block, and
+  dbus_bus_add_match PrepareForSleep (AddSleepMatch; GMatched).
+  InhibitPoll (main thread): dbus_connection_read_write(0) +
+  pop_message + is_signal -> ssGoingToSleep (GAsleep) / ssWoke (Apply('')
+  takes the delay again; GReason kept). InhibitLetSleep closes the fd.
+  New libdbus imports: dbus_bus_add_match, dbus_connection_read_write,
+  dbus_connection_pop_message, dbus_message_is_signal.
+- uBuilder: GSleepGate (TEvent, manual, set; initialization /
+  finalization) + GBuildPaused. TBuildThread.PausePoint (never on the
+  main thread): waits at the gate, logs "Paused ..." / "Going on after
+  the sleep (paused ...)", adds FPausedSeconds. Called in RunProgress,
+  RunSegment and before each part. DecideSleepMode (AfterShow):
+  GameModeSession, else SteamBigPicture on Linux. tmSleep (250 ms) ->
+  tmSleepTimer: going to sleep -> gate reset, wait for GBuildPaused (or
+  3.5 s, or no build) -> InhibitLetSleep; woke -> gate set, FRedraw.Kick;
+  no wake news 120 s of the program's own clock after letting it sleep
+  -> gate set anyway.
+- Parts kept: PARTIAL_SUFFIX '.transcript-partial.json' (PartialFileOf),
+  keys builder_model / builder_parts_done / builder_language /
+  builder_seconds; SavePartial after each part (written .new then
+  moved); ReadPartial at Transcribe's start (same model, same parts) ->
+  goes on from part Done+1, Params.Language from it when auto. Deleted
+  after SaveTranscript. TranscribeSeconds = FPriorSeconds + this run -
+  FPausedSeconds (history speed right); part lines minus pauses. SIGTERM
+  text: "the parts already transcribed are kept".
+- QueueSleepNote (Run queue, pause mode only): each waiting job's audio
+  length (TWhisperAudioSet on the main thread) x PrepareEstimate ->
+  "This queue takes about ..."; Tell in Big Picture, else LogLine.
+  Steam's sleep time itself is not read (not known where, nor whether
+  the container can see it).
+- README (builder): "Steam's Game Mode: the build pauses for sleep", "A
+  build stopped part way goes on from there", the SIGTERM paragraph.
+TEST (owner): Game Mode, a queue, Steam sleep short: the log at start
+says Game Mode (which variable); Run queue note; sleep -> "Paused";
+wake (button) -> "Going on", the window shown; the build ends with a
+good speed. Exit Game mid-book, start again, Run queue -> "GOING ON FROM
+PART n". NOT COMPILED.
+
+## Zip 168 (on top of zip 167): uRedraw - displays read, full screen
+Owner 2026-11-20 03:15 - 03:29, Steam Machine, build 03:07 (zip 167),
+Big Picture, a queue running, one Steam timer at a time:
+- screen saver: came back (idle and during a build); dim: never dims
+  during a build (the logind sleep:idle inhibitor); SLEEP: black - the
+  culprit. Debug log of the sleep test: NO "redraw:" line between the
+  start and Exit Game (SIGTERM 03:26:55) - no deactivate / activate, no
+  pad press reached the program, no displays line at all; the status line
+  changed every ~0.6 s throughout (the program drew all the time). The
+  screen saver test's log: "a pad press after 280 s" Kick at 03:23:16,
+  "window 1920 x 1080 ... full screen True" - so no size change was made.
+- ReadDisplays: TDirectory.GetFileSystemEntries (the /sys/class/drm
+  entries are symlinks: GetDirectories gave none); none read ->
+  '(none read)', logged once (FDisplays '' only before the first tick).
+- Kick: FullScreen -> FullScreen := False, 500 ms later True (FUnFull);
+  normal -> the 1-pixel size change as before; maximized -> nothing.
+  FRestoreTimer 500 ms. FLastKick = creation time (the first activation
+  at start-up does not toggle full screen).
+- READMEs (both): the full-screen sentence.
+OPEN: Steam's sleep timer, blocked by the inhibitor, leaves Game Mode
+black and the program hears nothing - possibly Steam's own suspend
+sequence. Candidate: org.freedesktop.ScreenSaver.Inhibit during builds
+(the reader's ikDisplay) so Steam's timers do not run - owner to decide
+(keeps the screen on). NOT COMPILED.
+
+## Zip 167 (on top of zip 166): Linux - the window brought back (uRedraw)
+Owner 2026-11-20 02:58 / 03:02, the Steam Machine, a build from 02:46
+(so WITH zip 164): screen saver, then BLACK on return again - drawing the
+whole window every 2 s (Invalidate) is not enough for gamescope.
+- NEW demos/common/uRedraw.pas (both programs' dpr / dproj):
+  TWindowRedraw (owned by the form; does nothing off Linux - REDRAW_ON).
+  Every 2 s: Invalidate; reads /sys/class/drm/card*-*/{status,dpms} of
+  the connected displays - a change logged ("redraw: displays
+  card0-HDMI-A-1=On"), Off -> On = Kick; a tick > 10 s late = Kick.
+  Kick (not more than once in 2 s): logged with the window's size,
+  Active, WindowState, FullScreen; Invalidate; SetBounds height - 1, then
+  300 ms later back (a new frame of a new size). No size change when
+  maximized / full screen (the log line says which).
+  Activated (OnActivate) = Kick; Deactivated (OnDeactivate) = a log line;
+  UserInput (each pad press, both programs) = Kick when the last press
+  was > 60 s ago.
+- uBuilder / uMain (reader): tmRepaint / tmRepaintTimer gone -> FRedraw;
+  FormDeactivated new. READMEs (both) a paragraph.
+TEST (owner): screen saver / display off during a build, come back; the
+debug log's "redraw:" lines say what was heard (display off/on, active /
+not active, a pad press) and the window's state. If still black: send the
+debug log. NOT COMPILED.
+
+## Zip 166 (on top of zip 165): queues - a folder, kept, Big Picture
+Owner 2026-11-20 02:39 "Where do queues go? How do I load one?" -> 02:40
+"Yes do that" (my proposal):
+- FQueueFolder: default Documents/EpubBuilder/Queues, made at start,
+  [Folders] Queues in the settings; Save... / Load... open there (made
+  first) and keep the folder used.
+- KEPT QUEUE: ShowJobs (every change of the queue shows there) calls
+  KeepQueue -> SaveQueue(KeptQueueFile = <settings>-queue.json, i.e.
+  EpubBuilder-queue.json beside EpubBuilder.ini; deleted when empty).
+  FormCreate (after the folders) RestoreQueue: LoadQueue of it (FRestoring
+  - no keeping meanwhile), ShowJobs, "The queue from last time: N job(s),
+  M waiting". A job saved "running" (a crash) loads waiting (LoadQueue's
+  else).
+- Big Picture's Queue list: "Save queue" (PadSaveQueue: queue-yyyy-mm-dd-
+  hhnn.json in the queues folder; FQueueFile; Tell) when there are jobs;
+  "Load a queue ..." (PadQueues, BPM_QUEUES: the folder's *.json newest
+  first, value the time; FPadBooks holds the files; choosing LoadQueue -
+  ADDS - ShowJobs, Tell "N job(s) added").
+COMPILE (owner 02:40): E2003 ShowText - the build had an OLDER
+demos/EpubReader/src/uPadMenu.pas (zip 162's has ShowText): included
+again here. Hints: uMachine.MachineMemory H2077 (Linux) - Result := 0
+only on the platforms that need it; uModels H2443 x6 - Posix.Unistd,
+Posix.Stdio in its implementation uses ({$IFDEF POSIX}); H2219 cbGpu off
+Windows - the field in {$IFDEF MSWINDOWS}. README (builder): Job queue.
+NOT COMPILED.
+
+## Zip 165 (on top of zip 164): the window emptied after Add to queue
+Owner 2026-11-20 02:32: "When a job is added to the queue the book +
+audio fields should reset to blanks ready for adding another book". New
+ClearBook (mmBook, FBookTitle / WrittenBy / Clips, edBook, lbAudio, edOut,
+FAutoOut, chkReuse off, SelectLanguage(''), FEditJob -1 - Update job off
+until a job is clicked), called by AddJob after a NEW job (not Update
+job's replacement, which keeps the window). Model, device, power,
+chapters kept. Big Picture's home list then shows Book / Audio "choose
+..." with Run queue selected. README (builder): Job queue. NOT COMPILED.
+
+## Zip 164 (on top of zip 163): Linux - the window drawn whole
+Owner 2026-11-20 02:22 - 02:25, the Steam Machine, Steam timers at 5 min
+for dim / screen saver / sleep, a build running: the screen went blank
+but the machine STAYED AWAKE - zip 114's question answered: SteamOS Game
+Mode HONOURS logind's Inhibit("sleep:idle", block) (the transcription
+went on). But on waking the display the app stayed BLACK, and Steam
+button > Resume Game black again: gamescope shows a woken display's
+window black until it draws all of itself; FMX draws only what changed
+(the status line - too small to notice). Both programs (Linux only):
+tmRepaint (2 s) -> Invalidate (the whole window), and OnActivate ->
+FormActivated -> Invalidate. tmRepaint / tmRepaintTimer declared in
+{$IF Defined(LINUX) and not Defined(ANDROID)} (no H2219 elsewhere).
+TEST (owner): screen blanks during a build; wake it - the window within
+two seconds; Steam button > Resume Game - at once. The reader the same
+when idle. NOT COMPILED.
+
+## Zip 163 (on top of zip 162): "Transcribed"; memory cards
+Owner 2026-11-20 02:12: the builder's output folder named "Transcribed"
+("OK for shared use with Reader"); "Steam hardware also makes use of SD
+Cards so we should allow for books on SD Card" - asked: TOP-LEVEL card
+folders (<card>/Books, /Audio, /Transcribed); a card's book: ASK - back
+on the card or local.
+- NEW demos/common/uCards.pas (both programs' dpr / dproj): CardVolumes
+  (Linux: /run/media/$USER/* - SteamOS 3.5+ - and /run/media/* holding
+  one of the folders - older; others none), CardFolders(name) (those that
+  exist), CardOf(file), CardName. Only those folders, never the whole
+  card.
+- Builder: default output Documents/EpubBuilder/TRANSCRIBED (saved
+  settings keep theirs). PadBooks adds each card's Books (value "card
+  <name>"); PadAudioCandidates searches the audio folder and each card's
+  Audio (names "<card>: <path>"). AskOutputPlace(book, then): a card's
+  book asks "Put the transcribed book back on the card (<card>/
+  Transcribed)? No keeps it on this machine" (Yes default; edOut and
+  FAutoOut set) - from the BP book list (then the audio list) and the
+  desktop's Choose... (after ShowBook).
+- Reader: BuilderOutputFolder's default .../Transcribed; ShowBooksMenu
+  adds the cards' Books and Transcribed ("<card>: <book>", Transcribed
+  ones "made by EpubBuilder").
+READMEs: builder Folders (Transcribed) + Memory cards; reader Books
+folder. NOT COMPILED.
+
+## Zip 162 (on top of zip 161): the pad menu's texts fill the width
+Owner 2026-11-20 02:06 (the Deck, a download question): "Bad design still
+- text should fill width" - even at 34 characters the lines were cut:
+every row kept its value column (FFontSize * 8 wide, 240 px at 30 pt)
+when empty, so a row's text had ~420 of the box's 720 px.
+uPadMenu (reader's, shared): a row without a value hides its value
+label (its text gets the whole row - every list); new ShowText(ATitle,
+AText, AItems, ASelected, AFoot): FBody, a word-wrapped label under the
+rule, the box as wide as the window allows (BOX_SHARE), its height
+measured with a TTextLayout at that width (FMX.TextLayout); the items -
+the answers - below. uBuilder.Ask: ShowText with the question's text
+and only the answers (PadWrap and BP_ASK_WIDTH gone; FAskResults /
+FPadCmds hold the answers only).
+RESULTS (01:27, the Steam Machine, Vulkan0, large-v3-turbo, build
+bc9b291, TV switched away most of the time): Death's End 29:11:36 of
+audio in 43:08 (+ 5.8 s), 40.6x (calibration 28.87x: ratio 1.41);
+exact 98.69 %, matched 99.59 %. The Steam Machine's best; ranking
+(large-v3-turbo, whole books): 5090 Vulkan ~86x, Steam Machine Vulkan
+~40x, M4 Core ML ~27x, M4 Metal ~17x. NOT COMPILED.
+
+## Zip 161 (on top of zip 160): zip 160's compile errors
+Owner 2026-11-20 01:10: E2004 'L' redeclared in BuildWindow (zip 160 added
+a var L - there was one): the second removed. E2250 ForceQueue in
+FormShow AGAIN (zip 149 took StartPad out of the anonymous method and it
+came back): FormShow now queues a METHOD - TThread.ForceQueue(nil,
+AfterShow), the TThreadMethod overload - with AfterShow (new) doing the
+debug log's screen line and CheckCalibrationAtStart. Cause of the
+anonymous method's rejection not known (possibly a cascade: both times
+another error came first). H2219 cbGpuChange unused off Windows: its
+declaration and body in {$IFDEF MSWINDOWS}. NOT COMPILED.
+
+## Zip 160 (on top of zip 159): a progress panel in the log's place
+Owner 2026-11-20 01:04: "little point in having a debug output window for
+transcription" - asked: PROGRESS PANEL, LOG ON DEMAND; the live-text line
+("Part 4 of 10 at ...: words") KEPT. uBuilder: layProgress (TLayout,
+Client, in layBottom with mmLog - one of them visible): lblPTitle (26 pt
+bold: the book / Calibrating / Downloading / Idle), lblPJob ("Job N of M
+in the queue" / "The book in the window" / "N job(s) waiting - Run
+queue"), lblPTime ("NN %  -  <taken, about ... left>" - ShowStatus keeps
+FTimeText; the calibration's / download's status), lblPSpeed ("NN.Nx
+real time so far" - FSpeedNow = 1 / ShowStatus's Own rate). Idle: the
+last result (RecordHistory sets FLastResult: title, speed, matched).
+UpdatePanel from ShowStatus (every second while building) and
+UpdateControls. View menu (new, before Tools): Show the log (miLog,
+checked) - SetLogVisible, [View] Log in the settings (default off).
+README (builder): Progress, and the log. NOT COMPILED.
+ALSO (00:57, the Steam Machine, TV switched to another input, Vulkan
+large-v3-turbo): parts 30 - 34 at 38.0 - 40.6x - Game Mode does not slow
+it with the screen off (no App Nap equivalent); htop: nice 0, load 0.8.
+
+## Zip 159 (on top of zip 158): the reader lists EpubBuilder's output
+Owner 2026-11-20 00:49: "The output folder of builder should be one of
+the default locations Reader looks in". uMain (reader): new
+BuilderOutputFolder - EpubBuilder's settings file (the same place as its
+uBuilder.SettingsFile: %APPDATA% / ~/Library/Application Support /
+$XDG_CONFIG_HOME or ~/.config, + EpubBuilder/EpubBuilder.ini), [Folders]
+Output, else Documents/EpubBuilder/Output. ShowBooksMenu (Open a book)
+lists its *.epub too (all folders; a file in both once; not when it is
+the books folder itself), sorted with the rest by the name shown (its
+path in its own folder), value "made by EpubBuilder"; the foot says
+"<books folder>  +  EpubBuilder's output"; the debug log names both.
+Keep BuilderOutputFolder in step with uBuilder.SettingsFile / the
+builder's default output. README (reader): Books folder. Owner also
+called Big Picture's builder interface "a disaster" (00:43) - a redesign
+proposed (Add a book wizard / Start the queue / Queue / Settings / Exit,
+status at the top); waiting for what hurt most. NOT COMPILED.
+
+## Zip 158 (on top of zip 157): Run queue on Big Picture's home list
+Owner 2026-11-20 00:41 / 00:43: "How do I start the queue?" ... "Ahh -
+not obvious" (it was View, or Queue > Run queue). Now BPC_RUN on the home
+list whenever btnRunQueue is enabled (its text), before Queue; after Add
+to queue / Update job the home list comes back with Run queue selected.
+README (builder): Big Picture's list.
+ZIP 157'S CAUSE FOUND (00:40 screenshot): the "only one book" was the
+SAME book added again - "Job 1 of the queue writes .../Output/Death's End
+- Cixin Liu.epub already" three times in the log, as designed; invisible
+in Big Picture until zip 157's Tell.
+RESULTS - the STEAM MACHINE (host name "steamdeck"; "AMD Steam Machine
+(RADV NAVI33)"), calibration 2026-11-20 00:30, large-v3-turbo, Steam
+build bc9b291: CPU 1.1x, ROCm0 27.3x, Vulkan0 28.9x - Vulkan chosen
+(Vulkan a little ahead of ROCm here, as the 23:56 / 23:44 books were
+close; ROCm out of the Linux depot costs nothing on this machine).
+Default folders /home/deck/Documents/EpubBuilder/{Books,Audio,Output}.
+The keep-awake on Linux: "letting the computer sleep: logind inhibitor
+released; speed: the speed is left to the system here" (zip 142's Linux
+line). NOT COMPILED.
+
+## Zip 157 (on top of zip 156): Big Picture says why it refused
+Owner 2026-11-20 00:37 (the Deck, build bc9b291): "Default Folder is
+/home/deck/Documents/EpubBuilder/Books etc" (confirmed, zip 153) and "Only
+possible to add one book to queue" - cause NOT KNOWN yet (asked for the
+window's log after the refused add). Whatever it is, the check chain's
+refusals (CheckThen .. CheckOutputThen: the output is the book, no model,
+a calibration failure declined, not the original EPUB, a job writes this
+output already, an existing output kept) went to the window's log only -
+behind the pad menu, so Big Picture showed nothing. New Tell(AText):
+WindowLine, and in Big Picture also Ask(AText, OK) in the pad menu; the
+six WindowLine calls of the chain use it. NOT COMPILED.
+
+## Zip 156 (on top of zip 155): no model - Big Picture opens on the models
+Owner 2026-11-20 00:23: "if there are no models first thing to show is
+model list". StartPad (Big Picture): when no FModelItems file exists,
+PadModels instead of PadHome (B / choosing goes on to the home list as
+before). With zip 154 the calibration question follows the first
+download. NOT COMPILED.
+
+## Zip 155 (on top of zip 154): Big Picture's model list
+Owner 2026-11-20 00:17 / 00:18 (the Deck): "It only offers me tiny as a
+model download", "then base.en" - left / right turned cbModel one step,
+and its OnChange asked to download every model passed (tiny, then
+base.en ...): large-v3-turbo could not be reached. Now the Model row's A
+opens BPM_MODELS (PadModels): every cbModel item but "Other model file
+..." (a file dialog), the name and what its brackets say ("1.6 GB to
+download", "Core ML", ...; "here" / "in the models folder"), the current
+one selected, foot "large-v3-turbo: accurate and fast - a good first
+choice"; choosing sets cbModel.ItemIndex once (its OnChange: taken, or
+the download question in the menu). Left / right no longer turn the
+model. The home row shows "choose ..." with none. README (builder): Big
+Picture's Model. NOT COMPILED.
+
+## Zip 154 (on top of zip 153): no calibration question without a model
+Owner 2026-11-20 00:16 (the Deck): "It hasn't actually got any models to
+calibrate yet" - the start-up question came with an empty Model list
+("the model you choose next"); Yes would only have logged "choose a
+model first". Now CheckCalibrationAtStart, with FModelPath = '': logs
+that a model is needed (large-v3-turbo first; downloaded when chosen),
+sets FCalibPending, asks nothing. The question comes when the first
+model is here: DownloadDone (succeeded) or cbModelChange (a model file
+already there, unless the Core ML encoder question was asked then), if
+no calibration / build runs - CheckCalibrationAtStart again, now with
+the model (DontAsk still honoured; desktop dialog / Big Picture menu as
+before). NOT COMPILED.
+
+## Zip 153 (on top of zip 152): Big Picture questions readable
+Owner 2026-11-20 00:14, Steam Deck screenshot (build 2026-11-19 23:41,
+bc9b291): the start-up calibration question in the pad menu - every line
+cut short with "..." (BP_ASK_WIDTH 60; the box at font 30 holds ~35
+characters), the desktop's long explanation a screenful. Now
+BP_ASK_WIDTH = 34, and CheckCalibrationAtStart's Big Picture text is
+short: not calibrated yet; Calibrate now? (the model, the devices, a
+minute or two each, then the fastest); later: Calibrate (this model).
+ALSO SEEN: Linux's TPath.GetDocumentsPath is ~/Documents - the Deck's
+log: "Folders: books /home/deck/Documents/EpubBuilder/Books, audio
+.../Audio, output .../Output" (defaults: no [Folders] in that machine's
+EpubBuilder.ini; the Steam Machine has /home/deck/Books/epub and m4b
+saved). The README's Documents/EpubBuilder is right on Linux too.
+Big Picture start-up works: "Big Picture: the pad drives EpubBuilder"
+logged, the question shown with the pad's foot "A answer   B no".
+
+## Zip 152 (on top of zip 151): Linux deploys without ROCm and CUDA
+Owner 2026-11-19 23:28 "For Linux we're skipping rocm + cuda": the
+Linux64 deploy is `python tools/deploy_redist.py --skip-rocm --skip-cuda`
+(CPU + Vulkan in the base depot; ROCm as the HIP DLC from steam_stage.py;
+no CUDA on Linux for now). notes/Building-distributions.md part 1's table
+and part 7's command say so. No code change.
+
+## Zip 151 (on top of zip 150): deploy_redist.py --skip-rocm / --skip-cuda
+Owner 2026-11-19 23:25 "deploy_redist needs a skip param" - asked: "skip
+hip + roc for Linux". --skip REGEX existed; new --skip-rocm and
+--skip-cuda leave out every file of that part, from steam_stage.py's
+read_parts (Linux64/parts.txt, else NAME_RULES by name; imported inside
+main - steam_stage imports deploy_redist; the tools folder put on
+sys.path first): a listed name, or anything under a listed folder
+(rocblas/, hipblaslt/). Prints how many were left out. The own folders
+(steaminput) are not affected. Tested here on a made-up tree: the hip
+library, amdhip64, rocblas/ and the ROCm licence left out, the rest and
+both programs' steaminput entries written.
+notes/Building-distributions.md part 7: the --skip-rocm deploy.
+
+## Zip 150 (on top of zip 149): steaminput in every build
+Owner 2026-11-19 23:20 "why have no builds got steaminput". Found:
+postbuild.bat copied demos\EpubReader\steaminput only for EpubReader,
+and only after the FFmpeg check (no redistributable_bin\Win64 -> jumped
+to nolibs first); EpubBuilder never; deploy_redist.py's OWN_FOLDERS had
+the reader only (Linux); macOS never (Deploy writes inside the bundle;
+the programs write it beside the .app at run time under Steam only).
+Steam reads a bundled configuration from the depot, possibly before
+either program runs. Now: postbuild.bat calls :steaminput for both
+programs, every configuration, BEFORE the libraries' check (the reader's
+branch no longer calls it). deploy_redist.py: OWN_FOLDERS for
+EpubBuilder.dproj too ("..\EpubReader\steaminput\" -> steaminput) -
+RERUN `python tools/deploy_redist.py` (Linux64) with the projects closed.
+notes/Building-distributions.md: the builder's steaminput in part 1's
+table, the Steam Input row says where each build gets it, part 10: the
+Mac depot gets demos/EpubReader/steaminput beside the .app by hand.
+NOT RUN here (no Windows / redistributable_bin).
+
+## Zip 149 (on top of zip 148): zip 142 / 147 / 148's compile errors
+Owner 2026-11-19 23:11 (dcc64): E2001 / E2016 at the Power ini write -
+an array constructor cannot be indexed (['A', 'B'][I]): new unit const
+POWER_KEYS (read with IndexText). E2008 / E2149 in ShowJobInWindow -
+LANGUAGES is declared further down the unit (a const section after it):
+new SelectLanguage(ACode), after ChosenLanguage. E2250 ForceQueue in
+FormShow - the anonymous method no longer calls StartPad: FormShow calls
+it first (the calibration question, asked through the pad in Big
+Picture, still comes after it). LESSON: a unit-level const is visible
+only below its declaration; index a typed const, not a constructor.
 
 ## Zip 148 (on top of zip 147): EpubBuilder in Big Picture (the pad)
 Owner 2026-11-19 18:31 "Can we add Big Picture mode to Builder"; asked:

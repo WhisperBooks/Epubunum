@@ -138,6 +138,10 @@ type
     FWrittenBy: string;
     { Backing field of @link(Report). }
     FReport: TEpubWriteReport;
+    { The new cover's bytes (SetCover; empty = the book's own kept). }
+    FCoverData: TBytes;
+    { Its type: 'jpg', 'png', 'gif' or 'webp'. }
+    FCoverExt: string;
     { Folder of the package document, with a trailing '/' ('' at the root). }
     function PackageFolder: string;
   public
@@ -170,6 +174,12 @@ type
     procedure AddAudioChapter(const ATitle: string; AAudio: Integer; AStart: Double);
     { Forgets the chapter marks. }
     procedure ClearAudioChapters;
+    { Gives the book a new cover: the picture AData (AExt 'jpg', 'jpeg',
+      'png', 'gif' or 'webp') becomes the manifest's cover-image item (and
+      the EPUB 2 <meta name="cover">); the old item stays in the book, no
+      longer the cover. Empty AData: the book's own cover is kept.
+      @raises(EEpubError for another picture type.) }
+    procedure SetCover(const AData: TBytes; const AExt: string);
     { Writes the book with its overlays to AFileName (not the book's own
       file). The book is written to AFileName + '.tmp' and takes the name
       AFileName only when it is complete: an error leaves a file that was
@@ -765,6 +775,21 @@ begin
   FChapters := nil;
 end;
 
+procedure TEpubWriter.SetCover(const AData: TBytes; const AExt: string);
+var
+  E: string;
+begin
+  E := LowerCase(AExt);
+  if (E <> '') and (E[1] = '.') then
+    Delete(E, 1, 1);
+  if E = 'jpeg' then
+    E := 'jpg';
+  if (Length(AData) > 0) and (E <> 'jpg') and (E <> 'png') and (E <> 'gif') and (E <> 'webp') then
+    raise EEpubError.CreateFmt('A cover must be JPEG, PNG, GIF or WebP, not %s', [AExt]);
+  FCoverData := Copy(AData);
+  FCoverExt := E;
+end;
+
 { Sorts timed words by word index (merge sort: stable, so the first of
   two entries for one word wins). }
 procedure SortTimed(var A: TEpubTimedWordArray; ACount: Integer);
@@ -843,6 +868,8 @@ type
     ChaptersPath: string;
     { It is new: the manifest gets an item for it. }
     ChaptersNew: Boolean;
+    { The new cover's archive path ('' = the book's own kept). }
+    CoverPath: string;
     { Per document: the overlay's SMIL path ('' = untouched). }
     SmilPaths: array of string;
     { Per document: the SMIL manifest item id. }
@@ -1397,9 +1424,22 @@ begin
   end;
 end;
 
+{ The media type of a cover type ('jpg', 'png', 'gif', 'webp'). }
+function CoverMediaType(const AExt: string): string;
+begin
+  if AExt = 'png' then
+    Result := 'image/png'
+  else if AExt = 'gif' then
+    Result := 'image/gif'
+  else if AExt = 'webp' then
+    Result := 'image/webp'
+  else
+    Result := 'image/jpeg';
+end;
+
 procedure TSaveJob.UpdatePackage(const ANavPath: string);
 var
-  Opf, Text, Prop, Refines, Id, Role, FileAs, Metas, Items: string;
+  Opf, Text, Prop, Refines, Id, Role, FileAs, Metas, Items, CoverId: string;
   Doc: TEpubXmlDoc;
   Root, Meta, Manifest, E: TEpubXmlNode;
   Edits: TTextEdits;
@@ -1514,7 +1554,8 @@ begin
         Prop := E.Attr('property');
         Refines := E.Attr('refines');
         if (Prop = 'dcterms:modified') or ((Prop = 'media:narrator') and (W.FNarrator <> '')) or
-          (E.Attr('name') = EPUB_WRITER_META) then
+          (E.Attr('name') = EPUB_WRITER_META) or ((Length(W.FCoverData) > 0) and SameText(E.Attr('name'),
+          'cover')) then
           RemoveElement(E)
         else if Prop = 'media:duration' then
         begin
@@ -1616,6 +1657,13 @@ begin
     Metas := Metas + '<meta property="dcterms:modified">' + ModifiedNow + '</meta>'#10;
     // what made the book (TEpubBook.WrittenBy): a program can tell its own
     Metas := Metas + '<meta name="' + EPUB_WRITER_META + '" content="' + EpubXmlEscape(W.FWrittenBy) + '"/>'#10;
+    // a new cover: its item (below) is the cover for EPUB 2 readers too
+    if Length(W.FCoverData) > 0 then
+    begin
+      CoverPath := FreePath(W.PackageFolder + 'epubunum-cover.' + W.FCoverExt);
+      CoverId := FreeItemId('eu-cover');
+      Metas := Metas + '<meta name="cover" content="' + EpubXmlEscape(CoverId) + '"/>'#10;
+    end;
     AppendChildren(Meta, Metas);
     // manifest: overlays on the documents' items, then the new items
     Items := '';
@@ -1632,6 +1680,22 @@ begin
           SetAttr(Attrs, 'media-overlay', SmilIds[K]);
           Changed := True;
         end;
+      // a new cover: the old one is no longer the cover-image
+      if (CoverPath <> '') and (Pos(' cover-image ', ' ' + E.Attr('properties') + ' ') > 0) then
+      begin
+        Prop := Trim(StringReplace(' ' + E.Attr('properties') + ' ', ' cover-image ', ' ', [rfIgnoreCase]));
+        Kept := nil;
+        for K := 0 to High(Attrs) do
+          if not SameText(Attrs[K].Name, 'properties') then
+          begin
+            SetLength(Kept, Length(Kept) + 1);
+            Kept[High(Kept)] := Attrs[K];
+          end;
+        Attrs := Kept;
+        if Prop <> '' then
+          SetAttr(Attrs, 'properties', Prop);
+        Changed := True;
+      end;
       // a space is not allowed in an href (EPUB 3): encoded, same file
       if Pos(' ', E.Attr('href')) > 0 then
       begin
@@ -1665,6 +1729,10 @@ begin
     if ChaptersNew then
       Items := Items + '<item id="' + EPUB_AUDIO_CHAPTERS_ID + '" href="' +
         EpubXmlEscape(EpubRelativeHref(Book.PackagePath, ChaptersPath)) + '" media-type="application/xml"/>'#10;
+    if CoverPath <> '' then
+      Items := Items + '<item id="' + EpubXmlEscape(CoverId) + '" href="' +
+        EpubXmlEscape(EpubRelativeHref(Book.PackagePath, CoverPath)) + '" media-type="' +
+        CoverMediaType(W.FCoverExt) + '" properties="cover-image"/>'#10;
     if ANavPath <> '' then
       Items := Items + '<item id="' + EpubXmlEscape(FreeItemId('eu-nav')) + '" href="' +
         EpubXmlEscape(EpubRelativeHref(Book.PackagePath, ANavPath)) +
@@ -1714,6 +1782,9 @@ begin
     for I := 0 to W.FAudioPaths.Count - 1 do
       if W.FAudioFiles[I] <> '' then
         Z.AddFileStored(W.FAudioPaths[I], W.FAudioFiles[I]);
+    // a new cover: stored (pictures are compressed already)
+    if CoverPath <> '' then
+      Z.Add(CoverPath, W.FCoverData, True);
     Z.Finish;
   finally
     Z.Free;

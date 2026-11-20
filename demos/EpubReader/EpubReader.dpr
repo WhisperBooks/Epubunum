@@ -30,6 +30,14 @@ uses
   uDebugLog in '..\common\uDebugLog.pas',
   // keeps the computer awake while it works (SteamOS sleeps on no input)
   uInhibit in '..\common\uInhibit.pas',
+  // memory cards' Books / Audio / Transcribed folders (Steam hardware)
+  uCards in '..\common\uCards.pas',
+  uRedraw in '..\common\uRedraw.pas',
+  // the folders shared by EpubBuilder and EpubReader (Documents/EpubUnum)
+  uEpubUnum in '..\common\uEpubUnum.pas',
+  // the cover chooser: EpubBuilder's units
+  uCovers in '..\EpubBuilder\src\uCovers.pas',
+  uCoverPick in '..\EpubBuilder\src\uCoverPick.pas',
   // Steam's Exit Game (SIGTERM): saved before the end
   uQuitSignal in '..\common\uQuitSignal.pas',
   // the game pad through Steam Input (nothing outside a Steam build)

@@ -7,8 +7,9 @@
         <MainSource>EpubUnum.dpk</MainSource>
         <Base>True</Base>
         <Config Condition="'$(Config)'==''">Release</Config>
-        <Platform Condition="'$(Platform)'==''">OSXARM64</Platform>
+        <Platform Condition="'$(Platform)'==''">Win64</Platform>
         <TargetedPlatforms>168067</TargetedPlatforms>
+        <ProjectName Condition="'$(ProjectName)'==''">EpubUnum</ProjectName>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Base' or '$(Base)'!=''">
         <Base>true</Base>
@@ -213,6 +214,7 @@
         <DCCReference Include="..\lib\Epub.Layout.pas"/>
         <DCCReference Include="..\lib\Epub.Book.pas"/>
         <DCCReference Include="..\lib\Epub.Writer.pas"/>
+        <DCCReference Include="..\lib\Epub.Mobi.pas"/>
         <DCCReference Include="..\lib\Epub.Components.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>

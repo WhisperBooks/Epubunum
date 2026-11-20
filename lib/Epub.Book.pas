@@ -309,10 +309,11 @@ type
     function ClipWords(AClip: Integer; out AFirst, ALast: Integer): Boolean;
     { The audio files of the overlays, in reading order (no repeats). }
     function AudioFiles: TStringList;
-    { For each of @link(AudioChapters): the first word of the first clip
-      in its audio file that starts at the mark or later (a word started
-      just before the mark counts: 0.25 s); -1 when no clip does. One pass
-      over the clips. }
+    { For each of @link(AudioChapters): the first word of the clip in its
+      audio file that starts soonest at the mark or after it (a word
+      started just before the mark counts: 0.25 s); -1 when no clip does.
+      By time, not by reading order: words read elsewhere (a title page
+      read in the end credits) do not catch every mark. }
     function AudioChapterWords: TEpubWordIndexArray;
     { Full archive path of AHref as written in document ABase (relative
       paths resolved, '%20' decoded, fragment dropped). }
@@ -900,34 +901,51 @@ const
   // a word that starts just before the mark still opens the chapter
   EARLY = 0.25;
 var
-  M, C, First, Last: Integer;
+  M, C, Best, First, Last, A: Integer;
+  BestBegin: Double;
+  Files: TStringList;
+  FileOf: array of Integer;
 begin
   Result := nil;
   SetLength(Result, Length(FAudioChapters));
-  C := 0;
-  for M := 0 to High(FAudioChapters) do
-  begin
-    Result[M] := -1;
-    // the marks follow the narration, and so do the clips (in reading
-    // order): the search goes on from the last mark's clip; when it finds
-    // nothing it starts again from the top for this mark
-    while (C <= High(FClips)) and not ((FClips[C].ClipBegin >= FAudioChapters[M].Start - EARLY) and
-      SameText(FClips[C].AudioPath, FAudioChapters[M].AudioPath)) do
-      Inc(C);
-    if C > High(FClips) then
+  if Length(FAudioChapters) = 0 then
+    Exit;
+  // each clip's audio file as a number: one comparison of names per clip
+  Files := TStringList.Create;
+  try
+    Files.CaseSensitive := False;
+    SetLength(FileOf, Length(FClips));
+    for C := 0 to High(FClips) do
     begin
-      C := 0;
-      while (C <= High(FClips)) and not ((FClips[C].ClipBegin >= FAudioChapters[M].Start - EARLY) and
-        SameText(FClips[C].AudioPath, FAudioChapters[M].AudioPath)) do
-        Inc(C);
-      if C > High(FClips) then
-      begin
-        C := 0;
-        Continue;
-      end;
+      A := Files.IndexOf(FClips[C].AudioPath);
+      if A < 0 then
+        A := Files.Add(FClips[C].AudioPath);
+      FileOf[C] := A;
     end;
-    if ClipWords(C, First, Last) then
-      Result[M] := First;
+    for M := 0 to High(FAudioChapters) do
+    begin
+      Result[M] := -1;
+      A := Files.IndexOf(FAudioChapters[M].AudioPath);
+      if A < 0 then
+        Continue;
+      // the soonest clip at the mark or after it, wherever it is in the
+      // book: by reading order, the first clip "after" the mark was the
+      // title page read in the end credits - for every mark (The Sword of
+      // Shannara, 2026-11-20: 37 marks on one word, "End Credits")
+      Best := -1;
+      BestBegin := 0;
+      for C := 0 to High(FClips) do
+        if (FileOf[C] = A) and (FClips[C].ClipBegin >= FAudioChapters[M].Start - EARLY) and
+          ((Best < 0) or (FClips[C].ClipBegin < BestBegin)) then
+        begin
+          Best := C;
+          BestBegin := FClips[C].ClipBegin;
+        end;
+      if (Best >= 0) and ClipWords(Best, First, Last) then
+        Result[M] := First;
+    end;
+  finally
+    Files.Free;
   end;
 end;
 

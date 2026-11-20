@@ -21,7 +21,8 @@ import os, re, uuid
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-LIB = ["Epub.Zip", "Epub.Xml", "Epub.Css", "Epub.Layout", "Epub.Book", "Epub.Writer", "Epub.Components"]
+LIB = ["Epub.Zip", "Epub.Xml", "Epub.Css", "Epub.Layout", "Epub.Book", "Epub.Writer", "Epub.Mobi",
+       "Epub.Components"]
 
 # Programs: desktop targets. The runtime packages also build for Win32 (the
 # 32-bit IDE loads them under the design-time package - owner builds in the

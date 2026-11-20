@@ -33,7 +33,7 @@ user name or drive.
 | | Windows (Win64) | Linux (Linux64) | macOS (OSXARM64 / OSX64) |
 |---|---|---|---|
 | **EpubReader** | FFmpeg DLLs, licences, `steaminput\` (Steam builds: `steam_api64.dll`) | FFmpeg `.so` files, FreeType 2.11.1 + brotli, licences, `steaminput/`, `EpubReader.sh` (Steam builds: `libsteam_api.so`) | FFmpeg `.dylib` files in `Contents/Frameworks`, licences in `Contents/Resources/licences` (Steam builds: `libsteam_api.dylib` in `Contents/MacOS`; the reader writes `steaminput/` beside the `.app` itself) |
-| **EpubBuilder, Steam** | whisper.cpp + ggml with the **CPU and Vulkan** backends, FFmpeg, licences, `media\aladdin.m4a`, `steam_api64.dll` | whisper.cpp + ggml with every backend built, FFmpeg, licences, `media/aladdin.m4a`, `EpubBuilder.sh`, `libsteam_api.so` - the ROCm (and CUDA) parts split off into DLC depots ([part 10](#10-steam-depots)) | whisper.cpp + ggml with the **CPU and Metal** backends, `libwhisper.coreml.dylib`, FFmpeg, licences, `media/aladdin.m4a`, `libsteam_api.dylib` |
+| **EpubBuilder, Steam** | whisper.cpp + ggml with the **CPU and Vulkan** backends, FFmpeg, licences, `media\aladdin.m4a`, `steaminput\` (the reader's), `steam_api64.dll` | whisper.cpp + ggml with every backend built, FFmpeg, licences, `media/aladdin.m4a`, `steaminput/` (the reader's), `EpubBuilder.sh`, `libsteam_api.so` - deployed **without ROCm and CUDA** (CPU + Vulkan); ROCm in the HIP DLC depot ([part 10](#10-steam-depots)) | whisper.cpp + ggml with the **CPU and Metal** backends, `libwhisper.coreml.dylib`, FFmpeg, licences, `media/aladdin.m4a`, `libsteam_api.dylib` |
 | **EpubBuilder, Debug / Release** | every backend built (CPU, Vulkan, CUDA, ROCm), FFmpeg, licences, `media\aladdin.m4a` | as Steam, without `libsteam_api.so` | as Steam, without `libsteam_api.dylib` |
 | **EpubConsole** | nothing | nothing | nothing |
 
@@ -49,7 +49,7 @@ Where the files come from:
 | FreeType 2.11.1 + brotli (Linux) | fetched by `tools/redist.sh collect` from an Ubuntu 22.04 container | `redistributable_bin/Linux64/` |
 | Steam library | Valve's **Steamworks SDK 1.65** (partner site) | `redistributable_bin/steam/` |
 | Calibration recording | you ([part 6](#6-files-that-are-not-built)) | `media/aladdin.m4a` |
-| Steam Input files | tracked in git (`demos/EpubReader/steaminput/`) | - |
+| Steam Input files (one set per Steam app: both programs) | tracked in git (`demos/EpubReader/steaminput/`) | beside each program: Win64 by `postbuild.bat`, Linux64 by Deploy (`deploy_redist.py`), macOS by hand in the depot (part 10) |
 | Launchers `EpubReader.sh`, `EpubBuilder.sh` | tracked in git (`demos/<program>/src/`) | - |
 
 None of the libraries, the Steam SDK files or the recording is ever
@@ -374,11 +374,18 @@ deployment - written into the `.dproj` files by `tools/deploy_redist.py`.
 3. Write the deploy entries:
    ```
    cd <repos>\Epubunum
-   python tools/deploy_redist.py
+   python tools/deploy_redist.py --skip-rocm --skip-cuda
    python tools/deploy_redist.py --platform OSXARM64
    ```
+   Linux is deployed **without ROCm and CUDA** (owner, 2026-11-19): the
+   base depot holds the CPU and Vulkan backends; ROCm comes as the HIP
+   DLC (`steam_stage.py`, part 10).
    (`--platform OSX64` as well if you build for Intel Macs.) Each run
    replaces only that platform's entries.
+
+   `--skip-rocm` / `--skip-cuda` use `redistributable_bin/Linux64/parts.txt`
+   (written by collect), else the files' names. Without them (a test of
+   everything on one Linux box) every backend is deployed.
 4. Reopen the projects.
 
 Repeat 1 - 4 whenever the Linux or Mac libraries are rebuilt.
@@ -507,6 +514,12 @@ It moves the ROCm files from `Linux` into `HIP` and completes `HIP` from
 `redistributable_bin/Linux64` (kernel folders, ROCm licences), using
 `redistributable_bin/Linux64/parts.txt`. Run it after each Linux build,
 before uploading.
+
+**Mac depot:** Delphi's Deploy can only put files inside the `.app`, so
+copy `demos/EpubReader/steaminput/` into the Mac depot folder **beside**
+the `.app`(s) - Steam reads it from there before either program runs
+(each program also writes it there when it starts under Steam, but only
+then).
 
 On the Steamworks site, set each Linux launch option to the script, not
 the program: `EpubReader.sh` / `EpubBuilder.sh`. EpubReader's Steam Input

@@ -27,6 +27,9 @@ overlays the same way and would draw the layout model with its own view.
     EPUB 2 NCX), cover, text, media overlays, copy-protection refusal.
   - `Epub.Writer` - `TEpubWriter`: a copy of a book with **media overlays
     written** from timed words (what TWhisper makes synced books with).
+  - `Epub.Mobi` - a DRM-free **MOBI** (Mobipocket / Kindle, the old
+    MOBI 6 text) written as an EPUB 3 that `TEpubBook` reads; copy-
+    protected books are refused, never decrypted.
   - `Epub.Components` - `TCustomEpub`, the base of the component.
 - `fmx/` - `TEpubUnum` (the book), `TEpubView` (Skia page view) and their
   design-time registration (palette page "EpubUnum").

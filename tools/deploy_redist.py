@@ -3,13 +3,19 @@
 programs that need it, so Deploy (PAServer) copies the libraries where the
 program loads them from - after a Clean as well.
 
-    python tools/deploy_redist.py [--platform P] [--skip REGEX]...
+    python tools/deploy_redist.py [--platform P] [--skip-rocm] [--skip-cuda] [--skip REGEX]...
 
 --platform: Linux64 (default; next to the program), OSXARM64 or OSX64
 (into the .app's Contents/Frameworks, the licence texts into
 Contents/Resources/licences - so Delphi signs the bundle with them in it).
 Each platform's entries are replaced on their own: running it for one
 leaves the others' as they are.
+
+--skip-rocm / --skip-cuda leave out every file of the ROCm (HIP) / CUDA
+part - the list tools/steam_stage.py splits the DLC depot by: Linux64's
+parts.txt (tools/redist.sh collect), else the parts by name. For a
+Linux deploy without ROCm (the base Steam depot; the HIP DLC comes from
+steam_stage.py), e.g. python tools/deploy_redist.py --skip-rocm.
 
 --skip leaves out the files whose path in the folder (with '/') matches
 REGEX, e.g. --skip "^(rocblas|hipblaslt)/" or --skip "^libcublasLt"
@@ -36,6 +42,8 @@ What each program gets:
                program - in the depot, where the partner site's "Custom
                Configuration (Bundled with Game)" names them (not on
                macOS: the reader writes them beside its settings there)
+               EpubBuilder gets the same Steam Input files (its pad uses
+               the reader's actions; zip 148)
   EpubConsole  nothing (no libraries)
 
 The entries it writes are the DeployFile entries whose LocalName starts
@@ -93,6 +101,11 @@ PROJECTS = {
 # Linux only
 OWN_FOLDERS = {
     "demos/EpubReader/EpubReader.dproj": [("demos/EpubReader/steaminput", "steaminput\\", "steaminput")],
+    # the builder's pad uses the reader's actions (one manifest per Steam
+    # app, zip 148): the same files beside it; LocalName relative to the
+    # builder's .dproj
+    "demos/EpubBuilder/EpubBuilder.dproj": [("demos/EpubReader/steaminput", "..\\EpubReader\\steaminput\\",
+                                             "steaminput")],
 }
 
 # libX.so.N.M.P / libX.N.M.P.dylib: the stem and the version
@@ -220,11 +233,15 @@ def update(dproj, files, own=()):
 def main():
     global PLATFORM, LOCAL_PREFIX
     skips = []
+    skip_parts = []
     args = sys.argv[1:]
     while args:
         if args[0] == "--skip" and len(args) > 1:
             skips.append(re.compile(args[1]))
             args = args[2:]
+        elif args[0] in ("--skip-rocm", "--skip-cuda"):
+            skip_parts.append(args[0][len("--skip-"):])
+            args = args[1:]
         elif args[0] == "--platform" and len(args) > 1 and args[1] in PLATFORMS:
             PLATFORM = args[1]
             args = args[2:]
@@ -236,6 +253,23 @@ def main():
         sys.exit("No %s: run tools/redist.sh collect on %s first and copy the folder here"
                  % (folder, "a Mac" if is_mac() else "Linux"))
     files = [(r, s) for r, s in collect(folder) if not any(x.search(r) for x in skips)]
+    if skip_parts:
+        # the parts as steam_stage.py tells them (imported here: it imports
+        # this module)
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from steam_stage import read_parts
+        parts = read_parts(folder)
+        names = set()
+        for kind in skip_parts:
+            if not parts[kind]:
+                print("WARNING: no %s files listed - nothing of it to leave out" % kind.upper())
+            names.update(n.rstrip("/") for n in parts[kind])
+        before = len(files)
+        # a listed name, or a file in a listed folder (rocblas/, hipblaslt/)
+        files = [(r, s) for r, s in files
+                 if r not in names and not any(r.startswith(n + "/") for n in names)]
+        print("left out: %d file(s) of the %s part(s)" % (before - len(files),
+                                                          " and ".join(k.upper() for k in skip_parts)))
     for dproj, want in PROJECTS.items():
         mine = [(r, s) for r, s in files if want(r)]
         own = []

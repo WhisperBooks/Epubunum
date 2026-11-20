@@ -90,6 +90,13 @@ org.freedesktop.ScreenSaver over D-Bus). SteamOS in Game Mode otherwise
 dims, then sleeps, with nobody touching the controller. Pause lets it
 idle again. The debug log has a "screen:" line saying how it was asked.
 
+Game Mode (gamescope) can show the window black after Steam's screen
+saver or once the display comes back on. On Linux EpubReader then draws
+itself again and changes its size by a pixel and back (full screen, as in
+Big Picture: leaves full screen and goes back): when the window is
+active again, when a display comes back on, and at the first pad press
+after a minute without one. The debug log says each time ("redraw: ...").
+
 ## Game pad (Steam builds)
 
 In a Steam build EpubReader reads the pad through Steam Input, with its
@@ -146,12 +153,18 @@ Configuration (Bundled with Game)" naming
 
 Open a book (in the menu) lists the EPUB files in the books folder and
 its folders - on a Steam Deck the only way to a new book, with no file
-dialog to reach. The folder, made at start-up:
+dialog to reach - and the books EpubBuilder made: its output folder (the
+one in EpubBuilder's settings, else Documents/EpubUnum/Transcribed),
+marked "made by EpubBuilder" - and, on Steam hardware, a memory card's
+top-level Books and Transcribed folders ("<card>: <book>"). The books folder, made at start-up:
 
 - Steam builds: `Books` beside the program (on the Mac beside
   EpubReader.app) - in Steam, the reader's Manage > Browse local files,
   then Books;
-- builds without Steam: Documents/EpubReader/Books.
+- builds without Steam: Documents/EpubUnum/Books (shared with EpubBuilder;
+  the books of Documents/EpubReader/Books are moved there, once, at the
+  first start after the change - EpubReader's settings too, into the
+  EpubUnum settings folder).
 
 Copy books there (on a Steam Deck in Desktop Mode). Another folder can
 be named in the settings file, `"booksFolder": "..."`. Uninstalling the
@@ -190,6 +203,17 @@ own cover picture, or - when it has none, or one the reader cannot draw
 (SVG) - a made cover with the title and author on a colour of the
 title's own. Replace a file there to change a book's cover; delete it to
 have it made again.
+
+## A book's cover in the library
+
+**View > Cover of this book...** (the pad: Menu > Cover of this book)
+shows the open book's pictures as thumbnails - its own cover, the cover
+art of the audiobook inside it (read where it lies in the book, nothing
+unpacked) and every picture in Documents/EpubUnum/Covers (those named as
+the book first) - click one, or move with the pad and press Play. The
+one chosen becomes the book's picture in the library; the book file is
+not changed (other readers still show its own). "The book's own" puts it
+back.
 
 ## Chapters from the audiobook
 

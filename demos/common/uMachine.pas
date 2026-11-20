@@ -149,8 +149,8 @@ var
   P: Integer;
 {$ENDIF}
 begin
-  Result := 0;
   {$IF Defined(MSWINDOWS)}
+  Result := 0;
   FillChar(M, SizeOf(M), 0);
   M.dwLength := SizeOf(M);
   if GlobalMemoryStatusEx(M) then
@@ -162,6 +162,9 @@ begin
   if P > 0 then
     V := Copy(V, 1, P - 1);
   Result := UInt64(StrToInt64Def(V, 0)) * 1024;
+  {$ELSE}
+  // (Linux sets it on every path: a first 0 there was H2077)
+  Result := 0;
   {$ENDIF}
 end;
 

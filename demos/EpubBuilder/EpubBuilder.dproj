@@ -309,6 +309,10 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <DCCReference Include="src\FmxWineCanvas.pas"/>
         <DCCReference Include="..\common\uDebugLog.pas"/>
         <DCCReference Include="..\common\uInhibit.pas"/>
+        <DCCReference Include="..\common\uCards.pas"/>
+        <DCCReference Include="..\common\uRedraw.pas"/>
+        <DCCReference Include="..\common\uEpubUnum.pas"/>
+        <DCCReference Include="..\common\uLink.pas"/>
         <DCCReference Include="..\common\uQuitSignal.pas"/>
         <DCCReference Include="..\common\uSteam.pas"/>
         <DCCReference Include="..\common\uSteamPad.pas"/>
@@ -318,6 +322,8 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <DCCReference Include="src\uCalibration.pas"/>
         <DCCReference Include="src\uHistory.pas"/>
         <DCCReference Include="src\uModels.pas"/>
+        <DCCReference Include="src\uCovers.pas"/>
+        <DCCReference Include="src\uCoverPick.pas"/>
         <DCCReference Include="src\uBuilder.pas">
             <Form>frmBuilder</Form>
             <FormType>fmx</FormType>

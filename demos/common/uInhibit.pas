@@ -48,6 +48,16 @@
   graphics preference (Settings > System > Display > Graphics), read by
   Windows when the program starts.
 
+  Steam's Game Mode (owner, 2026-11-20, the Steam Machine): refusing sleep
+  there leaves Steam stuck - its sleep timer blacks the screen, the
+  machine cannot sleep, Steam's menu stops working, only restarting Steam
+  helps. So there (@link(InhibitSetPauseForSleep)) ikSleep does not refuse
+  sleep: it asks logind only for a few seconds' delay ("sleep", mode
+  delay), and @link(InhibitPoll) announces logind's PrepareForSleep - the
+  program pauses its work, then @link(InhibitLetSleep); after the wake the
+  delay is asked for again by itself. @link(GameModeSession) tells Game
+  Mode from the environment.
+
   Nothing here raises: a way that does not work is noted in InhibitText
   and the program carries on. *)
 unit uInhibit;
@@ -81,6 +91,42 @@ type
     gpSaving,
     { The high performance GPU. }
     gpFast);
+
+  { What the system said about sleep (InhibitPoll). }
+  TSleepSignal = (
+    { Nothing new. }
+    ssNone,
+    { The system is about to sleep: pause the work, then InhibitLetSleep
+      (within a few seconds - the system does not wait longer). }
+    ssGoingToSleep,
+    { The system woke up again (the delay is asked for again by itself). }
+    ssWoke);
+
+{ Steam's Game Mode (a gamescope session), from the environment.
+  @param(AWhy  which variable said so, or why not)
+  @returns(True in Game Mode) }
+function GameModeSession(out AWhy: string): Boolean;
+
+{ How ikSleep keeps the computer from now on - call before InhibitStart.
+  False (the start): sleep refused. True (Linux only; elsewhere nothing
+  changes): sleep allowed - only a few seconds' delay is asked for, and
+  InhibitPoll says when the system goes to sleep and wakes.
+  @param(AOn  pause for sleep instead of refusing it) }
+procedure InhibitSetPauseForSleep(AOn: Boolean);
+
+{ InhibitSetPauseForSleep's setting.
+  @returns(True when sleep is paused for, not refused) }
+function InhibitPauseForSleep: Boolean;
+
+{ What the system said about sleep since the last call - call often (a few
+  times a second) from the main thread while InhibitPauseForSleep. After
+  ssWoke, InhibitText says how the delay was asked for again.
+  @returns(the latest news) }
+function InhibitPoll: TSleepSignal;
+
+{ Lets the system sleep now (after ssGoingToSleep, once the work is
+  paused): the delay is given back. }
+procedure InhibitLetSleep;
 
 { Starts keeping AKind on (counted: each start needs its stop).
   @param(AKind  what is kept on)
@@ -140,6 +186,54 @@ var
   GCount: array[TInhibitKind] of Integer;
   { See InhibitText. }
   GText: string;
+  { See InhibitSetPauseForSleep. }
+  GPauseForSleep: Boolean;
+
+function GameModeSession(out AWhy: string): Boolean;
+{$IF Defined(LINUX) and not Defined(ANDROID)}
+var
+  V: string;
+{$ENDIF}
+begin
+  Result := False;
+  AWhy := 'not Game Mode (no gamescope in the environment)';
+  {$IF Defined(LINUX) and not Defined(ANDROID)}
+  V := GetEnvironmentVariable('XDG_CURRENT_DESKTOP');
+  if Pos('gamescope', LowerCase(V)) > 0 then
+  begin
+    AWhy := 'XDG_CURRENT_DESKTOP=' + V;
+    Exit(True);
+  end;
+  V := GetEnvironmentVariable('GAMESCOPE_WAYLAND_DISPLAY');
+  if V <> '' then
+  begin
+    AWhy := 'GAMESCOPE_WAYLAND_DISPLAY=' + V;
+    Exit(True);
+  end;
+  V := GetEnvironmentVariable('SteamGamepadUI');
+  if V = '1' then
+  begin
+    AWhy := 'SteamGamepadUI=1';
+    Exit(True);
+  end;
+  {$ELSE}
+  AWhy := 'not Linux';
+  {$ENDIF}
+end;
+
+procedure InhibitSetPauseForSleep(AOn: Boolean);
+begin
+  {$IF Defined(LINUX) and not Defined(ANDROID)}
+  GPauseForSleep := AOn;
+  {$ELSE}
+  GPauseForSleep := False;
+  {$ENDIF}
+end;
+
+function InhibitPauseForSleep: Boolean;
+begin
+  Result := GPauseForSleep;
+end;
 
 function InhibitText: string;
 begin
@@ -195,9 +289,12 @@ const
   { The preference's name in a value's 'Name=Value;' list. }
   GPU_NAME = 'GpuPreference';
 
-{ SetProcessInformation (Windows 8 and later). }
+{$WARN SYMBOL_PLATFORM OFF}
+{ SetProcessInformation (Windows 8 and later; 'delayed' is Windows-only -
+  W1002, this unit's Windows part only). }
 function SetProcessInformation(AProcess: THandle; AClass: Integer; AInfo: Pointer; ASize: DWORD): BOOL;
   stdcall; external kernel32 name 'SetProcessInformation' delayed;
+{$WARN SYMBOL_PLATFORM ON}
 
 { EcoQoS on (AOn) or off, or left to Windows (not AControl). }
 function WinSpeed(AControl, AOn: Boolean): string;
@@ -466,6 +563,14 @@ var
   dbus_connection_close: procedure(C: Pointer); cdecl;
   { dbus_connection_unref. }
   dbus_connection_unref: procedure(C: Pointer); cdecl;
+  { dbus_bus_add_match. }
+  dbus_bus_add_match: procedure(C: Pointer; ARule: PAnsiChar; E: Pointer); cdecl;
+  { dbus_connection_read_write. }
+  dbus_connection_read_write: function(C: Pointer; ATimeout: Integer): Cardinal; cdecl;
+  { dbus_connection_pop_message. }
+  dbus_connection_pop_message: function(C: Pointer): Pointer; cdecl;
+  { dbus_message_is_signal. }
+  dbus_message_is_signal: function(M: Pointer; AIface, AName: PAnsiChar): Cardinal; cdecl;
   { The private bus connections (nil = not open). }
   GSystem: Pointer = nil;
   { The session bus. }
@@ -476,6 +581,13 @@ var
   GCookie: Cardinal = 0;
   { GCookie is held. }
   GHasCookie: Boolean = False;
+  { The system bus sends logind's PrepareForSleep here (InhibitPoll). }
+  GMatched: Boolean = False;
+  { Between ssGoingToSleep and ssWoke: the delay is not asked for again. }
+  GAsleep: Boolean = False;
+  { The reason given with the last InhibitStart (asked again after a
+    wake). }
+  GReason: string;
 
 { libdbus-1 and its functions. @returns(False when it is not there) }
 function LoadDBus: Boolean;
@@ -509,6 +621,10 @@ begin
     @dbus_message_unref := P('dbus_message_unref');
     @dbus_connection_close := P('dbus_connection_close');
     @dbus_connection_unref := P('dbus_connection_unref');
+    @dbus_bus_add_match := P('dbus_bus_add_match');
+    @dbus_connection_read_write := P('dbus_connection_read_write');
+    @dbus_connection_pop_message := P('dbus_connection_pop_message');
+    @dbus_message_is_signal := P('dbus_message_is_signal');
   except
     FreeLibrary(GLib);
     GLib := 0;
@@ -619,6 +735,22 @@ begin
     dbus_message_iter_get_basic(@It, AValue);
 end;
 
+{ Asks the system bus for logind's PrepareForSleep (read by InhibitPoll).
+  @returns(what was done, for InhibitText) }
+function AddSleepMatch: string;
+var
+  E: TDBusError;
+begin
+  dbus_error_init(@E);
+  dbus_bus_add_match(GSystem, PAnsiChar(UTF8String('type=''signal'',interface=''org.freedesktop.login1.Manager'',' +
+    'member=''PrepareForSleep''')), @E);
+  if E.Name <> nil then
+    Exit('PrepareForSleep not received: ' + ErrText(E));
+  dbus_error_free(@E);
+  GMatched := True;
+  Result := 'listening for PrepareForSleep';
+end;
+
 { logind's and the screen saver's inhibitors from the counts. }
 function Apply(const AReason: string): Boolean;
 var
@@ -634,8 +766,34 @@ begin
     Exit(False);
   end;
   App := ChangeFileExt(ExtractFileName(ParamStr(0)), '');
+  if AReason <> '' then
+    GReason := AReason;
+  // Steam's Game Mode: sleep is let happen - only a delay, to pause the
+  // work first (refused, Steam was left stuck: owner, 2026-11-20)
+  if GPauseForSleep and (GCount[ikDisplay] = 0) and (GCount[ikSleep] > 0) and (GFd < 0) and not GAsleep then
+  begin
+    R := Call(BUS_SYSTEM, 'org.freedesktop.login1', '/org/freedesktop/login1', 'org.freedesktop.login1.Manager',
+      'Inhibit', ['sleep', App, GReason, 'delay'], False, 0, Why);
+    if R <> nil then
+    begin
+      Fd := -1;
+      if ReplyArg(R, 'h', @Fd) and (Fd >= 0) then
+      begin
+        GFd := Fd;
+        Done := Done + Format('Game Mode - sleep allowed, the work pauses for it: logind sleep delay (fd %d)' +
+          '; ', [Fd]);
+      end
+      else
+        Done := Done + 'logind Inhibit (delay): no descriptor in the reply; ';
+      dbus_message_unref(R);
+    end
+    else
+      Done := Done + 'logind Inhibit (delay): ' + Why + '; ';
+    if not GMatched and (GSystem <> nil) then
+      Done := Done + AddSleepMatch + '; ';
+  end
   // the computer: logind, while the descriptor is open
-  if ((GCount[ikSleep] > 0) or (GCount[ikDisplay] > 0)) and (GFd < 0) then
+  else if not GPauseForSleep and ((GCount[ikSleep] > 0) or (GCount[ikDisplay] > 0)) and (GFd < 0) then
   begin
     R := Call(BUS_SYSTEM, 'org.freedesktop.login1', '/org/freedesktop/login1', 'org.freedesktop.login1.Manager',
       'Inhibit', ['sleep:idle', App, AReason, 'block'], False, 0, Why);
@@ -761,6 +919,69 @@ begin
     on E: Exception do
       GText := 'releasing failed: ' + E.Message;
   end;
+end;
+
+function InhibitPoll: TSleepSignal;
+{$IF Defined(LINUX) and not Defined(ANDROID)}
+var
+  M: Pointer;
+  B: Cardinal;
+begin
+  Result := ssNone;
+  if not GPauseForSleep or not GMatched or (GSystem = nil) then
+    Exit;
+  try
+    // what has come in, without waiting
+    dbus_connection_read_write(GSystem, 0);
+    repeat
+      M := dbus_connection_pop_message(GSystem);
+      if M = nil then
+        Break;
+      try
+        if dbus_message_is_signal(M, 'org.freedesktop.login1.Manager', 'PrepareForSleep') <> 0 then
+        begin
+          B := 0;
+          if ReplyArg(M, 'b', @B) then
+            if B <> 0 then
+            begin
+              GAsleep := True;
+              Result := ssGoingToSleep;
+            end
+            else
+            begin
+              GAsleep := False;
+              Result := ssWoke;
+              // the delay again, for the next sleep
+              Apply('');
+            end;
+        end;
+      finally
+        dbus_message_unref(M);
+      end;
+    until False;
+  except
+    on E: Exception do
+      GText := 'reading the system bus failed: ' + E.Message;
+  end;
+end;
+{$ELSE}
+begin
+  Result := ssNone;
+end;
+{$ENDIF}
+
+procedure InhibitLetSleep;
+begin
+  {$IF Defined(LINUX) and not Defined(ANDROID)}
+  if GFd >= 0 then
+  begin
+    __close(GFd);
+    GFd := -1;
+    GText := 'logind sleep delay given back: the computer sleeps';
+  end
+  else
+    GText := 'no sleep delay was held';
+  {$ENDIF}
 end;
 
 function InhibitSpeed(ASpeed: TInhibitSpeed): string;

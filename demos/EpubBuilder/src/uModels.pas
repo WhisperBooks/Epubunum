@@ -188,6 +188,11 @@ function FolderWritable(const AFolder: string): Boolean;
 implementation
 
 uses
+  {$IFDEF POSIX}
+  // System.SysUtils.DeleteFile / RenameFile's inline bodies expand only
+  // with them (H2443)
+  Posix.Unistd, Posix.Stdio,
+  {$ENDIF}
   System.DateUtils, System.IOUtils, System.Hash, System.Zip, System.Net.URLClient, System.Net.HttpClient;
 
 const

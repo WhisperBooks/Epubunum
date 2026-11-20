@@ -12,7 +12,8 @@ rem
 rem   EpubReader   FFmpeg (av*, sw*, postproc*) and its licence texts, and
 rem                its Steam Input files (demos\EpubReader\steaminput ->
 rem                steaminput\ beside the program; every configuration)
-rem   EpubBuilder  whisper.cpp, ggml, FFmpeg and their licences:
+rem   EpubBuilder  the same Steam Input files (its pad uses the reader's
+rem                actions); whisper.cpp, ggml, FFmpeg and their licences:
 rem                Steam / SteamDebug - the CPU and Vulkan backends only
 rem                (CUDA and ROCm are to be free DLC; owner 2026-11-17);
 rem                Debug / Release - all of redistributable_bin\Win64,
@@ -51,13 +52,18 @@ set STEAM=0
 if /i "%CFG:~0,5%"=="Steam" set STEAM=1
 set "RC=/njh /njs /nfl /ndl /np"
 
+rem both programs, every configuration, libraries or not: Steam reads the
+rem Steam Input files from the depot (one manifest per Steam app - the
+rem builder's pad uses the reader's actions, zip 148)
+if /i "%PROG%"=="EpubReader" call :steaminput
+if /i "%PROG%"=="EpubBuilder" call :steaminput
+
 if not exist "%SRC%\avutil-60.dll" goto nolibs
 if /i "%PROG%"=="EpubReader" goto reader
 if /i "%PROG%"=="EpubBuilder" goto builder
 goto usage
 
 :reader
-call :steaminput
 set "STEP=FFmpeg's DLLs"
 robocopy "%SRC%" "%OUT%" av*.dll sw*.dll postproc*.dll %RC% >nul
 if errorlevel 8 goto failed
