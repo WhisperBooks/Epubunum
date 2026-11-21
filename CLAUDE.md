@@ -180,6 +180,141 @@ in the reader (all of it, as now?); models in the DLC depot or downloaded;
 BookManager's place; 5639910's fate; app name / store naming (one product
 "EpubUnum" with the reader as its base?).
 
+### THEN, HIGH PRIORITY: an Apple TV (tvOS) player - native, not Delphi
+Owner 2026-11-21 05:29: "make (2) a high-prority option after combining
+Reader + Builder - add this to Claude.md". (2) = a small native tvOS
+app. Delphi has NO tvOS target (Embarcadero's platform lists: Windows,
+macOS, iOS, Android, Linux - checked 2026-11-21); an iOS build does not
+install on an Apple TV. So: Swift / SwiftUI with Apple's tvOS SDK, built
+in Xcode on the M4 Mac - a SEPARATE codebase from the Delphi programs.
+Order: AFTER the reader + builder DLC work above.
+
+What makes it small: the hard part - the book format - is settled. The
+books EpubBuilder makes are standard EPUB 3 with Media Overlays (SMIL
+clips: text fragment id + audio file + clipBegin / clipEnd, the audio
+inside the EPUB). The tvOS app needs:
+- reading the EPUB (zip): container.xml -> the OPF -> spine, nav (the
+  chapters), the SMIL of each content document, the audio files;
+- showing the page text (WKWebView is NOT on tvOS - render the XHTML's
+  text natively, e.g. AttributedString / a Text view per paragraph) with
+  the word or phrase being read highlighted, as EpubReader does (its
+  uEpubView / clip logic is the reference: ClipAt, the highlight, the
+  word-level clips);
+- playing the audio with AVPlayer (seek to clipBegin, a periodic time
+  observer to move the highlight; speed 0.5 - 3x as the reader's slider);
+- the Siri Remote: play / pause, skip a sentence / chapter (swipes),
+  the chapter list, speed; large text (10-foot UI, as Big Picture's 24+);
+- a library: the books, their covers (the EPUB's cover image), where
+  each was left (the reader's bookmark / position) - in iCloud key-value
+  storage or CloudKit so iPhone / Mac / TV agree.
+
+GETTING BOOKS ONTO THE TV - CHECK FIRST: tvOS gives apps little or no
+guaranteed persistent local storage (Apple's tvOS guidance: a small
+key-value store; caches the system may purge; iCloud / CloudKit /
+on-demand resources for more) - and a built book is large (Foundation's
+EPUB: 489 MB, the audio inside). Options, to be decided after checking
+Apple's current rules:
+- STREAM from the computer that has the books: EpubBuilder's link
+  (uLink: UDP discovery on 47820, HTTP /books and /book with offset) or a
+  small "serve my library" mode in EpubReader - the TV pairs once (the
+  6-digit code, as BookManager) and streams the EPUB's parts (HTTP range
+  requests into the zip: the SMIL, the XHTML, the audio file of the
+  chapter) - nothing large kept on the TV;
+- iCloud Drive / CloudKit: the user's books in their iCloud, cached on
+  the TV while read;
+- the cache only (re-fetched when purged).
+Streaming over the existing link fits the project best (BookManager and
+the reader already speak it) - the link would need range reads INSIDE
+an EPUB (a /part?path=..&entry=.. call) or the TV fetches the whole
+file into its cache.
+
+DISTRIBUTION: the App Store (Apple Developer Program, review), separate
+from Steam; free (like the reader) is the natural fit - it reads books
+made by the paid builder.
+
+DECISIONS FOR THE OWNER: where the code lives (a tvos/ folder here or a
+new repository); how books reach the TV (above); iPhone / iPad from the
+same Swift code later (SwiftUI targets both - an alternative to Delphi's
+iOS build for the reader); the name on the App Store.
+
+### TENTATIVE: a headless EpubBuilder - pairing without a screen
+Owner 2026-11-21 05:31: "Builder needs a headless option at some point.
+This will mean it can't show the 6 digit code. We need other options -
+discuss." Offered: the code in the log / stdout, a --pair window, approve
+from a paired client, a pre-shared key, trusted networks, Tailscale
+identity - owner 05:35: "No - I don't like those options. Can we have
+one that involves email?"; 05:40: "Yes, as a tentative one. Another
+option would be an activation website I suppose. This would require
+registering app instances (UUID?) with central site - this needs some
+thought...". NOTHING decided or built; the two ideas below.
+
+CONSTRAINT (owner 05:41: "we dont want to go against steam rules"):
+Steam allows a product to need an outside account, but the store page
+then shows "Requires 3rd-Party Account: ..." (declared by the publisher;
+players dislike it - Sonic Superstars' Epic login); since 2024 store
+descriptions may not link to other websites. (Valve's own wording on
+third-party accounts not found in the public docs - check the store
+page's settings in Steamworks.) So: the Steam products must NEVER need
+an outside service or account - pairing on the local network with the
+on-screen code stays the way; anything central (email relay,
+activation site) is an OPTIONAL extra, off by default. Simplest:
+headless = a separate non-Steam build (servers / cloud cannot run the
+Steam client anyway), as BookManager is not a Steam program.
+
+IDEA A - THE PAIRING CODE BY EMAIL (tentative plan):
+- Setup, once: the owner's address ([Link] Email= in EpubBuilder.ini, or
+  --email); a test message with a confirmation code proves mail arrives.
+- Pairing as now (/pair, /pair/confirm, 6 digits, 5 minutes, 5 tries),
+  but the code is EMAILED: "BookManager on MONSTER wants to connect to
+  EpubBuilder on SERVER. Code: ... (5 minutes). If this wasn't you,
+  ignore this email." Ignoring = refusing; a Block link (that client
+  never asks again) possible. Clients unchanged.
+- HOW IT SENDS (the open question):
+  1. a small relay run by the project (HTTPS POST from the builder via
+     System.Net.HttpClient - the system's own TLS, no OpenSSL) -> a mail
+     service (Postmark / Resend / Amazon SES ...). Easiest for users. The
+     relay sends ONLY the fixed pairing template, only to addresses
+     confirmed once, rate-limited (else it is a way to flood anyone's
+     mailbox). Costs: running it, a privacy policy (addresses stored).
+  2. the user's own SMTP (server, user, app password) - fiddly for users;
+     secure SMTP from Delphi needs Indy + OpenSSL, and the OpenSSL 3 of
+     current Linux needs a newer Indy TLS add-on than Delphi's bundled
+     Indy (CHECK before promising it).
+  3. the user's own mail-service API key over HTTPS - for technical users.
+  Suggested: 1 as the default, 2 / 3 for those who will not use the relay.
+- To decide: run a relay (where); email only for headless or everywhere
+  (the bar AND the email on a builder with a screen); one owner address
+  or several (a family).
+
+IDEA B - AN ACTIVATION WEBSITE (needs thought - owner):
+- Each install registers with a central site: an instance id (a UUID -
+  the link already has a builder id it announces; persist one per
+  install) + a secret the site gives back. The user has an ACCOUNT on the
+  site (email sign-in, or "Sign in through Steam" - Steam's OpenID: the
+  site learns the Steam account, no address needed).
+- Claiming an install = the TV-style DEVICE FLOW (OAuth 2.0 device
+  authorization grant, RFC 8628): the install gets a short user code from
+  the site and shows it ... where? A headless builder has no screen - the
+  code goes by EMAIL (idea A) or in the log; a reader / BookManager shows
+  it. The user enters it on the website, signed in -> the install is
+  theirs.
+- Then pairing needs no codes at all: installs claimed by the same
+  account trust each other - the builder asks the site whether a client
+  id belongs to its owner (or the site hands both a pairing token).
+- What it would also solve: FINDING a builder outside the home network
+  (cloud, a friend's house) - the site knows each install's last address
+  (a rendezvous); UDP broadcast does not cross the internet. Even relaying
+  traffic when neither side is reachable (costly - only if needed).
+- What it costs: a service to run and secure (accounts, secrets, tokens),
+  personal data (GDPR: what is kept, deletion), uptime (if the site is
+  down, nothing new pairs - the LAN pairing with the code must keep
+  working without it), the Steam store's rules on third-party accounts
+  (a Steam product requiring an outside account must say so on the
+  store page - CHECK Valve's rules).
+- It overlaps with the DLC plan (ownership is Steam's job there) and with
+  the tvOS app (the TV would claim itself the same way and find the
+  library through the site).
+
 TO TEST (from this session): Bazzite on the ROG Ally (see the list
 under Session 10's preferences); EpubBuilder on a Windows Ally (CPU +
 Vulkan, its pad menu); 192's window (settings page, queue below,
@@ -477,7 +612,7 @@ the history, one per zip.
 | Repo | Pushed | = zip | Last zip number used |
 |---|---|---|---|
 | WhisperBooks/TWhisper | d669a06 | TWhisper-30 | 31 (review fixes) |
-| WhisperBooks/Epubunum | 42d5f27 | EpubUnum-180 | 193 (193 session 11 handover + the DLC plan; 192 builder window: settings page, queue below; 191 icon set; 190 typed output folder remembered; 189 BookManager icon; 188 ROCm runtime without kernels = off; 187 ROCm left out by the program (Deck); 186 no ROCm without kernels (Deck); 185 builder's BP window = the log; 184 transcribed books last, BP home order, BookManager poll backs off; 183 builder's pairing bar, 182 BookManager's TPath, 181 BookManager - NOT pushed; 166 (166 queues folder, kept queue, Big Picture save / load, hints; 165 the window emptied after Add to queue; 164 Linux: whole-window redraws; 163 Transcribed, memory cards; 162 pad menu: texts fill the width; 161 zip 160's compile errors; 160 the builder's progress panel, log behind View; 159 the reader lists EpubBuilder's output; 158 Run queue on Big Picture's home list; 157 Big Picture says why a build / job was refused; 156 Big Picture opens on the models without one; 155 Big Picture's model list; 154 no calibration question without a model; 153 Big Picture questions readable; 152 Linux deploys without ROCm and CUDA; 151 deploy_redist --skip-rocm / --skip-cuda; 150 steaminput in every build; 149 zip 148's compile errors; 148 EpubBuilder in Big Picture; 147 a queue's jobs shown on a click, Update job; 146 the Mac save panel's name; 145 zip 140 confirmed; 144 Windows on Arm notes + probe; 143 notes/Building-distributions.md; 139 the morning queue's results, 140 App Nap on the Mac, 141 Mac Books / steaminput beside the .app, 142 Power / Window GPU - NOT pushed; session 9: 95 - 138, see its handover above. Earlier: 94 handover; 93 Big Picture full screen; 77 - 92 calibration, Steam builds, libraries, Deck crash, build stamp, screen log, DPI, Big Picture maximise))) |
+| WhisperBooks/Epubunum | 42d5f27 | EpubUnum-180 | 196 (196 Steam-rules constraint on the headless plan; 195 tentative headless pairing (email, activation site); 194 the tvOS player plan; 193 session 11 handover + the DLC plan; 192 builder window: settings page, queue below; 191 icon set; 190 typed output folder remembered; 189 BookManager icon; 188 ROCm runtime without kernels = off; 187 ROCm left out by the program (Deck); 186 no ROCm without kernels (Deck); 185 builder's BP window = the log; 184 transcribed books last, BP home order, BookManager poll backs off; 183 builder's pairing bar, 182 BookManager's TPath, 181 BookManager - NOT pushed; 166 (166 queues folder, kept queue, Big Picture save / load, hints; 165 the window emptied after Add to queue; 164 Linux: whole-window redraws; 163 Transcribed, memory cards; 162 pad menu: texts fill the width; 161 zip 160's compile errors; 160 the builder's progress panel, log behind View; 159 the reader lists EpubBuilder's output; 158 Run queue on Big Picture's home list; 157 Big Picture says why a build / job was refused; 156 Big Picture opens on the models without one; 155 Big Picture's model list; 154 no calibration question without a model; 153 Big Picture questions readable; 152 Linux deploys without ROCm and CUDA; 151 deploy_redist --skip-rocm / --skip-cuda; 150 steaminput in every build; 149 zip 148's compile errors; 148 EpubBuilder in Big Picture; 147 a queue's jobs shown on a click, Update job; 146 the Mac save panel's name; 145 zip 140 confirmed; 144 Windows on Arm notes + probe; 143 notes/Building-distributions.md; 139 the morning queue's results, 140 App Nap on the Mac, 141 Mac Books / steaminput beside the .app, 142 Power / Window GPU - NOT pushed; session 9: 95 - 138, see its handover above. Earlier: 94 handover; 93 Big Picture full screen; 77 - 92 calibration, Steam builds, libraries, Deck crash, build stamp, screen log, DPI, Big Picture maximise))) |
 | G3DGames/TFFMpegAPI | 0795d19 | FFmpegAPI-14 | 14 (macOS sound) |
 | G3DGames/ffmpeg-dev | 4d7b7be | ffmpeg-dev-09 | 09 |
 | WhisperBooks/whisper-dev | 2071815 | whisper-dev-22 | 22 (Core ML; its own CLAUDE.md) |
@@ -863,7 +998,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 193.
+Last number used: 196.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
