@@ -254,7 +254,10 @@ the program), and the six FFmpeg 8 libraries listed under Sound (an LGPL
 build such as ffmpeg-dev's will do). Books made by EpubConsole
 `--overlay` carry their audio inside, so the .epub is all the reader needs.
 The program's icon is `EpubReader_Icon.ico` (Project > Options >
-Application > Icons, Win64).
+Application > Icons, Win64), one of the EpubUnum set drawn by
+`tools/make_icons.py` (Pillow): an open book with a highlighted word and
+a play badge - EpubBuilder's has a sound wave and a gear, BookManager's
+books on a shelf and arrows.
 
 ## Platform notes (from TSteamAPI)
 

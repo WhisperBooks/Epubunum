@@ -311,8 +311,17 @@ type
     layAudio: TLayout;
     { Between the two sides. }
     splSides: TSplitter;
-    { Settings, Create and the log, below the sides. }
+    { The output, the settings line, Create and the log, at the bottom. }
     layBottom: TLayout;
+    { The book and the audio side by side, at the top (the queue below). }
+    layTop: TLayout;
+    { The settings' page over the window: model, device, language, power,
+      Windows' GPU, chapters, a saved transcript; Done closes it. }
+    pnlSettings: TPanel;
+    { The settings in one line, on the window. }
+    lblSettings: TLabel;
+    { Opens the settings' page. }
+    btnSettings: TButton;
     { The EPUB chosen. }
     edBook: TEdit;
     { What the book holds. }
@@ -434,9 +443,9 @@ type
     FAutoOut: string;
     { The chosen book's title. }
     FBookTitle: string;
-    { The job queue: left of the book. }
+    { The job queue: below the book and the audio, across the window. }
     layQueue: TLayout;
-    { Between the queue and the book. }
+    { Between the book and audio above and the queue below. }
     splQueue: TSplitter;
     { The jobs. }
     lbJobs: TListBox;
@@ -498,6 +507,26 @@ type
     { BookManager and EpubReader connect here (uLink): books and audio
       sent in, the books made sent out, the progress and the log. }
     FLink: TLinkServer;
+    { The pairing bar at the top (made when first needed): a program asks
+      to connect - the code to type there, the time left, Refuse
+      connection. Not a dialog: it closes by itself when the program is
+      paired, the code runs out or was typed wrong five times (owner,
+      2026-11-20: "the dialog on builder should automatically close"). }
+    pnlPair: TPanel;
+    { The pairing bar: who asks. }
+    lblPairText: TLabel;
+    { The pairing bar: the code, large. }
+    lblPairCode: TLabel;
+    { The pairing bar: how long the code works. }
+    lblPairTime: TLabel;
+    { Counts the pairing code's time down (every second while it shows). }
+    tmPair: TTimer;
+    { The program asking to pair. }
+    FPairWho: string;
+    { Until when its code works. }
+    FPairUntil: TDateTime;
+    { The pad's box (Big Picture) shows the pairing: closed with the bar. }
+    FPairPad: Boolean;
     { Steam's Game Mode: reads the system's sleep news (InhibitPoll) four
       times a second - tmSleepTimer. }
     tmSleep: TTimer;
@@ -749,6 +778,13 @@ type
     procedure Tell(const AText: string);
     { Starts the pad (Steam Input) and, in Big Picture, the pad's menu. }
     procedure StartPad;
+    { Big Picture: the window behind the pad's menu is the log alone, full
+      screen, in large type (owner, 2026-11-20: on a Steam Deck the
+      window's text was too small and the window too large - "redo the
+      form when displayed in big picture mode. The only thing to remain
+      may be the message log"); the pad's menu does the rest. The
+      pairing bar still shows above it. }
+    procedure BigPictureWindow;
     { Once the window shows: the display in the debug log, the calibration's
       question. }
     procedure AfterShow;
@@ -776,6 +812,26 @@ type
     procedure LinkPaired(const AClient, AToken: string);
     { FLink: a file arrived - logged. }
     procedure LinkReceived(const AKind, AFileName: string);
+    { The books transcribed already, by BookKey (sorted; the caller frees
+      it): an EPUB of the book's name (or '<name>_001' ...) in the output
+      folder, a queued job's output folder or a card's Transcribed, or a
+      build of the history that matched at least HISTORY_POOR_MATCH %. }
+    function TranscribedBooks: TStringList;
+    { FLink: the code offered stopped working without a pairing (five
+      wrong codes) - the bar closes. }
+    procedure LinkPairEnded(const AClient, AWhy: string);
+    { Shows the pairing bar (and, in Big Picture, the pad's box when no
+      other question shows) for AClient with ACode. }
+    procedure ShowPairing(const AClient, ACode: string);
+    { Closes the pairing bar and the pad's box; AWhy, when not '', goes to
+      the log. }
+    procedure HidePairing(const AWhy: string);
+    { Refuse connection: the code taken back, the program told. }
+    procedure RefusePairing;
+    { The bar's Refuse connection button. }
+    procedure btnRefusePairClick(Sender: TObject);
+    { tmPair: the time left; the bar closes when the code ran out. }
+    procedure tmPairTimer(Sender: TObject);
     { Steam's Game Mode: the system's sleep news - going to sleep: the
       build pauses (GSleepGate), then the sleep delay is given back; woke:
       the build goes on. }
@@ -929,6 +985,20 @@ type
     { Tools > Books folder... / Audio folder... / Output folder...: the
       three folders (Tag 0, 1, 2 of the item). }
     procedure miFolderClick(Sender: TObject);
+    { Settings... / Tools > Settings...: the settings' page over the
+      window. }
+    procedure btnSettingsClick(Sender: TObject);
+    { The settings' page's Done: closed, saved, the line on the window
+      updated. }
+    procedure btnSettingsDoneClick(Sender: TObject);
+    { lblSettings from the settings: the model, the device, the language,
+      the power, and what is not as usual (chapters, a saved transcript). }
+    procedure UpdateSettingsLine;
+    { The output's folder, when the user put the book's output elsewhere
+      (typed in the Output box, or a card's folder), becomes the output
+      folder: the next book's output goes there too (owner, 2026-11-21:
+      the next book got the old default folder). Saved and logged. }
+    procedure RememberOutFolder;
     { The output for book ABook: its file name in the output folder, or
       with _001, _002 ... when that is taken (a file there, or a job of
       the queue writes it).
@@ -975,6 +1045,47 @@ var
   { The Covers folder (TfrmBuilder.FCoverFolder, set before each build):
     the build looks for the book's cover there. }
   GCoverFolder: string;
+  { The device "Default" means ('' = whisper.cpp's own choice): set when
+    ROCm devices are left out (RocmUnusable) - whisper.cpp would still
+    take ROCm0, the first GPU of ggml's list. A build given '' uses it. }
+  GDefaultDevice: string;
+
+{ ROCm cannot run here: the launcher found no ROCm kernels for the GPU
+  (EPUBUNUM_ROCM_OFF holds why); ROCm's runtime is bundled beside the
+  program without rocBLAS's kernels (rocblas/ - the Linux depot kept the
+  runtime when the HIP depot was no longer shipped, 2026-11-20); or a
+  Steam Deck (gfx1033 is not a ROCm target: a model loaded on its ROCm0
+  never came back, 2026-11-20). A ROCm installed on the system is not
+  judged.
+  @param(AWhy  why, for the log)
+  @returns(the answer) }
+function RocmUnusable(out AWhy: string): Boolean;
+var
+  Here: string;
+begin
+  AWhy := Trim(GetEnvironmentVariable('EPUBUNUM_ROCM_OFF'));
+  if AWhy = '' then
+  begin
+    Here := ExtractFileDir(ParamStr(0));
+    try
+      if (Length(TDirectory.GetFiles(Here, 'libamdhip64.so*')) > 0) and
+        not TDirectory.Exists(TPath.Combine(Here, 'rocblas')) then
+        AWhy := 'no ROCm kernels beside the program (rocblas/ missing)';
+    except
+      // the folder not readable: not judged
+    end;
+  end;
+  if (AWhy = '') and SteamOnDeck then
+    AWhy := 'a Steam Deck (gfx1033 is not a ROCm target)';
+  Result := AWhy <> '';
+end;
+
+{ A ROCm (HIP) device. }
+function IsRocmDevice(const ADevice: TWhisperDevice): Boolean;
+begin
+  Result := SameText(ADevice.Backend, 'ROCm') or SameText(ADevice.Backend, 'HIP') or
+    StartsText('ROCm', ADevice.Name);
+end;
 
 const
   { The Power row's choices in the settings (cbPower's order). }
@@ -1192,6 +1303,10 @@ begin
   FAudioFiles.Assign(AAudioFiles);
   FModelFile := AModelFile;
   FDevice := ADevice;
+  // "Default" when ROCm is left out: the first other GPU, not whisper.cpp's
+  // ROCm0 (queued jobs of before included)
+  if FDevice = '' then
+    FDevice := GDefaultDevice;
   FOutFile := AOutFile;
   FJsonFile := TranscriptFileOf(AOutFile);
   FPartialFile := PartialFileOf(AOutFile);
@@ -2062,71 +2177,34 @@ procedure TfrmBuilder.BuildWindow;
 var
   Row, Buttons: TLayout;
   L: TLabel;
+  B: TButton;
 begin
-  // below: settings, Create / Cancel, progress, log
+  // as wide as the window wants, but never wider than the screen (a
+  // Steam Deck's 1280 x 800 cut the audio's buttons off, 2026-11-20)
+  // (a work area of 0: not known - the sizes as they are)
+  if Screen.WorkAreaWidth > 0 then
+    ClientWidth := Max(ClientWidth, Min(1300, Integer(Trunc(Screen.WorkAreaWidth)) - 16))
+  else
+    ClientWidth := Max(ClientWidth, 1300);
+  // tall enough for book and audio above the queue (zip 192), within the
+  // screen
+  ClientHeight := Max(ClientHeight, 820);
+  if (Screen.WorkAreaHeight > 0) and (ClientHeight > Screen.WorkAreaHeight - 60) then
+    ClientHeight := Max(500, Integer(Trunc(Screen.WorkAreaHeight)) - 60);
+
+  // The window (owner, 2026-11-21: "Model, Device, Language, Power, GPU,
+  // Chapters are parts... and Use Saved Transcript can all go on their own
+  // settings form/menu reducing clutter. The job queue can now move below
+  // Book and Audio providing more space"): book and audio at the top, the
+  // queue below them across the window, then the output, a line of the
+  // settings with Settings..., Create / Cancel, progress and log. The
+  // settings themselves are on a page of their own (pnlSettings).
+
+  // below: output, settings line, Create / Cancel, progress, log
   layBottom := TLayout.Create(Self);
   layBottom.Parent := Self;
   layBottom.Align := TAlignLayout.Bottom;
-  layBottom.Height := 360 + ROW_HEIGHT + GAP div 2;
-
-  Row := AddRow(layBottom, 'Model');
-  cbModel := TComboBox.Create(Self);
-  cbModel.Parent := Row;
-  cbModel.Align := TAlignLayout.Client;
-  cbModel.OnChange := cbModelChange;
-  btnModelFolder := AddButton(Row, 'Folder...', btnModelFolderClick, TAlignLayout.Right);
-  // Steam: the models are in the program's folder
-  btnModelFolder.Visible := not SteamBuild;
-
-  Row := AddRow(layBottom, 'Device');
-  cbDevice := TComboBox.Create(Self);
-  cbDevice.Parent := Row;
-  cbDevice.Align := TAlignLayout.Left;
-  cbDevice.Width := 420;
-  L := TLabel.Create(Self);
-  L.Parent := Row;
-  L.Align := TAlignLayout.Left;
-  L.Position.X := 100000;
-  L.Margins.Left := GAP * 2;
-  L.Width := 70;
-  L.Text := 'Language';
-  cbLanguage := TComboBox.Create(Self);
-  cbLanguage.Parent := Row;
-  cbLanguage.Align := TAlignLayout.Left;
-  cbLanguage.Position.X := 200000;
-  cbLanguage.Width := 220;
-  FillLanguages('');
-
-  Row := AddRow(layBottom, 'Power');
-  cbPower := TComboBox.Create(Self);
-  cbPower.Parent := Row;
-  cbPower.Align := TAlignLayout.Left;
-  cbPower.Width := 420;
-  cbPower.Items.Add('Automatic - fastest on mains power, saving power on battery');
-  cbPower.Items.Add('Fastest - kept awake, at full speed');
-  cbPower.Items.Add('Save power - kept awake, the system may slow it down');
-  cbPower.Items.Add('Let it sleep - the computer may sleep while building');
-  cbPower.ItemIndex := 0;
-  cbPower.OnChange := cbPowerChange;
-  {$IFDEF MSWINDOWS}
-  L := TLabel.Create(Self);
-  L.Parent := Row;
-  L.Align := TAlignLayout.Left;
-  L.Position.X := 100000;
-  L.Margins.Left := GAP * 2;
-  L.Width := 90;
-  L.Text := 'Window GPU';
-  cbGpu := TComboBox.Create(Self);
-  cbGpu.Parent := Row;
-  cbGpu.Align := TAlignLayout.Left;
-  cbGpu.Position.X := 200000;
-  cbGpu.Width := 260;
-  cbGpu.Items.Add('Windows decides');
-  cbGpu.Items.Add('Power saving GPU (next start)');
-  cbGpu.Items.Add('High performance GPU (next start)');
-  cbGpu.ItemIndex := Ord(GpuPreference);
-  cbGpu.OnChange := cbGpuChange;
-  {$ENDIF}
+  layBottom.Height := 4 * (ROW_HEIGHT + GAP div 2) + 190;
 
   Row := AddRow(layBottom, 'Output EPUB');
   edOut := TEdit.Create(Self);
@@ -2134,24 +2212,13 @@ begin
   edOut.Align := TAlignLayout.Client;
   AddButton(Row, 'Choose...', btnOutClick, TAlignLayout.Right);
 
-  Row := AddRow(layBottom, '');
-  chkChapters := TCheckBox.Create(Self);
-  chkChapters.Parent := Row;
-  chkChapters.Align := TAlignLayout.Left;
-  chkChapters.Width := 260;
-  chkChapters.Text := 'Chapters of a file are parts (m4b)';
-  chkChapters.IsChecked := True;
-  chkReuse := TCheckBox.Create(Self);
-  chkReuse.Parent := Row;
-  chkReuse.Align := TAlignLayout.Left;
-  chkReuse.Position.X := 100000;
-  chkReuse.Width := 420;
-  chkReuse.Text := 'Use a saved transcript (re-align in seconds, no new transcription)';
-  // off at every start: reusing old words is a choice made for one build
-  // (owner: "if re-transcribing there is obviously a reason"); not kept in
-  // the settings
-  chkReuse.IsChecked := False;
-  chkReuse.OnChange := chkReuseChange;
+  Row := AddRow(layBottom, 'Settings');
+  btnSettings := AddButton(Row, 'Settings...', btnSettingsClick, TAlignLayout.Right);
+  lblSettings := TLabel.Create(Self);
+  lblSettings.Parent := Row;
+  lblSettings.Align := TAlignLayout.Client;
+  lblSettings.WordWrap := False;
+  lblSettings.Trimming := TTextTrimming.Character;
 
   Buttons := AddRow(layBottom, '');
   btnCreate := AddButton(Buttons, 'Create', btnCreateClick, TAlignLayout.Left, 120);
@@ -2216,51 +2283,18 @@ begin
   lblPTitle.Text := 'Idle';
   mmLog.Visible := False;
 
-  // the job queue: leftmost (owner: "a 3rd column ... on the left ... with
-  // a Run Queue at the bottom of it")
-  ClientWidth := Max(ClientWidth, 1300);
-  layQueue := TLayout.Create(Self);
-  layQueue.Parent := Self;
-  layQueue.Position.X := 0;
-  layQueue.Align := TAlignLayout.Left;
-  layQueue.Width := 300;
-  AddCaption(layQueue, 'Job queue');
-  Row := AddRow(layQueue, '');
-  Row.Position.Y := 30;
-  AddButton(Row, 'Load...', btnJobLoadClick, TAlignLayout.Left, 64);
-  AddButton(Row, 'Save...', btnJobSaveClick, TAlignLayout.Left, 64);
-  AddButton(Row, 'Remove', btnJobRemoveClick, TAlignLayout.Left, 64);
-  AddButton(Row, 'Up', btnJobUpClick, TAlignLayout.Left, 40);
-  AddButton(Row, 'Down', btnJobDownClick, TAlignLayout.Left, 48);
-  btnRunQueue := TButton.Create(Self);
-  btnRunQueue.Parent := layQueue;
-  btnRunQueue.Align := TAlignLayout.Bottom;
-  btnRunQueue.Height := 36;
-  btnRunQueue.Margins.Rect := RectF(GAP, GAP, GAP, GAP);
-  btnRunQueue.Text := 'Run queue';
-  btnRunQueue.OnClick := btnRunQueueClick;
-  lbJobs := TListBox.Create(Self);
-  lbJobs.Parent := layQueue;
-  lbJobs.Align := TAlignLayout.Client;
-  lbJobs.Margins.Rect := RectF(GAP, GAP, GAP, 0);
-  lbJobs.OnDblClick := lbJobsDblClick;
-  lbJobs.OnClick := lbJobsClick;
-  splQueue := TSplitter.Create(Self);
-  splQueue.Parent := Self;
-  splQueue.Position.X := 1;
-  splQueue.Align := TAlignLayout.Left;
-  splQueue.Width := 5;
-  tmQueue := TTimer.Create(Self);
-  tmQueue.Enabled := False;
-  tmQueue.Interval := 50;
-  tmQueue.OnTimer := tmQueueTimer;
+  // the top: the book (left) and its audio (right)
+  layTop := TLayout.Create(Self);
+  layTop.Parent := Self;
+  layTop.Align := TAlignLayout.Top;
+  layTop.Position.Y := 50000;
+  layTop.Height := Max(200, Round((ClientHeight - layBottom.Height) * 0.55));
 
-  // the book: left of the audio
   layBook := TLayout.Create(Self);
-  layBook.Parent := Self;
-  layBook.Position.X := 2;
+  layBook.Parent := layTop;
+  layBook.Position.X := 0;
   layBook.Align := TAlignLayout.Left;
-  layBook.Width := 470;
+  layBook.Width := Max(380, Round(ClientWidth * 0.45));
   AddCaption(layBook, 'Book (EPUB)');
   Row := AddRow(layBook, '');
   Row.Position.Y := 30;
@@ -2278,14 +2312,13 @@ begin
   mmBook.WordWrap := True;
 
   splSides := TSplitter.Create(Self);
-  splSides.Parent := Self;
+  splSides.Parent := layTop;
   splSides.Align := TAlignLayout.Left;
   splSides.Position.X := 100000;
   splSides.Width := 5;
 
-  // the audio: right
   layAudio := TLayout.Create(Self);
-  layAudio.Parent := Self;
+  layAudio.Parent := layTop;
   layAudio.Align := TAlignLayout.Client;
   AddCaption(layAudio, 'Audio (in reading order)');
   Row := AddRow(layAudio, '');
@@ -2299,6 +2332,168 @@ begin
   lbAudio.Parent := layAudio;
   lbAudio.Align := TAlignLayout.Client;
   lbAudio.Margins.Rect := RectF(GAP, GAP, GAP, GAP);
+
+  // between the top and the queue (dragged: more room for either)
+  splQueue := TSplitter.Create(Self);
+  splQueue.Parent := Self;
+  splQueue.Align := TAlignLayout.Top;
+  splQueue.Position.Y := 60000;
+  splQueue.Height := 5;
+
+  // the job queue: below the book and the audio, across the window, the
+  // rest of the height; Run queue with its buttons
+  layQueue := TLayout.Create(Self);
+  layQueue.Parent := Self;
+  layQueue.Align := TAlignLayout.Client;
+  AddCaption(layQueue, 'Job queue');
+  Row := AddRow(layQueue, '');
+  Row.Position.Y := 30;
+  AddButton(Row, 'Load...', btnJobLoadClick, TAlignLayout.Left, 80);
+  AddButton(Row, 'Save...', btnJobSaveClick, TAlignLayout.Left, 80);
+  AddButton(Row, 'Remove', btnJobRemoveClick, TAlignLayout.Left, 80);
+  AddButton(Row, 'Up', btnJobUpClick, TAlignLayout.Left, 60);
+  AddButton(Row, 'Down', btnJobDownClick, TAlignLayout.Left, 60);
+  btnRunQueue := AddButton(Row, 'Run queue', btnRunQueueClick, TAlignLayout.Left, 160);
+  btnRunQueue.Margins.Left := GAP * 3;
+  lbJobs := TListBox.Create(Self);
+  lbJobs.Parent := layQueue;
+  lbJobs.Align := TAlignLayout.Client;
+  lbJobs.Margins.Rect := RectF(GAP, GAP, GAP, GAP);
+  lbJobs.OnDblClick := lbJobsDblClick;
+  lbJobs.OnClick := lbJobsClick;
+  tmQueue := TTimer.Create(Self);
+  tmQueue.Enabled := False;
+  tmQueue.Interval := 50;
+  tmQueue.OnTimer := tmQueueTimer;
+
+  // the settings: a page of their own over the window (Settings... /
+  // Tools > Settings...), closed with Done. The controls are the ones the
+  // rest of the code reads (cbModel, cbDevice, ...), only placed here.
+  pnlSettings := TPanel.Create(Self);
+  pnlSettings.Parent := Self;
+  pnlSettings.Align := TAlignLayout.Contents;
+  pnlSettings.Padding.Rect := RectF(GAP * 2, GAP * 2, GAP * 2, GAP * 2);
+  pnlSettings.Visible := False;
+  AddCaption(pnlSettings, 'Settings');
+
+  Row := AddRow(pnlSettings, 'Model');
+  cbModel := TComboBox.Create(Self);
+  cbModel.Parent := Row;
+  cbModel.Align := TAlignLayout.Client;
+  cbModel.OnChange := cbModelChange;
+  btnModelFolder := AddButton(Row, 'Folder...', btnModelFolderClick, TAlignLayout.Right);
+  // Steam: the models are in the program's folder
+  btnModelFolder.Visible := not SteamBuild;
+
+  Row := AddRow(pnlSettings, 'Device');
+  cbDevice := TComboBox.Create(Self);
+  cbDevice.Parent := Row;
+  cbDevice.Align := TAlignLayout.Client;
+
+  Row := AddRow(pnlSettings, 'Language');
+  cbLanguage := TComboBox.Create(Self);
+  cbLanguage.Parent := Row;
+  cbLanguage.Align := TAlignLayout.Left;
+  cbLanguage.Width := 320;
+  FillLanguages('');
+
+  Row := AddRow(pnlSettings, 'Power');
+  cbPower := TComboBox.Create(Self);
+  cbPower.Parent := Row;
+  cbPower.Align := TAlignLayout.Client;
+  cbPower.Items.Add('Automatic - fastest on mains power, saving power on battery');
+  cbPower.Items.Add('Fastest - kept awake, at full speed');
+  cbPower.Items.Add('Save power - kept awake, the system may slow it down');
+  cbPower.Items.Add('Let it sleep - the computer may sleep while building');
+  cbPower.ItemIndex := 0;
+  cbPower.OnChange := cbPowerChange;
+  {$IFDEF MSWINDOWS}
+  Row := AddRow(pnlSettings, 'Window GPU');
+  cbGpu := TComboBox.Create(Self);
+  cbGpu.Parent := Row;
+  cbGpu.Align := TAlignLayout.Left;
+  cbGpu.Width := 320;
+  cbGpu.Items.Add('Windows decides');
+  cbGpu.Items.Add('Power saving GPU (next start)');
+  cbGpu.Items.Add('High performance GPU (next start)');
+  cbGpu.ItemIndex := Ord(GpuPreference);
+  cbGpu.OnChange := cbGpuChange;
+  {$ENDIF}
+
+  Row := AddRow(pnlSettings, '');
+  chkChapters := TCheckBox.Create(Self);
+  chkChapters.Parent := Row;
+  chkChapters.Align := TAlignLayout.Client;
+  chkChapters.Text := 'Chapters of a file are parts (m4b)';
+  chkChapters.IsChecked := True;
+  Row := AddRow(pnlSettings, '');
+  chkReuse := TCheckBox.Create(Self);
+  chkReuse.Parent := Row;
+  chkReuse.Align := TAlignLayout.Client;
+  chkReuse.Text := 'Use a saved transcript (re-align in seconds, no new transcription) - this build only';
+  // off at every start: reusing old words is a choice made for one build
+  // (owner: "if re-transcribing there is obviously a reason"); not kept in
+  // the settings
+  chkReuse.IsChecked := False;
+  chkReuse.OnChange := chkReuseChange;
+
+  Row := AddRow(pnlSettings, '');
+  Row.Position.Y := 200000;
+  Row.Margins.Top := GAP * 3;
+  B := AddButton(Row, 'Done', btnSettingsDoneClick, TAlignLayout.Left, 120);
+  B.Default := True;
+end;
+
+procedure TfrmBuilder.btnSettingsClick(Sender: TObject);
+begin
+  pnlSettings.Visible := True;
+  pnlSettings.BringToFront;
+  if cbModel.Enabled then
+    cbModel.SetFocus;
+end;
+
+procedure TfrmBuilder.btnSettingsDoneClick(Sender: TObject);
+begin
+  pnlSettings.Visible := False;
+  SaveSettings;
+  UpdateSettingsLine;
+  UpdateControls;
+end;
+
+procedure TfrmBuilder.UpdateSettingsLine;
+var
+  S, T: string;
+begin
+  if lblSettings = nil then
+    Exit;
+  if FModelPath <> '' then
+  begin
+    S := ChangeFileExt(ExtractFileName(FModelPath), '');
+    if StartsText('ggml-', S) then
+      S := Copy(S, 6, MaxInt);
+  end
+  else
+    S := 'no model chosen';
+  if (cbDevice.ItemIndex > 0) and (cbDevice.ItemIndex - 1 <= High(FDevices)) then
+    S := S + ' on ' + FDevices[cbDevice.ItemIndex - 1].Name
+  else if GDefaultDevice <> '' then
+    S := S + ' on ' + GDefaultDevice
+  else
+    S := S + ' on the default device';
+  if cbLanguage.ItemIndex >= 0 then
+    S := S + ', ' + cbLanguage.Items[cbLanguage.ItemIndex];
+  if cbPower.ItemIndex >= 0 then
+  begin
+    T := cbPower.Items[cbPower.ItemIndex];
+    if Pos(' - ', T) > 0 then
+      T := Copy(T, 1, Pos(' - ', T) - 1);
+    S := S + ', power: ' + T;
+  end;
+  if not chkChapters.IsChecked then
+    S := S + ', a file''s chapters not parts';
+  if chkReuse.IsChecked then
+    S := S + ' - USING THE SAVED TRANSCRIPT';
+  lblSettings.Text := S;
 end;
 
 procedure TfrmBuilder.AppException(Sender: TObject; E: Exception);
@@ -2311,7 +2506,8 @@ procedure TfrmBuilder.FormCreate(Sender: TObject);
 var
   Lib: TWhisperLib;
   I: Integer;
-  Line, Moved: string;
+  Line, Moved, Why: string;
+  Kept: TWhisperDeviceArray;
 begin
   OnCloseQuery := FormCloseQuery;
   OnShow := FormShow;
@@ -2348,6 +2544,10 @@ begin
   BuildWindow;
   BuildMenu;
   cbDevice.Items.Add('Default (whisper.cpp chooses)');
+  // EpubBuilder.sh hid HIP (no ROCm kernels for this GPU, or none at all) -
+  // ggml uses Vulkan
+  if GetEnvironmentVariable('EPUBUNUM_ROCM_OFF') <> '' then
+    LogLine('ROCm: off - ' + Trim(GetEnvironmentVariable('EPUBUNUM_ROCM_OFF')) + '; Vulkan is used.');
   try
     DebugLog('whisper.cpp: loading');
     Lib := TWhisperLib.Load;
@@ -2356,6 +2556,33 @@ begin
     FDevices := Lib.SelectableDevices;
     for I := 0 to High(FDevices) do
       DebugLog('device: ' + WhisperDeviceText(FDevices[I]));
+    // what the launcher found (why ROCm was or was not hidden)
+    DebugLog(Format('ROCm check: HIP_VISIBLE_DEVICES=%s, EPUBUNUM_ROCM_OFF=%s, rocblas beside the program: %s, ' +
+      '/sys/class/kfd: %s', [GetEnvironmentVariable('HIP_VISIBLE_DEVICES'),
+      GetEnvironmentVariable('EPUBUNUM_ROCM_OFF'),
+      BoolToStr(TDirectory.Exists(TPath.Combine(ExtractFileDir(ParamStr(0)), 'rocblas')), True),
+      BoolToStr(TDirectory.Exists('/sys/class/kfd/kfd/topology/nodes'), True)]));
+    // ROCm on a GPU it cannot run on: its devices left out of the list,
+    // the calibration and "Default" (the launcher may not have hidden them)
+    if RocmUnusable(Why) then
+    begin
+      Kept := nil;
+      for I := 0 to High(FDevices) do
+        if IsRocmDevice(FDevices[I]) then
+          LogLine(Format('%s left out: ROCm cannot run here (%s).', [FDevices[I].Name, Why]))
+        else
+          Kept := Kept + [FDevices[I]];
+      FDevices := Kept;
+      // "Default": the first GPU left, else the processor
+      GDefaultDevice := '';
+      for I := High(FDevices) downto 0 do
+        if FDevices[I].DeviceType <> wdtCPU then
+          GDefaultDevice := FDevices[I].Name;
+      if GDefaultDevice = '' then
+        for I := 0 to High(FDevices) do
+          if FDevices[I].DeviceType = wdtCPU then
+            GDefaultDevice := FDevices[I].Name;
+    end;
     for I := 0 to High(FDevices) do
       cbDevice.Items.Add(WhisperDeviceText(FDevices[I]));
     // which device "Default" is (owner: whisper.cpp's CUDA choice was not
@@ -2856,6 +3083,7 @@ begin
     if FJobs[I].State <> jsDone then
       Waiting := True;
   btnRunQueue.Enabled := not Busy and Waiting;
+  UpdateSettingsLine;
   if FQueueRunning then
     btnRunQueue.Text := 'Queue running ...'
   else
@@ -3303,6 +3531,21 @@ begin
   end;
 end;
 
+procedure TfrmBuilder.RememberOutFolder;
+var
+  Folder: string;
+begin
+  Folder := ExcludeTrailingPathDelimiter(ExtractFileDir(Trim(edOut.Text)));
+  if (Folder = '') or SameFileName(Folder, ExcludeTrailingPathDelimiter(FOutFolder)) then
+    Exit;
+  // a folder that is not there (a typing slip) does not become the default
+  if not TDirectory.Exists(Folder) then
+    Exit;
+  FOutFolder := Folder;
+  LogLine('Output folder: ' + Folder + ' (the next book''s output goes there too).');
+  SaveSettings;
+end;
+
 procedure TfrmBuilder.btnOutClick(Sender: TObject);
 var
   D: TSaveDialog;
@@ -3366,7 +3609,9 @@ begin
     Tell('Choose a model: there is no saved transcript to use.');
     Exit;
   end;
-  Device := '';
+  // "Default": whisper.cpp's choice, or the device chosen for it when ROCm
+  // is left out
+  Device := GDefaultDevice;
   if cbDevice.ItemIndex > 0 then
     Device := FDevices[cbDevice.ItemIndex - 1].Name;
   CheckCalibrationThen(Device, AQueue);
@@ -3500,6 +3745,8 @@ function TfrmBuilder.JobFromWindow(const ADevice: string): TBuildJob;
 var
   I: Integer;
 begin
+  // Add to queue and Create: where this book goes, the next one goes too
+  RememberOutFolder;
   Result := Default(TBuildJob);
   Result.Book := edBook.Text;
   Result.Title := FBookTitle;
@@ -4612,7 +4859,11 @@ begin
   Bar := mnuBar;
   {$ELSE}
   mnuMain := TMainMenu.Create(Self);
-  mnuMain.Parent := Self;
+  // Big Picture: no menu bar - the menu is not put on the form (its items
+  // are still made: code uses them); the pad's menu has the commands (as
+  // EpubReader)
+  if not SteamBigPicture then
+    mnuMain.Parent := Self;
   Bar := mnuMain;
   {$ENDIF}
   M := Item(Bar, '&File', nil);
@@ -4621,6 +4872,8 @@ begin
   miLog := Item(M, 'Show the &log', miLogClick);
   miLog.IsChecked := (mmLog <> nil) and mmLog.Visible;
   M := Item(Bar, '&Tools', nil);
+  Item(M, '&Settings...', btnSettingsClick);
+  Item(M, '-', nil);
   miCalibrate := Item(M, '&Re-calibrate (this model)...', miCalibrateClick);
   miCalibrateAll := Item(M, 'Re-calibrate &every model in its folder...', miCalibrateAllClick);
   Item(M, '-', nil);
@@ -4635,7 +4888,7 @@ begin
   miRocm.Visible := False;
   // a menu made in code reaches the window (Windows' / macOS' own menu
   // bar) only when it is recreated (EpubReader: without it, no menu)
-  if mnuMain <> nil then
+  if (mnuMain <> nil) and (mnuMain.Parent <> nil) then
     mnuMain.RecreateOSMenu;
 end;
 
@@ -4648,7 +4901,9 @@ function TfrmBuilder.DefaultDeviceItem: string;
 var
   D: TWhisperDevice;
 begin
-  if BuilderFindDevice('', D) then
+  if GDefaultDevice <> '' then
+    Result := Format('Default (%s - ROCm left out: not for this GPU)', [GDefaultDevice])
+  else if BuilderFindDevice('', D) then
     Result := Format('Default (whisper.cpp chooses: %s - the first GPU, not always the fastest)', [D.Name])
   else
     Result := 'Default (whisper.cpp chooses)';
@@ -4841,6 +5096,8 @@ begin
     Exit;
   end;
   DebugLog('pad question: ' + AText.Replace(sLineBreak, ' '));
+  // the pairing's box, if it showed, is replaced (its bar stays)
+  FPairPad := False;
   Items := nil;
   FPadCmds := nil;
   FAskResults := nil;
@@ -4895,6 +5152,159 @@ begin
     PadHome(BPC_CREATE);
 end;
 
+procedure TfrmBuilder.ShowPairing(const AClient, ACode: string);
+var
+  Lay: TLayout;
+  B: TButton;
+  Text: string;
+begin
+  if pnlPair = nil then
+  begin
+    pnlPair := TPanel.Create(Self);
+    pnlPair.Parent := Self;
+    pnlPair.Align := TAlignLayout.Top;
+    pnlPair.Position.Y := 0;
+    pnlPair.Height := 76;
+    pnlPair.Padding.Rect := RectF(GAP, GAP div 2, GAP, GAP div 2);
+    B := TButton.Create(Self);
+    B.Parent := pnlPair;
+    B.Align := TAlignLayout.Right;
+    B.Width := 170;
+    B.Margins.Rect := RectF(GAP, 14, 0, 14);
+    B.Text := 'Refuse connection';
+    B.OnClick := btnRefusePairClick;
+    lblPairCode := TLabel.Create(Self);
+    lblPairCode.Parent := pnlPair;
+    lblPairCode.Align := TAlignLayout.Right;
+    lblPairCode.Width := 190;
+    lblPairCode.StyledSettings := lblPairCode.StyledSettings - [TStyledSetting.Size, TStyledSetting.Style];
+    lblPairCode.TextSettings.Font.Size := 34;
+    lblPairCode.TextSettings.Font.Style := [TFontStyle.fsBold];
+    lblPairCode.WordWrap := False;
+    Lay := TLayout.Create(Self);
+    Lay.Parent := pnlPair;
+    Lay.Align := TAlignLayout.Client;
+    lblPairText := TLabel.Create(Self);
+    lblPairText.Parent := Lay;
+    lblPairText.Align := TAlignLayout.Top;
+    lblPairText.Height := 40;
+    lblPairText.StyledSettings := lblPairText.StyledSettings - [TStyledSetting.Style];
+    lblPairText.TextSettings.Font.Style := [TFontStyle.fsBold];
+    lblPairText.WordWrap := True;
+    lblPairTime := TLabel.Create(Self);
+    lblPairTime.Parent := Lay;
+    lblPairTime.Align := TAlignLayout.Top;
+    lblPairTime.Position.Y := 100;
+    lblPairTime.Height := 24;
+    tmPair := TTimer.Create(Self);
+    tmPair.Interval := 1000;
+    tmPair.Enabled := False;
+    tmPair.OnTimer := tmPairTimer;
+  end;
+  FPairWho := AClient;
+  FPairUntil := IncMinute(Now, LINK_PAIR_MINUTES);
+  Text := Format('%s wants to connect to this EpubBuilder. Type this code there:', [AClient]);
+  lblPairText.Text := Text;
+  lblPairCode.Text := Copy(ACode, 1, 3) + ' ' + Copy(ACode, 4, MaxInt);
+  pnlPair.Visible := True;
+  tmPair.Enabled := True;
+  tmPairTimer(nil);
+  // Big Picture: the pad's box too, unless another question shows there
+  if FBigPicture and (FPadMenu <> nil) and ((FPadMode <> BPM_ASK) or FPairPad) then
+  begin
+    FPadCmds := [PADROW_NONE];
+    FAskResults := [mrCancel];
+    FAskCancel := mrCancel;
+    FAskProc :=
+      procedure(const AResult: TModalResult)
+      begin
+        RefusePairing;
+      end;
+    FPadMode := BPM_ASK;
+    FPairPad := True;
+    FPadMenu.ShowText('Connect', Text + sLineBreak + sLineBreak + lblPairCode.Text + sLineBreak + sLineBreak +
+      Format('(It works for %d minutes; this box closes by itself once it is typed.)', [LINK_PAIR_MINUTES]),
+      [TPadMenu.Item('Refuse connection')], 0, 'A / B refuse');
+  end;
+end;
+
+procedure TfrmBuilder.HidePairing(const AWhy: string);
+begin
+  if tmPair <> nil then
+    tmPair.Enabled := False;
+  if pnlPair <> nil then
+    pnlPair.Visible := False;
+  if FPairPad then
+  begin
+    FPairPad := False;
+    // still the pairing's box (not answered, not replaced): closed
+    if (FPadMode = BPM_ASK) and (FPadMenu <> nil) then
+    begin
+      FAskProc := nil;
+      FAskResults := nil;
+      FPadMode := BPM_HOME;
+      FPadMenu.Hide;
+      if (FBuild = nil) and (FCalib = nil) and (FDownload = nil) then
+        PadHome(BPC_CREATE);
+    end;
+  end;
+  if AWhy <> '' then
+    WindowLine(AWhy);
+end;
+
+procedure TfrmBuilder.RefusePairing;
+begin
+  if FLink <> nil then
+    FLink.RefusePair;
+  HidePairing(Format('Refused: %s may not connect (it can ask again).', [FPairWho]));
+end;
+
+procedure TfrmBuilder.btnRefusePairClick(Sender: TObject);
+begin
+  RefusePairing;
+end;
+
+procedure TfrmBuilder.tmPairTimer(Sender: TObject);
+var
+  Left: Int64;
+begin
+  if Now >= FPairUntil then
+  begin
+    // the link stops taking the code by itself
+    HidePairing(Format('The pairing code for %s ran out.', [FPairWho]));
+    Exit;
+  end;
+  Left := SecondsBetween(FPairUntil, Now);
+  lblPairTime.Text := Format('It works for %d:%.2d more.', [Left div 60, Left mod 60]);
+end;
+
+procedure TfrmBuilder.BigPictureWindow;
+const
+  { The log's text in Big Picture (Steam asks for at least 24 on a Deck;
+    a TV is read from the sofa). }
+  LOG_SIZE_BIG = 24;
+var
+  I: Integer;
+begin
+  layTop.Visible := False;
+  layQueue.Visible := False;
+  splQueue.Visible := False;
+  layBook.Visible := False;
+  splSides.Visible := False;
+  layAudio.Visible := False;
+  pnlSettings.Visible := False;
+  // the bottom part fills the window; of it only the log
+  layBottom.Align := TAlignLayout.Client;
+  for I := 0 to layBottom.ControlsCount - 1 do
+    layBottom.Controls[I].Visible := False;
+  SetLogVisible(True);
+  mmLog.StyledSettings := mmLog.StyledSettings - [TStyledSetting.Size];
+  mmLog.TextSettings.Font.Size := LOG_SIZE_BIG;
+  mmLog.Margins.Rect := RectF(GAP * 3, GAP * 3, GAP * 3, GAP * 3);
+  mmLog.GoToTextEnd;
+  DebugLog(Format('Big Picture: the window shows the log only (text %d)', [LOG_SIZE_BIG]));
+end;
+
 procedure TfrmBuilder.StartPad;
 var
   I: Integer;
@@ -4915,6 +5325,8 @@ begin
   if FBigPicture and (mnuBar <> nil) then
     mnuBar.Visible := False;
   {$ENDIF}
+  if FBigPicture then
+    BigPictureWindow;
   FPad := TSteamPad.Create('Reader', BP_ACTIONS, '');
   for I := BP_UP to BP_RIGHT do
     FPad.SetRepeat(I, True);
@@ -5110,8 +5522,13 @@ begin
   else
     Audio := Format('%d files', [lbAudio.Count]);
   end;
+  // owner, 2026-11-20: Add to queue third, Queue fourth; no Run queue here
+  // (it is the Queue list's first row)
   Add(BPC_BOOK, 'Book', Book);
   Add(BPC_AUDIO, 'Audio', Audio);
+  if btnAddJob.Enabled then
+    Add(BPC_ADD, 'Add to queue', '');
+  Add(BPC_QUEUE, 'Queue', Format('%d job(s)%s', [Length(FJobs), IfThen(FQueueRunning, ', running', '')]));
   if (cbModel.ItemIndex >= 0) and (cbModel.ItemIndex < cbModel.Count) then
     Add(BPC_MODEL, 'Model', PadShort(cbModel.Items[cbModel.ItemIndex]))
   else
@@ -5126,13 +5543,8 @@ begin
     Add(BPC_COVER, 'Cover', CoverChoiceText(FCoverChoice));
   if btnCreate.Enabled then
     Add(BPC_CREATE, 'Create', '');
-  if btnAddJob.Enabled then
-    Add(BPC_ADD, 'Add to queue', '');
   if btnUpdateJob.Enabled then
     Add(BPC_UPDATE, Format('Update job %d', [FEditJob + 1]), '');
-  if btnRunQueue.Enabled then
-    Add(BPC_RUN, btnRunQueue.Text, '');
-  Add(BPC_QUEUE, 'Queue', Format('%d job(s)%s', [Length(FJobs), IfThen(FQueueRunning, ', running', '')]));
   if btnCancel.Enabled then
     Add(BPC_CANCEL, 'Cancel', PadShort(FStatusText));
   if (miCalibrate <> nil) and miCalibrate.Enabled then
@@ -5204,10 +5616,11 @@ begin
               BPC_ADD: btnAddJobClick(nil);
               BPC_UPDATE: btnUpdateJobClick(nil);
             end;
-            // no question asked: the home list again, Run queue selected (a
-            // build shows in the window - Start brings the menu back)
+            // no question asked: the home list again, Queue selected (its
+            // first row runs it; a build shows in the window - Start brings
+            // the menu back)
             if (FPadMode <> BPM_ASK) and (Cmd <> BPC_CREATE) then
-              PadHome(BPC_RUN);
+              PadHome(BPC_QUEUE);
           end;
         BPC_QUEUE: PadQueue(-1);
         BPC_RUN:
@@ -5359,12 +5772,68 @@ begin
   end;
 end;
 
+{ A book's key for TranscribedBooks: its file name without the extension
+  (an output's '_001' ... left off too), lower case. }
+function BookKey(const AFileName: string): string;
+var
+  Name: string;
+  N: Integer;
+begin
+  Name := ChangeFileExt(ExtractFileName(AFileName), '');
+  N := Length(Name);
+  // DefaultOutput's '<name>_001.epub' when '<name>.epub' was taken
+  if (N > 4) and (Name[N - 3] = '_') and CharInSet(Name[N - 2], ['0'..'9']) and CharInSet(Name[N - 1], ['0'..'9'])
+    and CharInSet(Name[N], ['0'..'9']) then
+    Name := Copy(Name, 1, N - 4);
+  Result := LowerCase(Name);
+end;
+
+function TfrmBuilder.TranscribedBooks: TStringList;
+var
+  Folders: TArray<string>;
+  D, F: string;
+  I: Integer;
+  R: TBuildHistoryRow;
+begin
+  Result := TStringList.Create;
+  Result.Sorted := True;
+  Result.Duplicates := dupIgnore;
+  Result.CaseSensitive := True;
+  // the books made: the output folder, the queue's, the cards' Transcribed
+  Folders := [FOutFolder];
+  for I := 0 to High(FJobs) do
+    Folders := Folders + [ExtractFileDir(FJobs[I].Output)];
+  Folders := Folders + CardFolders(CARD_TRANSCRIBED);
+  for D in Folders do
+    try
+      if (D <> '') and TDirectory.Exists(D) then
+        for F in TDirectory.GetFiles(D) do
+          if SameText(ExtractFileExt(F), '.epub') then
+            Result.Add(BookKey(F));
+    except
+      on E: Exception do
+        DebugLog('pad: ' + D + ': ' + E.Message);
+    end;
+  // and the builds in the history (their books may have moved on, to
+  // EpubReader or BookManager): those matched well
+  try
+    for R in HistoryLoad(HistoryFile) do
+      if (R.OutputName <> '') and (R.MatchedPercent >= HISTORY_POOR_MATCH) then
+        Result.Add(BookKey(R.OutputName));
+  except
+    on E: Exception do
+      DebugLog('pad: the history: ' + E.Message);
+  end;
+end;
+
 procedure TfrmBuilder.PadBooks;
 var
   Items: TArray<TPadMenuItem>;
   Files: TArray<string>;
   I: Integer;
   Sub: string;
+  Done: TStringList;
+  It: TPadMenuItem;
 begin
   Items := nil;
   FPadCmds := nil;
@@ -5386,21 +5855,39 @@ begin
       on E: Exception do
         DebugLog('pad: ' + Sub + ': ' + E.Message);
     end;
-  TArray.Sort<string>(Files, TComparer<string>.Construct(
-    function(const A, B: string): Integer
+  // the books to do first, those transcribed already last - faded and
+  // marked (owner, 2026-11-20)
+  Done := TranscribedBooks;
+  try
+    TArray.Sort<string>(Files, TComparer<string>.Construct(
+      function(const A, B: string): Integer
+      begin
+        Result := Ord(Done.IndexOf(BookKey(A)) >= 0) - Ord(Done.IndexOf(BookKey(B)) >= 0);
+        if Result = 0 then
+          Result := CompareText(ExtractFileName(A), ExtractFileName(B));
+      end));
+    for I := 0 to High(Files) do
     begin
-      Result := CompareText(ExtractFileName(A), ExtractFileName(B));
-    end));
-  for I := 0 to High(Files) do
-  begin
-    // where it is: its folder in the books folder, or the card's name
-    if CardOf(Files[I]) <> '' then
-      Sub := 'card ' + CardName(CardOf(Files[I]))
-    else
-      Sub := ExcludeTrailingPathDelimiter(ExtractRelativePath(IncludeTrailingPathDelimiter(FBookFolder),
-        ExtractFilePath(Files[I])));
-    Items := Items + [TPadMenu.Item(ChangeFileExt(ExtractFileName(Files[I]), ''), Sub)];
-    FPadCmds := FPadCmds + [I];
+      // where it is: its folder in the books folder, or the card's name
+      if CardOf(Files[I]) <> '' then
+        Sub := 'card ' + CardName(CardOf(Files[I]))
+      else
+        Sub := ExcludeTrailingPathDelimiter(ExtractRelativePath(IncludeTrailingPathDelimiter(FBookFolder),
+          ExtractFilePath(Files[I])));
+      It := TPadMenu.Item(ChangeFileExt(ExtractFileName(Files[I]), ''), Sub);
+      if Done.IndexOf(BookKey(Files[I])) >= 0 then
+      begin
+        It.Dim := True;
+        if Sub = '' then
+          It.Value := 'transcribed'
+        else
+          It.Value := Sub + ', transcribed';
+      end;
+      Items := Items + [It];
+      FPadCmds := FPadCmds + [I];
+    end;
+  finally
+    Done.Free;
   end;
   FPadBooks := Files;
   if Length(Files) = 0 then
@@ -5916,6 +6403,7 @@ begin
     FLink.OnPairCode := LinkPairCode;
     FLink.OnPaired := LinkPaired;
     FLink.OnReceived := LinkReceived;
+    FLink.OnPairEnded := LinkPairEnded;
     UpdateLinkFolders;
     LogLine(FLink.Start);
   except
@@ -5999,20 +6487,23 @@ begin
 end;
 
 procedure TfrmBuilder.LinkPairCode(const AClient, ACode: string);
-var
-  Text: string;
 begin
-  Text := Format('%s wants to connect to EpubBuilder. Type this code there: %s (it works for 5 minutes).',
-    [AClient, ACode]);
-  // in the log, and in a box (the pad's in Big Picture, a dialog else)
-  WindowLine(Text);
-  Ask(Text, TMsgDlgType.mtInformation, [TMsgDlgBtn.mbOK], TMsgDlgBtn.mbOK, nil);
+  WindowLine(Format('%s wants to connect to EpubBuilder. Type this code there: %s (it works for %d minutes).',
+    [AClient, ACode, LINK_PAIR_MINUTES]));
+  // a bar, not a dialog: it closes by itself (ShowPairing)
+  ShowPairing(AClient, ACode);
+end;
+
+procedure TfrmBuilder.LinkPairEnded(const AClient, AWhy: string);
+begin
+  HidePairing(Format('Pairing with %s ended: %s.', [AClient, AWhy]));
 end;
 
 procedure TfrmBuilder.LinkPaired(const AClient, AToken: string);
 var
   Ini: TMemIniFile;
 begin
+  HidePairing('');
   LogLine(Format('Paired: %s can now send books and audio and get the books made.', [AClient]));
   try
     Ini := TMemIniFile.Create(SettingsFile, TEncoding.UTF8);
@@ -6517,6 +7008,15 @@ begin
   {$IF Defined(LINUX) and not Defined(ANDROID)}
   if not SteamBuild or (STEAM_DLC_ROCM = 0) then
     Exit;
+  // a Steam Deck (its gfx1033 is not a ROCm target), or the launcher found
+  // no ROCm kernels for this GPU: the DLC would not help - nothing offered.
+  // (No kernels at all - the DLC not installed - is what the DLC brings.)
+  if SteamOnDeck or StartsText('no ROCm kernels here for', GetEnvironmentVariable('EPUBUNUM_ROCM_OFF')) then
+  begin
+    DebugLog('ROCm DLC: not offered - not for this GPU (' + IfThen(SteamOnDeck, 'a Steam Deck',
+      Trim(GetEnvironmentVariable('EPUBUNUM_ROCM_OFF'))) + ')');
+    Exit;
+  end;
   Amd := False;
   Rocm := False;
   for I := 0 to High(FDevices) do
@@ -6541,7 +7041,7 @@ begin
     LogLine('This AMD GPU may transcribe faster with AMD ROCm acceleration, a free DLC: Tools > Get AMD ROCm ' +
       'acceleration.');
     miRocm.Visible := True;
-    if mnuMain <> nil then
+    if (mnuMain <> nil) and (mnuMain.Parent <> nil) then
       mnuMain.RecreateOSMenu;
   end;
   {$ENDIF}

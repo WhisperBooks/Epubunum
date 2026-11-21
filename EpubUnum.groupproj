@@ -21,6 +21,9 @@
         <Projects Include="demos\EpubBuilder\EpubBuilder.dproj">
             <Dependencies/>
         </Projects>
+        <Projects Include="demos\BookManager\BookManager.dproj">
+            <Dependencies/>
+        </Projects>
     </ItemGroup>
     <ProjectExtensions>
         <Borland.Personality>Default.Personality.12</Borland.Personality>
@@ -83,14 +86,23 @@
     <Target Name="EpubBuilder:Make">
         <MSBuild Projects="demos\EpubBuilder\EpubBuilder.dproj" Targets="Make"/>
     </Target>
+    <Target Name="BookManager">
+        <MSBuild Projects="demos\BookManager\BookManager.dproj"/>
+    </Target>
+    <Target Name="BookManager:Clean">
+        <MSBuild Projects="demos\BookManager\BookManager.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="BookManager:Make">
+        <MSBuild Projects="demos\BookManager\BookManager.dproj" Targets="Make"/>
+    </Target>
     <Target Name="Build">
-        <CallTarget Targets="EpubUnum;EpubUnumFMX;dclEpubUnumFMX;EpubConsole;EpubReader;EpubBuilder"/>
+        <CallTarget Targets="EpubUnum;EpubUnumFMX;dclEpubUnumFMX;EpubConsole;EpubReader;EpubBuilder;BookManager"/>
     </Target>
     <Target Name="Clean">
-        <CallTarget Targets="EpubUnum:Clean;EpubUnumFMX:Clean;dclEpubUnumFMX:Clean;EpubConsole:Clean;EpubReader:Clean;EpubBuilder:Clean"/>
+        <CallTarget Targets="EpubUnum:Clean;EpubUnumFMX:Clean;dclEpubUnumFMX:Clean;EpubConsole:Clean;EpubReader:Clean;EpubBuilder:Clean;BookManager:Clean"/>
     </Target>
     <Target Name="Make">
-        <CallTarget Targets="EpubUnum:Make;EpubUnumFMX:Make;dclEpubUnumFMX:Make;EpubConsole:Make;EpubReader:Make;EpubBuilder:Make"/>
+        <CallTarget Targets="EpubUnum:Make;EpubUnumFMX:Make;dclEpubUnumFMX:Make;EpubConsole:Make;EpubReader:Make;EpubBuilder:Make;BookManager:Make"/>
     </Target>
     <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
 </Project>

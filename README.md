@@ -173,11 +173,15 @@ would draw the same blocks.
 4. `demos/EpubConsole`
 5. `demos/EpubReader`
 6. `demos/EpubBuilder`
+7. `demos/BookManager` - EpubBuilder's companion on another computer:
+   send it books, audio and pictures (drop them on the window), fetch
+   the books it made, follow its progress and log.
 
 The demos use the runtime packages' DCUs from Delphi's Dcp folder, as any
 user project would, so build the packages first. Install `dclEpubUnumFMX`.
 EpubBuilder also uses TWhisper's runtime package `WhisperAPI` (which needs
 TFFMpegAPI's `FFmpegAPI`): build TWhisper's packages before it.
+BookManager needs none of these (only Indy, which comes with Delphi).
 
 Platforms: Win32 / Win64, macOS (x64, ARM), Linux64, Android64 for the
 packages; the demos are desktop. iOS can follow (pure Pascal).

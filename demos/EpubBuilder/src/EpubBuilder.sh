@@ -68,4 +68,46 @@ fi
 export DISABLE_GAMESCOPE_WSI=1
 echo "launcher: gamescope's Vulkan WSI layer off (ggml's Vulkan device)" >&2
 
+# EpubBuilder's addition: ROCm only on a GPU it has kernels for. ROCm's
+# runtime is bundled beside the program (libamdhip64) with rocBLAS's
+# kernels for its HIP targets (rocblas/). Without kernels for the GPU -
+# none shipped at all (the runtime left in the Linux depot without the HIP
+# depot's kernels, 2026-11-20), or none for this GPU (a Steam Deck's
+# gfx1033) - ggml still lists a ROCm device, makes it the default and
+# calibrates it, and loading a model on it never comes back. Each GPU's
+# target comes from the kernel driver (kfd topology: gfx_target_version
+# 100303 = gfx1033, 110002 = gfx1102). No kernels: HIP is shown no device
+# (HIP_VISIBLE_DEVICES=-1) and ggml uses Vulkan; EPUBUNUM_ROCM_OFF tells
+# EpubBuilder why. A HIP_VISIBLE_DEVICES set by the user, and a ROCm
+# installed on the system (not beside the program), are left alone.
+if [ -z "${HIP_VISIBLE_DEVICES+x}" ] && ls "$here"/libamdhip64.so* > /dev/null 2>&1; then
+  why=""
+  if [ ! -d "$here/rocblas" ]; then
+    why="no ROCm kernels beside the program (rocblas/ missing)"
+  elif [ -d /sys/class/kfd/kfd/topology/nodes ]; then
+    gfxs=""
+    usable=""
+    for p in /sys/class/kfd/kfd/topology/nodes/*/properties; do
+      [ -r "$p" ] || continue
+      v=$(sed -n 's/^gfx_target_version \([0-9][0-9]*\)$/\1/p' "$p")
+      case $v in ''|0) continue ;; esac
+      g=$(printf 'gfx%d%x%x' $((v / 10000)) $((v / 100 % 100)) $((v % 100)))
+      gfxs="$gfxs $g"
+      if [ -n "$(find "$here/rocblas" -name "*$g*" -print -quit 2>/dev/null)" ]; then
+        usable="$usable $g"
+      fi
+    done
+    if [ -n "$gfxs" ] && [ -z "$usable" ]; then
+      why="no ROCm kernels here for$gfxs"
+    elif [ -n "$usable" ]; then
+      echo "launcher: ROCm kernels here for$usable" >&2
+    fi
+  fi
+  if [ -n "$why" ]; then
+    export HIP_VISIBLE_DEVICES=-1
+    export EPUBUNUM_ROCM_OFF="$why"
+    echo "launcher: ROCm off - $why; Vulkan instead" >&2
+  fi
+fi
+
 exec "$prog" "$@"

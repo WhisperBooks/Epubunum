@@ -35,6 +35,9 @@ type
     Value: string;
     { Pictures on the left (PNG files; '' or missing files are left out). }
     Glyphs: TArray<string>;
+    { Shown faded: a row of less interest (EpubBuilder: a book already
+      transcribed). }
+    Dim: Boolean;
   end;
 
   { The menu: see the unit's text. }
@@ -168,6 +171,7 @@ begin
   Result.Text := AText;
   Result.Value := AValue;
   Result.Glyphs := nil;
+  Result.Dim := False;
 end;
 
 constructor TPadMenu.Create(AOwner: TComponent; AParent: TFmxObject);
@@ -368,7 +372,10 @@ begin
     L.Align := TAlignLayout.Client;
     L.StyledSettings := L.StyledSettings - [TStyledSetting.FontColor, TStyledSetting.Size];
     L.TextSettings.Font.Size := FFontSize;
-    L.TextSettings.FontColor := FFore;
+    if AItems[I].Dim then
+      L.TextSettings.FontColor := Faded(FFore, $80)
+    else
+      L.TextSettings.FontColor := FFore;
     L.Text := AItems[I].Text;
     L.HitTest := False;
     FRows := FRows + [R];

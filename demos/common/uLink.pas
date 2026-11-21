@@ -57,6 +57,8 @@ const
   LINK_RESERVE = Int64(2) * 1024 * 1024 * 1024;
   { A builder not heard for this long (s) leaves the finder's list. }
   LINK_GONE_SECONDS = 10;
+  { A pairing code works this long (minutes). }
+  LINK_PAIR_MINUTES = 5;
 
 type
   { A builder heard (TLinkFinder). }
@@ -82,6 +84,9 @@ type
   TLinkPairCodeEvent = procedure(const AClient, ACode: string) of object;
   { A program was paired: its name and token (to keep). }
   TLinkPairedEvent = procedure(const AClient, AToken: string) of object;
+  { The code offered to AClient no longer works, without a pairing:
+    AWhy (five wrong codes). }
+  TLinkPairEndedEvent = procedure(const AClient, AWhy: string) of object;
   { A file was received: 'book' or 'audio', and where it is now. }
   TLinkReceivedEvent = procedure(const AKind, AFileName: string) of object;
 
@@ -127,6 +132,11 @@ type
     FPairUntil: TDateTime;
     { Wrong codes sent for FPairCode. }
     FPairWrong: Integer;
+    { The last code was refused on the builder (RefusePair): its program is
+      told so. }
+    FPairRefused: Boolean;
+    { Backing field of OnPairEnded. }
+    FOnPairEnded: TLinkPairEndedEvent;
     { Backing field of OnPairCode. }
     FOnPairCode: TLinkPairCodeEvent;
     { Backing field of OnPaired. }
@@ -173,12 +183,18 @@ type
     procedure SetTokens(const AText: string);
     { The paired programs, token=name a line (to keep). }
     function TokensText: string;
+    { The code offered is refused (the builder's Refuse connection): the
+      program asking is told so; it may ask again. }
+    procedure RefusePair;
     { The HTTP port in use (0 = not listening). }
     property Port: Integer read FPort;
     { A program asks to pair: show the code. }
     property OnPairCode: TLinkPairCodeEvent read FOnPairCode write FOnPairCode;
     { A program was paired: keep the tokens (TokensText). }
     property OnPaired: TLinkPairedEvent read FOnPaired write FOnPaired;
+    { The code offered stopped working without a pairing (five wrong
+      codes): take the code away. }
+    property OnPairEnded: TLinkPairEndedEvent read FOnPairEnded write FOnPairEnded;
     { A file was received. }
     property OnReceived: TLinkReceivedEvent read FOnReceived write FOnReceived;
   end;
@@ -213,7 +229,8 @@ type
   TLinkProgress = reference to procedure(ADone, ATotal: Int64);
 
   { The other programs' side: calls a builder. Blocking - use it from a
-    thread for files. Raises ELinkError with the builder's message. }
+    thread for files. Raises ELinkError with the builder's message (or
+    with what went wrong on the way), ELinkCancelled after Cancel. }
   TLinkClient = class
   private
     { The builder's address. }
@@ -230,10 +247,33 @@ type
     FTotal: Int64;
     { The bytes of a download already there (resumed). }
     FOffset: Int64;
+    { The direction FProgress counts (wmRead: a download, wmWrite: an
+      upload's body). }
+    FWorkMode: TWorkMode;
+    { Cancel was called: the call running stops, the next ones do not
+      start. }
+    FCancel: Boolean;
+    { Guards FHttp (Cancel comes from another thread). }
+    FLock: TCriticalSection;
+    { The HTTP client of the call running (nil = none): Cancel disconnects
+      it, which also ends a call stuck on a silent network. }
+    FHttp: TIdHTTP;
+    { Backing field of Skipped. }
+    FSkipped: Boolean;
     { A new HTTP client with the token. }
     function NewHttp: TIdHTTP;
-    { Indy's work event: FProgress. }
+    { The call running is AHttp's (nil: none now) - for Cancel. }
+    procedure Running(AHttp: TIdHTTP);
+    { Raises ELinkCancelled when Cancel was called. }
+    procedure CheckCancel;
+    { Indy's work event: FProgress (and Cancel). }
     procedure Work(ASender: TObject; AWorkMode: TWorkMode; AWorkCount: Int64);
+    { Indy's work-begin event: a download's size, as soon as it is known. }
+    procedure WorkBegin(ASender: TObject; AWorkMode: TWorkMode; AWorkCountMax: Int64);
+    { The exception to raise for E, raised in an HTTP call: the builder's
+      message, ELinkCancelled after Cancel, else what went wrong and
+      where. }
+    function Failure(E: Exception): Exception;
     { GET APath: the answer's JSON (raises with the builder's message). }
     function GetJson(const APath: string): TJSONObject;
     { POST APath with no body: the answer's JSON. }
@@ -242,6 +282,11 @@ type
     { A client for the builder at AHost:APort.
       @param(AClient  this program's name, e.g. 'BookManager on PC') }
     constructor Create(const AHost: string; APort: Integer; const AClient, AToken: string);
+    { Frees. }
+    destructor Destroy; override;
+    { Stops the call running (from any thread): it raises ELinkCancelled.
+      A download's .part file stays (the next try goes on from it). }
+    procedure Cancel;
     { /info: the builder's JSON (the caller frees it). }
     function Info: TJSONObject;
     { Asks to pair: the builder shows a code. }
@@ -259,16 +304,24 @@ type
     { Downloads the book APath (as /books gives it) to AFileName - going on
       from a .part file of an earlier try. }
     procedure Download(const APath, AFileName: string; const AProgress: TLinkProgress);
-    { Sends AFileName as AKind ('book' / 'audio') into the folder ADir of
-      its kind ('' = the folder itself). Checked first (/upload/check).
-      @returns(where the builder put it) }
-    function Upload(const AKind, AFileName, ADir: string; const AProgress: TLinkProgress): string;
+    { Sends AFileName as AKind ('book' / 'audio' / 'cover') into the folder
+      ADir of its kind ('' = the folder itself; '/' between names).
+      Checked first (/upload/check): refused there, nothing is sent; the
+      same file (name and size) there already is not sent again unless
+      AReplace (Skipped says so).
+      @returns(where the builder put it, or has it) }
+    function Upload(const AKind, AFileName, ADir: string; AReplace: Boolean; const AProgress: TLinkProgress): string;
     { The token from pairing. }
     property Token: string read FToken;
+    { The last Upload sent nothing: the builder has that file already. }
+    property Skipped: Boolean read FSkipped;
   end;
 
   { A link call that did not work, with the builder's reason. }
   ELinkError = class(Exception);
+
+  { A link call stopped by TLinkClient.Cancel. }
+  ELinkCancelled = class(ELinkError);
 
 { The free space of the drive AFolder is on, bytes (-1 = not known). }
 function LinkFreeSpace(const AFolder: string): Int64;
@@ -293,8 +346,6 @@ const
   COVER_EXTS: array[0..4] of string = ('.jpg', '.jpeg', '.png', '.webp', '.gif');
   { Log lines kept for /log. }
   LOG_KEEP = 5000;
-  { A pairing code is good this long (minutes). }
-  PAIR_MINUTES = 5;
 
 type
   { An upload's .part file: where it goes when whole, and how big. }
@@ -660,6 +711,17 @@ begin
   end;
 end;
 
+procedure TLinkServer.RefusePair;
+begin
+  FLock.Enter;
+  try
+    FPairCode := '';
+    FPairRefused := True;
+  finally
+    FLock.Leave;
+  end;
+end;
+
 function TLinkServer.TokenOk(const AToken: string): Boolean;
 begin
   if Length(AToken) < 16 then
@@ -855,6 +917,7 @@ var
   F: TFileStream;
   Part: TLinkPartStream;
   Folder, Why, BooksDir, AudioDir: string;
+  Ended: Boolean;
 begin
   Doc := LowerCase(ARequestInfo.Document);
   Token := ARequestInfo.RawHeaders.Values['X-Link-Token'];
@@ -881,8 +944,9 @@ begin
       try
         FPairCode := Format('%.6d', [Random(1000000)]);
         FPairClient := Client;
-        FPairUntil := IncMinute(Now, PAIR_MINUTES);
+        FPairUntil := IncMinute(Now, LINK_PAIR_MINUTES);
         FPairWrong := 0;
+        FPairRefused := False;
         Code := FPairCode;
       finally
         FLock.Leave;
@@ -904,9 +968,12 @@ begin
     begin
       Client := Trim(QueryValue(ARequestInfo, 'client'));
       Code := Trim(QueryValue(ARequestInfo, 'code'));
+      Ended := False;
       FLock.Enter;
       try
-        if (FPairCode = '') or (Now > FPairUntil) then
+        if FPairRefused then
+          Why := 'the connection was refused on EpubBuilder'
+        else if (FPairCode = '') or (Now > FPairUntil) then
         begin
           FPairCode := '';
           Why := 'no code is offered now: ask again';
@@ -914,9 +981,15 @@ begin
         else if Code <> FPairCode then
         begin
           Inc(FPairWrong);
-          if FPairWrong >= 5 then
-            FPairCode := '';
           Why := 'wrong code';
+          if FPairWrong >= 5 then
+          begin
+            FPairCode := '';
+            Ended := True;
+            Why := 'wrong code five times: ask again';
+            if Client = '' then
+              Client := FPairClient;
+          end;
         end
         else
         begin
@@ -930,6 +1003,13 @@ begin
       finally
         FLock.Leave;
       end;
+      if Ended and Assigned(FOnPairEnded) then
+        TThread.Queue(nil,
+          procedure
+          begin
+            if Assigned(FOnPairEnded) then
+              FOnPairEnded(Client, 'wrong code five times');
+          end);
       if Why <> '' then
       begin
         SendError(AResponseInfo, 403, Why);
@@ -1216,6 +1296,13 @@ begin
   FPort := APort;
   FClient := AClient;
   FToken := AToken;
+  FLock := TCriticalSection.Create;
+end;
+
+destructor TLinkClient.Destroy;
+begin
+  FLock.Free;
+  inherited;
 end;
 
 function TLinkClient.NewHttp: TIdHTTP;
@@ -1225,12 +1312,56 @@ begin
   Result.ReadTimeout := 60000;
   Result.Request.CustomHeaders.Values['X-Link-Token'] := FToken;
   Result.OnWork := Work;
+  Result.OnWorkBegin := WorkBegin;
+end;
+
+procedure TLinkClient.Running(AHttp: TIdHTTP);
+begin
+  FLock.Enter;
+  try
+    FHttp := AHttp;
+  finally
+    FLock.Leave;
+  end;
+end;
+
+procedure TLinkClient.Cancel;
+begin
+  FCancel := True;
+  FLock.Enter;
+  try
+    // a blocked read or write ends when its socket is closed (also when
+    // the builder went to sleep mid-transfer and nothing comes any more)
+    if FHttp <> nil then
+      try
+        FHttp.Disconnect;
+      except
+        // closing anyway
+      end;
+  finally
+    FLock.Leave;
+  end;
+end;
+
+procedure TLinkClient.CheckCancel;
+begin
+  if FCancel then
+    raise ELinkCancelled.Create('cancelled');
 end;
 
 procedure TLinkClient.Work(ASender: TObject; AWorkMode: TWorkMode; AWorkCount: Int64);
 begin
-  if Assigned(FProgress) then
+  CheckCancel;
+  if Assigned(FProgress) and (AWorkMode = FWorkMode) then
     FProgress(FOffset + AWorkCount, FTotal);
+end;
+
+procedure TLinkClient.WorkBegin(ASender: TObject; AWorkMode: TWorkMode; AWorkCountMax: Int64);
+begin
+  CheckCancel;
+  // a download: the answer's length is what is left of the book
+  if (FWorkMode = wmRead) and (AWorkMode = wmRead) and (AWorkCountMax > 0) then
+    FTotal := FOffset + AWorkCountMax;
 end;
 
 { The builder's message from an HTTP error's body. }
@@ -1248,6 +1379,19 @@ begin
   end;
 end;
 
+function TLinkClient.Failure(E: Exception): Exception;
+begin
+  if FCancel then
+    Result := ELinkCancelled.Create('cancelled')
+  else if E is EIdHTTPProtocolException then
+    Result := ELinkError.Create(ErrorText(EIdHTTPProtocolException(E)))
+  else if E is ELinkError then
+    Result := ELinkError.Create(E.Message)
+  else
+    // no answer, connection lost, ...: where, and Indy's words
+    Result := ELinkError.CreateFmt('EpubBuilder at %s:%d: %s', [FHost, FPort, E.Message]);
+end;
+
 function TLinkClient.GetJson(const APath: string): TJSONObject;
 var
   H: TIdHTTP;
@@ -1255,18 +1399,21 @@ var
   V: TJSONValue;
   Answer: TStringStream;
 begin
+  CheckCancel;
   H := NewHttp;
   Answer := TStringStream.Create('', TEncoding.UTF8);
   try
+    Running(H);
     try
       // into a stream: UTF-8 whatever the answer's header says
       H.Get(Format('http://%s:%d%s', [FHost, FPort, APath]), Answer);
       S := Answer.DataString;
     except
-      on E: EIdHTTPProtocolException do
-        raise ELinkError.Create(ErrorText(E));
+      on E: Exception do
+        raise Failure(E);
     end;
   finally
+    Running(nil);
     Answer.Free;
     H.Free;
   end;
@@ -1285,18 +1432,21 @@ var
   Body, Answer: TStringStream;
   V: TJSONValue;
 begin
+  CheckCancel;
   H := NewHttp;
   Body := TStringStream.Create('');
   Answer := TStringStream.Create('', TEncoding.UTF8);
   try
+    Running(H);
     try
       H.Post(Format('http://%s:%d%s', [FHost, FPort, APath]), Body, Answer);
     except
-      on E: EIdHTTPProtocolException do
-        raise ELinkError.Create(ErrorText(E));
+      on E: Exception do
+        raise Failure(E);
     end;
     V := TJSONObject.ParseJSONValue(Answer.DataString);
   finally
+    Running(nil);
     Answer.Free;
     Body.Free;
     H.Free;
@@ -1362,6 +1512,7 @@ var
   F: TFileStream;
   Part: string;
 begin
+  CheckCancel;
   Part := AFileName + '.part';
   if FileExists(Part) then
     F := TFileStream.Create(Part, fmOpenReadWrite or fmShareDenyWrite)
@@ -1370,18 +1521,22 @@ begin
   try
     F.Seek(0, soEnd);
     FOffset := F.Size;
+    FTotal := 0;
+    FWorkMode := wmRead;
     FProgress := AProgress;
     H := NewHttp;
     try
+      Running(H);
       try
         H.Get(Format('http://%s:%d/book?path=%s&offset=%d', [FHost, FPort, TNetEncoding.URL.Encode(APath),
           FOffset]), F);
         FTotal := StrToInt64Def(H.Response.RawHeaders.Values['X-Link-Size'], F.Size);
       except
-        on E: EIdHTTPProtocolException do
-          raise ELinkError.Create(ErrorText(E));
+        on E: Exception do
+          raise Failure(E);
       end;
     finally
+      Running(nil);
       H.Free;
       FProgress := nil;
     end;
@@ -1396,66 +1551,93 @@ begin
   TFile.Move(Part, AFileName);
 end;
 
-function TLinkClient.Upload(const AKind, AFileName, ADir: string; const AProgress: TLinkProgress): string;
+function TLinkClient.Upload(const AKind, AFileName, ADir: string; AReplace: Boolean;
+  const AProgress: TLinkProgress): string;
 var
   H: TIdHTTP;
   F: TFileStream;
   Answer, Empty: TStringStream;
   V: TJSONValue;
   Base: string;
+  There: Boolean;
 
   procedure Headers(AH: TIdHTTP);
   begin
     AH.Request.CustomHeaders.Values['X-Link-Kind'] := AKind;
     AH.Request.CustomHeaders.Values['X-Link-Name'] := TNetEncoding.URL.Encode(ExtractFileName(AFileName));
     AH.Request.CustomHeaders.Values['X-Link-Dir'] := TNetEncoding.URL.Encode(ADir);
-    AH.Request.CustomHeaders.Values['X-Link-Size'] := IntToStr(TFile.GetSize(AFileName));
+    AH.Request.CustomHeaders.Values['X-Link-Size'] := IntToStr(F.Size);
     AH.Request.ContentType := 'application/octet-stream';
   end;
 
 begin
+  CheckCancel;
+  FSkipped := False;
+  Result := '';
   Base := Format('http://%s:%d', [FHost, FPort]);
-  // asked first: no gigabyte sent to be refused
-  H := NewHttp;
+  F := TFileStream.Create(AFileName, fmOpenRead or fmShareDenyWrite);
   Answer := TStringStream.Create('', TEncoding.UTF8);
   Empty := TStringStream.Create('');
-  F := TFileStream.Create(AFileName, fmOpenRead or fmShareDenyWrite);
+  H := nil;
   try
+    // asked first: no gigabyte sent to be refused
+    H := NewHttp;
+    Running(H);
     Headers(H);
     try
       H.Post(Base + '/upload/check', Empty, Answer);
     except
-      on E: EIdHTTPProtocolException do
-        raise ELinkError.Create(ErrorText(E));
+      on E: Exception do
+        raise Failure(E);
     end;
-    H.Free;
+    There := False;
+    V := TJSONObject.ParseJSONValue(Answer.DataString);
+    try
+      if V is TJSONObject then
+      begin
+        TJSONObject(V).TryGetValue<string>('file', Result);
+        TJSONObject(V).TryGetValue<Boolean>('there', There);
+      end;
+    finally
+      V.Free;
+    end;
+    // the same file (name and size) there already
+    if There and not AReplace then
+    begin
+      FSkipped := True;
+      Exit;
+    end;
+    Running(nil);
+    FreeAndNil(H);
     H := NewHttp;
+    Running(H);
     Headers(H);
     H.Request.CustomHeaders.Values['X-Link-Upload'] := '1';
     Answer.Clear;
     FOffset := 0;
     FTotal := F.Size;
+    FWorkMode := wmWrite;
     FProgress := AProgress;
     try
       H.Post(Base + '/upload', F, Answer);
     except
-      on E: EIdHTTPProtocolException do
-        raise ELinkError.Create(ErrorText(E));
+      on E: Exception do
+        raise Failure(E);
     end;
     V := TJSONObject.ParseJSONValue(Answer.DataString);
     try
-      Result := '';
       if V is TJSONObject then
         TJSONObject(V).TryGetValue<string>('file', Result);
     finally
       V.Free;
     end;
   finally
+    Running(nil);
     FProgress := nil;
-    F.Free;
+    H.Free;
     Empty.Free;
     Answer.Free;
-    H.Free;
+    F.Free;
   end;
 end;
 

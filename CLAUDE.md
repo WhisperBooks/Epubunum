@@ -4,7 +4,186 @@ Read README.md first, then this file. Keep both up to date with every change.
 The rules follow TWhisper's and TFFMpegAPI's CLAUDE.md (same owner, same
 conventions); where this file is silent, theirs apply.
 
-## Handover - READ THIS FIRST (latest: session 10, 2026-11-19 / 20)
+## Handover - READ THIS FIRST (latest: session 11, 2026-11-21 05:18)
+
+### Session 11 (2026-11-20 19:35 - 2026-11-21 05:18) - where it stopped
+Written at the owner's request (05:18: "write up a session handover in
+claude.md. Pay particular attention to releasing Reader as a free app
+with Builder as a paid dlc as this will be the next plan of action -
+unifying the project"). One section per zip below ("Zip 181" - "Zip
+192", newest first); this is the map.
+
+PUSH STATE: last push 42d5f27 "Handover" = zips up to 180. NOTHING of
+181 - 193 is pushed (193 = this handover). Never commit or push unless
+asked.
+
+COMPILED / RUN BY THE OWNER: 175 - 180 ("everything compiles fine",
+19:39); BookManager (181 + 182's TPath fix) compiled and ran (paired,
+first-chance Indy exceptions seen); EpubBuilder up to 187 ran on the
+Steam Deck (debug log "Build: 2026-11-20 21:18, 42d5f27": ROCm0 left
+out, calibration, Foundation built). NOT COMPILED: 188 - 192 (188
+launcher / RocmUnusable, 189 / 191 icons + EpubBuilder.dproj line, 190
+RememberOutFolder, 192 the builder's window rewrite - the biggest risk).
+NO PACKAGE REBUILD needed for anything since 180.
+
+FILES CHANGED since 42d5f27 (for the push): CLAUDE.md, README.md,
+EpubUnum.groupproj (BookManager), tools/gen_projects.py,
+tools/make_icons.py (NEW; delete tools/make_bookmanager_icon.py if 189
+was applied), demos/common/uLink.pas, demos/EpubReader/src/uPadMenu.pas,
+demos/EpubReader/EpubReader_Icon.ico (redrawn), demos/EpubReader/README.md,
+demos/EpubBuilder/src/uBuilder.pas, demos/EpubBuilder/src/EpubBuilder.sh
+(keep 100755), demos/EpubBuilder/EpubBuilder.dproj (one Icon_MainIcon
+line), demos/EpubBuilder/EpubBuilder_Icon.ico (NEW),
+demos/EpubBuilder/README.md, demos/BookManager/ (NEW: BookManager.dpr /
+.dproj, BookManager_Icon.ico, README.md, src/uManager.pas + .fmx,
+src/uTransfers.pas, src/uRoute.pas).
+
+Done this session, by theme (details in each zip's section):
+- BOOKMANAGER (181 - 184): a new FMX desktop program (not Steam): finds
+  EpubBuilder by UDP, pairs with a code, sends books / audio / pictures /
+  folders each to its place (uRoute), fetches the books made, Progress
+  and Log tabs; cancels drop the connection (uLink TLinkClient.Cancel);
+  the poll backs off and stops while the builder is not heard. The
+  builder's pairing box became a bar that closes itself, with Refuse
+  connection (183).
+- BUILDER UI: Big Picture books list - transcribed books last, faded,
+  "transcribed" (184, uPadMenu TPadMenuItem.Dim); BP home order Book,
+  Audio, Add to queue, Queue (184); BP window = the log only, text 24
+  (185); a typed output folder is remembered (190); the window rewritten
+  - settings on their own page (Settings... / Tools > Settings...), the
+  queue below book and audio (192).
+- ROCm ON THE DECK (186 - 188): ROCm0 listed on gfx1033 hung model loads.
+  The launcher hides HIP when ROCm's runtime is bundled without kernels
+  or no GPU has kernels (kfd gfx check); EpubBuilder leaves ROCm devices
+  out itself (a Deck, or runtime without rocblas/) and "Default" becomes
+  the first other GPU. CAUSE ON STEAM: the HIP depot is no longer shipped
+  but the LINUX DEPOT STILL CARRIES ggml-hip + libamdhip64 - stage it
+  with steam_stage.py / deploy_redist.py --skip-rocm (owner's side).
+- MEASURED: Steam Deck, Foundation 8:57 in 1:07:59 (7.9x Vulkan, 98.8 %
+  matched; book / calibration 1.56) - see "Zip 189".
+- ICONS (189, 191): one set drawn by tools/make_icons.py (navy tile,
+  cream books, amber badge: reader play, builder gear + sound wave,
+  manager arrows). Windows .ico only.
+- ANSWERED, no code: one Steam account = one device running at a time;
+  cloud GPUs (L40S / H100 / RTX PRO 6000) vs the 5090 laptop - modest
+  per book, big for several books at once (needs parallel jobs, driver
+  580+, "add by address" in BookManager); Steam Families; Bazzite tests
+  listed under TO TEST below.
+
+OPEN / OFFERED (not done):
+- Calibration: a time limit per device (a hanging GPU skipped, logged).
+- The GPU-against-kernels check also in EpubBuilder itself (the Linux
+  ROG Ally, gfx1103) - partly done by 188's "runtime without rocblas/".
+- BookManager: hold transfers while the builder is not heard (now they
+  fail at once; a re-drop skips what arrived); "add by address" (cloud /
+  other subnets - UDP broadcast does not cross).
+- Builder: larger fonts "where needed (like Deck)" - asked what / when;
+  the Big Picture form "may be" more than the log (owner to decide).
+- Icons for macOS (.icns) and Linux.
+- Several jobs at once on one GPU (cloud cards: 48 - 96 GB).
+
+### NEXT PLAN OF ACTION: EpubReader free, EpubBuilder a paid DLC (one app)
+Owner 2026-11-20 21:51: "On Steam is it possible to make Reader a free
+main product with builder a paid DLC?" - yes; 22:21 asked whether both
+can run at once; 2026-11-21 05:18: "this will be the next plan of action
+- unifying the project". Nothing of it is built yet.
+
+WHAT STEAM ALLOWS (checked on the web 2026-11-20, partner.steamgames.com
+DLC page and SteamDB):
+- A free base app with paid DLC is normal ("Steam supports both free and
+  paid downloadable content").
+- ALL DLC DEPOTS LIVE IN THE BASE APP's depot list ("There is no way to
+  have Depots reside within your DLC App directly"): the builder's files
+  are a depot of the READER's app, owned by the DLC, installed into the
+  reader's folder only for owners.
+- A LAUNCH OPTION CAN REQUIRE OWNING A DLC (SteamDB shows XCOM 2's config:
+  a launch option with "Owns DLC ..."): an "EpubBuilder" launch option
+  per OS, shown only to owners; Steam asks Reader or EpubBuilder on Play.
+- Precedent: Animaze - a freemium app whose one-time-purchase version is
+  a DLC with its own launch option.
+
+WHY IT FITS: the two programs already share one Steam Input manifest
+("one manifest per Steam app" - the builder uses the reader's), the
+Documents/EpubUnum folders and the EpubUnum settings folder; the reader
+already lists the builder's Transcribed folder; a free reader also
+answers "several devices on one account" (each person their own free
+account; zip-less answer 20:03).
+
+WHAT CHANGES (the work, in order):
+1. STEAMWORKS (owner): under 5639840 (EpubReader) a new DLC app
+   "EpubBuilder" (paid) -> its AppID; on 5639840's Depots page one depot
+   per OS for it (Windows, Linux, macOS), each owned by the DLC; the DLC
+   in its packages (store package, developer comp). The ROCm DLC (free,
+   zips 110 / 111 - never made on the playtest) and later CUDA: DLCs of
+   5639840 too (only builder owners need them; offered only by the
+   builder). Launch options on 5639840: per OS "EpubReader" (as now) and
+   "EpubBuilder" with Owns DLC = the builder DLC (Windows EpubBuilder.exe;
+   Linux EpubBuilder.sh - the launcher, NOT the binary; macOS
+   EpubBuilder.app). Store: the DLC's page, price, screenshots; read
+   Valve's DLC rules for a whole program sold as DLC. Decide what becomes
+   of 5639910 (the builder playtest): retire it, or keep it for tests.
+2. DEPOTS / STAGING (tools/steam_stage.py + the owner's SteamPipe GUI
+   setup, one setup per program today): ONE install folder for both
+   programs. Files both use (FFmpeg's libraries, libgomp, licences/,
+   steaminput/, FreeType / ICU launcher helpers ...) go ONLY in the
+   reader's base depots; the builder DLC depots hold what only the
+   builder needs (EpubBuilder + .sh / .app, whisper / ggml CPU + Vulkan,
+   media/aladdin.m4a, models/ - turbo 1.5 GB: in the DLC depot or
+   downloaded on first use, decide). Two depots writing the same file
+   name into one folder must not happen (check for overlaps in the
+   script; reader and builder must ship the SAME FFmpeg build). ROCm /
+   CUDA parts as today (steam_stage.py's HIP / CUDA folders) but as DLC
+   depots of 5639840. Mac: EpubReader.app and EpubBuilder.app side by
+   side in the depot (the reader's .app today has the steaminput folder
+   beside it).
+3. CODE:
+   a. EpubBuilder.dpr: STEAM_APP_ID 5639910 -> 5639840 (the reader's) +
+      a new STEAM_DLC_BUILDER constant. After SteamStartup: not owned
+      (SteamDlcState in uSteam - BIsDlcInstalled / BIsSubscribedApp) ->
+      a message and SteamGetDlc (the store page in the overlay), no
+      window. Its files are only there for owners, but check anyway
+      (copied folders).
+   b. Steam treats both as ONE app: while one runs, Play becomes Stop -
+      the other is started FROM the running one. EpubReader: "Open
+      EpubBuilder" (owned) / "Get EpubBuilder..." (not: SteamGetDlc) in
+      its menu and its pad menu; EpubBuilder: "Open EpubReader". Start
+      the sibling from the program's own folder (Windows CreateProcess;
+      Linux through EpubBuilder.sh / the reader's launcher so the
+      runtime's env is right; macOS open -a the other .app). The child
+      inherits SteamAppId; Steam counts the app as running until both end.
+   c. PAD: both programs get Steam Input for the same app at once - each
+      must ignore pad actions while its window is not the active one
+      (uSteamPad / TSteamPad users: the reader's uReaderInput and the
+      builder's pad menu).
+   d. GAME MODE (gamescope): two windows of one app - how the user
+      switches between them is UNTESTED; test on the Deck / Steam Machine
+      before relying on it (may need one at a time in Game Mode).
+   e. STEAM_DLC_ROCM (uBuilder, CheckRocmDlc) -> the ROCm DLC's new AppID
+      under 5639840.
+   f. Paths: the install folder becomes the reader's
+      (steamapps/common/<reader's install dir>) - everything is relative
+      to the program, but check the launchers, steaminput/, media/,
+      models/ and the debug logs' "Program:" line.
+   g. Playtime / status show as EpubReader for both (fine; say so).
+4. BOOKMANAGER: not a Steam program today. Options: a third launch
+   option in the builder DLC (it serves builder owners only), or its own
+   download. Decide.
+5. TEST MATRIX: DLC not owned (reader works; builder option hidden;
+   "Get EpubBuilder" opens the store); owned (both launch options; Open
+   the sibling from each; the pad only acts in the front window); Windows
+   desktop + Big Picture, Steam Deck Game Mode, Steam Machine, macOS;
+   the ROCm DLC on the Steam Machine (kernels) vs the Deck (hidden, 188);
+   uninstalling the DLC removes only the builder's files.
+
+DECISIONS FOR THE OWNER before code: the builder's price; what stays free
+in the reader (all of it, as now?); models in the DLC depot or downloaded;
+BookManager's place; 5639910's fate; app name / store naming (one product
+"EpubUnum" with the reader as its base?).
+
+TO TEST (from this session): Bazzite on the ROG Ally (see the list
+under Session 10's preferences); EpubBuilder on a Windows Ally (CPU +
+Vulkan, its pad menu); 192's window (settings page, queue below,
+dividers) on Windows, Linux and the Deck's Desktop Mode.
 
 ### Session 10 (2026-11-19 - 2026-11-20 13:00) - where it stopped
 Written at the owner's request (13:01: "this session's getting long.
@@ -91,6 +270,16 @@ Done this session, by theme (details in each zip's section):
   Transcribed, Covers, Queues) and one EpubUnum settings folder;
   EpubUnumMove moves the old EpubBuilder / EpubReader folders in once
   (marker EpubUnum-moved-<App>.txt), settings copied with paths changed.
+
+TO TEST (owner 2026-11-20 22:30, "will need to test Bazzite too"):
+BAZZITE (Fedora Atomic, gamescope session like SteamOS) on the ROG Ally
+(Z1 = gfx1103, no ROCm kernels): the launcher's ICU / FreeType / WSI
+lines and the "ROCm: off" line (zip 188), Game Mode detection
+(XDG_CURRENT_DESKTOP=gamescope) and the sleep handling (logind delay,
+PrepareForSleep), memory cards (/run/media/$USER), Big Picture (log
+window, pad menu, text 24), the link (UDP broadcast through Bazzite's
+firewalld), the Vulkan calibration against the Deck's 5.1x. Also the
+Ally on Windows (CPU + Vulkan; builder's pad menu not yet tried there).
 
 Owner's preferences seen this session: batches tests to avoid Steam
 redeploys (each Steam build is slow); wants things found without typing
@@ -288,7 +477,7 @@ the history, one per zip.
 | Repo | Pushed | = zip | Last zip number used |
 |---|---|---|---|
 | WhisperBooks/TWhisper | d669a06 | TWhisper-30 | 31 (review fixes) |
-| WhisperBooks/Epubunum | 8a9a67d | EpubUnum-138 | 166 (166 queues folder, kept queue, Big Picture save / load, hints; 165 the window emptied after Add to queue; 164 Linux: whole-window redraws; 163 Transcribed, memory cards; 162 pad menu: texts fill the width; 161 zip 160's compile errors; 160 the builder's progress panel, log behind View; 159 the reader lists EpubBuilder's output; 158 Run queue on Big Picture's home list; 157 Big Picture says why a build / job was refused; 156 Big Picture opens on the models without one; 155 Big Picture's model list; 154 no calibration question without a model; 153 Big Picture questions readable; 152 Linux deploys without ROCm and CUDA; 151 deploy_redist --skip-rocm / --skip-cuda; 150 steaminput in every build; 149 zip 148's compile errors; 148 EpubBuilder in Big Picture; 147 a queue's jobs shown on a click, Update job; 146 the Mac save panel's name; 145 zip 140 confirmed; 144 Windows on Arm notes + probe; 143 notes/Building-distributions.md; 139 the morning queue's results, 140 App Nap on the Mac, 141 Mac Books / steaminput beside the .app, 142 Power / Window GPU - NOT pushed; session 9: 95 - 138, see its handover above. Earlier: 94 handover; 93 Big Picture full screen; 77 - 92 calibration, Steam builds, libraries, Deck crash, build stamp, screen log, DPI, Big Picture maximise) |
+| WhisperBooks/Epubunum | 42d5f27 | EpubUnum-180 | 193 (193 session 11 handover + the DLC plan; 192 builder window: settings page, queue below; 191 icon set; 190 typed output folder remembered; 189 BookManager icon; 188 ROCm runtime without kernels = off; 187 ROCm left out by the program (Deck); 186 no ROCm without kernels (Deck); 185 builder's BP window = the log; 184 transcribed books last, BP home order, BookManager poll backs off; 183 builder's pairing bar, 182 BookManager's TPath, 181 BookManager - NOT pushed; 166 (166 queues folder, kept queue, Big Picture save / load, hints; 165 the window emptied after Add to queue; 164 Linux: whole-window redraws; 163 Transcribed, memory cards; 162 pad menu: texts fill the width; 161 zip 160's compile errors; 160 the builder's progress panel, log behind View; 159 the reader lists EpubBuilder's output; 158 Run queue on Big Picture's home list; 157 Big Picture says why a build / job was refused; 156 Big Picture opens on the models without one; 155 Big Picture's model list; 154 no calibration question without a model; 153 Big Picture questions readable; 152 Linux deploys without ROCm and CUDA; 151 deploy_redist --skip-rocm / --skip-cuda; 150 steaminput in every build; 149 zip 148's compile errors; 148 EpubBuilder in Big Picture; 147 a queue's jobs shown on a click, Update job; 146 the Mac save panel's name; 145 zip 140 confirmed; 144 Windows on Arm notes + probe; 143 notes/Building-distributions.md; 139 the morning queue's results, 140 App Nap on the Mac, 141 Mac Books / steaminput beside the .app, 142 Power / Window GPU - NOT pushed; session 9: 95 - 138, see its handover above. Earlier: 94 handover; 93 Big Picture full screen; 77 - 92 calibration, Steam builds, libraries, Deck crash, build stamp, screen log, DPI, Big Picture maximise))) |
 | G3DGames/TFFMpegAPI | 0795d19 | FFmpegAPI-14 | 14 (macOS sound) |
 | G3DGames/ffmpeg-dev | 4d7b7be | ffmpeg-dev-09 | 09 |
 | WhisperBooks/whisper-dev | 2071815 | whisper-dev-22 | 22 (Core ML; its own CLAUDE.md) |
@@ -674,7 +863,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 180.
+Last number used: 193.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -3261,6 +3450,318 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 192 (on top of zip 191): the builder's window - settings page, queue below
+Owner 2026-11-21 05:11: "Builder - Model, Device, Language, Power, GPU,
+Chapters are parts... and Use Saved Transcript can all go on their own
+settings form/menu reducing clutter. The job queue can now move below
+Book and Audio providing more space and allowing for larger fonts where
+needed (like Deck)"; 05:12 "GPU = Low Power / Use GPU on Windows"
+(cbGpu, Window GPU).
+- uBuilder.BuildWindow rewritten (the same controls and handlers, other
+  parents): layBottom (Bottom, 4 rows + 190): Output EPUB, Settings
+  (lblSettings + btnSettings), the buttons + pbBuild, Now, then
+  mmLog / layProgress as before. layTop (Top, Y 50000, 55 % of what is
+  left, min 200): layBook (Left, 45 % of the width, min 380), splSides,
+  layAudio (Client). splQueue now a Top splitter (Y 60000) between
+  layTop and layQueue (Client: caption, Load / Save / Remove / Up / Down
+  + btnRunQueue in that row - no longer a Bottom button, lbJobs).
+  pnlSettings: TPanel, Align Contents, hidden: caption, rows Model
+  (+ Folder...), Device (Client), Language (320), Power (Client), Window
+  GPU (Windows, 320), chkChapters, chkReuse (text + "- this build only"),
+  Done (Default). Window: ClientHeight at least 820, then the screen
+  clamp.
+- btnSettingsClick (Settings... and Tools > Settings..., first in
+  Tools), btnSettingsDoneClick (hide, SaveSettings, UpdateSettingsLine,
+  UpdateControls), UpdateSettingsLine (model without 'ggml-', device -
+  the chosen, GDefaultDevice or 'the default device' - language, power's
+  first words, 'a file's chapters not parts', ' - USING THE SAVED
+  TRANSCRIPT'); called from UpdateControls too.
+- BigPictureWindow hides layTop and pnlSettings as well.
+- README (builder): ## The window; the queue / transcript / Window GPU
+  passages.
+NOT DONE: larger fonts (the owner's "where needed (like Deck)") - the
+room is there now; ASK what size / when (Desktop Mode on the Deck?).
+NOT COMPILED. NO PACKAGE REBUILD.
+
+## Zip 191 (on top of zip 190): the icon set (reader, builder, manager)
+Owner 2026-11-21 05:03: "Now do icons for builder and a new one for
+reader. They should all share a theme as they belong in a set".
+- tools/make_icons.py (Pillow; replaces zip 189's
+  make_bookmanager_icon.py - DELETE that file) writes all three .ico
+  (16, 24, 32, 48, 64, 128, 256): the same navy tile (28,52,84, radius
+  0.18), cream books (251,247,239 / 236,230,218), grey lines, an amber
+  badge (255,190,40) at (0.72, 0.70) with a navy ring and a dark-navy sign
+  (12,42,87). EpubReader: open book (pages 0.16 - 0.70, high so the right
+  page shows beside the badge), 3 lines on the right with an amber word,
+  play. EpubBuilder: the same book, a waveform on the right page (one bar
+  amber), a gear (8 teeth; 6 at 16 px). BookManager: unchanged from 189.
+  24 px and below: no page lines / spine bands; 16 px: bolder signs.
+  `python3 tools/make_icons.py preview.png` also writes a preview sheet.
+- demos/EpubReader/EpubReader_Icon.ico REPLACED (the .dproj already
+  names it); demos/EpubBuilder/EpubBuilder_Icon.ico NEW +
+  EpubBuilder.dproj ONE line (Icon_MainIcon in the Base_Win64 group,
+  before DCC_Namespace; BOM and LF kept); BookManager_Icon.ico rewritten
+  (same picture).
+- gen_projects.py: icon= on EpubReader and EpubBuilder too (never run on
+  their IDE-saved .dproj; for a regeneration).
+- READMEs: reader (icon note), builder (## Icon), manager (## Icon).
+- macOS .icns / Linux icons: still not made.
+NO PACKAGE REBUILD.
+
+## Zip 190 (on top of zip 189): a typed output folder is remembered
+Owner 2026-11-21 04:56: "Changing the output directory when adding books
+to builder then adding to queue results in the next book having the old
+default directory rather than the new one". Choose... (btnOutClick) and
+Tools > Output folder already set FOutFolder; a path TYPED in edOut did
+not (no handler) - read as that.
+- uBuilder: RememberOutFolder - edOut's folder (trimmed, no trailing
+  delimiter), when not FOutFolder and it exists, becomes FOutFolder;
+  LogLine "Output folder: ... (the next book's output goes there too)";
+  SaveSettings. Called first thing in JobFromWindow (its callers: Add to
+  queue - both paths - and Create/StartBuild). A folder that does not
+  exist is not taken (a typing slip).
+- README (builder): the folders paragraph.
+If it was another path (the Big Picture menu has no way to change the
+output - its Output row only shows it), ASK.
+NOT COMPILED. NO PACKAGE REBUILD.
+
+## Zip 189 (on top of zip 188): BookManager's icon; the Deck measured
+Owner 2026-11-21 04:33: "Create a icon for BookManager".
+- demos/BookManager/BookManager_Icon.ico (16, 24, 32, 48, 64, 128, 256):
+  EpubReader's family - navy rounded tile (28,52,84), cream books on a
+  shelf (the middle one's spine bands amber, as the reader's highlighted
+  word), an amber badge cut out by a navy ring with an up arrow (sent)
+  and a down arrow (fetched). 16 px: one arrow with a head at each end
+  (two did not read). Drawn by tools/make_bookmanager_icon.py (Pillow, 4x
+  supersampled) - rerun it to change the icon.
+- BookManager.dproj: ONE line, Icon_MainIcon in the Base_Win64 group (as
+  EpubReader's). gen_projects.py: new key icon= (Win platforms' groups);
+  BookManager's entry has it - BUT regenerating makes a new ProjectGuid
+  (seen): the .dproj in the zip is the old one + the line. If the IDE has
+  saved BookManager.dproj since zip 181, set the icon in Project >
+  Options > Application > Icons instead of taking the .dproj.
+- macOS (.icns) / Linux icons: not made (as EpubReader).
+
+STEAM DECK MEASURED 2026-11-20 (zip 187 build, Game Mode, mains, no
+sleep): Foundation (8:56:46, 55 parts, 1 m4b), turbo on Vulkan0 (RADV
+VANGOGH): 1:07:59, 7.9x; calibration 5.08x -> book / calibration 1.56
+(highest yet: Steam Machine 1.36, M4 Core ML 1.36, M4 Metal 1.48).
+Steady: parts over 10 min 7.2 - 8.3x start to end (no heat slowdown);
+about 2.5 s fixed per part. Exact 96.1 %, matched 98.8 % "very good",
+not heard 9, 55 chapter marks; EPUB 489.3 MB. CPU calibrated 0.4x.
+Turbo: Deck 7.9x, Steam Machine 37x, 5090 laptop 83x (Ender in Exile).
+
+## Zip 188 (on top of zip 187): ROCm's runtime without kernels = no ROCm
+Owner 2026-11-20 21:26: zip 187 WORKS on the Deck - "ROCm0 left out ...
+a Steam Deck", calibration CPU 0.4x, Vulkan0 5.1x (turbo; 4:24),
+whisper.cpp "using Vulkan0 backend" with ROCm0 still first in ggml's list.
+The "ROCm check:" line: HIP_VISIBLE_DEVICES and EPUBUNUM_ROCM_OFF empty,
+rocblas beside the program False, /sys/class/kfd True. Asked where the
+kernels are -> 21:28: "Nothing (I've stopped shipping the HIP depot)". So
+the LINUX DEPOT still carries ggml-hip + libamdhip64 (ROCm0 listed) WITHOUT
+kernels - on every Linux machine (Steam Machine too: would hang the same).
+Told: stage without ROCm (deploy_redist.py --skip-rocm, or
+steam_stage.py moves the ROCm files out of Deployment/Linux).
+- EpubBuilder.sh: the check now runs when libamdhip64.so* is beside the
+  program (the bundled runtime; a system ROCm is not judged) and
+  HIP_VISIBLE_DEVICES is not set: no $here/rocblas -> off ("no ROCm
+  kernels beside the program (rocblas/ missing)"); else the kfd gfx check
+  as in 186 ("no ROCm kernels here for gfx1033"). EPUBUNUM_ROCM_OFF holds
+  the whole reason now. Tested (fake trees): full+deck off, full+machine
+  kept, no kernels + machine / deck off, system ROCm untouched.
+- uBuilder: RocmUnusable also true for libamdhip64.so* beside the program
+  without rocblas/; the env's text used as it is ("ROCm: off - <why>;
+  Vulkan is used."); CheckRocmDlc skips the offer only on a Deck or for
+  "no ROCm kernels here for ..." (no kernels at all is what the DLC
+  brings).
+- README (builder): the ROCm paragraphs.
+NOT COMPILED. NO PACKAGE REBUILD.
+
+## Zip 187 (on top of zip 186): ROCm left out by the program too
+Owner 2026-11-20 21:01 / 21:11: the zip-185 build hung >10 min after
+"ROCm0 total size = 1623.92 MB" (calibration, turbo on ROCm0); with zip
+186 deployed (screenshot: the log-only window) the calibration question
+still listed "CPU, ROCm0, Vulkan0" - the launcher did not hide HIP (not
+known why: old .sh, no rocblas/ there, /sys/class/kfd not seen, or
+HIP_VISIBLE_DEVICES=-1 not honoured in the runtime).
+- uBuilder: RocmUnusable(out Why) = EPUBUNUM_ROCM_OFF set, or
+  SteamOnDeck; IsRocmDevice (Backend ROCm / HIP, or a name starting
+  ROCm). FormCreate after SelectableDevices: debug line "ROCm check:
+  HIP_VISIBLE_DEVICES=..., EPUBUNUM_ROCM_OFF=..., rocblas beside the
+  program: ..., /sys/class/kfd: ..."; when unusable the ROCm devices are
+  taken out of FDevices (LogLine "<name> left out: ROCm cannot run here
+  (why)") - so cbDevice, CalibrationDevicesKey and the calibration
+  thread never see them - and GDefaultDevice := the first GPU left (else
+  the CPU). GDefaultDevice: Default's meaning - DefaultDeviceItem says
+  it; the window's build / job passes it for Default; TBuildThread.Create
+  turns '' into it (old queued jobs).
+- README (builder): the ROCm paragraph.
+ASKED: the debug log's "ROCm check:" line (why the launcher did not act).
+NOT COMPILED. NO PACKAGE REBUILD.
+
+## Zip 186 (on top of zip 185): no ROCm on a GPU without kernels (Steam Deck)
+Owner 2026-11-20 20:55: "it's trying to calibrate rocm on a Steam Deck"
+(zip 185's screenshot: Default = "ROCm0 - the first GPU"). The ROCm
+depot is in the builder's playtest for everyone (no DLC on a Playtest,
+zip 111); ggml-hip lists the Deck's gfx1033 (not a ROCm target - no
+kernels in rocblas/), makes it Default (HIP before Vulkan) and the
+calibration times it.
+- EpubBuilder.sh: when HIP_VISIBLE_DEVICES is not set, $here/rocblas
+  exists and /sys/class/kfd/kfd/topology/nodes exists: each node's
+  gfx_target_version (0 = CPU) -> 'gfx%d%x%x' (major, minor, step; 100303
+  -> gfx1033, 110002 -> gfx1102, 90010 -> gfx90a); usable when find
+  rocblas -name '*gfx*' finds a file. None usable -> export
+  HIP_VISIBLE_DEVICES=-1 (ggml_cuda_init: no device -> no ROCm0) and
+  EPUBUNUM_ROCM_OFF="<gfxs>", stderr line. Mixed (one usable): nothing
+  hidden. Tested here with fake kfd trees (deck / machine / mixed / user
+  set / no rocblas). sh -n clean; still executable (100755).
+- uBuilder: FormCreate logs "ROCm: not for this GPU (...)" when
+  EPUBUNUM_ROCM_OFF is set; CheckRocmDlc offers nothing then, nor on a
+  Steam Deck (SteamOnDeck - no rocblas without the DLC to judge by).
+- The calibration's device key changes on the Deck (no ROCm0): it asks
+  to calibrate again - expected.
+- README (builder): the ROCm DLC section.
+NOT TESTED ON THE DECK (HIP_VISIBLE_DEVICES=-1 -> hipGetDeviceCount
+error / 0 is ggml's "failed to initialize ROCm" path). NOT COMPILED.
+NO PACKAGE REBUILD.
+
+## Zip 185 (on top of zip 184): the builder's Big Picture window = the log
+Owner 2026-11-20 20:49 (a Steam Deck screenshot, Game Mode: the desktop
+window behind the pad's menu, 1300 wide on 1280 - Down cut off; tiny
+text): "The font is too small on a Steam Deck / The form appears too
+large". Asked (scale + tabs / fit + larger text / progress only); owner:
+"We're going to redo the form when displayed in big picture mode. The
+only thing to remain may be the message log (full screen)".
+- uBuilder: BigPictureWindow (from StartPad when FBigPicture): layQueue,
+  splQueue, layBook, splSides, layAudio hidden; layBottom Align Client,
+  every child hidden, SetLogVisible(True), mmLog text 24 (StyledSettings
+  - Size), wide margins; logged. BuildMenu: TMainMenu not parented in Big
+  Picture (as the reader), RecreateOSMenu only when parented (also in
+  CheckRocmDlc). Linux's mnuBar was hidden already. The pairing bar
+  (zip 183) still shows above the log.
+- Desktop: ClientWidth = max(form, min(1300, work area - 16)); height
+  kept within the work area (min 500); a work area of 0 changes nothing.
+  (Screen.WorkAreaWidth / Height - check on FMXLinux.)
+- README (builder): Big Picture.
+NEXT (owner): the Big Picture form redone - "may be" more than the log.
+NOT COMPILED. NO PACKAGE REBUILD.
+
+## Zip 184 (on top of zip 183): transcribed books last; BP home order; BookManager's poll backs off
+Owner 2026-11-20 20:34, three things:
+1. "the already transcribed titles still appear higher on the list in
+   some cases than the new ones. Books that have been successfully
+   transcribed should be at the end of the list marked as transcribed
+   and/or in a different colour" - read as Big Picture's Books list
+   (PadBooks; the desktop's Choose is a file dialog). uBuilder: BookKey
+   (file name, no extension, '_NNN' of DefaultOutput off, lower case),
+   TranscribedBooks (EPUBs in FOutFolder, the jobs' output folders, the
+   cards' Transcribed; + history rows with MatchedPercent >=
+   HISTORY_POOR_MATCH by OutputName). PadBooks sorts not-done first, then
+   done; done rows Dim + value 'transcribed' ('<sub>, transcribed').
+   uPadMenu (reader's src, used by both): TPadMenuItem.Dim (text
+   Faded(FFore, $80)); Item sets it False.
+2. "Add to queue should be 3rd and Queue 4th - the Run Queue button it
+   irrelevant (it appears as the first option on Queue)": PadHome order
+   Book, Audio, Add to queue, Queue, Model, ...; BPC_RUN row gone from
+   home (the command stays for the Queue list); after Add to queue the
+   home list selects Queue (was Run queue).
+3. BookManager, the builder closed: first-chance EIdSocketError 10061 /
+   EIdConnectTimeout every second. TLinkPoller: FFailures - pause 1 s,
+   then 2 / 4 / 8 / 16 / 30 s; FHeard - not polled at all while the
+   finder does not hear the builder (SetHeard from FinderChange; back:
+   at once); Poke. uManager: FHeard, "Not heard (closed or asleep)",
+   status lines on leaving / coming back. The few tries before it is
+   "not heard" (10 s) still raise first-chance exceptions (handled;
+   README: the debugger's ignore list). Transfers still fail at once
+   when it is gone (re-drop: those there are skipped) - OFFERED: hold
+   them until it is heard again.
+READMEs: builder Big Picture list; BookManager Connecting.
+NOT COMPILED. NO PACKAGE REBUILD.
+
+## Zip 183 (on top of zip 182): the builder's pairing bar
+Owner 2026-11-20 20:22: "When I pair with Builder the dialog on builder
+should automatically close. The OK button makes no sense - Only Cancel -
+which should be 'Refuse Connection'". The old box was Ask -> on desktop
+TDialogService.MessageDialog (native, modal: cannot be closed from code).
+- uBuilder: pnlPair (TPanel, Top, made on first use - NOT TRectangle:
+  FMX.Objects' TPath would hide IOUtils' in uBuilder): who asks, the code
+  large ('123 456'), the time left (tmPair, 1 s), Refuse connection.
+  ShowPairing / HidePairing / RefusePairing / tmPairTimer /
+  LinkPairEnded. Closes on LinkPaired, the code's time out
+  (LINK_PAIR_MINUTES), five wrong codes (OnPairEnded), Refuse. Big
+  Picture: also the pad's box (ShowText, one row 'Refuse connection', A
+  and B refuse) unless another question shows; FPairPad - Ask() clears
+  it (a later question replaces the box), HidePairing closes the box only
+  while it is still the pairing's (FPadMode = BPM_ASK).
+- uLink (server): LINK_PAIR_MINUTES public (was PAIR_MINUTES in the
+  implementation); RefusePair (code dropped, FPairRefused: confirm answers
+  403 'the connection was refused on EpubBuilder' until the next /pair);
+  OnPairEnded after the fifth wrong code (answer 'wrong code five times:
+  ask again').
+- BookManager: a refusal or an 'ask again' answer closes the code row.
+- READMEs: builder's "The link", BookManager's "Connecting".
+NOT COMPILED. NO PACKAGE REBUILD.
+
+## Zip 182 (on top of zip 181): BookManager's TPath
+Owner 2026-11-20 20:09: uManager(364, 373, 1437) E2003 'Combine' /
+'GetDocumentsPath' - FMX.Objects' TPath (the shape control, used for the
+drop TRectangle's unit) hides System.IOUtils.TPath. Written
+System.IOUtils.TPath; a note at the uses. Remember for any unit using
+FMX.Objects.
+NOT COMPILED. NO PACKAGE REBUILD.
+
+## Zip 181 (on top of 42d5f27 = zip 180): BookManager (desktop, not Steam)
+Owner 2026-11-20 19:39: "lets do bookmanager (Non Steam)" - zip 175's
+plan: a drop target routing books / audio / pictures / folders, progress
+and log tabs, fetches the books made, space-aware, nothing typed.
+- NEW demos/BookManager: BookManager.dpr / .dproj (gen_projects.py, new
+  key prebuild=True: buildstamp.bat as EpubBuilder's PreBuildEvent -
+  uDebugLog includes BuildStamp.inc), README.md, src/uManager.pas + .fmx
+  (window in code, as the builder's), src/uTransfers.pas, src/uRoute.pas.
+  Units: uDebugLog, uMachine, uEpubUnum, uLink. NO EpubUnum package used
+  (Indy only). EpubUnum.groupproj: BookManager last (edited by hand).
+- uRoute.RouteFiles: file -> its kind's folder ('' dir); folder -> each
+  file with Dir = dropped folder's name + sub folders ('/'); pictures
+  always Covers root, and LEFT OUT beside audio files (folder.jpg - the
+  builder matches covers by the book's name; DECIDE with the owner);
+  hidden, .part, other kinds left out (listed: status + debug log).
+  Order: books, pictures, audio.
+- uTransfers: TLinkTargets (id -> host, port, token; thread safe);
+  TTransferWorker (one at a time, a new TLinkClient per job from the
+  targets - follows a builder that moved; Cancel(id) drops a waiting one
+  or cancels the running one; progress queued at most 5/s);
+  TLinkPoller (1 s: /status + /log?from; /space every 10 s; /books every
+  20 s or on WantBooks; Follow(id) = new generation, log from 0, the
+  round running cancelled). Results by TThread.Queue from per-call
+  helper methods (each closure its own captured copy); freeing a thread
+  cancels its call and drops its queued events.
+- uManager: builder combo (heard peers; the chosen one kept as "not heard
+  now"; auto-choose last id, else the only one), Pair... -> /pair, a code
+  ROW in the window (no InputQuery - its FMX Linux support unknown),
+  token in BookManager.ini [Paired] id=token; a 401 "not paired - ..."
+  from the poll forgets the token. Tabs: Send (TRectangle drop target +
+  the list, Add files / Add folder, Cancel / Cancel all / Clear
+  finished, the builder's room from /space, asks when the drop needs
+  more than free - reserve), Books made (ticks, new / here = same name
+  and size in the fetch folder, Fetch checked / all new, Folder...;
+  default EpubUnum/Transcribed; refuses below 1 GiB free here; a .part
+  is resumed only when its '.part.from' note - size and modified of the
+  build - matches, else deleted: a rebuilt book's bytes never mix), Progress
+  (the builder's /status fields), Log (5000 lines). Close asks when
+  transfers are unfinished.
+- uLink (client side only; builder and reader unchanged in use):
+  TLinkClient.Cancel (thread safe: FCancel + Disconnect of the call's
+  TIdHTTP under a lock - ends a call stuck on a sleeping builder),
+  ELinkCancelled; download size known at WorkBegin (was 0 until the end);
+  progress counts only the transfer's direction; non-HTTP errors become
+  ELinkError 'EpubBuilder at host:port: ...'; Upload(..., AReplace, ...)
+  + Skipped (the check's "there": same name and size -> not sent).
+- READMEs: root (demo 7), BookManager's own.
+CHECK AT FIRST COMPILE: TListBox's OnDrag* events assigned in code; FMX
+file drops on Linux (fallback: Add files / Add folder); TIdHTTP.Disconnect
+from another thread. NOT COMPILED.
+NO PACKAGE REBUILD.
 
 ## Zip 179 (on top of zip 178): the reader's cover chooser
 Owner 2026-11-20 12:54: "Reader should also be able to change covers -

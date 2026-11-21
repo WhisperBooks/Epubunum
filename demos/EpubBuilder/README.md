@@ -28,8 +28,26 @@ Next to the program, or on PATH:
   `avcodec-62.dll`, `avformat-62.dll`); when they are not found there,
   the builder also looks in whisper.cpp's folder.
 
-The Whisper model is chosen by name in the window's **Model** list
-(below).
+The Whisper model is chosen by name in the **Model** list of the
+**Settings** page (below).
+
+## The window
+
+At the top the **book** (left) and its **audio** (right); below them,
+across the window, the **job queue** (Load, Save, Remove, Up, Down, Run
+queue); at the bottom the **output**, a line of the settings with
+**Settings...**, Create / Add to queue / Update job / Cancel, and the
+progress (or the log, View). The dividers between book and audio and
+between them and the queue can be dragged.
+
+**Settings...** (or Tools > Settings...) opens the settings on a page of
+their own over the window: Model (and its Folder...), Device, Language,
+Power, Window GPU (Windows), "Chapters of a file are parts" and "Use a
+saved transcript". **Done** closes it (Enter too) and saves; the line on
+the window says what is set - the model, the device, the language, the
+power, and what is not as usual (a file's chapters not parts, USING THE
+SAVED TRANSCRIPT). In Big Picture the pad's menu has all of these, and
+the window shows the log only.
 
 For the calibration (below), `media/aladdin.m4a` - a LibriVox recording
 - beside the program, or in a folder up to five levels above it (the
@@ -162,10 +180,36 @@ EpubBuilder again afterwards, then **Tools > Re-calibrate**: ROCm0 is
 timed against Vulkan0. When the DLC is installed but no ROCm device
 appears, the log says so and the debug log's whisper.cpp lines say why.
 
+ROCm runs only on the GPUs its kernels were built for (`rocblas/` beside
+the program, from the HIP depot). The Linux launcher (`EpubBuilder.sh`)
+hides ROCm (`HIP_VISIBLE_DEVICES=-1`) when ROCm's runtime is beside the
+program but no kernels are (the HIP depot not installed), or when none of
+the AMD GPUs - their targets read from the driver, `/sys/class/kfd` - has
+kernels there (a Steam Deck's gfx1033). The device list, the default
+device and the calibration then use Vulkan, and the log says "ROCm: off
+- why". The Linux depot itself should not carry ROCm's runtime: deploy
+with `deploy_redist.py --skip-rocm`, or stage with `tools/steam_stage.py`
+(it moves the ROCm files out of the Linux folder). The DLC is not offered on a Steam
+Deck. A `HIP_VISIBLE_DEVICES` set in Steam's launch options is left as
+it is. EpubBuilder checks too, whatever the launcher did: on a Steam
+Deck, with ROCm's runtime beside the program and no `rocblas/`, or when
+the launcher found no kernels, the ROCm devices are left
+out of the Device list and the calibration ("ROCm0 left out" in the
+log), and **Default** is the first other GPU (Vulkan0) - whisper.cpp
+itself would take ROCm0. The debug log's "ROCm check:" line says what
+the launcher found.
+
 The depots are made with `tools/steam_stage.py` from SteamPipe GUI's
 deployment folder: it moves the ROCm files out of the Linux depot's
 folder into a HIP folder and completes that from
 `redistributable_bin/Linux64` (kernels and licences included).
+
+## Icon
+
+`EpubBuilder_Icon.ico` (Win64; set in the project), one of the EpubUnum
+set drawn by `tools/make_icons.py` (Pillow): an open book, text on one
+page and a sound wave on the other, with a gear badge - EpubReader's has a
+highlighted word and play, BookManager's books on a shelf and arrows.
 
 ## Which build is this?
 
@@ -205,8 +249,10 @@ are Documents/EpubUnum/Books, Audio and Transcribed, made at start-up;
 Tools > Books folder... / Audio folder... / Output folder... choose
 others (kept in the settings). Each also follows its dialog: Book... and
 Add audio... (and Add folder...) open where a file was last chosen, and
-an output chosen with Output... makes its folder the output folder for
-the next books - all kept between runs.
+an output chosen with Output... - or typed into the Output box, once the
+book is added to the queue or created - makes its folder the output
+folder for the next books (a folder that does not exist is not taken) -
+all kept between runs.
 
 The folders are shared with EpubReader: Documents/EpubUnum (Books,
 Audio, Transcribed, Covers, Queues) and one settings folder, EpubUnum
@@ -244,7 +290,7 @@ The log says what was done ("Power: Fastest (Automatic: on mains power)
 - keeping the computer awake: ...; speed: ..."), and each book's log at
   its start.
 
-On Windows, Window GPU stores Windows' graphics preference for
+On Windows, Window GPU (Settings) stores Windows' graphics preference for
 EpubBuilder (as Settings > System > Display > Graphics does), used from
 the next start: which GPU draws the window on a laptop with two. Whisper
 runs on the Device chosen, not on this - but the Vulkan devices may come
@@ -381,8 +427,8 @@ is newer. The log says what was read: "MOBI converted to EPUB 3: MOBI 6 -
 
 ## Job queue (many books, overnight)
 
-The left column is the **job queue**. Instead of **Create**, press **Add
-to queue**: the book, its audio, the model, device, output and the two
+The **job queue** is below the book and the audio. Instead of **Create**,
+press **Add to queue**: the book, its audio, the model, device, output and the two
 options are added as a job (the same questions as Create are asked then,
 not while the queue runs). **Run queue** builds the jobs one after the
 other - failed and cancelled ones again - and books can be added while it
@@ -467,7 +513,7 @@ Linux. Delete the file to start afresh.
 
 The transcript is kept beside the output as
 `<output>.transcript.json`, with the model that made it and when. With
-**Use a saved transcript** ticked (off at every start - reusing old words
+**Use a saved transcript** ticked (Settings; off at every start - reusing old words
 is a choice for one build), a second **Create** with the same audio reads
 it instead of transcribing again: re-aligning a whole audiobook then takes
 seconds (after a TWhisper update, for example). It is used only for the
@@ -484,21 +530,26 @@ Machine), EpubBuilder opens its pad menu over the window - no file
 dialogs or mouse needed (with no model downloaded yet it opens on the
 model list):
 
-- **Book**: the EPUB files of the books folder (and its folders) to choose
-  from;
+- **Book**: the EPUB and MOBI files of the books folder (and its folders)
+  to choose from - the books still to do first, in name order; those
+  transcribed already last, faded and marked "transcribed" (a book of
+  that name in the output folder, a queued job's output folder or a
+  card's Transcribed folder, or a build of the build history that matched
+  well, at least 90 %);
 - **Audio**: chosen with the book - the audio folder's files and folders
   whose names best match the book's title come first (a folder of two or
   more files is all of them, in name order), *best match* on top; choose
   one, see **All the audio in the folder ...**, or keep the list;
+- **Add to queue**, then **Queue** (Run queue is its first row; each job:
+  show it in the window, Up, Down, Remove) - Queue is selected after Add
+  to queue;
 - **Model**: a list of every model - here, or its size to download
   (choosing one not here asks to download it; large-v3-turbo is a good
   first choice);
 - **Device**, **Language**, **Power**, **Chapters of a file are parts**:
   left / right change them;
-- **Output** (shown), **Create**, **Add to queue**, **Update job**,
-  **Run queue** (when jobs wait - selected after Add to queue), **Queue**
-  (Run queue; each job: show it in the window, Up, Down, Remove),
-  **Cancel**, **Calibrate (this model)**, **Exit**.
+- **Output** (shown), **Cover**, **Create**, **Update job**, **Cancel**,
+  **Calibrate (this model)**, **Exit**.
 
 | Pad | |
 |---|---|
@@ -508,8 +559,12 @@ model list):
 | Start / Menu | the menu / close it |
 | View / Select | the queue |
 
-While a build runs the menu's foot shows its progress; close the menu
-to see the window. Questions (an output already there, a model to
+In Big Picture the window behind the menu is the log alone, full screen
+in large type (24) - no menu bar, columns or settings: the pad's menu has
+all of them. While a build runs the menu's foot shows its progress; close
+the menu to read the log. A program asking to connect (BookManager)
+still shows its bar above the log. On the desktop the window is never
+made wider than the screen (a Steam Deck in Desktop Mode). Questions (an output already there, a model to
 download, the calibration) are asked in the same menu. The pad uses
 EpubReader's Steam Input actions (one manifest per Steam app); outside
 Big Picture Start opens the same menu on the desktop too. Copy books into
@@ -559,10 +614,13 @@ it is (UDP broadcast, port 47820), and the other programs list the
 builders they hear. Its HTTP port is 47821, or the next free one up to
 47830. A firewall must let these through (Windows asks the first time).
 
-- **Pairing, once:** a program asks; EpubBuilder shows a 6-digit code
-  (a box, in Big Picture too) that works for 5 minutes; typed in the
-  other program, the two are paired for good (kept in the settings,
-  [Link] Paired). Only paired programs can send or fetch.
+- **Pairing, once:** a program asks; EpubBuilder shows a 6-digit code in
+  a bar at the top of its window (in Big Picture also in the pad's box),
+  with the time it still works (5 minutes). Typed in the other program,
+  the two are paired for good (kept in the settings, [Link] Paired) and
+  the bar closes by itself - as it does when the code runs out or was
+  typed wrong five times. **Refuse connection** turns the program away
+  (it can ask again). Only paired programs can send or fetch.
 - **Files sent in** go to the books folder (EPUB, MOBI) or the audio
   folder (m4b, mp3, ...), into a sub folder when one is given (an
   audiobook's folder of files stays together). Each is written as

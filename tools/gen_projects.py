@@ -76,7 +76,7 @@ PROJECTS = [
                 ("FmxWineCanvas", "src\\FmxWineCanvas.pas"),
                 ("FmxSkiaCanvas", "src\\FmxSkiaCanvas.pas")],
          forms=[("uMain", "src\\uMain.pas", "frmMain")],
-         search="src", depends=["EpubUnumFMX"], skia=True),
+         search="src", depends=["EpubUnumFMX"], skia=True, icon="EpubReader_Icon.ico"),
     # The book builder (owner, 2026-11-15): EPUB + audio files -> read-along
     # EPUB, in one program. Needs TWhisper's WhisperAPI (and TFFMpegAPI's
     # FFmpegAPI) built too: their DCUs come from the Dcp folder like
@@ -84,12 +84,26 @@ PROJECTS = [
     dict(name="EpubBuilder", dir="demos\\EpubBuilder", kind="app", framework="FMX",
          platforms=APP_PLATFORMS, default="Win64",
          units=[], forms=[("uBuilder", "src\\uBuilder.pas", "frmBuilder")],
-         search="src", depends=["EpubUnum"]),
+         search="src", depends=["EpubUnum"], icon="EpubBuilder_Icon.ico"),
+    # EpubBuilder's companion (owner, 2026-11-20): a drop target that sends
+    # books / audio / pictures to EpubBuilder over the link (uLink, Indy),
+    # fetches the books made, shows its progress and log. Not a Steam
+    # program; no EpubUnum package needed. prebuild: the build stamp
+    # uDebugLog includes (tools\buildstamp.bat), as the IDE-saved
+    # EpubReader / EpubBuilder projects have it.
+    dict(name="BookManager", dir="demos\\BookManager", kind="app", framework="FMX",
+         platforms=APP_PLATFORMS, default="Win64",
+         units=[("uDebugLog", "..\\common\\uDebugLog.pas"), ("uMachine", "..\\common\\uMachine.pas"),
+                ("uEpubUnum", "..\\common\\uEpubUnum.pas"), ("uLink", "..\\common\\uLink.pas"),
+                ("uRoute", "src\\uRoute.pas"), ("uTransfers", "src\\uTransfers.pas")],
+         forms=[("uManager", "src\\uManager.pas", "frmManager")],
+         search="src", depends=[], prebuild=True, icon="BookManager_Icon.ico"),
 ]
 
 # OWNER'S GROUP ORDER (tiers, as TWhisper's 1cac2e7): plain runtime packages,
 # FMX runtime packages, design packages, applications.
-GROUP_ORDER = ["EpubUnum", "EpubUnumFMX", "dclEpubUnumFMX", "EpubConsole", "EpubReader", "EpubBuilder"]
+GROUP_ORDER = ["EpubUnum", "EpubUnumFMX", "dclEpubUnumFMX", "EpubConsole", "EpubReader", "EpubBuilder",
+               "BookManager"]
 
 # What the IDE's Project > Enable Skia adds to a .dproj (TSteamAPI's
 # gen_projects.py, as the IDE wrote it into VirtualGamepad.dproj): the SKIA
@@ -199,6 +213,12 @@ def dproj(p):
         a('        <Base>true</Base>')
         a('    </PropertyGroup>')
     a("    <PropertyGroup Condition=\"'$(Base)'!=''\">")
+    if p.get("prebuild"):
+        # demos\common\BuildStamp.inc (git-ignored) written before every
+        # build, every platform (Delphi compiles on Windows for all of them)
+        a('        <PreBuildEvent><![CDATA[call "$(PROJECTDIR)\\..\\..\\tools\\buildstamp.bat"')
+        a('$(PreBuildEvent)]]></PreBuildEvent>')
+        a('        <PreBuildEventIgnoreExitCode>true</PreBuildEventIgnoreExitCode>')
     a(f'        <SanitizedProjectName>{p["name"].replace(".", "_")}</SanitizedProjectName>')
     a(f'        <DCC_Namespace>{NS_BASE};$(DCC_Namespace)</DCC_Namespace>')
     a(f'        <DCC_UnitSearchPath>{p["search"]};$(DCC_UnitSearchPath)</DCC_UnitSearchPath>')
@@ -242,6 +262,9 @@ def dproj(p):
             # 'plutil -convert binary1' fails (E0264) - seen with TSteamAPI.
             a('        <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>')
             a(f'        <VerInfo_Keys>{MAC_KEYS}</VerInfo_Keys>')
+        if p.get("icon") and pl.startswith("Win"):
+            # the program's icon (.ico beside the .dproj), as EpubReader's
+            a(f'        <Icon_MainIcon>{p["icon"]}</Icon_MainIcon>')
         a('    </PropertyGroup>')
     a("    <PropertyGroup Condition=\"'$(Cfg_1)'!=''\">")
     a('        <DCC_Define>DEBUG;$(DCC_Define)</DCC_Define>')
