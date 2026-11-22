@@ -58,17 +58,23 @@ const
     README gives them; large-v3-turbo as measured, 2026-11-18; the Core ML
     encoders' as Hugging Face lists them, tiny's not known). }
   MODEL_CATALOGUE: array[0..9] of TWhisperModelInfo = (
-    (Name: 'tiny.en'; SizeMB: 75; Note: 'English only, fastest, least accurate'; EncoderMB: 0),
-    (Name: 'tiny'; SizeMB: 75; Note: 'every language, fastest'; EncoderMB: 0),
-    (Name: 'base.en'; SizeMB: 142; Note: 'English only, fast'; EncoderMB: 38),
-    (Name: 'base'; SizeMB: 142; Note: 'every language, fast'; EncoderMB: 38),
-    (Name: 'small.en'; SizeMB: 466; Note: 'English only'; EncoderMB: 163),
+    (Name: 'tiny.en'; SizeMB: 75; Note: 'English only; slow in a build (decodes again often)'; EncoderMB: 0),
+    (Name: 'tiny'; SizeMB: 75; Note: 'every language, fastest, least accurate'; EncoderMB: 0),
+    (Name: 'base.en'; SizeMB: 142; Note: 'English only; slower in a build than base'; EncoderMB: 38),
+    (Name: 'base'; SizeMB: 142; Note: 'every language, fast - the fast choice'; EncoderMB: 38),
+    (Name: 'small.en'; SizeMB: 466; Note: 'English only; slower and less accurate than small'; EncoderMB: 163),
     (Name: 'small'; SizeMB: 466; Note: 'every language'; EncoderMB: 163),
     (Name: 'medium.en'; SizeMB: 1500; Note: 'English only, slow'; EncoderMB: 568),
     (Name: 'medium'; SizeMB: 1500; Note: 'every language, slow'; EncoderMB: 568),
-    (Name: 'large-v3-turbo'; SizeMB: 1549; Note: 'every language, accurate and much faster than large-v3';
+    (Name: 'large-v3-turbo'; SizeMB: 1549; Note: 'every language, the most accurate - the first choice';
       EncoderMB: 1170),
-    (Name: 'large-v3'; SizeMB: 2950; Note: 'every language, most accurate, slowest'; EncoderMB: 1180));
+    (Name: 'large-v3'; SizeMB: 2950; Note: 'every language, slowest'; EncoderMB: 1180));
+  { The two models the list offers unless expert mode is on (owner,
+    2026-11-21, after every model was timed and scored on seven machines:
+    "base + turbo it is"): large-v3-turbo the accurate one, base the fast
+    one. The English-only models decode many passages again and are slower
+    in a build than their twins. }
+  MODEL_STANDARD: array[0..1] of string = ('base', 'large-v3-turbo');
   { Where the files are downloaded from (whisper.cpp's model repository). }
   MODEL_DOWNLOAD_BASE = 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/';
   { The models folder's name. }
@@ -169,6 +175,11 @@ function ModelEncoderUrl(const AName: string): string;
   @returns(-1 when it is not offered by name) }
 function ModelCatalogueIndex(const AName: string): Integer;
 
+{ AName ('base', not the file's name) is one of MODEL_STANDARD: offered
+  without expert mode.
+  @returns(True for base and large-v3-turbo) }
+function ModelIsStandard(const AName: string): Boolean;
+
 { About AMB megabytes for people: '142 MB', '1.5 GB'; 'a few MB' for 0 (not
   known).
   @returns(the text) }
@@ -250,6 +261,16 @@ begin
     if SameText(MODEL_CATALOGUE[I].Name, AName) then
       Exit(I);
   Result := -1;
+end;
+
+function ModelIsStandard(const AName: string): Boolean;
+var
+  I: Integer;
+begin
+  for I := 0 to Length(MODEL_STANDARD) - 1 do
+    if SameText(MODEL_STANDARD[I], AName) then
+      Exit(True);
+  Result := False;
 end;
 
 function ModelSizeText(AMB: Integer): string;
@@ -438,8 +459,14 @@ begin
       Log('  (no checksum given: the size was checked only)');
     if FileExists(AFile) and not DeleteFile(AFile) then
       raise Exception.CreateFmt('%s cannot be replaced', [AFile]);
-    if not RenameFile(Part, AFile) then
-      raise Exception.CreateFmt('%s cannot be renamed to %s', [Part, AFile]);
+    // TFile.Move, not RenameFile: its inline body wants Winapi.Windows in
+    // the uses list (H2443), which would hide System.SysUtils.DeleteFile
+    try
+      TFile.Move(Part, AFile);
+    except
+      on E: Exception do
+        raise Exception.CreateFmt('%s cannot be renamed to %s (%s)', [Part, AFile, E.Message]);
+    end;
     Result := True;
   except
     if FileExists(Part) then

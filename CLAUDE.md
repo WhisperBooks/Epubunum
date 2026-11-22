@@ -664,6 +664,29 @@ redistributable_bin/Linux64 Deploy reports those files missing.
   written qualified (FMX.Graphics.TBitmap).
 - Shell scripts need the executable bit in git (`git update-index
   --chmod=+x`); check after a push.
+- ONLY CHAPTER MATERIAL IS TRUSTED FOR TIMING (decided 2026-11-15,
+  TWhisper zip 26; owner restated 2026-11-21 18:59). Whisper deliberately
+  leaves a LibriVox recording's spoken intro and outro untranscribed, and
+  other publishers' credits may go the same way, so audio within 30 s of
+  a recording's start or end is never used to measure speed or accuracy:
+  a calibration takes its stretch from WhisperFindSpeech (speech all
+  through, 30 s clear of both ends). Anything new that times or scores
+  Whisper follows this rule.
+  FIXED IN ZIP 208 (was: BREAKS IT TODAY): the Diagnostics of zips 198 -
+  206 read the recording's first DIAGNOSTIC_SECONDS from 0, intro
+  included. Logs made before 208 (5090, Ally, Deck, Miix on 2026-11-21)
+  are of that kind and say "its first 0:10:00"; 208's say "from 0:00:30".
+  What follows is how those earlier logs are to be read. The accuracy lines are
+  safe (counted between the first and last word matched); the speed has
+  the intro in one window of twenty (about 1 % flattering, from the zip
+  26 whole-file figure). The survey of machines on 2026-11-21 (5090,
+  Ally, Deck, Miix) was made that way; it goes out fixed in the deploy
+  after it.
+  THE BENCHMARK ("BookMark" build): both recordings chosen are LibriVox
+  (A Scandal in Bohemia, A Christmas Carol), so every section has the
+  spoken intro and outro - time and score the chapter material only.
+  Owner 2026-11-21 19:06: every machine is re-run for the real benchmark,
+  so today's diagnostics figures are a survey, not results to publish.
 
 ### Session 7 in brief - what changed (for the review)
 
@@ -998,7 +1021,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 196.
+Last number used: 212.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -3585,6 +3608,642 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 212 (on top of zip 211): the nine compiler hints of a Windows build gone
+Owner 2026-11-22 06:12, a dcc64 build (so zips 207 - 211 COMPILE on
+Windows; hints only): "why are all these around?" - nine hints, none
+from this weekend's zips: code that works only on Linux / POSIX leaves
+its variables unused in a Windows build. NOT COMPILED (pasdoc_check,
+project_check: 0 problems). NO PACKAGE REBUILD. Files:
+demos/common/uQuitSignal.pas, demos/EpubBuilder/src/uModels.pas,
+demos/EpubBuilder/src/uCovers.pas, demos/EpubBuilder/src/uBuilder.pas,
+CLAUDE.md.
+- uQuitSignal (H2164 GProc, GDone): both now inside the unit's
+  {$IFDEF POSIX} var block (only POSIX code uses them).
+- uModels (H2443 RenameFile wants Winapi.Windows): TFile.Move in its
+  place, the error as before with the reason added. NOT Winapi.Windows
+  in the uses list: its DeleteFile(PChar) would hide
+  System.SysUtils.DeleteFile.
+- uCovers.AudioCover (H2077): the first "Result := False" is gone (the
+  try and the except both set it).
+- uBuilder.CheckRocmDlc (H2164 x 5): its var block is under the same
+  {$IF Defined(LINUX) and not Defined(ANDROID)} as its body.
+- TO CHECK: the Windows build has no hint left; Linux and macOS build
+  as before (uQuitSignal and uCovers are in EpubReader too). If
+  AudioCover now gives W1035 (return value might be undefined), put the
+  line back and tell me.
+- A habit from now: when the owner's compile shows hints, clear them in
+  the same zip.
+
+## Zip 211 (on top of zip 210): base and large-v3-turbo; expert mode for the rest
+Owner 2026-11-21 22:29 "OK, base + turbo it is"; asked what becomes of
+the other eight: only the two in the list, "with "Unlock expert mode"
+which allows free choice of all models". NOT COMPILED (pasdoc_check,
+project_check: 0 problems). NO PACKAGE REBUILD. Files:
+demos/EpubBuilder/src/uModels.pas, demos/EpubBuilder/src/uBuilder.pas,
+demos/EpubBuilder/README.md, CLAUDE.md.
+- uModels: MODEL_STANDARD ('base', 'large-v3-turbo'), ModelIsStandard;
+  the catalogue's notes say what was measured (.en: slower in a build;
+  large-v3 no longer "most accurate").
+- uBuilder: FExpert ([Models] Expert, False at first). FillModels
+  without it: the two, plus the model in use (a job or an earlier
+  choice keeps working); no other files of the folder, no "Other model
+  file ...". Tools > Unlock expert mode (every model) (miExpert,
+  checked while on; UpdateControls keeps the tick); Big Picture home
+  row "Expert mode (every model)" (BPC_EXPERT = 21, after Dark mode).
+  ToggleExpert: saved, list filled again, a log line.
+  DownloadEveryModel fetches the list's models (two / ten);
+  KeepStandardModels takes the others out of Calibrate / Diagnostics
+  "every model" without expert mode. The pad's model list foot names
+  both models.
+- README (builder): Models rewritten (the two, the evidence, expert
+  mode).
+- NOT DONE: nothing chooses base by itself for a slow machine (the
+  model at first is as before); the benchmark build (turbo, base as its
+  light tier) is not begun. The survey tables of all seven machines are
+  under "Survey of machines" below.
+- Names to look at: TMenuItem.IsChecked, IfThen in PadHome, the
+  standalone KeepStandardModels (after ModelFilesOf, before
+  StartDiagnostics), SameFileName.
+
+## Zip 210 (on top of zip 209): macOS - Big Picture full screen asked for again
+Owner 2026-11-21 21:17, Mac mini: pad and dark mode work; "Big Picture
+fails - when app starts it starts in normal mode not full screen ... I
+got the correct view just in a Window". Debug log: "Steam: Big Picture:
+the main form exists now - TfrmBuilder full screen on a 3440 x 1440
+display" - TSteamAPI (bpwFullScreen) set it while the form was being
+made and macOS did not take it. NOT COMPILED (pasdoc_check,
+project_check: 0 problems). NO PACKAGE REBUILD. Files:
+demos/EpubBuilder/src/uBuilder.pas, CLAUDE.md.
+- uBuilder.tmPadTimer: PAD_FULL_AGAIN (macOS only), FFullTick,
+  FFullTries: in Big Picture, while FullScreen reads False, FullScreen
+  := True again, a second apart, at most PAD_FULL_TRIES (3) times; a
+  debug line each time ("Big Picture: the window is not full screen -
+  asked for again (n of 3)").
+- A GUESS, NOT TRIED: that FMX's FullScreen reads the window's real
+  state on macOS and that asking after the window is shown takes. If
+  not: the debug lines say how often it was asked.
+- THE RIGHT PLACE is TSteamAPI's bpwFullScreen on macOS (ask once the
+  form is visible) - not in this repository's reach from here; then
+  this can go. EpubReader on the Mac in Big Picture: not reported, not
+  changed - the owner to say whether it shows the same.
+- CLAUDE.md: the Mac's row in the survey of machines.
+
+## Zip 209 (on top of zip 208): no full-screen toggle outside gamescope
+Owner 2026-11-21 20:42, Ideapad (Ubuntu desktop, Steam Big Picture,
+SteamGamepadUI=1): at the end of a full calibration / diagnostics "the
+screen tries to resize and looses focus". Debug log: "redraw: a pad
+press after 830 s without one ... full screen True" then 60 ms later
+"the window is not active" for 38 s; the same after 2134 s (80 ms, 14
+s). uRedraw.Kick left full screen and went back at the first pad press
+after the run - meant for gamescope's black screen. NOT COMPILED
+(pasdoc_check, project_check: 0 problems). NO PACKAGE REBUILD. Files:
+demos/common/uRedraw.pas, demos/EpubBuilder/README.md,
+demos/EpubReader/README.md, CLAUDE.md.
+- uRedraw: FGamescope (XDG_CURRENT_DESKTOP has gamescope, or
+  GAMESCOPE_WAYLAND_DISPLAY set - NOT SteamGamepadUI=1, which
+  uInhibit.GameModeSession also takes). Kick outside gamescope: the log
+  line and Invalidate only. The log line ends "gamescope: size changed
+  and put back" / "not gamescope: drawn again only". Reader and builder
+  both (shared unit).
+- NOT TOUCHED: uInhibit still treats SteamGamepadUI=1 as Game Mode (the
+  Ideapad's log: "sleep allowed, the work pauses for it") - a separate
+  question for a desktop; owner to say.
+- TO TEST: Ideapad, Big Picture, a pad press after a minute: no resize,
+  focus kept. Deck / Ally / Steam Machine (gamescope): as before.
+- This zip's CLAUDE.md also has the survey of machines below.
+
+## Survey of machines, 2026-11-21 (diagnostics before zip 208; with zip 209)
+Every model, ten minutes of Aladdin from 0 (old kind). As a build /
+failed checks / heard with the fallback:
+- Ally Z1 Extreme (RADV): tiny 79.4x / 0 / 95.6; tiny.en 11.0x / 57 /
+  96.8; base 42.1x / 1 / 97.9; base.en 28.0x / 9 / 94.7; small 27.5x /
+  0 / 97.4; small.en 8.3x / 23 / 89.1; medium 10.9x / 0 / 88.8;
+  medium.en 6.3x / 17 / 97.9; turbo 16.7x / 0 / 98.8; large-v3 6.6x / 0
+  / 93.8. Calibrate all 7:30, diagnostics 25:24.
+- Steam Deck (RADV VANGOGH): tiny 39.3x / 0 / 96.1; tiny.en 10.5x / 30 /
+  97.6; base 23.4x / 2 / 98.0; base.en 14.4x / 10 / 96.7; small 11.7x /
+  2 / 98.2; small.en 9.1x / 6 / 90.5; medium 5.3x / 2 / 84.7; medium.en
+  4.3x / 12 / 98.2; turbo 7.9x / 0 / 98.8; large-v3 3.8x / 0 / 93.8.
+  Calibrate all 18:56, diagnostics 43:03.
+- Ideapad (GTX 1650, NVIDIA Vulkan; large-v3 did not fit its 4 GB and
+  ran on the Iris Xe): tiny 61.4x / 2 / 96.6; tiny.en 20.6x / 30 / 96.7;
+  base 58.4x / 0 / 98.0; base.en 36.2x / 8 / 95.7; small 27.2x / 0 /
+  98.3; small.en 12.4x / 12 / 85.9; medium 12.3x / 0 / 87.5; medium.en
+  7.0x / 18 / 98.3 (81.4 without the fallback); turbo 15.4x / 0 / 98.8
+  (= the Naked Sun book's 15.4x; calibration 9.9x, ratio 1.56);
+  large-v3 2.3x / 0 / 93.8. Calibrate all 13:44, diagnostics 34:01.
+  tiny RETRIED here (2, 20 % of its time): over four machines only turbo
+  and large-v3 have never retried. The calibration ranks the .en models
+  ABOVE their twins (tiny.en 90.1x against tiny 72.1x) - its 30 s
+  stretch has no retry - the opposite of a build.
+- OPEN, owner 20:42, Ideapad (Ubuntu, Big Picture): when a full
+  calibration or diagnostics ends "the screen tries to resize and looses
+  focus". Suspect uRedraw.Kick (leaves full screen and goes back: at the
+  first pad press after a minute, or the window active again) - right
+  for gamescope, wrong for Big Picture on a desktop. CONFIRMED by the
+  debug log and fixed in zip 209.
+- Mac mini M4 (Metal; tiny and tiny.en on the CPU, which calibrated
+  faster): tiny 110.8x / 2 / 97.0; tiny.en 27.9x / 48 / 97.6; base 80.9x
+  / 2 / 98.0; base.en 55.5x / 11 / 90.8; small 33.6x / 2 / 98.2;
+  small.en 19.8x / 14 / 80.7 (93.6 WITHOUT the fallback - the one case
+  where the fallback made it worse); medium 16.8x / 0 / 89.6; medium.en
+  11.3x / 12 / 98.3 (77.5 without); turbo 26.9x / 0 / 98.8 (1546 words;
+  calibration 21.2x, ratio 1.27 - the Mac's encoder is a smaller share);
+  large-v3 8.5x / 0 / 93.8. Calibrate all 2:21, diagnostics 16:07.
+  Five machines: only turbo and large-v3 have never retried; base 97.9 -
+  98.0 and small 97.4 - 98.3 heard on every one.
+  WRONG TEXT in the calibration log: a model fastest on the CPU gets "no
+  graphics card here could run it ... a book will take many hours" - on
+  the Mac tiny ran 118.6x on the CPU against 116.3x on Metal. To fix.
+- Miix 520 (Windows, Intel UHD 620 Vulkan, 7 models; with the next zip
+  after 210): tiny 15.0x / 0 / 95.8; tiny.en 2.5x / 38 / 98.1 (13.3x
+  without the fallback); base 6.3x / 1 / 98.0; base.en 3.2x / 15 / 96.7;
+  small 2.6x / 0 / 96.9; small.en 2.0x / 10 / 92.2; turbo 0.8x / 0 /
+  98.8 (1546 words). Diagnostics 1:51:17. This explains the morning's
+  Foundation and Empire build on tiny.en: 3.0x against a calibration of
+  11.9x (3:12:20) - the retries, not the machine; tiny would have run
+  about 15x. FIVE FULL RUNS so far (Ally, Deck, Ideapad, Mac, Miix; the
+  5090 only turbo and tiny.en, before the accuracy lines): every .en
+  model retries; turbo never has (98.8 % on the five); large-v3 never
+  on the four that ran it; tiny, base, small, medium 0 - 2 times.
+- Steam Machine (RADV NAVI33, 8 GB; with the next zip after 210): tiny
+  117.4x / 0 / 95.6; tiny.en 15.8x / 57 / 96.8; base 66.3x / 1 / 97.9;
+  base.en 32.3x / 12 / 88.6 (91.3 without the fallback); small 41.5x /
+  0 / 97.4; small.en 13.5x / 15 / 91.1; medium 18.1x / 0 / 87.5;
+  medium.en 7.5x / 22 / 98.4 (72.6 without); turbo 37.8x / 0 / 98.8
+  (1547 words; calibration 27.4x, ratio 1.38); large-v3 12.8x / 0 /
+  93.8. Calibrate all 8:01, diagnostics 15:59. The multilingual models
+  give the SAME retries and heard figures as the Ally (tiny 0 / 95.6,
+  base 1 / 97.9, small 0 / 97.4; tiny.en 57 / 96.8 too) - the same GPU
+  generation gives the same transcript; the Deck's differs. SIX FULL
+  RUNS (Ally, Deck, Ideapad, Mac, Miix, Steam Machine - owner 22:18
+  corrected a count of seven; the 5090's full run was started then):
+  every .en model retries; turbo never (98.8 % on all six; on the 5090
+  0 retries, 1547 words, no accuracy line yet); large-v3 never on the
+  five that ran it. The gamescope redraw fired
+  once here ("a pad press after 486 s") with no loss of focus.
+- RTX 5090 laptop (Windows, NVIDIA Vulkan; full run 22:14, owner "No
+  issues"): tiny 186.5x / 0 / 97.6; tiny.en 25.9x / 33 / 97.9; base
+  115.1x / 2 / 98.0; base.en 77.5x / 8 / 94.7; small 66.9x / 2 / 98.2;
+  small.en 36.7x / 14 / 92.1; medium 51.2x / 0 / 85.1; medium.en 23.6x
+  / 15 / 96.5 (77.5 without the fallback); turbo 101.8x / 0 / 98.8
+  (1547 words; calibration 82.6x, ratio 1.23); large-v3 25.3x / 0 /
+  93.8. Calibrate all 6:44, diagnostics 7:00. Three runs had ONE window
+  of 5 - 8 s with no retry behind it (tiny.en run 1: 8.44 s, so 25.9x
+  where the afternoon's three runs gave 37.5x; base.en run 2: 5.20 s;
+  large-v3 run 1: 5.55 s) - a stall of the machine, not Whisper; to
+  watch (the owner's old turbo stalls).
+  SEVEN FULL RUNS NOW: every .en model retries on every machine; turbo
+  0 retries and 98.8 % on all seven; large-v3 0 retries on the six that
+  ran it; base 97.9 - 98.0 % on all seven; small 96.9 - 98.3; tiny 95.6
+  - 97.6. As a build, turbo / small / base / tiny: 5090 101.8 / 66.9 /
+  115.1 / 186.5; Steam Machine 37.8 / 41.5 / 66.3 / 117.4; Mac 26.9 /
+  33.6 / 80.9 / 110.8; Ally 16.7 / 27.5 / 42.1 / 79.4; Ideapad 15.4 /
+  27.2 / 58.4 / 61.4; Deck 7.9 / 11.7 / 23.4 / 39.3; Miix 0.8 / 2.6 /
+  6.3 / 15.0. The survey is complete; the decisions are the owner's.
+- DECIDED, owner 2026-11-21 22:29, after the seven runs and the error
+  table (first pass, not heard exactly or nearly: turbo 1.2 %, base 2.0,
+  medium.en 2.1, small 2.2, tiny.en 2.6, tiny 3.7, base.en 6.0, large-v3
+  6.2, small.en 11.2, medium 12.8): "base + turbo it is". Turbo = the
+  accurate model, base (multilingual) = the fast one. What happens to
+  the other eight in the model list: asked - "(1) with "Unlock expert
+  mode" which allows free choice of all models" - zip 211.
+- Both: .en models retry far more than their multilingual twins; turbo,
+  tiny and large-v3 never retry; turbo gives the same 1547 words on Deck,
+  Ally and 5090 (98.8 % on the first two; the 5090's run had no
+  accuracy line). Retry COUNTS differ by machine for the
+  same audio (tiny.en 57 / 30 / 33 on Ally / Deck / 5090; small.en 23 /
+  6, so the Deck beats the Ally on small.en): a model that retries is
+  no good for a benchmark. Build speed over calibration, Deck: tiny
+  1.19, turbo 1.55, large-v3 1.36 (Ally 1.19, 1.48, 1.27).
+- Owner 18:12: no decision until more machines are in. Next: Ideapad
+  (GTX 1650), Miix running.
+- Owner 19:34, Ideapad (Linux, Big Picture): dark mode and the pad
+  work. RustDesk (remote desktop) does not refresh the window properly
+  there - RustDesk's fault, not the program's; not to be chased.
+
+## Zip 208 (on top of zip 207): the diagnostics on chapter material only
+Owner 2026-11-21 19:19 "Do the fix, I won't do another deploy until after
+all tests are done anyway" (the standing rule ONLY CHAPTER MATERIAL IS
+TRUSTED FOR TIMING, which zips 198 - 206 broke). NOT COMPILED
+(pasdoc_check, project_check: 0 problems). NO PACKAGE REBUILD. Files:
+demos/EpubBuilder/src/uCalibration.pas, demos/EpubBuilder/README.md,
+CLAUDE.md.
+- uCalibration: DIAGNOSTIC_EDGE_SECONDS = 30. ExecuteDiagnostics takes
+  DIAGNOSTIC_SECONDS from 30 s in, never the last 30 s (Copy(Samples,
+  Edge, Min(length - 2 x Edge, 600 s))); a recording under 2 min (two
+  edges + two windows) is read whole and the log says the figures are
+  less sure. A FIXED start, not WhisperFindSpeech: the same stretch on
+  every machine, and the reference text (the first 2000 words) still
+  covers it (about 1630 words in). Log: "Recording: ..., 0:10:00 of it
+  from 0:00:30 (its first and last 30 s are left out ...)"; the accuracy
+  line now reads "word N of it was reached".
+- The accuracy needed no change (counted between the first and last word
+  matched); the speeds lose the intro's window (was about 1 % kind).
+- NOT COMPARABLE with the logs before 208: other audio (30 s later).
+  The owner re-runs every machine for the real benchmark anyway.
+- Names to look at: Copy on TWhisperSamples, Min (System.Math),
+  WHISPER_CHUNK_SIZE (Whisper.Types), the new local Edge.
+
+## Zip 207 (on top of zip 206): the builder's window drawn again after the display slept
+Owner 2026-11-21 19:15, Miix 520 (Windows), a long run: "the screen keeps
+sleeping. When it awakes again there is an almost black screen (as
+nothing is being output). After a while text will re-appear. This is not
+desirable". NOT COMPILED (pasdoc_check, project_check: 0 problems). NO
+PACKAGE REBUILD. Files: demos/common/uRedraw.pas,
+demos/EpubBuilder/src/uBuilder.pas, demos/EpubBuilder/README.md, CLAUDE.md.
+- uRedraw did nothing outside Linux. TWindowRedraw.Create(AForm,
+  AEverywhere = False): with True the 2 s timer runs on every system and
+  Tick only calls FForm.Invalidate there (Kick, the displays: Linux as
+  before). EpubBuilder passes True; EpubReader unchanged (default False).
+- A GUESS, NOT TRIED: that Invalidate is enough on Windows for the log
+  to be drawn after the display wakes. If the window is still empty: the
+  debug log, and whether the pad menu or the log was showing.
+- NOT CHANGED, OWNER TO DECIDE: the builder holds ikSleep only while
+  busy (zip 114), so the display may sleep. Holding ikDisplay too on
+  Windows / macOS would keep the screen on through a run; Linux Game
+  Mode is a separate, open question (zip 168 notes: blocking Steam's
+  timers).
+- Also in this zip, CLAUDE.md only: the standing rule ONLY CHAPTER
+  MATERIAL IS TRUSTED FOR TIMING (owner 18:59 - the diagnostics break
+  it, to be fixed after the survey of machines; the benchmark must
+  follow it). Owner 18:12: no decision on the models, the fast model or
+  the Lite tier until more machines are in (Deck next, Miix running).
+  Confirmed today: dark mode on Linux (Ally) and Windows (Miix), the pad
+  on the Miix, zips 205 / 206 ran (Ally ten-model table, in the session).
+
+## Zip 206 (on top of zip 205): diagnostics on every model, Download every model
+Owner 2026-11-21 17:17 "Diagnose all would make this easy too", 17:19 "a
+download all models at the top of models would be handy". NOT COMPILED
+(pasdoc_check, project_check: 0 problems). NO PACKAGE REBUILD. Files:
+demos/EpubBuilder/src/uBuilder.pas, demos/EpubBuilder/src/uCalibration.pas,
+demos/EpubBuilder/README.md, CLAUDE.md.
+- uCalibration.ExecuteDiagnostics: every model given to Create, model M
+  on FDevices[M]. The four runs moved into the nested procedure OneModel
+  (its own I, J, K: a for-loop variable must be local to the routine; the
+  model's index is a parameter for the same reason), which frees its
+  model and returns the model's line; a model that raises (does not fit
+  the device) is logged, listed as FAILED and the next one run; with
+  more than one model a closing table "Every model, over the same ...".
+  Progress over all runs (FDiagRuns = 4 x models). TCalibrationThread.
+  IniFile: the thread says what the calibration timed each model at
+  (the builder no longer does).
+- uBuilder: StartDiagnostics(AAllModels) - ModelFilesOf, each model's
+  device = CalibrationBest's when it is calibrated, else the window's;
+  its body now lies after ModelFilesOf. miDiagnosticsAll (Tools > Run
+  diagnostics on every &model...), BPC_DIAGNOSE_ALL = 20 under Model.
+- uBuilder: DownloadEveryModel (Tools > Do&wnload every model...,
+  PADROW_DOWNLOAD_ALL = the first row of PadModels): the catalogue's
+  models not in FModelsFolder, one question with the total size (with
+  the Core ML encoders where FCoreML), FDownloadQueue / FDownloadAll,
+  StartNextDownload; DownloadDone in that mode keeps FModelPath, offers
+  no calibration, goes on, and ends (done, failed or Cancel) with a line
+  and PadBackToMenu(True). No check of free disk space before it.
+NAMES TO LOOK AT if the compiler complains: the nested OneModel using the
+outer routine's variables and constants (RUN_NAMES, Took, Score, Model);
+Delete(FDownloadQueue, 0, 1) on a TArray<string>; Names + [..] and the
+anonymous method capturing Names in DownloadEveryModel; MODEL_CATALOGUE's
+SizeMB / EncoderMB; CalibrationBest's out parameters in StartDiagnostics.
+TO TEST (owner): Download every model (question, a line per model, the
+window's model unchanged, Cancel stops it); Calibrate every model;
+Diagnostics (every model) - the closing table; a model too large for a
+card is listed FAILED and the rest still run.
+
+## Zip 205 (on top of zip 204): accuracy in the diagnostics, Calibrate every model, back on Model
+Owner 2026-11-21 16:58 "ok" (to the accuracy figure and the calibration
+change), "Add a calibrate all to big picture as well", 17:00 "After
+calibrate the menu should be back on model so you can get the next one".
+NOT COMPILED (pasdoc_check, project_check: 0 problems). NO PACKAGE
+REBUILD. Files: demos/EpubBuilder/src/uBuilder.pas,
+demos/EpubBuilder/src/uCalibration.pas, demos/EpubBuilder/README.md,
+CLAUDE.md.
+- ACCURACY (uCalibration): DIAG_REFERENCE, the first 2000 words of
+  "Aladdin and the Wonderful Lamp" (Andrew Lang, The Blue Fairy Book,
+  1889 - public domain; Project Gutenberg 503), 114 strings in the
+  source, ASCII. ExecuteDiagnostics aligns it with each run's words
+  (Whisper.Align: WhisperSplitText, WhisperAlignText) and logs "against
+  the text: its first N words were reached; of the M read, x % heard
+  exactly, y % exactly or nearly, K not" - counted from the first to the
+  last word matched (the recording has a spoken introduction and stops
+  part way through the text); and after the costs "The fallback's worth:
+  y % with it (run 1), y % without (run 2)". Only when the recording's
+  file name is CALIBRATION_AUDIO. ASSUMED, to check on the first run:
+  the recording reads that text from its first sentence (the calibration
+  text at 0:01:23 is from it).
+- uBuilder: BPC_CALIBRATE_ALL = 19, "Calibrate every model" on the home
+  list -> miCalibrateAllClick. PadBackToMenu(AModel): True after a
+  download, a calibration, the diagnostics (PadHome(BPC_MODEL)), False
+  after a build or the queue. FPadToModel: set by OfferCalibration's "No",
+  read and cleared by PadAnswer (the home list on Model instead of
+  Create). Owner 17:02 "Move calibrate and diagnostics under model": the
+  three rows - Calibrate (this model), Calibrate every model, Diagnostics
+  (this model) - now follow the Model row in PadHome (they were above
+  Exit).
+NAMES TO LOOK AT if the compiler complains: the typed const array
+DIAG_REFERENCE (114 strings; doubled apostrophes); Whisper.Align in
+uCalibration's implementation uses (TWhisperStringArray,
+TWhisperAlignedWordArray, TWhisperAlignStats, wamExact / wamSimilar /
+wamNone); "if ... then try ... except ... end" in ExecuteDiagnostics;
+PadBackToMenu's five calls with their argument.
+NOT DONE, ON PURPOSE - THE CALIBRATION ON A CONTINUOUS STRETCH. Found
+2026-11-21 (Ally, all six models; 5090): the calibration times ONE 30 s
+clip per run, and whisper.cpp encodes such a clip TWICE - a window ends
+at its last time stamp (seek += seek_delta; whisper.cpp 1.9.5,
+whisper_full_with_state), the second or two left is a window of its own
+with a full encoder pass - while a book costs about 1.15 passes per 30 s.
+Turbo on the Ally: 2 x 1.01 s encoder + 0.5 s = 2.6 s = 11.4x calibrated;
+1.53 s per window = 16.8x continuous (ratio 1.47; 5090 1.22; the Deck's
+book 1.56). That IS HISTORY_BOOK_RATIO. The fix (TWhisperBenchmark's
+MaxSeconds 120, one run: about the same time as 3 x 30 s) is small in
+uCalibration but NOT SAFE ALONE: uHistory's second rule multiplies a
+calibration by the ratio earlier builds had to THEIR calibrations, so a
+new-style calibration times an old-style ratio (1.45) promises 40 % too
+fast. It needs: the calibration's length kept per model in the settings
+and per build in the history (a new column), the ratio rules using only
+like with like, HISTORY_BOOK_RATIO about 1.0 - 1.05 for the new style
+(to be measured), and every machine calibrated again. A zip of its own,
+after the multilingual models' figures.
+ALLY Z1 EXTREME, Vulkan0, 10 min (as a build / no fallback / failed
+checks / words with / without): base.en 27.9x / 53.4x / 9 / 1500 / 1595;
+turbo 16.8x / 16.7x / 0 / 1547 / 1547; tiny.en 11.0x / 79.6x / 57 /
+1577 / 1587; small.en 8.4x / 26.5x / 23 / 1495 / 1502; large-v3 6.7x /
+6.6x / 0 / 1470; medium.en 6.4x / 13.1x / 17 / 1553 / 1132 (27 % of the
+words lost without the fallback). Turbo and tiny.en-without-fallback give
+the same words on the 5090 and the Ally (1547, 1587); tiny.en with the
+fallback does not (1602 / 33 retries against 1577 / 57). TO TEST (owner's
+idea, 16:56): the multilingual tiny / base / small / medium - only the
+.en models retried.
+
+## Zip 204 (on top of zip 203): the builder frees its pad
+Owner 2026-11-21 16:38, a screenshot of Delphi's "Unexpected Memory Leak"
+at the builder's end: TSteamPad x 1, UnicodeString x 9, Unknown x 5 -
+one TSteamPad with its set name, 8 action names and 5 arrays. The builder
+made FPad in StartPad and never freed it (the reader does, in FormClose);
+older than today's zips, which do not touch FPad. Now: where the window
+frees FBuildLog and FModelItems, tmPad is stopped and FPad freed. Files:
+demos/EpubBuilder/src/uBuilder.pas, CLAUDE.md. NOT COMPILED. NO PACKAGE
+REBUILD. If the report still lists something after this, it is another
+object: send the box.
+
+## Zip 203 (on top of zip 202): Big Picture all dark, by default
+Owner 2026-11-21 16:32, to "say if Big Picture should start dark" and "the
+window behind keeps its light colours": "yes, all dark". NOT COMPILED
+(pasdoc_check, project_check: 0 problems). NO PACKAGE REBUILD. Files:
+demos/EpubBuilder/src/uBuilder.pas, demos/EpubBuilder/README.md,
+CLAUDE.md.
+- The setting is [View] Dark now (zip 202's PadDark is not read), default
+  True; the home list's row is "Dark mode". It covers the pad's menu
+  (PadColors, zip 202) and the window.
+- TfrmBuilder.ApplyDarkWindow (Big Picture only - there the window is the
+  log): the form's Fill solid PAD_DARK_WINDOW ($FF1A1C22); the log's
+  style resource 'background' (a TCustomStyleObject: a picture cut from
+  the style) gets SourceLookup '' and Source nil, so it draws nothing and
+  the form shows through; then the log's text PAD_DARK_TEXT (FontColor
+  out of StyledSettings). Light again: Fill none, FontColor styled,
+  NeedStyleLookup + ApplyStyleLookup (the style's background back).
+  Called at the end of BigPictureWindow, on the row's change, and once a
+  second from tmPadTimer (FDarkTick): the style may not be applied when
+  the window is made, and a style applied again brings the background
+  back - SourceLookup <> '' tells.
+- SAFETY: the text is made light only after the background was found and
+  switched off. A style whose 'background' is not a TCustomStyleObject
+  (or has none) keeps the light log with dark text, and the debug log
+  says "dark: the log keeps the style's colours - its background is a
+  <class>" once (FDarkNoted).
+- Implementation uses: FMX.Graphics (TBrushKind), FMX.Styles.Objects
+  (TCustomStyleObject). NOT FMX.Objects (its TPath hides
+  System.IOUtils.TPath - zip 182's lesson), so a TRectangle background
+  is not handled.
+THE UNCERTAIN PART (written from knowledge of FMX's styles, not tried):
+that mmLog.FindStyleResource('background') reaches the styled
+presentation's object on every platform (Windows, macOS, FMXLinux); that
+an empty SourceLookup with Source nil stops the drawing; that the
+scroll bar's light look is acceptable. TO TEST (owner, Big Picture, each
+system): the log dark with light text; the debug log's "dark: ..." line;
+Dark mode < No > puts the light log back at once; after a sleep / wake
+and a full-screen toggle the log is still dark within a second.
+NAMES TO LOOK AT if the compiler complains: TCustomStyleObject's
+SourceLookup and Source (FMX.Styles.Objects); Fill.Kind / TBrushKind on
+the form; mmLog.NeedStyleLookup / ApplyStyleLookup; names FMX.Graphics
+brings into uBuilder's implementation (TBitmap, TCanvas, TFont) that an
+existing line may now resolve differently.
+
+## Zip 202 (on top of zip 201): a dark pad menu in the builder
+Owner 2026-11-21 16:29: "Add a dark mode to Builder's Steam Menu". NOT
+COMPILED (pasdoc_check, project_check: 0 problems). NO PACKAGE REBUILD.
+Files: demos/EpubBuilder/src/uBuilder.pas, demos/EpubBuilder/README.md,
+CLAUDE.md. uPadMenu is not changed: TPadMenu.SetColors was there (the
+reader's dark menu uses it) and the colours take effect at the next Show.
+- FPadDark ([View] PadDark, default False = the light menu as before;
+  read in LoadSettings, written in SaveSettings); PadColors (after
+  FPadMenu is made in StartPad, and on a change): dark = PAD_DARK_BACK
+  $FF23262E, PAD_DARK_TEXT $FFE0E0E0, PAD_DARK_ROW $FF34405A (the
+  reader's dark menu, uMain.PadMenuColors); light = white, black,
+  PAD_LIGHT_ROW $FFD6E4F5 (TPadMenu's own).
+- The home list's row "Dark menu < Yes > / < No >" (BPC_DARK = 18, under
+  "Chapters of a file are parts"): left / right or A turns it (PadStep),
+  saves, and the list is shown again in its new colours. Questions
+  (Ask / ShowText) take the same colours.
+NOT DONE: the window behind the menu (the log, text 24, the progress
+panel) keeps the style's light colours - a dark window is a style
+change, not asked for here. The default stays light: say if Big Picture
+should start dark.
+
+## Zip 201 (on top of zip 200): the calibration offered by itself, the menu comes back
+Owner 2026-11-21 16:14 (installing every .en model for the diagnostics, in
+Big Picture): "After loading a new model it always tells you it's not
+calibrated yet. It should automatically ask if it should calibrate. If no
+then back to menu, if yes then calibrate and back to menu (everything
+should normally result in the menu after it's finished)". Zip 200 COMPILED
+AND RAN (owner). This zip: NOT COMPILED (pasdoc_check, project_check: 0
+problems). NO PACKAGE REBUILD. Files: demos/EpubBuilder/src/uBuilder.pas,
+demos/EpubBuilder/README.md, CLAUDE.md.
+- TfrmBuilder.OfferCalibration: the model in the window has no calibration
+  (CalibrationSummary = '') -> Ask "Calibrate it now?" (the pad's menu in
+  Big Picture, a dialog on the desktop); Yes = StartCalibration(False,
+  False); No is kept in FCalibDeclined (file names between tabs) for the
+  run. Not asked while FBuild / FCalib / FDownload / FQueueRunning, nor
+  with [Calibration] DontAsk. Called from DownloadDone (a model
+  downloaded) and cbModelChange (a model here chosen), each after the
+  older first-model path (FCalibPending -> CheckCalibrationAtStart), so
+  only one question is asked.
+- TfrmBuilder.PadBackToMenu (no parameter: DownloadDone, RunNextJob and
+  BuildDone lie above the BPC_* constants - zip 149's lesson): Big
+  Picture only, PadHome(BPC_BOOK) unless a question is shown (BPM_ASK) or
+  something runs. Called at the end of DownloadDone, CalibrationDone
+  (calibration and diagnostics), BuildDone and RunNextJob's "queue
+  finished". After an answer PadAnswer already shows the home list.
+NAMES TO LOOK AT if the compiler complains: the anonymous method in
+OfferCalibration capturing Mark and Model; PadBackToMenu's place (its body
+must stay below BPM_ASK / BPC_BOOK).
+TO TEST (owner, Big Picture): download a model -> the question; No -> the
+home list; choose it again -> no question; Yes -> calibration -> the home
+list; diagnostics -> the home list; a build alone and a queue -> the home
+list once, at the end. Desktop: the question is a dialog; nothing else
+changes.
+RESULTS SO FAR (5090 laptop, Vulkan0, 10 min of Aladdin, zip 200's build;
+runs repeat within 1 %): turbo as a build 101.9x, no fallback 102.1x, no
+DTW 110.3x - 0 failed checks, 1547 words and the same decoder runs in
+every run, windows 0.17 - 0.29 s: the fallback is free for turbo and
+stays on. tiny.en as a build 37.5x, no fallback 180.2x - 33 probability
+fallbacks in 22 windows, windows 0.11 s (passed) to 1.74 s. Fresh
+calibrations: turbo 83.6x, tiny.en 188.7x - so turbo's continuous first
+pass is 1.22 times its calibration with no retries involved: the gap is in
+how the calibration times (single 30 s calls), to be compared on the other
+machines from the diagnostics' header line and run 1. The stored turbo
+calibration on that laptop was of 2026-11-17 (26.1x, CUDA0 still listed).
+KNOWN, NOT FIXED: "decoder ... in N runs" adds whisper.cpp's prompt runs,
+which DTW's extra pass raises (2395 with DTW, 437 without); the build
+stamp showed no '+' on a tree with these zips applied.
+
+## Zip 200 (on top of zip 199): the diagnostics log keeps every run
+Owner 2026-11-21 15:46, after a turbo run then a tiny.en run on the 5090
+laptop: "I take it you overwrite the diagnostics as I did a turbo run
+first". It did. Zips 198 + 199 COMPILED AND RAN (owner's Windows build).
+- uBuilder.CalibrationDone (diagnostics): the run's lines are ADDED to
+  <settings>-diagnostics.log (loaded, AddStrings, saved); the file is
+  never emptied by the program. QuitSignalled's save of a run stopped
+  from outside still replaces the file (not changed).
+- uCalibration.ExecuteDiagnostics: the windows line gives the fastest
+  window too (with the fallback on, a window that passes is far below
+  the middle one, and "more than twice the middle" does not show it).
+Every line of a run is also in the debug log (TCalibrationThread.Log ->
+DebugLog), and the run before the last start in EpubBuilder-debug.log.old.
+FIRST RESULT (5090 laptop, tiny.en, Vulkan0, 10 min of Aladdin; the
+calibration's one stretch: 192.3x): as a build 37.1x, 1602 words, 33
+probability fallbacks and 0 entropy in 22 windows, decoder 22009 runs,
+sampling 6.2 s; no fallback 180.3x, 1587 words, decoder 4252 runs; no DTW
+38.8x; neither 227.1x. So for tiny.en the FALLBACK is 79 % of the time and
+every one was the probability check (avg_logprobs < logprob_thold -1.0),
+none the entropy check (the loop detector); DTW is about 0.7 s per 10 min
+of audio. This is the "fixed cost per window" of the small models (Later
+tests 1) and the Miix's 11.9x calibration against a 3.0x book: the
+calibration's stretch passes the check. DO NOT turn the fallback off for
+builds (owner: turbo "used to stall badly ... don't want that to come
+back" - BOOK_PROMPT's note): the entropy fallback is the net under loops.
+TO DECIDE after the turbo figures: for small models only, no retry on
+probability alone (logprob_thold - but whisper.cpp also uses it, with
+no_speech_thold, to call a window silent) or cheaper retries (best_of,
+temperature_inc), tried as a fifth diagnostics run first.
+Files: demos/EpubBuilder/src/uBuilder.pas,
+demos/EpubBuilder/src/uCalibration.pas, demos/EpubBuilder/README.md,
+CLAUDE.md. NOT COMPILED. NO PACKAGE REBUILD.
+
+## Zip 199 (on top of zip 198): zip 198's compile error
+Owner's Windows build, 2026-11-21 15:36: uCalibration.pas(125) E2169
+"Field definition not allowed after methods or properties".
+TCalibrationThread's three new methods (DiagLogLine, DiagProgress,
+ExecuteDiagnostics) were declared among the fields, before FOnLog /
+FOnProgress / FOnStatus: moved below Status, the last method of the
+private section. Both units' classes were then scanned for a field after
+a method in the same visibility section: none. LESSON: in a class
+section, every field comes before the first method or property - add new
+fields after the last field, new methods after the last method. Files:
+demos/EpubBuilder/src/uCalibration.pas, CLAUDE.md. NOT COMPILED. NO
+PACKAGE REBUILD. (The H2164 hints in uQuitSignal - GProc, GDone - are
+older and not from these zips.)
+
+## Zip 198 (on top of 51dbf1f; holds all of zip 197): Tools > Run diagnostics
+Owner 2026-11-21 15:05: "can you add a diagnostics option to the menu that
+will perform the tests - setting options is extremely awkward, a last
+resort". NOT COMPILED (pasdoc_check and project_check: 0 problems). NO
+PACKAGE REBUILD. Files: demos/EpubBuilder/src/uBuilder.pas,
+demos/EpubBuilder/src/uCalibration.pas, demos/EpubBuilder/README.md
+("Diagnostics", "Diagnostic builds"), CLAUDE.md. Zip 197 need not be
+applied first: its three files are all in this one. No project file
+changed (no new unit: the diagnostics are in uCalibration).
+- uCalibration: TCalibrationThread.Diagnostics (set before Start) ->
+  Execute calls ExecuteDiagnostics: the first DIAGNOSTIC_SECONDS (600) of
+  the recording, the first model on the first device, four runs with the
+  build's Params - 1 as a build, 2 TemperatureInc 0, 3 no DTW
+  (flash_attn off), 4 neither; the model is loaded for runs 1 and 3.
+  Each run: whisper_reset_timings, TWhisperRun.Execute (first pass only,
+  IncludeWords), whisper_print_timings. The printed lines are read from
+  whisper.cpp's log (Lib.AddLogListener(DiagLogLine), NumberAfter):
+  fallbacks p / h (since the model's loading: the run's own are the
+  difference from the run before on the same model), sample / encode /
+  decode + batchd + prompt times and the decoder's runs. Window times:
+  DiagProgress - whisper.cpp 1.9.5 calls the progress callback at the top
+  of every window's loop (no progress_step in this version), so the time
+  between two reports is a window's. Logged per run: s, x real time,
+  words, failed checks, encoder / decoder / sampling / the rest, windows
+  (middle, slowest, how many over twice the middle); then the fallback's
+  cost (run 1 - run 2), DTW's (run 1 - run 3), run 4's speed. Cancel
+  cancels FDiagRun. Completed = four runs made; Results stays empty.
+- uBuilder: miDiagnostics (Tools > Run &diagnostics (this model)...),
+  BPC_DIAGNOSE on Big Picture's home list, StartDiagnostics (the window's
+  device, "Default" as GDefaultDevice; the calibration's recording, not
+  asked for; FCalib is the thread, so Cancel, the progress panel, Busy,
+  closing and QuitSignalled work as for a calibration, with their texts
+  saying diagnostics), CalibrationDone's branch for it (nothing saved to
+  the settings; lines to <settings>-diagnostics.log,
+  DIAGNOSTICS_LOG_SUFFIX).
+NAMES TO LOOK AT if the compiler complains: TFormatSettings.Invariant and
+TryStrToFloat's three-argument form (NumberAfter); TArray<Double> in the
+class (FDiagWindows) and Copy of it; Lib.AddLogListener /
+RemoveLogListener with a method of the thread (TWhisperLogEvent);
+Run.OnProgress := DiagProgress (TWhisperProgressEvent); the typed const
+array RUN_NAMES inside the method; IfThen on strings (System.StrUtils is
+in both units); FCalib.Diagnostics in the texts.
+TO TEST (owner), each machine, small model and turbo: Tools > Run
+diagnostics; send EpubBuilder-diagnostics.log (and the debug log). Check
+first: run 1's speed is near a build's first pass; the windows count is
+about 20 - 25; Cancel during a run ends it within a window.
+
+## Zip 197 (on top of 51dbf1f "Pre branch"): diagnostic builds, whisper.cpp's timings
+Session 12, 2026-11-21. NOT COMPILED (pasdoc_check and project_check: 0
+problems). NO PACKAGE REBUILD. Files: demos/EpubBuilder/src/uBuilder.pas,
+demos/EpubBuilder/README.md ("Diagnostic builds"), CLAUDE.md.
+WHY: on the Miix 520 (UHD 620, Windows) tiny.en calibrated at 11.9x and
+built Foundation and Empire at 3.0x - book / calibration 0.25, where
+turbo on every other machine gives 1.36 - 1.56 (Deck 1.56, Ideapad GTX
+1650 1.55, Ally Z1 Extreme 1.45, Steam Machine 1.36). From the debug
+log's status lines: slow from the first 30 s window, and two speeds -
+most windows about 15 s, some 1.5 s (16 - 21x). Not heat. Suspects:
+whisper.cpp's temperature fallback (a small model fails the entropy /
+probability check often; each retry samples best_of 5), or DTW (the
+"fixed cost per window" of the small models, Later tests 1). The
+calibration times ONE window three times, so one clean window set the
+estimate (35:45 against 3:12:20).
+- DiagSwitch / BuildDiagnostics (uBuilder, implementation): --no-fallback
+  or EPUBUNUM_NO_FALLBACK -> Params.TemperatureInc := 0; --no-dtw or
+  EPUBUNUM_NO_DTW -> WhisperEnableDtw not called, CP.flash_attn := False
+  (only DTW differs). Both are read from the command line (Steam's launch
+  options; EpubBuilder.sh passes "$@") and the environment.
+- A diagnostic build (TBuildThread.FDiagnostic, TBuildSummary.Diagnostic):
+  FReuse off, ReadPartial / SavePartial / SaveTranscript skipped, and
+  RecordHistory logs the "Speed:" line but does not call HistoryAdd.
+  Start-up and build logs say "DIAGNOSTIC ...". The calibration is not
+  changed by the switches.
+- TBuildThread.LogTimings, every build: whisper_reset_timings before each
+  part's Execute, whisper_print_timings after it and after FillGaps (to
+  the debug log through the whisper.cpp log listener). whisper.cpp 1.9.5
+  facts (read in the submodule, 5922450): the timings are the context's
+  default state's - TWhisperRun.Execute passes no state, so they are the
+  run's; reset_timings does NOT reset n_fail_p / n_fail_h (fallbacks
+  count from the model's loading); DTW is not inside any timer.
+NAMES TO LOOK AT if the compiler complains: Lib.Flat.whisper_reset_timings
+/ whisper_print_timings (Whisper.API TWhisperFlat, optional entries, used
+as WhisperConsole does), CP.flash_attn, Params.TemperatureInc,
+Model.Handle; "end" + comment + "else if" in Transcribe; IfThen on
+strings in BuildDiagnostics (System.StrUtils).
+TO TEST (owner): Aladdin (34:32, public domain - its logs can be shared)
+built four ways with a small model and again with turbo, same machine:
+no switch; --no-fallback; --no-dtw; both. Compare the "Speed:" lines and
+the timings. Then decide: the Lite benchmark model (tiny.en / base.en /
+small.en), a calibration over several windows, HISTORY_BOOK_RATIO.
+ALSO FOUND TODAY, NOT FIXED (owner to decide): the calibration line says
+Vulkan1 10.0x and the "Device:" line 9.9x (Ideapad); the report table
+gives the whole job's speed (16.4x) and the log line the transcription's
+(16.5x) (Ally); "Exact" is of all book words in RESULTS and without front
+/ back matter in "Speed:"; "not heard" words get no clip though the text
+says "timed like interpolated words" (clips = timed words - not heard);
+link lines ("Paired", "Received ...") land in the calibration log;
+"redraw: displays (none read)" on the Ally and on Ubuntu. Steam Input
+must be turned on for the app on the partner site, or desktop Steam
+gives the program no controllers (SteamOS forces it on) - done by the
+owner 2026-11-21.
 
 ## Zip 192 (on top of zip 191): the builder's window - settings page, queue below
 Owner 2026-11-21 05:11: "Builder - Model, Device, Language, Power, GPU,

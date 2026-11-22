@@ -92,10 +92,12 @@ idle again. The debug log has a "screen:" line saying how it was asked.
 
 Game Mode (gamescope) can show the window black after Steam's screen
 saver or once the display comes back on. On Linux EpubReader then draws
-itself again and changes its size by a pixel and back (full screen, as in
-Big Picture: leaves full screen and goes back): when the window is
-active again, when a display comes back on, and at the first pad press
-after a minute without one. The debug log says each time ("redraw: ...").
+itself again and, in Game Mode only, changes its size by a pixel and back
+(full screen, as in Big Picture: leaves full screen and goes back): when
+the window is active again, when a display comes back on, and at the
+first pad press after a minute without one. Steam's Big Picture on a
+desktop is only drawn again (leaving full screen there would be seen and
+lose the focus). The debug log says each time ("redraw: ...").
 
 ## Game pad (Steam builds)
 

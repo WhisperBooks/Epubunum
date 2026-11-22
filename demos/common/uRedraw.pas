@@ -6,6 +6,11 @@
   Drawing the whole window every two seconds (zip 164) did not bring it
   back. So now, besides that:
 
+  In a gamescope session only (Steam's Game Mode; Big Picture on a desktop
+  is drawn again and nothing more - Ubuntu, 2026-11-21: leaving full screen
+  there showed as a resize and took the focus away at the first pad press
+  after a long run):
+
   @unorderedList(
     @item(the window's size changes by one pixel and back - a new frame of
       a new size, which gamescope must take; full screen (Big Picture): out
@@ -16,7 +21,11 @@
     @item(each of these goes into the debug log (@code(redraw: ...)), so a
       test shows what the program heard.))
 
-  Other systems: nothing (the object does nothing). *)
+  Other systems: nothing, unless the window asks to be drawn everywhere
+  (Create's AEverywhere, EpubBuilder): then the window is drawn whole every
+  two seconds there too and nothing else is done. A Windows tablet, 2026-11-21:
+  the display slept during a long run and the window came back dark and
+  empty until the next line was logged. *)
 unit uRedraw;
 
 interface
@@ -31,6 +40,15 @@ type
   private
     { The window. }
     FForm: TCommonCustomForm;
+    { The window is drawn whole every two seconds on every system, not on
+      Linux only. }
+    FEverywhere: Boolean;
+    { A gamescope session (Steam's Game Mode: XDG_CURRENT_DESKTOP has
+      gamescope, or GAMESCOPE_WAYLAND_DISPLAY is set). Only there does
+      Kick change the size or leave full screen; Steam's Big Picture on a
+      desktop is drawn again and nothing more (leaving full screen there
+      was seen, and took the window's focus away). }
+    FGamescope: Boolean;
     { Every two seconds: the window drawn whole, the displays looked at. }
     FTimer: TTimer;
     { A third of a second after the size changed: the size put back. }
@@ -59,11 +77,15 @@ type
       sorted, one space apart; '' when none can be read. }
     function ReadDisplays: string;
   public
-    { Starts it (Linux only).
-      @param(AForm  the window, which owns the object) }
-    constructor Create(AForm: TCommonCustomForm); reintroduce;
-    { Brings the window back: drawn whole, its size changed by a pixel and
-      back. Not more than once in two seconds.
+    { Starts it: on Linux always; on other systems only with AEverywhere,
+      and then only the drawing every two seconds.
+      @param(AForm  the window, which owns the object)
+      @param(AEverywhere  draw the window whole every two seconds on every
+        system (a display that slept can come back with the window empty)) }
+    constructor Create(AForm: TCommonCustomForm; AEverywhere: Boolean = False); reintroduce;
+    { Brings the window back: drawn whole and, in a gamescope session only,
+      its size changed by a pixel and back (full screen: left and entered
+      again). Not more than once in two seconds.
       @param(AWhy  for the debug log) }
     procedure Kick(const AWhy: string);
     { The window is active again (OnActivate): logged and brought back. }
@@ -92,14 +114,17 @@ const
   { Linux: brought back; other systems: nothing. }
   REDRAW_ON = {$IF Defined(LINUX) and not Defined(ANDROID)} True {$ELSE} False {$ENDIF};
 
-constructor TWindowRedraw.Create(AForm: TCommonCustomForm);
+constructor TWindowRedraw.Create(AForm: TCommonCustomForm; AEverywhere: Boolean);
 begin
   inherited Create(AForm);
   FForm := AForm;
   FTimer := TTimer.Create(Self);
   FTimer.Interval := TICK_MS;
   FTimer.OnTimer := Tick;
-  FTimer.Enabled := REDRAW_ON;
+  FEverywhere := AEverywhere;
+  FGamescope := REDRAW_ON and ((Pos('gamescope', LowerCase(GetEnvironmentVariable('XDG_CURRENT_DESKTOP'))) > 0) or
+    (GetEnvironmentVariable('GAMESCOPE_WAYLAND_DISPLAY') <> ''));
+  FTimer.Enabled := REDRAW_ON or FEverywhere;
   FRestoreTimer := TTimer.Create(Self);
   FRestoreTimer.Interval := 500;
   FRestoreTimer.OnTimer := Restore;
@@ -157,6 +182,9 @@ var
 begin
   try
     FForm.Invalidate;
+    // other systems: the drawing only
+    if not REDRAW_ON then
+      Exit;
     T := TThread.GetTickCount64;
     if (FLastTick <> 0) and (T - FLastTick > LATE_MS) then
       Kick(Format('the timer was held up %d s', [(T - FLastTick) div 1000]));
@@ -188,10 +216,15 @@ begin
     Exit;
   FLastKick := T;
   try
-    DebugLog(Format('redraw: %s - window %d x %d, active %s, state %d, full screen %s',
+    DebugLog(Format('redraw: %s - window %d x %d, active %s, state %d, full screen %s, %s',
       [AWhy, FForm.Width, FForm.Height, BoolToStr(FForm.Active, True), Ord(FForm.WindowState),
-      BoolToStr(FForm.FullScreen, True)]));
+      BoolToStr(FForm.FullScreen, True),
+      IfThen(FGamescope, 'gamescope: size changed and put back', 'not gamescope: drawn again only')]));
     FForm.Invalidate;
+    // a desktop (Steam's Big Picture there): leaving full screen is seen
+    // and takes the focus away - only gamescope needs the new frame
+    if not FGamescope then
+      Exit;
     if FChanged or FUnFull then
       Exit;
     // full screen (Big Picture): out of it and back - a new frame of a new

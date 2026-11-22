@@ -82,6 +82,10 @@ type
     Upgraded: Boolean;
     { Why it failed ('' = it did not). }
     Error: string;
+    { The diagnostic switches the build ran with, in words ('' = none: a
+      normal build - BuildDiagnostics). A diagnostic build is not kept in
+      the build history: its speed is not a build's. }
+    Diagnostic: string;
   end;
 
   { Builds one read-along EPUB on its own thread. Messages and progress
@@ -153,6 +157,18 @@ type
     FPriorSeconds: Double;
     { Backing field of @link(CoverChoice). }
     FCoverChoice: string;
+    { The diagnostic switches this build runs with (BuildDiagnostics; '' =
+      none). With any, no saved or part-way transcript is read or kept:
+      every diagnostic build transcribes all of the audio and leaves the
+      next normal build nothing made with other settings. }
+    FDiagnostic: string;
+    { Writes whisper.cpp's timings since the part began to the debug log
+      (whisper_print_timings: fallbacks, and the time and runs of the
+      encoder, the decoder and the sampling). ANote says which pass they
+      are for. The fallback counts are the model's since it was loaded -
+      whisper.cpp never resets them - so a part's own are the difference
+      from the part before. }
+    procedure LogTimings(AModel: TWhisperModel; const ANote: string);
     { Waits while the system sleeps (Steam's Game Mode: GSleepGate reset by
       the window), then counts the time in FPausedSeconds. Called between
       30 s windows and between parts. }
@@ -345,6 +361,17 @@ type
     FFillingModels: Boolean;
     { The model being downloaded, nil when none. }
     FDownload: TModelDownload;
+    { "Download every model": the models still to fetch, by name, in the
+      catalogue's order. }
+    FDownloadQueue: TArray<string>;
+    { A download of "Download every model" is running (DownloadDone then
+      goes on with FDownloadQueue and leaves the model in the window). }
+    FDownloadAll: Boolean;
+    { Expert mode ([Models] Expert, off at first): the model list offers
+      every model of the catalogue, the other files of the models folder
+      and "Other model file ..."; without it only MODEL_STANDARD (base and
+      large-v3-turbo) and the model in use. }
+    FExpert: Boolean;
     { The computer is kept awake (a build, queue, calibration or download
       runs) - see uInhibit. }
     FAwake: Boolean;
@@ -473,6 +500,23 @@ type
     tmPad: TTimer;
     { The pad's menu over the window. }
     FPadMenu: TPadMenu;
+    { Big Picture in dark colours - the pad's menu and the window behind
+      it ([View] Dark, on unless turned off; the home list's "Dark mode"
+      row - owner, 2026-11-21: "yes, all dark"). }
+    FPadDark: Boolean;
+    { The window is dark now (ApplyDarkWindow): its fill and the log's
+      text colour were changed and are put back when dark is turned off. }
+    FWindowDark: Boolean;
+    { ApplyDarkWindow has said in the debug log why the log stays light. }
+    FDarkNoted: Boolean;
+    { When ApplyDarkWindow last looked at the log's style (tmPadTimer). }
+    FDarkTick: UInt64;
+    { macOS, Big Picture: when tmPadTimer last looked whether the window is
+      full screen. }
+    FFullTick: UInt64;
+    { macOS, Big Picture: how often full screen has been asked for again
+      (PAD_FULL_TRIES when it is, or has been asked for often enough). }
+    FFullTries: Integer;
     { Which list FPadMenu shows (BPM_*). }
     FPadMode: Integer;
     { What each row of it does (BPC_* on the home list, PADROW_* or an
@@ -497,6 +541,15 @@ type
     { Not calibrated, and no model to calibrate at start-up: the question
       is asked once a model is here (downloaded or chosen). }
     FCalibPending: Boolean;
+    { Models (file names, lower case, each between tabs) whose calibration
+      was offered and declined in this run: not offered again until the
+      program starts again (OfferCalibration). }
+    FCalibDeclined: string;
+    { The home list that follows the answer to a pad question shows the
+      Model row selected (set by the question's answer, cleared by
+      PadAnswer): after "Calibrate it now? - No" the next model is one
+      press away. }
+    FPadToModel: Boolean;
     { In the log's place (owner, 2026-11-20: "little point in having a debug
       output window for transcription"): what is being done, in large
       type; the log behind View > Show the log. }
@@ -614,6 +667,14 @@ type
     miCalibrate: TMenuItem;
     { Tools > Re-calibrate every model in the model's folder. }
     miCalibrateAll: TMenuItem;
+    { Tools > Run diagnostics (this model). }
+    miDiagnostics: TMenuItem;
+    { Tools > Run diagnostics on every model. }
+    miDiagnosticsAll: TMenuItem;
+    { Tools > Download every model. }
+    miDownloadAll: TMenuItem;
+    { Tools > Unlock expert mode (every model): checked while it is on. }
+    miExpert: TMenuItem;
     { Tools > Get AMD ROCm acceleration (free DLC): Linux Steam builds, an
       AMD GPU without a ROCm device (CheckRocmDlc). }
     miRocm: TMenuItem;
@@ -850,6 +911,26 @@ type
     { The home list: the book, its audio, the choices, the actions;
       ACommand (a BPC_*) selected. }
     procedure PadHome(ACommand: Integer);
+    { Big Picture: the home list again once something has ended - a
+      download, a calibration, the diagnostics, a build, the queue (owner,
+      2026-11-21: "everything should normally result in the menu after
+      it's finished"). AModel: with the Model row selected (after a
+      download, a calibration, the diagnostics - "so you can get the next
+      one"), else the first row. Nothing while a question is shown or
+      anything still runs; nothing outside Big Picture. }
+    procedure PadBackToMenu(AModel: Boolean);
+    { Gives FPadMenu its colours, dark or light (FPadDark): they show from
+      the next list or question on. }
+    procedure PadColors;
+    { Big Picture's window (the log) dark or in the style's own colours
+      (FPadDark). Dark: the form is filled dark, the log's style background
+      is no longer drawn (the form shows through) and its text is light.
+      The text is only made light once the background is known to be gone:
+      a style this cannot change keeps a readable light log, and the debug
+      log says why. Called when the window is made, on a change, and once
+      a second (the style can be applied again and bring its background
+      back). Nothing outside Big Picture. }
+    procedure ApplyDarkWindow;
     { The EPUB files of the books folder. }
     procedure PadBooks;
     { The audio for the book: the best matches first (AAll: every
@@ -953,6 +1034,13 @@ type
       calibrate when it was never done (or the devices have changed since)
       and the user has not said not to ask. }
     procedure CheckCalibrationAtStart;
+    { The model in the window is not calibrated on this machine (just
+      downloaded, or chosen): asks whether to calibrate it now - Yes starts
+      the calibration, No is remembered for this run (FCalibDeclined). Not
+      asked while anything runs, nor when the user said not to be reminded
+      ([Calibration] DontAsk). Big Picture: the question is in the pad's
+      menu, and the home list follows the answer or the calibration. }
+    procedure OfferCalibration;
     { Starts a calibration of the model in the window (AAllModels: every
       ggml-*.bin in its folder, smallest first); ARetry: pairs that ended
       the program before are timed again. Asks for a model or a recording
@@ -965,6 +1053,36 @@ type
       window into cbDevice (ALog: says so, or that the model is not
       calibrated). }
     procedure ApplyCalibration(ALog: Boolean);
+    { Starts the diagnostics (uCalibration, TCalibrationThread.Diagnostics)
+      of the model in the window on its device: ten minutes of the
+      calibration's recording transcribed four times - as a build, without
+      whisper.cpp's fallback, without DTW, without either - to find what
+      makes a model slow here. AAllModels: every ggml-*.bin in the model's
+      folder instead. It runs as a calibration does (FCalib: the same
+      Cancel, progress and busy state) and changes no setting. }
+    procedure StartDiagnostics(AAllModels: Boolean);
+    { Tools > Run diagnostics (this model). }
+    procedure miDiagnosticsClick(Sender: TObject);
+    { Tools > Run diagnostics on every model: StartDiagnostics for every
+      ggml-*.bin in the model's folder, smallest first, each on the
+      device its calibration chose - with a closing table, a line per
+      model. }
+    procedure miDiagnosticsAllClick(Sender: TObject);
+    { Tools > Download every model (the top row of Big Picture's model
+      list): asks, then fetches every model of the catalogue that is not
+      in the models folder, one after another (FDownloadQueue). The model
+      in the window is not changed, no calibration is offered between
+      them; a download that fails, or Cancel, ends it. }
+    procedure DownloadEveryModel;
+    { Starts the first model of FDownloadQueue and takes it off the queue. }
+    procedure StartNextDownload;
+    { Tools > Download every model. }
+    procedure miDownloadAllClick(Sender: TObject);
+    { Turns expert mode on or off (FExpert): kept in the settings, the
+      model list filled again, a line in the log. }
+    procedure ToggleExpert;
+    { Tools > Unlock expert mode (every model). }
+    procedure miExpertClick(Sender: TObject);
     { Tools > Re-calibrate (this model). }
     procedure miCalibrateClick(Sender: TObject);
     { Tools > Re-calibrate every model in its folder. }
@@ -1032,7 +1150,10 @@ var
 implementation
 
 uses
-  System.Character, System.Generics.Defaults, System.SyncObjs, uReaderInput;
+  System.Character, System.Generics.Defaults, System.SyncObjs,
+  // the dark window: TBrushKind, and the style object behind the log
+  FMX.Graphics, FMX.Styles.Objects,
+  uReaderInput;
 
 {$R *.fmx}
 
@@ -1049,6 +1170,47 @@ var
     ROCm devices are left out (RocmUnusable) - whisper.cpp would still
     take ROCm0, the first GPU of ggml's list. A build given '' uses it. }
   GDefaultDevice: string;
+
+const
+  { Diagnostic switch (command line; Steam: the launch options): builds
+    run without whisper.cpp's temperature fallback - a 30 s window whose
+    text fails the entropy or probability check is NOT decoded again at a
+    higher temperature. To measure what the fallback costs. }
+  DIAG_NO_FALLBACK = '--no-fallback';
+  { Environment variable with the meaning of DIAG_NO_FALLBACK (any value). }
+  DIAG_NO_FALLBACK_ENV = 'EPUBUNUM_NO_FALLBACK';
+  { Diagnostic switch: builds load the model without DTW, so word times
+    come from whisper.cpp's token time stamps. To measure what DTW costs. }
+  DIAG_NO_DTW = '--no-dtw';
+  { Environment variable with the meaning of DIAG_NO_DTW (any value). }
+  DIAG_NO_DTW_ENV = 'EPUBUNUM_NO_DTW';
+
+{ A diagnostic switch is on: ASwitch is on the command line, or the
+  environment variable AEnv has a value.
+  @param(ASwitch  the command-line switch, with its dashes)
+  @param(AEnv     the environment variable)
+  @returns(the answer) }
+function DiagSwitch(const ASwitch, AEnv: string): Boolean;
+var
+  I: Integer;
+begin
+  Result := Trim(GetEnvironmentVariable(AEnv)) <> '';
+  for I := 1 to ParamCount do
+    if SameText(ParamStr(I), ASwitch) then
+      Result := True;
+end;
+
+{ The diagnostic switches that are on, in words for the logs
+  ('--no-fallback, --no-dtw'; '' = none: builds are normal builds).
+  @returns(the switches) }
+function BuildDiagnostics: string;
+begin
+  Result := '';
+  if DiagSwitch(DIAG_NO_FALLBACK, DIAG_NO_FALLBACK_ENV) then
+    Result := DIAG_NO_FALLBACK;
+  if DiagSwitch(DIAG_NO_DTW, DIAG_NO_DTW_ENV) then
+    Result := Result + IfThen(Result = '', '', ', ') + DIAG_NO_DTW;
+end;
 
 { ROCm cannot run here: the launcher found no ROCm kernels for the GPU
   (EPUBUNUM_ROCM_OFF holds why); ROCm's runtime is bundled beside the
@@ -1101,6 +1263,8 @@ const
   QUIT_NOTE_SUFFIX = '-ended.txt';
   { The calibration's lines, beside the settings. }
   CALIBRATION_LOG_SUFFIX = '-calibration.log';
+  { The diagnostics' lines (Tools > Run diagnostics), beside the settings. }
+  DIAGNOSTICS_LOG_SUFFIX = '-diagnostics.log';
   { The prompt given to every 30 s window: punctuated and capitalised, so
     the transcript is too. TWhisper's recommended settings for books
     (its CLAUDE.md; WhisperConsole --no-context --carry-prompt --prompt):
@@ -1313,6 +1477,10 @@ begin
   FChapters := AChapters;
   FReuse := AReuse;
   FForceLanguage := AForceLanguage;
+  // a diagnostic build always transcribes: a saved transcript has no speed
+  FDiagnostic := BuildDiagnostics;
+  if FDiagnostic <> '' then
+    FReuse := False;
 end;
 
 destructor TBuildThread.Destroy;
@@ -1631,6 +1799,20 @@ begin
   WhisperSaveTextFile(FJsonFile, Json);
 end;
 
+procedure TBuildThread.LogTimings(AModel: TWhisperModel; const ANote: string);
+var
+  Lib: TWhisperLib;
+begin
+  Lib := TWhisperLib.Instance;
+  if not Assigned(Lib.Flat.whisper_print_timings) then
+    Exit;
+  DebugLog(Format('timings: part %d of %d, %s (times and runs since the part began; fallbacks p / h since ' +
+    'the model was loaded)', [FPartNo, FPartCount, ANote]));
+  // through whisper.cpp's log: the "whisper.cpp: whisper_print_timings"
+  // lines that follow in the debug log
+  Lib.Flat.whisper_print_timings(AModel.Handle);
+end;
+
 function TBuildThread.Transcribe(AAudio: TWhisperAudioSet): TWhisperTranscription;
 var
   Lib: TWhisperLib;
@@ -1650,8 +1832,16 @@ begin
   CP := Lib.DefaultContextParams;
   if not Lib.ContextParamsFor(FDevice, CP) then
     raise EWhisperError.CreateFmt('Device %s cannot be used', [FDevice]);
+  if DiagSwitch(DIAG_NO_DTW, DIAG_NO_DTW_ENV) then
+  begin
+    // flash attention stays off as in a normal build (DTW turns it off):
+    // only DTW differs, not the arithmetic of the attention
+    CP.flash_attn := False;
+    Log('DIAGNOSTIC ' + DIAG_NO_DTW + ': the model is loaded without DTW - word times come from token time ' +
+      'stamps (less accurate), flash attention off as with DTW');
+  end
   // word times by DTW: the alignment heads of this model
-  if not WhisperEnableDtw(FModelFile, CP) then
+  else if not WhisperEnableDtw(FModelFile, CP) then
     Log('The model header cannot be read for DTW: word times come from token time stamps');
   Log(Format('Loading %s ...', [ExtractFileName(FModelFile)]));
   DebugLog(Format('model %s, device "%s", GPU %s', [FModelFile, FDevice, BoolToStr(CP.use_gpu, True)]));
@@ -1671,6 +1861,13 @@ begin
     Params.MaxTextContext := 0;
     Params.InitialPrompt := Prompt;
     Params.CarryInitialPrompt := Prompt <> '';
+    if DiagSwitch(DIAG_NO_FALLBACK, DIAG_NO_FALLBACK_ENV) then
+    begin
+      // whisper.cpp: no increment = the first temperature only
+      Params.TemperatureInc := 0;
+      Log('DIAGNOSTIC ' + DIAG_NO_FALLBACK + ': no temperature fallback - a window whose text fails ' +
+        'whisper.cpp''s checks is kept as first decoded, not decoded again');
+    end;
     if Prompt <> '' then
       Log(Format('Transcribing in %s, each 30 s window on its own, with a punctuated prompt (TWhisper''s ' +
         'settings for books)', [Params.Language]))
@@ -1687,7 +1884,7 @@ begin
       FPartCount := Length(AAudio.Parts);
       // a build of this book stopped part way: on from the next part
       Done := 0;
-      if ReadPartial(AAudio.Parts, Result, Done, Heard, FPriorSeconds) then
+      if (FDiagnostic = '') and ReadPartial(AAudio.Parts, Result, Done, Heard, FPriorSeconds) then
       begin
         if (Heard <> '') and SameText(Params.Language, WHISPER_LANGUAGE_AUTO) then
           Params.Language := Heard;
@@ -1714,9 +1911,14 @@ begin
           Continue;
         Status(Format('Part %d of %d "%s": transcribing (the words appear as they are heard) ...', [I + 1,
           FPartCount, AAudio.Parts[I].Title]));
+        // the timings below are this part's (the fallback counts are not:
+        // LogTimings)
+        if Assigned(Lib.Flat.whisper_reset_timings) then
+          Lib.Flat.whisper_reset_timings(Model.Handle);
         Part := FRun.Execute(Samples);
         if Part.Cancelled then
           Break;
+        LogTimings(Model, 'the first pass');
         // a part that failed ends the build: going on gave a book with
         // part of its audio timed, reported as done, and kept the cut
         // transcript "for next time" (review, zip 73)
@@ -1733,6 +1935,7 @@ begin
         WhisperCleanTranscription(Part, Prompt);
         Status(Format('Part %d of %d: second pass over stretches left without words ...', [I + 1, FPartCount]));
         FRun.FillGaps(Samples, Part);
+        LogTimings(Model, 'with the second pass');
         // the pause before a word is not the word: DTW starts the first
         // word after a pause in it (the next sentence lit too early)
         WhisperTrimWordSilence(Part, Samples);
@@ -1748,8 +1951,9 @@ begin
         // kept part by part: a stop (Steam's Exit Game, a crash, Cancel)
         // loses at most the part being transcribed
         Kept := I + 1;
-        SavePartial(Result, AAudio.Parts, Kept, Params.Language, FPriorSeconds +
-          MilliSecondsBetween(Now, RunStarted) / 1000 - FPausedSeconds);
+        if FDiagnostic = '' then
+          SavePartial(Result, AAudio.Parts, Kept, Params.Language, FPriorSeconds +
+            MilliSecondsBetween(Now, RunStarted) / 1000 - FPausedSeconds);
       end;
       if Terminated and (Kept > 0) and (Kept < Length(AAudio.Parts)) then
         Log(Format('Stopped after part %d of %d: parts 1 - %d are kept (%s) - building it again goes on from ' +
@@ -1988,6 +2192,7 @@ begin
       else
         FSummary.Device := FDevice;
       FSummary.Machine := MachineText;
+      FSummary.Diagnostic := FDiagnostic;
       FSummary.Language := FLanguage;
       FSummary.Title := Book.Title;
       Log(Format('Audio: %d file(s), %d part(s), about %s', [Audio.Files.Count, Length(Audio.Parts),
@@ -2029,15 +2234,23 @@ begin
           Exit;
         end;
         Parts := Audio.Parts;
-        SaveTranscript(R, Parts, ExtractFileName(FModelFile), FormatDateTime('yyyy-mm-dd hh:nn', Now));
-        Log(Format('Transcript kept for next time: %s (%d words)', [FJsonFile, Length(R.Words)]));
-        // the whole transcript is kept: the parts so far are not needed
-        try
-          if FileExists(FPartialFile) then
-            TFile.Delete(FPartialFile);
-        except
-          // left behind: the next build of this output starts afresh anyway
-          // (ReadPartial's checks), or is read whole from FJsonFile
+        if FDiagnostic <> '' then
+          // its words are not a normal build's: a later build must not
+          // take them for its own (a saved or part-way transcript of a
+          // normal build is left as it is)
+          Log(Format('DIAGNOSTIC build (%s): the transcript is not kept for next time', [FDiagnostic]))
+        else
+        begin
+          SaveTranscript(R, Parts, ExtractFileName(FModelFile), FormatDateTime('yyyy-mm-dd hh:nn', Now));
+          Log(Format('Transcript kept for next time: %s (%d words)', [FJsonFile, Length(R.Words)]));
+          // the whole transcript is kept: the parts so far are not needed
+          try
+            if FileExists(FPartialFile) then
+              TFile.Delete(FPartialFile);
+          except
+            // left behind: the next build of this output starts afresh anyway
+            // (ReadPartial's checks), or is read whole from FJsonFile
+          end;
         end;
       end;
       Progress(90);
@@ -2513,7 +2726,7 @@ begin
   OnShow := FormShow;
   OnActivate := FormActivated;
   OnDeactivate := FormDeactivated;
-  FRedraw := TWindowRedraw.Create(Self);
+  FRedraw := TWindowRedraw.Create(Self, True);
   tmSleep := TTimer.Create(Self);
   tmSleep.Interval := 250;
   tmSleep.OnTimer := tmSleepTimer;
@@ -2548,6 +2761,9 @@ begin
   // ggml uses Vulkan
   if GetEnvironmentVariable('EPUBUNUM_ROCM_OFF') <> '' then
     LogLine('ROCm: off - ' + Trim(GetEnvironmentVariable('EPUBUNUM_ROCM_OFF')) + '; Vulkan is used.');
+  if BuildDiagnostics <> '' then
+    LogLine('DIAGNOSTIC SWITCHES: ' + BuildDiagnostics + ' - builds of this run are for measuring: slower or ' +
+      'less accurate words, no transcript kept, not in the build history. Start without them to build books.');
   try
     DebugLog('whisper.cpp: loading');
     Lib := TWhisperLib.Load;
@@ -2700,6 +2916,10 @@ begin
       chkChapters.IsChecked := Ini.ReadBool('Build', 'Chapters', True);
       // the log, or the progress panel in its place (the panel at first)
       SetLogVisible(Ini.ReadBool('View', 'Log', False));
+      // Big Picture dark unless turned off (applied when the pad's menu
+      // and the window are made)
+      FPadDark := Ini.ReadBool('View', 'Dark', True);
+      FExpert := Ini.ReadBool('Models', 'Expert', False);
       // not a change of the user's (which saves the settings half read)
       cbPower.OnChange := nil;
       try
@@ -2754,6 +2974,8 @@ begin
       end;
       Ini.WriteString('Build', 'Power', POWER_KEYS[EnsureRange(cbPower.ItemIndex, 0, 3)]);
       Ini.WriteBool('Build', 'Chapters', chkChapters.IsChecked);
+      Ini.WriteBool('View', 'Dark', FPadDark);
+      Ini.WriteBool('Models', 'Expert', FExpert);
       // no longer kept (off at every start)
       Ini.DeleteKey('Build', 'UseSavedTranscript');
       Ini.WriteString('Folders', 'Book', FBookFolder);
@@ -2806,7 +3028,8 @@ begin
   if FBuild <> nil then
     What := Format('building %s (%.0f %%)', [ExtractFileName(FRunOut), FPercent])
   else if FCalib <> nil then
-    What := Format('calibrating (%.0f %%)', [FPercent])
+    What := Format('%s (%.0f %%)', [IfThen(FCalib.Diagnostics, 'running the diagnostics', 'calibrating'),
+      FPercent])
   else if FDownload <> nil then
     What := 'downloading a model';
   // the next start says so too (the debug log starts afresh)
@@ -2831,8 +3054,16 @@ begin
     end
     else if (FCalib <> nil) and (FBuildLog <> nil) then
     begin
-      LogLine('The calibration was stopped part way: nothing of it was kept.');
-      FBuildLog.SaveToFile(ChangeFileExt(SettingsFile, CALIBRATION_LOG_SUFFIX), TEncoding.UTF8);
+      if FCalib.Diagnostics then
+      begin
+        LogLine('The diagnostics were stopped part way.');
+        FBuildLog.SaveToFile(ChangeFileExt(SettingsFile, DIAGNOSTICS_LOG_SUFFIX), TEncoding.UTF8);
+      end
+      else
+      begin
+        LogLine('The calibration was stopped part way: nothing of it was kept.');
+        FBuildLog.SaveToFile(ChangeFileExt(SettingsFile, CALIBRATION_LOG_SUFFIX), TEncoding.UTF8);
+      end;
     end;
   except
     on E: Exception do
@@ -2891,6 +3122,12 @@ begin
     FDownload.WaitFor;
     FreeAndNil(FDownload);
   end;
+  // the pad: its timer first (tmPadTimer polls it). It was never freed -
+  // the leak report at the end named TSteamPad, its names and its arrays
+  // (owner, 2026-11-21)
+  if tmPad <> nil then
+    tmPad.Enabled := False;
+  FreeAndNil(FPad);
   FreeAndNil(FBuildLog);
   FreeAndNil(FModelItems);
 end;
@@ -3077,6 +3314,14 @@ begin
     // an item's Enabled reaches the system's menu by itself (only new
     // items need RecreateOSMenu); StartCalibration checks again anyway
     miCalibrateAll.Enabled := miCalibrate.Enabled;
+    if miDiagnostics <> nil then
+      miDiagnostics.Enabled := miCalibrate.Enabled;
+    if miDiagnosticsAll <> nil then
+      miDiagnosticsAll.Enabled := miCalibrate.Enabled;
+    if miDownloadAll <> nil then
+      miDownloadAll.Enabled := miCalibrate.Enabled;
+    if miExpert <> nil then
+      miExpert.IsChecked := FExpert;
   end;
   Waiting := False;
   for I := 0 to High(FJobs) do
@@ -3354,7 +3599,10 @@ begin
       // the first model here: the calibration's question now
       FCalibPending := False;
       CheckCalibrationAtStart;
-    end;
+    end
+    else
+      // a model not timed here yet: offered, not only said
+      OfferCalibration;
     Exit;
   end;
   if I < 0 then
@@ -3416,10 +3664,13 @@ begin
       cbModel.Items.Clear;
       FModelItems.Clear;
       Sel := -1;
-      // the catalogue, smallest first
+      // the catalogue, smallest first: without expert mode only base and
+      // large-v3-turbo, and the model in use
       for I := Low(MODEL_CATALOGUE) to High(MODEL_CATALOGUE) do
       begin
         Path := TPath.Combine(FModelsFolder, ModelFileName(MODEL_CATALOGUE[I].Name));
+        if not FExpert and not ModelIsStandard(MODEL_CATALOGUE[I].Name) and not SameFileName(Path, FModelPath) then
+          Continue;
         if not FileExists(Path) then
           Item := Format('%s - %s (%s to download)', [MODEL_CATALOGUE[I].Name, MODEL_CATALOGUE[I].Note,
             ModelSizeText(MODEL_CATALOGUE[I].SizeMB)])
@@ -3434,8 +3685,9 @@ begin
         if SameFileName(Path, FModelPath) then
           Sel := FModelItems.Count - 1;
       end;
-      // other models in the folder (quantised, fine-tuned, older ones)
-      if TDirectory.Exists(FModelsFolder) then
+      // other models in the folder (quantised, fine-tuned, older ones):
+      // expert mode
+      if FExpert and TDirectory.Exists(FModelsFolder) then
         for Path in TDirectory.GetFiles(FModelsFolder, 'ggml-*.bin') do
           if ModelCatalogueIndex(ModelShortName(Path)) < 0 then
           begin
@@ -3451,8 +3703,11 @@ begin
         FModelItems.Add(FModelPath);
         Sel := FModelItems.Count - 1;
       end;
-      cbModel.Items.Add('Other model file ...');
-      FModelItems.Add('');
+      if FExpert then
+      begin
+        cbModel.Items.Add('Other model file ...');
+        FModelItems.Add('');
+      end;
     finally
       cbModel.Items.EndUpdate;
     end;
@@ -3498,6 +3753,94 @@ begin
   FDownload.Start;
 end;
 
+procedure TfrmBuilder.miDownloadAllClick(Sender: TObject);
+begin
+  DownloadEveryModel;
+end;
+
+procedure TfrmBuilder.ToggleExpert;
+begin
+  FExpert := not FExpert;
+  SaveSettings;
+  FillModels;
+  UpdateControls;
+  if FExpert then
+    LogLine('Expert mode: the model list offers every model. On the machines tested the English-only (.en) ' +
+      'models were slower in a build than their twins, and none was more accurate than large-v3-turbo.')
+  else
+    LogLine('Expert mode off: the model list offers base (fast) and large-v3-turbo (the most accurate), and ' +
+      'the model in use.');
+end;
+
+procedure TfrmBuilder.miExpertClick(Sender: TObject);
+begin
+  ToggleExpert;
+end;
+
+procedure TfrmBuilder.DownloadEveryModel;
+var
+  Names: TArray<string>;
+  I, MB: Integer;
+begin
+  if (FDownload <> nil) or (FBuild <> nil) or (FCalib <> nil) or FQueueRunning then
+  begin
+    Tell('A build, a calibration or a download is running: download the models when it has ended.');
+    Exit;
+  end;
+  Names := nil;
+  MB := 0;
+  // the models the list offers: two without expert mode
+  for I := 0 to Length(MODEL_CATALOGUE) - 1 do
+    if (FExpert or ModelIsStandard(MODEL_CATALOGUE[I].Name)) and
+      not FileExists(TPath.Combine(FModelsFolder, ModelFileName(MODEL_CATALOGUE[I].Name))) then
+    begin
+      Names := Names + [MODEL_CATALOGUE[I].Name];
+      Inc(MB, MODEL_CATALOGUE[I].SizeMB);
+      if FCoreML then
+        Inc(MB, MODEL_CATALOGUE[I].EncoderMB);
+    end;
+  if Length(Names) = 0 then
+  begin
+    Tell('Every model of the list is in the models folder already.');
+    Exit;
+  end;
+  Ask(Format('Download the %d model(s) that are not here yet?' + sLineBreak + sLineBreak +
+    'About %s in all, from whisper.cpp''s model repository on Hugging Face, into %s - one after another, each ' +
+    'checked. Cancel stops it; what is here stays.', [Length(Names), ModelSizeText(MB), FModelsFolder]),
+    TMsgDlgType.mtConfirmation, [TMsgDlgBtn.mbYes, TMsgDlgBtn.mbNo], TMsgDlgBtn.mbYes,
+    procedure(const AResult: TModalResult)
+    begin
+      if AResult <> mrYes then
+      begin
+        FPadToModel := True;
+        Exit;
+      end;
+      FDownloadQueue := Names;
+      FDownloadAll := True;
+      StartNextDownload;
+      // not started (the folder cannot be written): nothing is queued
+      if FDownload = nil then
+      begin
+        FDownloadQueue := nil;
+        FDownloadAll := False;
+        FPadToModel := True;
+      end;
+    end);
+end;
+
+procedure TfrmBuilder.StartNextDownload;
+var
+  Next: string;
+begin
+  if Length(FDownloadQueue) = 0 then
+    Exit;
+  Next := FDownloadQueue[0];
+  Delete(FDownloadQueue, 0, 1);
+  LogLine(Format('Download every model: %s (%d more after it)', [Next, Length(FDownloadQueue)]));
+  // with its Core ML encoder where those are used (as a model chosen)
+  StartDownload(Next, True, FCoreML);
+end;
+
 procedure TfrmBuilder.DownloadDone(Sender: TObject);
 var
   D: TModelDownload;
@@ -3506,13 +3849,40 @@ begin
   D := Sender as TModelDownload;
   FDownload := nil;
   pbBuild.Value := 0;
+  if FDownloadAll then
+  begin
+    // one of "Download every model": the model in the window stays, and
+    // no calibration is offered between them
+    if D.Succeeded then
+      lblStatus.Text := 'Downloaded ' + D.ModelName
+    else
+      lblStatus.Text := 'Download not finished: ' + D.ModelName;
+    FillModels;
+    UpdateControls;
+    if D.Succeeded and (Length(FDownloadQueue) > 0) then
+    begin
+      StartNextDownload;
+      Exit;
+    end;
+    if D.Succeeded then
+      LogLine('Every model is downloaded. Calibrate every model times them all; Diagnostics (every model) ' +
+        'measures them.')
+    else
+      LogLine(Format('The downloads stopped at %s: %d more model(s) were not fetched (Download every model ' +
+        'fetches what is missing).', [D.ModelName, Length(FDownloadQueue)]));
+    FDownloadQueue := nil;
+    FDownloadAll := False;
+    PadBackToMenu(True);
+    Exit;
+  end;
   if D.Succeeded then
   begin
     FModelPath := D.Target;
     lblStatus.Text := 'Downloaded ' + D.ModelName;
     ApplyCalibration(True);
     if CalibrationSummary(SettingsFile, FModelPath) = '' then
-      LogLine(D.ModelName + ' is not calibrated yet: Tools > Re-calibrate (this model) finds its fastest device.')
+      LogLine(D.ModelName + ' is not calibrated yet: the calibration is offered now (later: Tools > ' +
+        'Re-calibrate (this model)).')
     else if D.WithEncoder then
       LogLine(D.ModelName + ' was calibrated without its Core ML encoder: Tools > Re-calibrate (this model) ' +
         'times it with it (the first run compiles the encoder - slow once).');
@@ -3528,7 +3898,13 @@ begin
   begin
     FCalibPending := False;
     CheckCalibrationAtStart;
-  end;
+  end
+  else if D.Succeeded then
+    // owner, 2026-11-21: "It should automatically ask if it should
+    // calibrate"
+    OfferCalibration;
+  // no question shown: the menu again, on Model (the next one to get)
+  PadBackToMenu(True);
 end;
 
 procedure TfrmBuilder.RememberOutFolder;
@@ -4037,6 +4413,7 @@ begin
     ShowJobs;
   end;
   UpdateControls;
+  PadBackToMenu(False);
 end;
 
 { ASeconds as h:mm:ss. }
@@ -4575,7 +4952,7 @@ begin
   end;
   if FCalib <> nil then
   begin
-    LogLine('Cancelling the calibration ...');
+    LogLine(IfThen(FCalib.Diagnostics, 'Cancelling the diagnostics ...', 'Cancelling the calibration ...'));
     FCalib.Cancel;
   end;
   if FBuild <> nil then
@@ -4673,6 +5050,9 @@ begin
       tmQueue.Enabled := True;
   end;
   UpdateControls;
+  // a build on its own, or a queue stopped: the menu again (a queue that
+  // goes on shows it when it has finished - RunNextJob)
+  PadBackToMenu(False);
 end;
 
 procedure TfrmBuilder.ShowStatus;
@@ -4763,7 +5143,7 @@ begin
   end
   else if FCalib <> nil then
   begin
-    lblPTitle.Text := 'Calibrating';
+    lblPTitle.Text := IfThen(FCalib.Diagnostics, 'Diagnostics', 'Calibrating');
     lblPJob.Text := '';
     lblPTime.Text := FStatusText;
     lblPSpeed.Text := '';
@@ -4876,6 +5256,11 @@ begin
   Item(M, '-', nil);
   miCalibrate := Item(M, '&Re-calibrate (this model)...', miCalibrateClick);
   miCalibrateAll := Item(M, 'Re-calibrate &every model in its folder...', miCalibrateAllClick);
+  miDiagnostics := Item(M, 'Run &diagnostics (this model)...', miDiagnosticsClick);
+  miDiagnosticsAll := Item(M, 'Run diagnostics on every &model...', miDiagnosticsAllClick);
+  miDownloadAll := Item(M, 'Do&wnload every model...', miDownloadAllClick);
+  miExpert := Item(M, 'Unlock e&xpert mode (every model)', miExpertClick);
+  miExpert.IsChecked := FExpert;
   Item(M, '-', nil);
   Item(M, '&Calibration results', miCalibrationClick);
   Item(M, 'Build &history...', miHistoryClick);
@@ -4982,6 +5367,28 @@ const
   BPC_RUN = 15;
   { The cover (thumbnails to choose from). }
   BPC_COVER = 16;
+  { Diagnostics (this model). }
+  BPC_DIAGNOSE = 17;
+  { The menu's colours: dark or light. }
+  BPC_DARK = 18;
+  { Calibrate every model in the models' folder. }
+  BPC_CALIBRATE_ALL = 19;
+  { Diagnostics on every model in the models' folder. }
+  BPC_DIAGNOSE_ALL = 20;
+  { Expert mode: every model in the model list. }
+  BPC_EXPERT = 21;
+  { The pad's menu in dark colours: its box, its text, the selected row
+    (EpubReader's dark menu, uMain.PadMenuColors, with its panel text). }
+  PAD_DARK_BACK = $FF23262E;
+  { Text of the dark menu. }
+  PAD_DARK_TEXT = $FFE0E0E0;
+  { Selected row of the dark menu. }
+  PAD_DARK_ROW = $FF34405A;
+  { The window behind the dark menu: a shade darker than its box. }
+  PAD_DARK_WINDOW = $FF1A1C22;
+  { Selected row of the light menu (TPadMenu's own; its box is white, its
+    text black). }
+  PAD_LIGHT_ROW = $FFD6E4F5;
   { Rows of the other lists that are not an entry. }
   PADROW_BACK = -1;
   { Every audio candidate. }
@@ -5004,6 +5411,8 @@ const
   PADROW_SAVEQ = -10;
   { Load a queue. }
   PADROW_LOADQ = -11;
+  { The model list's first row: Download every model. }
+  PADROW_DOWNLOAD_ALL = -12;
   { Audio files the folder lists (as Add files...). }
   BP_AUDIO_EXTS: array[0..8] of string = ('.m4b', '.m4a', '.aax', '.mp3', '.wav', '.flac', '.ogg', '.opus', '.aac');
   { Words a title match leaves out. }
@@ -5149,7 +5558,13 @@ begin
     P(R);
   // the answer may ask again (or start a build: the window shows it)
   if (FPadMode <> BPM_ASK) and (FBuild = nil) and (FCalib = nil) and (FDownload = nil) then
-    PadHome(BPC_CREATE);
+  begin
+    if FPadToModel then
+      PadHome(BPC_MODEL)
+    else
+      PadHome(BPC_CREATE);
+  end;
+  FPadToModel := False;
 end;
 
 procedure TfrmBuilder.ShowPairing(const AClient, ACode: string);
@@ -5303,6 +5718,9 @@ begin
   mmLog.Margins.Rect := RectF(GAP * 3, GAP * 3, GAP * 3, GAP * 3);
   mmLog.GoToTextEnd;
   DebugLog(Format('Big Picture: the window shows the log only (text %d)', [LOG_SIZE_BIG]));
+  // dark unless turned off (the style may not be applied yet: tmPadTimer
+  // looks again)
+  ApplyDarkWindow;
 end;
 
 procedure TfrmBuilder.StartPad;
@@ -5315,6 +5733,7 @@ begin
   FPadMenu := TPadMenu.Create(Self, Self);
   FPadMenu.OnChoose := PadChoose;
   FPadMenu.OnClose := PadClosed;
+  PadColors;
   if FBigPicture then
     FPadMenu.FontSize := 30
   else
@@ -5381,6 +5800,14 @@ begin
 end;
 
 procedure TfrmBuilder.tmPadTimer(Sender: TObject);
+const
+  { macOS: full screen asked for while the window is being made does not
+    take (the Mac, 2026-11-21: Big Picture's view in an ordinary window),
+    so it is asked for again once the window is there. }
+  PAD_FULL_AGAIN = {$IFDEF MACOS} True {$ELSE} False {$ENDIF};
+  { Asked for at most this often, a second apart; then left alone (the
+    user may have left full screen on purpose). }
+  PAD_FULL_TRIES = 3;
 var
   Presses: TSteamPadPresses;
   Y: Single;
@@ -5409,6 +5836,26 @@ begin
         FPadMenu.SetFoot(lblStatus.Text)
       else
         FPadMenu.SetFoot(BP_FOOT);
+    end;
+    // macOS: the window made full screen once it is there
+    if PAD_FULL_AGAIN and FBigPicture and (FFullTries < PAD_FULL_TRIES) and (T - FFullTick > 1000) then
+    begin
+      FFullTick := T;
+      if FullScreen then
+        FFullTries := PAD_FULL_TRIES
+      else
+      begin
+        Inc(FFullTries);
+        DebugLog(Format('Big Picture: the window is not full screen - asked for again (%d of %d)',
+          [FFullTries, PAD_FULL_TRIES]));
+        FullScreen := True;
+      end;
+    end;
+    // a style applied again brings the log's light background back
+    if FBigPicture and FPadDark and (T - FDarkTick > 1000) then
+    begin
+      FDarkTick := T;
+      ApplyDarkWindow;
     end;
   except
     on E: Exception do
@@ -5533,11 +5980,23 @@ begin
     Add(BPC_MODEL, 'Model', PadShort(cbModel.Items[cbModel.ItemIndex]))
   else
     Add(BPC_MODEL, 'Model', 'choose ...');
+  // what is done with a model, right under it (owner, 2026-11-21: "Move
+  // calibrate and diagnostics under model")
+  if (miCalibrate <> nil) and miCalibrate.Enabled then
+    Add(BPC_CALIBRATE, 'Calibrate (this model)', '');
+  if (miCalibrateAll <> nil) and miCalibrateAll.Enabled and (FModelPath <> '') then
+    Add(BPC_CALIBRATE_ALL, 'Calibrate every model', 'all that are downloaded');
+  if (miDiagnostics <> nil) and miDiagnostics.Enabled and (FModelPath <> '') then
+    Add(BPC_DIAGNOSE, 'Diagnostics (this model)', 'four test runs');
+  if (miDiagnosticsAll <> nil) and miDiagnosticsAll.Enabled and (FModelPath <> '') then
+    Add(BPC_DIAGNOSE_ALL, 'Diagnostics (every model)', 'all that are downloaded');
   Add(BPC_DEVICE, 'Device', Combo(cbDevice));
   if cbLanguage <> nil then
     Add(BPC_LANGUAGE, 'Language', Combo(cbLanguage));
   Add(BPC_POWER, 'Power', Combo(cbPower));
   Add(BPC_CHAPTERS, 'Chapters of a file are parts', IfThen(chkChapters.IsChecked, '< Yes >', '< No >'));
+  Add(BPC_DARK, 'Dark mode', IfThen(FPadDark, '< Yes >', '< No >'));
+  Add(BPC_EXPERT, 'Expert mode (every model)', IfThen(FExpert, '< Yes >', '< No >'));
   Add(BPC_OUTPUT, 'Output', ExtractFileName(edOut.Text));
   if edBook.Text <> '' then
     Add(BPC_COVER, 'Cover', CoverChoiceText(FCoverChoice));
@@ -5547,12 +6006,87 @@ begin
     Add(BPC_UPDATE, Format('Update job %d', [FEditJob + 1]), '');
   if btnCancel.Enabled then
     Add(BPC_CANCEL, 'Cancel', PadShort(FStatusText));
-  if (miCalibrate <> nil) and miCalibrate.Enabled then
-    Add(BPC_CALIBRATE, 'Calibrate (this model)', '');
   Add(BPC_EXIT, 'Exit', '');
   FPadMode := BPM_HOME;
   FPadFootTick := 0;
   FPadMenu.Show('EpubBuilder', Items, Sel, BP_FOOT);
+end;
+
+procedure TfrmBuilder.PadColors;
+begin
+  if FPadMenu = nil then
+    Exit;
+  if FPadDark then
+    FPadMenu.SetColors(PAD_DARK_BACK, PAD_DARK_TEXT, PAD_DARK_ROW)
+  else
+    FPadMenu.SetColors(TAlphaColors.White, TAlphaColors.Black, PAD_LIGHT_ROW);
+end;
+
+procedure TfrmBuilder.ApplyDarkWindow;
+var
+  Obj: TFmxObject;
+begin
+  if not FBigPicture or (mmLog = nil) then
+    Exit;
+  if not FPadDark then
+  begin
+    if FWindowDark then
+    begin
+      FWindowDark := False;
+      Fill.Kind := TBrushKind.None;
+      mmLog.StyledSettings := mmLog.StyledSettings + [TStyledSetting.FontColor];
+      // the style's own background again
+      mmLog.NeedStyleLookup;
+      mmLog.ApplyStyleLookup;
+      mmLog.Repaint;
+    end;
+    Exit;
+  end;
+  // the log's background is a picture taken from the style: with no
+  // picture to look up it draws nothing, and its children (the text) still
+  // do
+  Obj := mmLog.FindStyleResource('background');
+  if not (Obj is TCustomStyleObject) then
+  begin
+    if not FDarkNoted then
+    begin
+      FDarkNoted := True;
+      if Obj = nil then
+        DebugLog('dark: the log''s style has no "background" yet - looked for again')
+      else
+        DebugLog('dark: the log keeps the style''s colours - its background is a ' + Obj.ClassName +
+          ', not a style picture');
+    end;
+    Exit;
+  end;
+  if TCustomStyleObject(Obj).SourceLookup <> '' then
+  begin
+    TCustomStyleObject(Obj).SourceLookup := '';
+    TCustomStyleObject(Obj).Source := nil;
+    DebugLog('dark: the log''s background (' + Obj.ClassName + ') is no longer drawn');
+    mmLog.Repaint;
+  end;
+  if not FWindowDark then
+  begin
+    FWindowDark := True;
+    Fill.Kind := TBrushKind.Solid;
+    Fill.Color := PAD_DARK_WINDOW;
+    mmLog.StyledSettings := mmLog.StyledSettings - [TStyledSetting.FontColor];
+    mmLog.TextSettings.FontColor := PAD_DARK_TEXT;
+    mmLog.Repaint;
+  end;
+end;
+
+procedure TfrmBuilder.PadBackToMenu(AModel: Boolean);
+begin
+  if not FBigPicture or (FPadMenu = nil) or (FPadMode = BPM_ASK) then
+    Exit;
+  if (FBuild <> nil) or (FCalib <> nil) or (FDownload <> nil) or FQueueRunning then
+    Exit;
+  if AModel then
+    PadHome(BPC_MODEL)
+  else
+    PadHome(BPC_BOOK);
 end;
 
 procedure TfrmBuilder.PadStep(ADelta: Integer);
@@ -5577,6 +6111,15 @@ begin
     BPC_LANGUAGE: Turn(cbLanguage);
     BPC_POWER: Turn(cbPower);
     BPC_CHAPTERS: chkChapters.IsChecked := not chkChapters.IsChecked;
+    BPC_DARK:
+      begin
+        // the list is shown again below: in its new colours
+        FPadDark := not FPadDark;
+        PadColors;
+        ApplyDarkWindow;
+        SaveSettings;
+      end;
+    BPC_EXPERT: ToggleExpert;
   else
     Exit;
   end;
@@ -5604,7 +6147,7 @@ begin
         BPC_BOOK: PadBooks;
         BPC_AUDIO: PadAudioList(False);
         BPC_MODEL: PadModels;
-        BPC_DEVICE, BPC_LANGUAGE, BPC_POWER, BPC_CHAPTERS: PadStep(1);
+        BPC_DEVICE, BPC_LANGUAGE, BPC_POWER, BPC_CHAPTERS, BPC_DARK, BPC_EXPERT: PadStep(1);
         BPC_OUTPUT: WindowLine('Output: ' + edOut.Text);
         BPC_COVER: ShowCoverPicker;
         BPC_CREATE, BPC_ADD, BPC_UPDATE:
@@ -5637,6 +6180,21 @@ begin
           begin
             FPadMenu.Hide;
             miCalibrateClick(nil);
+          end;
+        BPC_CALIBRATE_ALL:
+          begin
+            FPadMenu.Hide;
+            miCalibrateAllClick(nil);
+          end;
+        BPC_DIAGNOSE:
+          begin
+            FPadMenu.Hide;
+            miDiagnosticsClick(nil);
+          end;
+        BPC_DIAGNOSE_ALL:
+          begin
+            FPadMenu.Hide;
+            miDiagnosticsAllClick(nil);
           end;
         BPC_EXIT:
           if FBuild <> nil then
@@ -5722,6 +6280,14 @@ begin
           if FPadMode <> BPM_ASK then
             PadHome(BPC_MODEL);
         end;
+      end
+      else if Cmd = PADROW_DOWNLOAD_ALL then
+      begin
+        FPadMode := BPM_HOME;
+        DownloadEveryModel;
+        // nothing to fetch, or refused before the question: the home list
+        if (FPadMode <> BPM_ASK) and (FDownload = nil) then
+          PadHome(BPC_MODEL);
       end
       else if Cmd = PADROW_BACK then
         PadHome(BPC_MODEL);
@@ -6204,6 +6770,13 @@ begin
   Items := nil;
   FPadCmds := nil;
   Sel := 0;
+  // owner, 2026-11-21: "a download all models at the top of models"
+  if (FDownload = nil) and (FBuild = nil) and (FCalib = nil) and not FQueueRunning then
+  begin
+    Items := Items + [TPadMenu.Item('Download every model', 'all that are not here')];
+    FPadCmds := FPadCmds + [PADROW_DOWNLOAD_ALL];
+    Sel := 1;
+  end;
   for I := 0 to cbModel.Count - 1 do
   begin
     // "Other model file ..." needs a file dialog: not here
@@ -6227,7 +6800,7 @@ begin
   Items := Items + [TPadMenu.Item('Back')];
   FPadCmds := FPadCmds + [PADROW_BACK];
   FPadMode := BPM_MODELS;
-  FPadMenu.Show('Model', Items, Sel, 'large-v3-turbo: accurate and fast - a good first choice');
+  FPadMenu.Show('Model', Items, Sel, 'large-v3-turbo: the most accurate - base: several times faster, nearly as good');
 end;
 
 procedure TfrmBuilder.PadJob(AIndex: Integer);
@@ -6670,6 +7243,44 @@ begin
     LogLine(Text);
 end;
 
+procedure TfrmBuilder.OfferCalibration;
+var
+  Done, DontAsk: Boolean;
+  Key, Made, Model, Mark: string;
+begin
+  if (FModelPath = '') or (FWhisperNote <> '') or (Length(FDevices) = 0) then
+    Exit;
+  if (FBuild <> nil) or (FCalib <> nil) or (FDownload <> nil) or FQueueRunning then
+    Exit;
+  if CalibrationSummary(SettingsFile, FModelPath) <> '' then
+    Exit;
+  Model := ExtractFileName(FModelPath);
+  Mark := #9 + LowerCase(Model) + #9;
+  // declined in this run: not asked again each time the model is chosen
+  if Pos(Mark, FCalibDeclined) > 0 then
+    Exit;
+  CalibrationState(SettingsFile, Done, DontAsk, Key, Made);
+  if DontAsk then
+    Exit;
+  Ask(Format('%s is not calibrated on this machine yet.' + sLineBreak + sLineBreak +
+    'Calibrate it now? It is timed on each device here - seconds for a small model on a graphics card, a ' +
+    'minute or two each for a large one - and then builds on the fastest.', [Model]),
+    TMsgDlgType.mtConfirmation, [TMsgDlgBtn.mbYes, TMsgDlgBtn.mbNo], TMsgDlgBtn.mbYes,
+    procedure(const AResult: TModalResult)
+    begin
+      if AResult = mrYes then
+        StartCalibration(False, False)
+      else
+      begin
+        // Big Picture: back on Model, for the next one
+        FPadToModel := True;
+        FCalibDeclined := FCalibDeclined + Mark;
+        LogLine(Model + ' is not calibrated: "Default" lets whisper.cpp choose. Re-calibrate (this model) ' +
+          'does it later.');
+      end;
+    end);
+end;
+
 procedure TfrmBuilder.CheckCalibrationAtStart;
 var
   Done, DontAsk, DontShow: Boolean;
@@ -6796,6 +7407,158 @@ begin
     Result.Add(Files[I]);
 end;
 
+{ Without expert mode "every model" is the two of MODEL_STANDARD and the
+  model in use: takes the others out of AModels.
+  @param(AModels  model files (ModelFilesOf))
+  @param(AInUse  the model in the window, which stays) }
+procedure KeepStandardModels(AModels: TStringList; const AInUse: string);
+var
+  I: Integer;
+begin
+  for I := AModels.Count - 1 downto 0 do
+    if not ModelIsStandard(ModelShortName(AModels[I])) and not SameFileName(AModels[I], AInUse) then
+      AModels.Delete(I);
+end;
+
+procedure TfrmBuilder.miDiagnosticsClick(Sender: TObject);
+begin
+  StartDiagnostics(False);
+end;
+
+procedure TfrmBuilder.miDiagnosticsAllClick(Sender: TObject);
+begin
+  StartDiagnostics(True);
+end;
+
+procedure TfrmBuilder.StartDiagnostics(AAllModels: Boolean);
+var
+  Models: TStringList;
+  Audio, Saved, DevName, Best: string;
+  Ini: TMemIniFile;
+  Dev, Own: TWhisperDevice;
+  Devs: TWhisperDeviceArray;
+  Speed: Double;
+  I: Integer;
+begin
+  if (FBuild <> nil) or (FCalib <> nil) or (FDownload <> nil) or FQueueRunning then
+  begin
+    LogLine('A build, a calibration or a download is running: run the diagnostics when it has ended.');
+    Exit;
+  end;
+  if (FWhisperNote <> '') or (Length(FDevices) = 0) then
+  begin
+    LogLine('whisper.cpp is not available: there is nothing to diagnose.');
+    Exit;
+  end;
+  if FModelPath = '' then
+  begin
+    LogLine('Diagnostics not started: choose a model in the Model list first.');
+    Exit;
+  end;
+  // the device a build would use: the one in the window, "Default" as the
+  // device it stands for
+  DevName := '';
+  if (cbDevice.ItemIndex > 0) and (cbDevice.ItemIndex - 1 <= High(FDevices)) then
+    DevName := FDevices[cbDevice.ItemIndex - 1].Name;
+  if DevName = '' then
+    DevName := GDefaultDevice;
+  if not BuilderFindDevice(DevName, Dev) then
+  begin
+    LogLine('Diagnostics not started: the device ' + IfThen(DevName = '', '"Default"', DevName) + ' was not found.');
+    Exit;
+  end;
+  // the calibration's recording (never asked for here: the figures are
+  // compared between machines, so it must be the same one)
+  Saved := '';
+  if FileExists(SettingsFile) then
+  begin
+    Ini := TMemIniFile.Create(SettingsFile, TEncoding.UTF8);
+    try
+      Saved := Ini.ReadString(CAL_SECTION, 'Audio', '');
+    finally
+      Ini.Free;
+    end;
+  end;
+  Audio := FindCalibrationAudio(Saved);
+  if Audio = '' then
+  begin
+    LogLine(Format('Diagnostics not started: media/%s was not found beside the program.', [CALIBRATION_AUDIO]));
+    Exit;
+  end;
+  if AAllModels then
+  begin
+    Models := ModelFilesOf(ExtractFileDir(FModelPath));
+    if not FExpert then
+      KeepStandardModels(Models, FModelPath);
+  end
+  else
+  begin
+    Models := TStringList.Create;
+    Models.Add(FModelPath);
+  end;
+  try
+    if Models.Count = 0 then
+    begin
+      LogLine('No ggml-*.bin in ' + ExtractFileDir(FModelPath) + ': nothing to diagnose.');
+      Exit;
+    end;
+    // each model on the device a build of it would use: the one its
+    // calibration found fastest, else the window's
+    SetLength(Devs, Models.Count);
+    for I := 0 to Models.Count - 1 do
+    begin
+      Devs[I] := Dev;
+      if AAllModels and CalibrationBest(SettingsFile, Models[I], Best, Speed) and BuilderFindDevice(Best, Own) then
+        Devs[I] := Own;
+    end;
+    // the diagnostics' lines: in the window and in <settings>-diagnostics.log
+    mmLog.Lines.Clear;
+    FBuildLog.Clear;
+    FLogging := True;
+    LogLine(Format('=== Diagnostics (%s) ===', [FormatDateTime('yyyy-mm-dd hh:nn', Now)]));
+    LogLine('Machine: ' + MachineText);
+    LogLine(FWhisperText);
+    if Models.Count > 1 then
+      LogLine(Format('%d models, smallest first, each on the device its calibration chose (the window''s device ' +
+        'for a model not calibrated).', [Models.Count]));
+    // English, the book prompt: as the calibration (its recording)
+    FCalib := TCalibrationThread.Create(Models, Audio, 'en', BOOK_PROMPT, ChangeFileExt(SettingsFile,
+      CALIBRATION_MARKER_SUFFIX), Devs, nil);
+  finally
+    Models.Free;
+  end;
+  FCalib.Diagnostics := True;
+  // it says what the calibration timed each model at
+  FCalib.IniFile := SettingsFile;
+  FCalib.OnLog :=
+    procedure(AText: string)
+    begin
+      ThreadLine(AText);
+    end;
+  FCalib.OnProgress :=
+    procedure(APercent: Double)
+    begin
+      pbBuild.Value := APercent;
+      FPercent := APercent;
+    end;
+  FCalib.OnStatus :=
+    procedure(AText: string)
+    begin
+      FStatusText := AText;
+      ShowStatus;
+    end;
+  pbBuild.Value := 0;
+  FStarted := Now;
+  FPercent := 0;
+  FRatePercent := -1;
+  FStatusText := 'Diagnostics ...';
+  tmStatus.Enabled := True;
+  FCalib.OnTerminate := CalibrationDone;
+  FCalib.FreeOnTerminate := True;
+  UpdateControls;
+  FCalib.Start;
+end;
+
 procedure TfrmBuilder.StartCalibration(AAllModels, ARetry: Boolean);
 var
   Models, Skip: TStringList;
@@ -6855,7 +7618,11 @@ begin
     end;
   end;
   if AAllModels then
-    Models := ModelFilesOf(ExtractFileDir(FModelPath))
+  begin
+    Models := ModelFilesOf(ExtractFileDir(FModelPath));
+    if not FExpert then
+      KeepStandardModels(Models, FModelPath);
+  end
   else
   begin
     Models := TStringList.Create;
@@ -6934,10 +7701,44 @@ procedure TfrmBuilder.CalibrationDone(Sender: TObject);
 var
   T: TCalibrationThread;
   LogFile: string;
+  Kept: TStringList;
 begin
   // OnTerminate runs on the main thread after Execute: the queued log
   // lines have been delivered before it
   T := Sender as TCalibrationThread;
+  if T.Diagnostics then
+  begin
+    // nothing to keep in the settings: its lines are the result
+    if not T.Completed then
+      LogLine('The diagnostics did not finish.');
+    LogLine(Format('Diagnostics took %s', [WhisperTimeToStr(MilliSecondsBetween(Now, FStarted) div 10)]));
+    FLogging := False;
+    LogFile := ChangeFileExt(SettingsFile, DIAGNOSTICS_LOG_SUFFIX);
+    try
+      // added to the runs before it (owner, 2026-11-21: a tiny.en run had
+      // replaced the turbo run made first): one file holds every model's
+      Kept := TStringList.Create;
+      try
+        if FileExists(LogFile) then
+          Kept.LoadFromFile(LogFile, TEncoding.UTF8);
+        Kept.AddStrings(FBuildLog);
+        Kept.SaveToFile(LogFile, TEncoding.UTF8);
+      finally
+        Kept.Free;
+      end;
+      LogLine('Diagnostics log (this run added to it): ' + LogFile);
+    except
+      on E: Exception do
+        LogLine('The diagnostics log was not saved: ' + E.Message);
+    end;
+    // FreeOnTerminate: the thread frees itself once this handler returns
+    FCalib := nil;
+    tmStatus.Enabled := False;
+    ShowStatus;
+    UpdateControls;
+    PadBackToMenu(True);
+    Exit;
+  end;
   if T.Completed then
   begin
     try
@@ -6968,6 +7769,7 @@ begin
   tmStatus.Enabled := False;
   ShowStatus;
   UpdateControls;
+  PadBackToMenu(True);
 end;
 
 procedure TfrmBuilder.ApplyCalibration(ALog: Boolean);
@@ -6999,11 +7801,13 @@ begin
 end;
 
 procedure TfrmBuilder.CheckRocmDlc;
+{$IF Defined(LINUX) and not Defined(ANDROID)}
 var
   I: Integer;
   Amd, Rocm: Boolean;
   State: TSteamDlcState;
   D: string;
+{$ENDIF}
 begin
   {$IF Defined(LINUX) and not Defined(ANDROID)}
   if not SteamBuild or (STEAM_DLC_ROCM = 0) then
@@ -7299,6 +8103,13 @@ begin
   else
     LogLine(Format('Speed: %.1fx real time; exact %.1f %%, matched %.1f %%.', [HistorySpeed(R), R.ExactPercent,
       R.MatchedPercent]));
+  // a diagnostic build's speed is not a build's: the time estimates must
+  // not learn from it
+  if ASummary.Diagnostic <> '' then
+  begin
+    LogLine(Format('DIAGNOSTIC build (%s): not kept in the build history.', [ASummary.Diagnostic]));
+    Exit;
+  end;
   Why := HistoryAdd(HistoryFile, R);
   if Why = '' then
     LogLine('Kept in the build history: ' + HistoryFile)

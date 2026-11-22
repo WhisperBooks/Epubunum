@@ -45,6 +45,17 @@ const
   { Folders above the program's searched for media/CALIBRATION_AUDIO (the
     repository's root from demos/EpubBuilder/<platform>/<config>). }
   CALIBRATION_AUDIO_LEVELS = 5;
+  { Seconds of the recording that each run of the diagnostics transcribes
+    (TCalibrationThread.Diagnostics), from DIAGNOSTIC_EDGE_SECONDS in:
+    about twenty 30 s windows - enough to tell a cost from chance, short
+    enough for four runs on a slow machine. }
+  DIAGNOSTIC_SECONDS = 600;
+  { Seconds at a recording's start and at its end that the diagnostics
+    leave out, as a calibration does (WhisperFindSpeech's edge): Whisper
+    leaves a spoken introduction or closing notice untranscribed (a
+    LibriVox recording's, about 26 s), so only chapter material is timed
+    and scored. }
+  DIAGNOSTIC_EDGE_SECONDS = 30;
 
 type
   { Times every model on every device on its own thread (one
@@ -73,6 +84,37 @@ type
     FResults: TWhisperBenchmarkArray;
     { Backing field of @link(Completed). }
     FCompleted: Boolean;
+    { Backing field of @link(Diagnostics). }
+    FDiagnostics: Boolean;
+    { Backing field of @link(IniFile). }
+    FIniFile: string;
+    { The run in progress during the diagnostics (for Cancel; guarded by
+      TMonitor on Self). }
+    FDiagRun: TWhisperRun;
+    { Diagnostics: when the 30 s window being transcribed began. }
+    FDiagTick: TDateTime;
+    { Diagnostics: seconds each 30 s window of the run took, in order. }
+    FDiagWindows: TArray<Double>;
+    { Diagnostics: progress of all runs when the run in progress began, %. }
+    FDiagBase: Double;
+    { Diagnostics: runs that share the progress bar. }
+    FDiagRuns: Integer;
+    { Diagnostics, from whisper.cpp's timing lines (DiagLogLine): windows
+      that failed the probability check since the model was loaded. }
+    FDiagFailP: Integer;
+    { Diagnostics: windows that failed the entropy check since the model
+      was loaded. }
+    FDiagFailH: Integer;
+    { Diagnostics: the sampling's time in the run, ms. }
+    FDiagSample: Double;
+    { Diagnostics: the encoder's time in the run, ms. }
+    FDiagEncode: Double;
+    { Diagnostics: the decoder's time in the run, ms (whisper.cpp's decode,
+      batched decode and prompt times together). }
+    FDiagDecode: Double;
+    { Diagnostics: the decoder's runs in the run (one per token decoded,
+      a batch counted once). }
+    FDiagDecodeRuns: Integer;
     { Receives the messages (on the main thread). }
     FOnLog: TProc<string>;
     { Receives the progress, 0 .. 100 (on the main thread). }
@@ -85,6 +127,23 @@ type
     procedure Progress(APercent: Double);
     { Sends AText to OnStatus. }
     procedure Status(const AText: string);
+    { whisper.cpp's log during the diagnostics: the lines of
+      whisper_print_timings are read into the fields above. }
+    procedure DiagLogLine(Sender: TObject; ALevel: TWhisperLogLevel; const AText: string);
+    { The diagnostic run's progress - whisper.cpp reports it at the start
+      of every 30 s window: the time since the report before is the time
+      the window between them took. }
+    procedure DiagProgress(Sender: TObject; AProgress: Integer);
+    { The diagnostics (@link(Diagnostics)): DIAGNOSTIC_SECONDS of the
+      recording, DIAGNOSTIC_EDGE_SECONDS clear of its start and end,
+      transcribed four times by each model on its
+      device with a build's settings - as a build, without
+      whisper.cpp's temperature fallback, without DTW, without either -
+      and each run's time, words, fallbacks, encoder / decoder times and
+      window times logged, then what the fallback and DTW cost; with
+      several models a closing table, a line per model. A model that
+      cannot be loaded is logged and the next one run. }
+    procedure ExecuteDiagnostics;
   protected
     { The calibration. }
     procedure Execute; override;
@@ -106,8 +165,18 @@ type
     property OnStatus: TProc<string> read FOnStatus write FOnStatus;
     { One result per pair timed or skipped (complete once it has ended). }
     property Results: TWhisperBenchmarkArray read FResults;
-    { True when every pair was timed (not cancelled, no error). }
+    { True when every pair was timed (not cancelled, no error); with
+      @link(Diagnostics), when the four runs were made. }
     property Completed: Boolean read FCompleted;
+    { Set before Start: the thread runs the diagnostics (ExecuteDiagnostics)
+      instead of the calibration - every model given to Create, the first
+      on the first device, the second on the second and so on (the first
+      device for a model without one of its own). Nothing is timed for the
+      settings: Results stays empty and the crash marker is not written. }
+    property Diagnostics: Boolean read FDiagnostics write FDiagnostics;
+    { The settings file ('' = none): the diagnostics say what the
+      calibration kept there timed each model at on its device. }
+    property IniFile: string read FIniFile write FIniFile;
     { The recording timed. }
     property AudioFile: string read FAudioFile;
   end;
@@ -217,9 +286,11 @@ uses
   // System.SysUtils.DeleteFile's inline body expands only with it (H2443)
   Posix.Unistd,
   {$ENDIF}
-  System.Types, System.Math, System.StrUtils, System.IOUtils,
+  System.Types, System.Math, System.StrUtils, System.IOUtils, System.DateUtils,
   System.Rtti,
   FMX.Types, FMX.Controls, FMX.Forms, FMX.StdCtrls, FMX.Layouts, FMX.Grid, FMX.Grid.Style, FMX.Platform,
+  // the diagnostics' accuracy: the recording's text aligned with what was heard
+  Whisper.Align,
   uDebugLog, uHistory;
 
 type
@@ -872,6 +943,8 @@ begin
   try
     if FBench <> nil then
       FBench.Cancel;
+    if FDiagRun <> nil then
+      FDiagRun.Cancel;
   finally
     TMonitor.Exit(Self);
   end;
@@ -918,6 +991,586 @@ begin
       end);
 end;
 
+const
+  { The start of the calibration recording's text, for the diagnostics'
+    accuracy figures: "Aladdin and the Wonderful Lamp" as Andrew Lang's Blue
+    Fairy Book has it (1889, in the public domain; Project Gutenberg's
+    text 503), its first 2000 words - more than the DIAGNOSTIC_SECONDS
+    read. One string per line of the source, joined with spaces. }
+  DIAG_REFERENCE: array[0..113] of string = (
+    'There once lived a poor tailor, who had a son called Aladdin, a careless, idle boy who would do',
+    'nothing but play ball all day long in the streets with little idle boys like himself. This so',
+    'grieved the father that he died; yet, in spite of his mother''s tears and prayers, Aladdin did',
+    'not mend his ways. One day, when he was playing in the streets as usual, a stranger asked him',
+    'his age, and if he was not the son of Mustapha the tailor. "I am, sir," replied Aladdin; "but he',
+    'died a long while ago." On this the stranger, who was a famous African magician, fell on his',
+    'neck and kissed him, saying, "I am your uncle, and knew you from your likeness to my brother. Go',
+    'to your mother and tell her I am coming." Aladdin ran home and told his mother of his newly',
+    'found uncle. "Indeed, child," she said, "your father had a brother, but I always thought he was',
+    'dead." However, she prepared supper, and bade Aladdin seek his uncle, who came laden with wine',
+    'and fruit. He presently fell down and kissed the place where Mustapha used to sit, bidding',
+    'Aladdin''s mother not to be surprised at not having seen him before, as he had been forty years',
+    'out of the country. He then turned to Aladdin, and asked him his trade, at which the boy hung',
+    'his head, while his mother burst into tears. On learning that Aladdin was idle and would learn',
+    'no trade, he offered to take a shop for him and stock it with merchandise. Next day he bought',
+    'Aladdin a fine suit of clothes and took him all over the city, showing him the sights, and',
+    'brought him home at nightfall to his mother, who was overjoyed to see her son so fine. The next',
+    'day the magician led Aladdin into some beautiful gardens a long way outside the city gates. They',
+    'sat down by a fountain and the magician pulled a cake from his girdle, which he divided between',
+    'them. They then journeyed onward till they almost reached the mountains. Aladdin was so tired',
+    'that he begged to go back, but the magician beguiled him with pleasant stories, and led him on',
+    'in spite of himself. At last they came to two mountains divided by a narrow valley. "We will go',
+    'no farther," said the false uncle. "I will show you something wonderful; only do you gather up',
+    'sticks while I kindle a fire." When it was lit the magician threw on it a powder he had about',
+    'him, at the same time saying some magical words. The earth trembled a little and opened in front',
+    'of them, disclosing a square flat stone with a brass ring in the middle to raise it by. Aladdin',
+    'tried to run away, but the magician caught him and gave him a blow that knocked him down. "What',
+    'have I done, uncle?" he said piteously; whereupon the magician said more kindly: "Fear nothing,',
+    'but obey me. Beneath this stone lies a treasure which is to be yours, and no one else may touch',
+    'it, so you must do exactly as I tell you." At the word treasure Aladdin forgot his fears, and',
+    'grasped the ring as he was told, saying the names of his father and grandfather. The stone came',
+    'up quite easily, and some steps appeared. "Go down," said the magician; "at the foot of those',
+    'steps you will find an open door leading into three large halls. Tuck up your gown and go',
+    'through them without touching anything, or you will die instantly. These halls lead into a',
+    'garden of fine fruit trees. Walk on until you come to a niche in a terrace where stands a',
+    'lighted lamp. Pour out the oil it contains, and bring it to me." He drew a ring from his finger',
+    'and gave it to Aladdin, bidding him prosper. Aladdin found everything as the magician had said,',
+    'gathered some fruit off the trees, and, having got the lamp, arrived at the mouth of the cave.',
+    'The magician cried out in a great hurry: "Make haste and give me the lamp." This Aladdin refused',
+    'to do until he was out of the cave. The magician flew into a terrible passion, and throwing some',
+    'more powder on to the fire, he said something, and the stone rolled back into its place. The',
+    'magician left Persia for ever, which plainly showed that he was no uncle of Aladdin''s, but a',
+    'cunning magician, who had read in his magic books of a wonderful lamp, which would make him the',
+    'most powerful man in the world. Though he alone knew where to find it, he could only receive it',
+    'from the hand of another. He had picked out the foolish Aladdin for this purpose, intending to',
+    'get the lamp and kill him afterward. For two days Aladdin remained in the dark, crying and',
+    'lamenting. At last he clasped his hands in prayer, and in so doing rubbed the ring, which the',
+    'magician had forgotten to take from him. Immediately an enormous and frightful genie rose out of',
+    'the earth, saying: "What wouldst thou with me? I am the Slave of the Ring, and will obey thee in',
+    'all things." Aladdin fearlessly replied: "Deliver me from this place!" whereupon the earth',
+    'opened, and he found himself outside. As soon as his eyes could bear the light he went home, but',
+    'fainted on the threshold. When he came to himself he told his mother what had passed, and showed',
+    'her the lamp and the fruits he had gathered in the garden, which were, in reality, precious',
+    'stones. He then asked for some food. "Alas! child," she said, "I have nothing in the house, but',
+    'I have spun a little cotton and will go and sell it." Aladdin bade her keep her cotton, for he',
+    'would sell the lamp instead. As it was very dirty she began to rub it, that it might fetch a',
+    'higher price. Instantly a hideous genie appeared, and asked what she would have. She fainted',
+    'away, but Aladdin, snatching the lamp, said boldly: "Fetch me something to eat!" The genie',
+    'returned with a silver bowl, twelve silver plates containing rich meats, two silver cups, and',
+    'two bottles of wine. Aladdin''s mother, when she came to herself, said: "Whence comes this',
+    'splendid feast?" "Ask not, but eat," replied Aladdin. So they sat at breakfast till it was',
+    'dinner-time, and Aladdin told his mother about the lamp. She begged him to sell it, and have',
+    'nothing to do with devils. "No," said Aladdin, "since chance hath made us aware of its virtues,',
+    'we will use it, and the ring likewise, which I shall always wear on my finger." When they had',
+    'eaten all the genie had brought, Aladdin sold one of the silver plates, and so on until none',
+    'were left. He then had recourse to the genie, who gave him another set of plates, and thus they',
+    'lived for many years. One day Aladdin heard an order from the Sultan proclaimed that everyone',
+    'was to stay at home and close his shutters while the Princess, his daughter, went to and from',
+    'the bath. Aladdin was seized by a desire to see her face, which was very difficult, as she',
+    'always went veiled. He hid himself behind the door of the bath, and peeped through a chink. The',
+    'Princess lifted her veil as she went in, and looked so beautiful that Aladdin fell in love with',
+    'her at first sight. He went home so changed that his mother was frightened. He told her he loved',
+    'the Princess so deeply that he could not live without her, and meant to ask her in marriage of',
+    'her father. His mother, on hearing this, burst out laughing, but Aladdin at last prevailed upon',
+    'her to go before the Sultan and carry his request. She fetched a napkin and laid in it the magic',
+    'fruits from the enchanted garden, which sparkled and shone like the most beautiful jewels. She',
+    'took these with her to please the Sultan, and set out, trusting in the lamp. The Grand Vizier',
+    'and the lords of council had just gone in as she entered the hall and placed herself in front of',
+    'the Sultan. He, however, took no notice of her. She went every day for a week, and stood in the',
+    'same place. When the council broke up on the sixth day the Sultan said to his Vizier: "I see a',
+    'certain woman in the audience-chamber every day carrying something in a napkin. Call her next',
+    'time, that I may find out what she wants." Next day, at a sign from the Vizier, she went up to',
+    'the foot of the throne and remained kneeling till the Sultan said to her: "Rise, good woman, and',
+    'tell me what you want." She hesitated, so the Sultan sent away all but the Vizier, and bade her',
+    'speak frankly, promising to forgive her beforehand for anything she might say. She then told him',
+    'of her son''s violent love for the Princess. "I prayed him to forget her," she said, "but in',
+    'vain; he threatened to do some desperate deed if I refused to go and ask your Majesty for the',
+    'hand of the Princess. Now I pray you to forgive not me alone, but my son Aladdin." The Sultan',
+    'asked her kindly what she had in the napkin, whereupon she unfolded the jewels and presented',
+    'them. He was thunderstruck, and turning to the Vizier said: "What sayest thou? Ought I not to',
+    'bestow the Princess on one who values her at such a price?" The Vizier, who wanted her for his',
+    'own son, begged the Sultan to withhold her for three months, in the course of which he hoped his',
+    'son would contrive to make him a richer present. The Sultan granted this, and told Aladdin''s',
+    'mother that, though he consented to the marriage, she must not appear before him again for three',
+    'months. Aladdin waited patiently for nearly three months, but after two had elapsed his mother,',
+    'going into the city to buy oil, found every one rejoicing, and asked what was going on. "Do you',
+    'not know," was the answer, "that the son of the Grand Vizier is to marry the Sultan''s daughter',
+    'to-night?" Breathless, she ran and told Aladdin, who was overwhelmed at first, but presently',
+    'bethought him of the lamp. He rubbed it, and the genie appeared, saying, "What is thy will?"',
+    'Aladdin replied: "The Sultan, as thou knowest, has broken his promise to me, and the Vizier''s',
+    'son is to have the Princess. My command is that to-night you bring hither the bride and',
+    'bridegroom." "Master, I obey," said the genie. Aladdin then went to his chamber, where, sure',
+    'enough, at midnight the genie transported the bed containing the Vizier''s son and the Princess.',
+    '"Take this new-married man," he said, "and put him outside in the cold, and return at daybreak."',
+    'Whereupon the genie took the Vizier''s son out of bed, leaving Aladdin with the Princess. "Fear',
+    'nothing," Aladdin said to her; "you are my wife, promised to me by your unjust father, and no',
+    'harm shall come to you." The Princess was too frightened to speak, and passed the most miserable',
+    'night of her life, while Aladdin lay down beside her and slept soundly. At the appointed hour',
+    'the genie fetched in the shivering bridegroom, laid him in his place, and transported the bed',
+    'back to the palace. Presently the Sultan came to wish his daughter good-morning. The unhappy',
+    'Vizier''s son jumped up and hid himself, while the Princess would not say a word, and was very',
+    'sorrowful. The Sultan sent her mother to her, who said: "How comes it, child, that you will not',
+    'speak to your father? What has happened?" The Princess sighed deeply, and at last told her',
+    'mother how, during the night, the bed had been carried into');
+
+{ The words of DIAG_REFERENCE as the aligner wants them.
+  @returns(the words, in reading order) }
+function DiagReferenceWords: TWhisperStringArray;
+var
+  I: Integer;
+  Text: string;
+begin
+  Text := '';
+  for I := 0 to Length(DIAG_REFERENCE) - 1 do
+    Text := Text + DIAG_REFERENCE[I] + ' ';
+  Result := WhisperSplitText(Text);
+end;
+
+{ The number that follows AKey in ALine, read with a decimal point
+  (whisper.cpp's timing lines: 'encode time =  1234.56 ms /    70 runs').
+  @param(ALine   the line)
+  @param(AKey    the text before the number)
+  @param(AValue  receives the number)
+  @returns(False when ALine has no AKey, or no number after it) }
+function NumberAfter(const ALine, AKey: string; out AValue: Double): Boolean;
+var
+  P, Q: Integer;
+  S: string;
+begin
+  Result := False;
+  AValue := 0;
+  P := Pos(AKey, ALine);
+  if P = 0 then
+    Exit;
+  P := P + Length(AKey);
+  while (P <= Length(ALine)) and (ALine[P] = ' ') do
+    Inc(P);
+  Q := P;
+  while (Q <= Length(ALine)) and CharInSet(ALine[Q], ['0'..'9', '.', '-']) do
+    Inc(Q);
+  S := Copy(ALine, P, Q - P);
+  Result := (S <> '') and TryStrToFloat(S, AValue, TFormatSettings.Invariant);
+end;
+
+procedure TCalibrationThread.DiagLogLine(Sender: TObject; ALevel: TWhisperLogLevel; const AText: string);
+var
+  V, Runs: Double;
+  P: Integer;
+begin
+  if NumberAfter(AText, 'fallbacks =', V) then
+  begin
+    // 'fallbacks =   3 p /   0 h'
+    FDiagFailP := Round(V);
+    P := Pos(' p /', AText);
+    if (P > 0) and NumberAfter(Copy(AText, P, MaxInt), ' p /', V) then
+      FDiagFailH := Round(V);
+  end
+  else if NumberAfter(AText, 'sample time =', V) then
+    FDiagSample := V
+  else if NumberAfter(AText, 'encode time =', V) then
+    FDiagEncode := V
+  else if NumberAfter(AText, 'decode time =', V) or NumberAfter(AText, 'batchd time =', V) or
+    NumberAfter(AText, 'prompt time =', V) then
+  begin
+    // the decoder's three timers: one token, a batch of them, the prompt.
+    // An unused timer prints 0 ms and "1 runs" (whisper.cpp divides by at
+    // least 1): not counted
+    FDiagDecode := FDiagDecode + V;
+    if (V > 0) and NumberAfter(AText, 'ms /', Runs) then
+      Inc(FDiagDecodeRuns, Round(Runs));
+  end;
+end;
+
+procedure TCalibrationThread.DiagProgress(Sender: TObject; AProgress: Integer);
+const
+  { A report this soon after the one before is not a window's end: the
+    first report of a run, or the closing 100 % after the last window. }
+  MIN_WINDOW_SECONDS = 0.02;
+var
+  T: TDateTime;
+  Taken: Double;
+begin
+  T := Now;
+  Taken := MilliSecondsBetween(T, FDiagTick) / 1000;
+  if (AProgress > 0) and (Taken >= MIN_WINDOW_SECONDS) then
+  begin
+    SetLength(FDiagWindows, Length(FDiagWindows) + 1);
+    FDiagWindows[Length(FDiagWindows) - 1] := Taken;
+  end;
+  FDiagTick := T;
+  if FDiagRuns > 0 then
+    Progress(FDiagBase + AProgress / FDiagRuns);
+end;
+
+procedure TCalibrationThread.ExecuteDiagnostics;
+const
+  { Runs: with and without the fallback, with and without DTW. The model
+    is loaded for the first and the third (DTW is chosen when it loads). }
+  RUN_COUNT = 4;
+  { What each run is, for the log. }
+  RUN_NAMES: array[0..RUN_COUNT - 1] of string = ('as a build (fallback on, DTW on)',
+    'no fallback (DTW on)', 'no DTW (fallback on)', 'no fallback, no DTW');
+var
+  FF: TFFmpegLibrary;
+  Audio: TWhisperAudioSet;
+  Files, Table: TStringList;
+  Samples: TWhisperSamples;
+  Seconds, Taken, Median, Slowest, Fastest: Double;
+  Lib: TWhisperLib;
+  CP: TWhisperContextParams;
+  Model: TWhisperModel;
+  Params: TWhisperParams;
+  Run: TWhisperRun;
+  R: TWhisperTranscription;
+  M, FailP0, FailH0, Slow, Fails, Edge: Integer;
+  Sorted: TArray<Double>;
+  Held: Double;
+  Took: array[0..RUN_COUNT - 1] of Double;
+  NoDtw, NoFallback, AllDone: Boolean;
+  // accuracy against the recording's text
+  Reference: TWhisperStringArray;
+  Aligned: TWhisperAlignedWordArray;
+  Stats: TWhisperAlignStats;
+  FirstRead, LastRead, NGood, NSame, NRead: Integer;
+  Score: array[0..RUN_COUNT - 1] of Double;
+  Dev: TWhisperDevice;
+  Line: string;
+
+  { The four runs of model AModelFile (number AIndex, from 0, of the
+    models) on ADev, logged with what the fallback and DTW cost it. ALine
+    receives the model's line for the closing table ('' when its first run
+    was not made). What loading the model raises is passed on. }
+  procedure OneModel(AIndex: Integer; const AModelFile: string; const ADev: TWhisperDevice; out ALine: string);
+  var
+    I, J, K: Integer;
+    Speed: Double;
+  begin
+    ALine := '';
+    FailP0 := 0;
+    FailH0 := 0;
+    Fails := 0;
+    for I := 0 to RUN_COUNT - 1 do
+    begin
+      Took[I] := 0;
+      Score[I] := -1;
+    end;
+    Log('');
+    Log(Format('%s on %s', [ExtractFileName(AModelFile), WhisperDeviceText(ADev)]));
+    if FIniFile <> '' then
+    begin
+      Speed := CalibrationSpeed(FIniFile, ExtractFileName(AModelFile), ADev.Name);
+      if Speed > 0 then
+        Log(Format('The calibration timed it there at %.1fx real time (one 30 s stretch).', [Speed]))
+      else
+        Log('It is not calibrated on that device.');
+    end;
+    try
+      for I := 0 to RUN_COUNT - 1 do
+      begin
+        if Terminated then
+          Break;
+        NoFallback := Odd(I);
+        NoDtw := I >= RUN_COUNT div 2;
+        if not Odd(I) then
+        begin
+          // DTW belongs to the loaded model: one model for each pair of runs
+          FreeAndNil(Model);
+          Status(Format('Diagnostics: %s, run %d of %d - loading the model ...', [ExtractFileName(AModelFile), I + 1,
+            RUN_COUNT]));
+          CP := Lib.DefaultContextParams;
+          if not Lib.ContextParamsFor(ADev.Name, CP) then
+            raise EWhisperError.CreateFmt('Device %s cannot be used', [ADev.Name]);
+          if NoDtw then
+            // as with DTW (which turns it off): only DTW differs
+            CP.flash_attn := False
+          else if not WhisperEnableDtw(AModelFile, CP) then
+            Log('The model header cannot be read for DTW: runs 1 and 2 are without it too');
+          Model := TWhisperModel.Create(AModelFile, CP);
+          // whisper.cpp counts fallbacks from the model's loading
+          FailP0 := 0;
+          FailH0 := 0;
+        end;
+        Params := TWhisperParams.Create;
+        try
+          Params.Translate := False;
+          if FLanguage <> '' then
+            Params.Language := FLanguage;
+          Params.NoContext := True;
+          Params.MaxTextContext := 0;
+          Params.InitialPrompt := FPrompt;
+          Params.CarryInitialPrompt := FPrompt <> '';
+          if NoFallback then
+            // whisper.cpp: no increment = the first temperature only
+            Params.TemperatureInc := 0;
+          Run := TWhisperRun.Create(Model, Params);
+          try
+            Run.IncludeWords := True;
+            Run.OnProgress := DiagProgress;
+            TMonitor.Enter(Self);
+            try
+              FDiagRun := Run;
+            finally
+              TMonitor.Exit(Self);
+            end;
+            Status(Format('Diagnostics: %s, run %d of %d - %s ...', [ExtractFileName(AModelFile), I + 1, RUN_COUNT,
+              RUN_NAMES[I]]));
+            FDiagBase := 100 * (AIndex * RUN_COUNT + I) / FDiagRuns;
+            FDiagWindows := nil;
+            FDiagSample := 0;
+            FDiagEncode := 0;
+            FDiagDecode := 0;
+            FDiagDecodeRuns := 0;
+            if Assigned(Lib.Flat.whisper_reset_timings) then
+              Lib.Flat.whisper_reset_timings(Model.Handle);
+            FDiagTick := Now;
+            R := Run.Execute(Samples);
+            if Assigned(Lib.Flat.whisper_print_timings) then
+            begin
+              DebugLog(Format('timings: diagnostics run %d of %d, %s', [I + 1, RUN_COUNT, RUN_NAMES[I]]));
+              Lib.Flat.whisper_print_timings(Model.Handle);
+            end;
+          finally
+            TMonitor.Enter(Self);
+            try
+              FDiagRun := nil;
+            finally
+              TMonitor.Exit(Self);
+            end;
+            Run.Free;
+          end;
+        finally
+          FreeAndNil(Params);
+        end;
+        if R.Cancelled or Terminated then
+          Break;
+        if R.ResultCode <> 0 then
+        begin
+          Log(Format('  %d of %d - %s: FAILED - %s', [I + 1, RUN_COUNT, RUN_NAMES[I], OneLine(R.ErrorMessage)]));
+          Continue;
+        end;
+        Taken := R.ElapsedMs / 1000;
+        if Taken <= 0 then
+          Taken := 0.001;
+        Took[I] := Taken;
+        // the windows' times in order of size: the middle one, the slowest,
+        // and how many stand out
+        Sorted := Copy(FDiagWindows);
+        for J := 1 to Length(Sorted) - 1 do
+        begin
+          Held := Sorted[J];
+          K := J - 1;
+          while (K >= 0) and (Sorted[K] > Held) do
+          begin
+            Sorted[K + 1] := Sorted[K];
+            Dec(K);
+          end;
+          Sorted[K + 1] := Held;
+        end;
+        Median := 0;
+        Slowest := 0;
+        Fastest := 0;
+        Slow := 0;
+        if Length(Sorted) > 0 then
+        begin
+          Fastest := Sorted[0];
+          Median := Sorted[Length(Sorted) div 2];
+          Slowest := Sorted[Length(Sorted) - 1];
+          for J := 0 to Length(Sorted) - 1 do
+            if Sorted[J] > 2 * Median then
+              Inc(Slow);
+        end;
+        Log(Format('  %d of %d - %s: %.1f s = %.1fx real time, %d words', [I + 1, RUN_COUNT, RUN_NAMES[I], Taken,
+          Seconds / Taken, Length(R.Words)]));
+        Log(Format('      windows that failed a check: %d probability, %d entropy%s', [FDiagFailP - FailP0,
+          FDiagFailH - FailH0, IfThen(NoFallback, ' (counted, not decoded again)', ' (each decoded again)')]));
+        if I = 0 then
+          Fails := (FDiagFailP - FailP0) + (FDiagFailH - FailH0);
+        Log(Format('      encoder %.1f s, decoder %.1f s in %d runs, sampling %.1f s, the rest (DTW, word ' +
+          'times, copying) %.1f s', [FDiagEncode / 1000, FDiagDecode / 1000, FDiagDecodeRuns, FDiagSample / 1000,
+          Taken - (FDiagEncode + FDiagDecode + FDiagSample) / 1000]));
+        Log(Format('      %d windows: the fastest took %.2f s, the middle one %.2f s, the slowest %.2f s, %d ' +
+          'took more than twice the middle one', [Length(Sorted), Fastest, Median, Slowest, Slow]));
+        // how much of the text was heard right: the text's words from the
+        // first to the last one matched (the recording stops part way
+        // through the text, and starts with words that are not in it)
+        if (Length(Reference) > 0) and (Length(R.Words) > 0) then
+          try
+            Aligned := WhisperAlignText(Reference, R.Words, Stats);
+            FirstRead := -1;
+            LastRead := -1;
+            for J := 0 to Length(Aligned) - 1 do
+              if Aligned[J].Match in [wamExact, wamSimilar] then
+              begin
+                if FirstRead < 0 then
+                  FirstRead := J;
+                LastRead := J;
+              end;
+            NGood := 0;
+            NSame := 0;
+            NRead := 0;
+            if FirstRead >= 0 then
+              for J := FirstRead to LastRead do
+                if Aligned[J].Match <> wamNone then
+                begin
+                  Inc(NRead);
+                  if Aligned[J].Match = wamExact then
+                    Inc(NSame);
+                  if Aligned[J].Match in [wamExact, wamSimilar] then
+                    Inc(NGood);
+                end;
+            if NRead > 0 then
+            begin
+              Score[I] := NGood * 100 / NRead;
+              Log(Format('      against the text: word %d of it was reached; of the %d read, %.1f %% heard ' +
+                'exactly, %.1f %% exactly or nearly, %d not', [LastRead + 1, NRead, NSame * 100 / NRead, Score[I],
+                NRead - NGood]));
+            end
+            else
+              Log('      against the text: none of its words were heard');
+          except
+            on E: Exception do
+              Log('      against the text: not measured - ' + E.Message);
+          end;
+        FailP0 := FDiagFailP;
+        FailH0 := FDiagFailH;
+      end;
+      if Terminated then
+        Exit;
+      if (Took[0] > 0) and (Took[1] > 0) then
+        Log(Format('The fallback costs %.1f s of the build''s %.1f s (%.0f %%): run 1 against run 2.',
+          [Took[0] - Took[1], Took[0], 100 * (Took[0] - Took[1]) / Took[0]]));
+      if (Took[0] > 0) and (Took[2] > 0) then
+        Log(Format('DTW costs %.1f s of the build''s %.1f s (%.0f %%): run 1 against run 3.',
+          [Took[0] - Took[2], Took[0], 100 * (Took[0] - Took[2]) / Took[0]]));
+      if (Took[0] > 0) and (Took[3] > 0) then
+        Log(Format('Without either: %.1fx real time (run 4), against %.1fx as a build (run 1).',
+          [Seconds / Took[3], Seconds / Took[0]]));
+      Log('Two runs of the same thing differ by a few per cent: a smaller cost than that is none.');
+      if (Score[0] >= 0) and (Score[1] >= 0) then
+        Log(Format('The fallback''s worth: %.1f %% of the text heard exactly or nearly with it (run 1), %.1f %% ' +
+          'without (run 2). "Reached" far short of the other runs'' means text was dropped at the end.',
+          [Score[0], Score[1]]));
+      if Took[0] > 0 then
+      begin
+        ALine := Format('  %s: as a build %.1fx', [ExtractFileName(AModelFile), Seconds / Took[0]]);
+        if Took[1] > 0 then
+          ALine := ALine + Format(', no fallback %.1fx', [Seconds / Took[1]]);
+        ALine := ALine + Format('; %d failed checks', [Fails]);
+        if (Score[0] >= 0) and (Score[1] >= 0) then
+          ALine := ALine + Format('; heard %.1f %% with the fallback, %.1f %% without', [Score[0], Score[1]]);
+      end;
+    finally
+      FreeAndNil(Model);
+    end;
+  end;
+
+begin
+  FF := nil;
+  Audio := nil;
+  Files := nil;
+  Table := nil;
+  Model := nil;
+  Params := nil;
+  Reference := nil;
+  AllDone := True;
+  FDiagRuns := RUN_COUNT * FModels.Count;
+  Lib := TWhisperLib.Instance;
+  // whisper_print_timings writes to whisper.cpp's log: read from there
+  Lib.AddLogListener(DiagLogLine);
+  try
+    try
+      Status('Diagnostics: reading the recording ...');
+      FF := OpenBuilderFFmpeg;
+      Files := TStringList.Create;
+      Files.Add(FAudioFile);
+      Table := TStringList.Create;
+      Audio := TWhisperAudioSet.Create(FF, Files, False);
+      Samples := Audio.Read(0);
+      if Length(Samples) = 0 then
+        raise EWhisperError.Create('The recording has no sound: ' + FAudioFile);
+      // only chapter material: not the recording's first or last
+      // DIAGNOSTIC_EDGE_SECONDS (a spoken introduction, a closing notice)
+      Edge := DIAGNOSTIC_EDGE_SECONDS * WHISPER_SAMPLE_RATE;
+      if Length(Samples) >= 2 * Edge + 2 * WHISPER_CHUNK_SIZE * WHISPER_SAMPLE_RATE then
+      begin
+        Samples := Copy(Samples, Edge, Min(Length(Samples) - 2 * Edge, DIAGNOSTIC_SECONDS * WHISPER_SAMPLE_RATE));
+        Seconds := WhisperSamplesSeconds(Samples);
+        Log(Format('Recording: %s, %s of it from %s (its first and last %d s are left out: Whisper may skip a ' +
+          'spoken introduction or closing notice)', [FAudioFile, Hms(Seconds), Hms(DIAGNOSTIC_EDGE_SECONDS),
+          DIAGNOSTIC_EDGE_SECONDS]));
+      end
+      else
+      begin
+        Seconds := WhisperSamplesSeconds(Samples);
+        Log(Format('Recording: %s, all %s of it (too short to leave out its first and last %d s, which Whisper ' +
+          'may skip: the figures are less sure)', [FAudioFile, Hms(Seconds), DIAGNOSTIC_EDGE_SECONDS]));
+      end;
+      Log(Format('%d runs of the same audio per model with a build''s settings (the book prompt, each 30 s window ' +
+        'on its own, word times); the first pass only, not the second pass over gaps.', [RUN_COUNT]));
+      // the text read is known only for the program's own recording
+      if SameText(ExtractFileName(FAudioFile), CALIBRATION_AUDIO) then
+        Reference := DiagReferenceWords
+      else
+        Log(Format('(No accuracy figures: the recording is not %s, whose text the program has.)',
+          [CALIBRATION_AUDIO]));
+      for M := 0 to FModels.Count - 1 do
+      begin
+        if Terminated then
+          Break;
+        // each model on its own device (the builder gives one per model)
+        if M < Length(FDevices) then
+          Dev := FDevices[M]
+        else
+          Dev := FDevices[0];
+        try
+          OneModel(M, FModels[M], Dev, Line);
+          if Line <> '' then
+            Table.Add(Line)
+          else
+            AllDone := False;
+        except
+          // a model that does not fit the device: the others are still run
+          on E: Exception do
+          begin
+            AllDone := False;
+            Line := Format('  %s: FAILED - %s', [ExtractFileName(FModels[M]), OneLine(E.Message)]);
+            Log(Line);
+            Table.Add(Line);
+          end;
+        end;
+      end;
+      if Terminated then
+      begin
+        Log('Diagnostics cancelled');
+        Exit;
+      end;
+      Progress(100);
+      if FModels.Count > 1 then
+      begin
+        Log('');
+        Log(Format('Every model, over the same %s of audio:', [Hms(Seconds)]));
+        for M := 0 to Table.Count - 1 do
+          Log(Table[M]);
+      end;
+      FCompleted := AllDone;
+      Status('Diagnostics done');
+    except
+      on E: Exception do
+      begin
+        Log('Diagnostics FAILED: ' + E.Message);
+        Status('Diagnostics failed: ' + E.Message);
+      end;
+    end;
+  finally
+    Lib.RemoveLogListener(DiagLogLine);
+    Model.Free;
+    Table.Free;
+    Audio.Free;
+    Files.Free;
+    FF.Free;
+  end;
+end;
+
 procedure TCalibrationThread.Execute;
 var
   FF: TFFmpegLibrary;
@@ -932,6 +1585,11 @@ var
   M, D, N, Total, B, I: Integer;
   Key, Line: string;
 begin
+  if FDiagnostics then
+  begin
+    ExecuteDiagnostics;
+    Exit;
+  end;
   FF := nil;
   Audio := nil;
   Files := nil;

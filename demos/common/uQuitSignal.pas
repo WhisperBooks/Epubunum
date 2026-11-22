@@ -69,12 +69,12 @@ uses
   {$ENDIF}
   System.Classes, System.IOUtils;
 
+{$IFDEF POSIX}
 var
   { The handler (nil = not installed). }
   GProc: TQuitSignalProc;
   { The handler has been queued. }
   GDone: Boolean;
-  {$IFDEF POSIX}
   { The pipe: the signal handler writes, the thread reads. }
   GPipe: TPipeDescriptors;
   { The pipe was made. }

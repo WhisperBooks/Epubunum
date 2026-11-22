@@ -476,7 +476,6 @@ function AudioCover(const AFileName: string; out AData: TBytes): Boolean;
 var
   F: TFileStream;
 begin
-  Result := False;
   AData := nil;
   try
     F := TFileStream.Create(AFileName, fmOpenRead or fmShareDenyWrite);

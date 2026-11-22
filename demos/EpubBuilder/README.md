@@ -60,15 +60,33 @@ a few minutes long.
 
 ## Models
 
-The **Model** list offers whisper.cpp's models by name, smallest first:
-tiny.en, tiny, base.en, base, small.en, small, medium.en, medium,
-large-v3-turbo (a good choice: accurate and much faster than large-v3)
-and large-v3. One not downloaded yet says how large it is; choosing it
+The **Model** list offers two of whisper.cpp's models:
+
+| Model | For | Words not heard on a first pass |
+|---|---|---|
+| large-v3-turbo | the most accurate: the first choice | 1.2 % |
+| base | several times faster, nearly as accurate: slower machines, or a quick build | 2.0 % |
+
+These two came out of timing and scoring all ten models on seven machines
+(AMD, NVIDIA and Intel graphics on Vulkan, Apple's Metal; Linux, Windows
+and macOS; ten minutes of one public-domain recording against its text).
+large-v3-turbo was the most accurate on every machine and never had to
+decode a passage again; base was faster than it on every machine and
+within a point of it. The English-only models (the `.en` ones) decoded
+many passages again and so were slower in a build than their twins.
+
+**Tools > Unlock expert mode (every model)** - in Big Picture **Expert
+mode (every model)** - puts all ten in the list, smallest first (tiny.en,
+tiny, base.en, base, small.en, small, medium.en, medium, large-v3-turbo,
+large-v3), with the other `ggml-*.bin` files of the models folder and
+**Other model file ...**, which takes one from anywhere. It is kept until
+turned off. A model already in use stays in the list either way.
+
+One not downloaded yet says how large it is; choosing it
 asks, then downloads it from whisper.cpp's model repository on Hugging
 Face (the progress bar shows it; **Cancel** stops it). The file is checked
 - its size, and its SHA-256 when Hugging Face gives one - before it is
-used. Other `ggml-*.bin` files in the models folder are listed too, and
-**Other model file ...** takes one from anywhere.
+used.
 
 Where the models are kept:
 
@@ -93,6 +111,18 @@ on a Mac is slow (macOS compiles it once), so re-calibrate after
 downloading one - the calibration's warm-up takes that time. Builds with
 the encoder are kept apart in the build history (device `MTL0+CoreML`),
 so the two can be compared.
+
+### Every model at once
+
+**Tools > Download every model...** - in Big Picture the first row of the
+model list - asks once, with the total size, and then fetches every model
+of the list that is not in the models folder (the two, or all ten in
+expert mode), one after another, each checked. Calibrating or running the
+diagnostics on "every model" follows the list in the same way. The model in the window stays as it is and no calibration is
+offered between them; Cancel, or a download that fails, ends it (what
+was fetched stays, and the same command later fetches the rest). Then
+**Calibrate every model** and **Diagnostics (every model)** work through
+them all.
 
 ## Calibration (which device is fastest here)
 
@@ -135,6 +165,13 @@ Every build's log (and the queue report) starts with the machine
 (name, system, processor, memory), whisper.cpp's version and folder, and
 the device in full. "Default" is shown as the device whisper.cpp takes,
 with whether the calibration found it fastest for the model.
+
+A model that has not been timed on this machine - one just downloaded, or
+one chosen from the list - brings the question "Calibrate it now?" by
+itself. Yes calibrates that model; No leaves it on "Default" and is
+remembered until the program is started again, so choosing the model again
+does not ask twice. The question is not asked while a build, the queue, a
+download or a calibration runs, nor after "Do not show this again".
 
 ## Build history and the time left
 
@@ -341,10 +378,18 @@ Picture on Linux; the log's start says which.
 
 Game Mode (gamescope) can show the window black after Steam's screen
 saver or once the display comes back on. On Linux EpubBuilder then draws
-itself again and changes its size by a pixel and back (full screen, as in
-Big Picture: leaves full screen and goes back): when the window is
-active again, when a display comes back on, and at the first pad press
-after a minute without one. The debug log says each time ("redraw: ...").
+itself again and, in Game Mode only, changes its size by a pixel and back
+(full screen, as in Big Picture: leaves full screen and goes back): when
+the window is active again, when a display comes back on, and at the
+first pad press after a minute without one. Steam's Big Picture on a
+desktop is only drawn again (leaving full screen there would be seen and
+lose the focus). The debug log says each time ("redraw: ...").
+
+On every system EpubBuilder draws its whole window again every two
+seconds, so a display that went to sleep during a long run does not come
+back to an empty window that fills in only at the next line of the log.
+The display itself is still allowed to sleep while EpubBuilder works (the
+computer is not): that is the system's setting.
 
 ## Ended from outside (Steam's Exit Game)
 
@@ -379,6 +424,92 @@ shows the path): the build's steps, the devices, whisper.cpp's and ggml's
 own lines, each written to the file at once. When the builder disappears
 without a message (a library crashed), the last lines say what it was
 doing. The previous run's log is kept as `EpubBuilder-debug.log.old`.
+
+### Diagnostics (what makes a model slow here)
+
+**Tools > Run diagnostics (this model)...** - in Big Picture, **Diagnostics
+(this model)** on the home list - measures the model in the window on its
+device. **Run diagnostics on every model...** (Big Picture: **Diagnostics
+(every model)**) does the same for every model in the models folder,
+smallest first, each on the device its calibration chose, and ends with a
+table - a line per model: its speed as a build and without the fallback,
+how many checks failed, how much of the text was heard with and without
+the fallback. A model that cannot be loaded (too large for the card) is
+noted and the next one run. Nothing has to be set up: it uses the calibration's recording
+(`media/aladdin.m4a`), ten minutes of it from 30 s in, and transcribes
+them four times with a build's settings:
+
+| Run | Temperature fallback | DTW word times |
+|---|---|---|
+| 1 | on | on (as a build) |
+| 2 | off | on |
+| 3 | on | off |
+| 4 | off | off |
+
+For each run the log gives the time and speed, the words heard, how many
+30 s windows failed whisper.cpp's probability or entropy check (with the
+fallback on, each of those is decoded again at a higher temperature), the
+encoder's, decoder's and sampling's time, and the windows' own times (the
+fastest, the middle one, the slowest, how many took more than twice the
+middle one).
+Each run is also scored against the recording's own text (the opening of
+"Aladdin and the Wonderful Lamp" from Andrew Lang's Blue Fairy Book, 1889,
+public domain, kept in the program): how far into the text the run got,
+and how much of what was read was heard exactly, or exactly or nearly. A
+run that "reached" far fewer words than the others dropped text at the
+end; a lower share heard means words were lost or wrong in between. With
+another recording chosen for the calibration there are no such figures.
+Then it says what the fallback costs (run 1 against run 2), what it is
+worth in words heard, and what DTW costs (run 1 against run 3). The lines are added to
+`EpubBuilder-diagnostics.log` beside the settings - one file holds every
+run, each under its "=== Diagnostics (date) ===" line with its model and
+device; delete the file to start afresh. whisper.cpp's own timing lines
+of each run are in the debug log. It runs like a calibration (Cancel stops it) and
+changes no setting, no calibration and no build history. Only the first
+pass is timed, not a build's second pass over gaps.
+
+The time it takes is about forty minutes of audio at the model's speed
+here: a few minutes on a graphics card, longer for a large model on a
+processor.
+
+### Diagnostic builds (a last resort: a whole book, measured)
+
+Two switches make every build of that run a measurement of a real book.
+Give them on the command line (Steam: the program's Properties > Launch
+options) or as environment variables with any value:
+
+| Switch | Environment variable | What it turns off |
+|---|---|---|
+| `--no-fallback` | `EPUBUNUM_NO_FALLBACK` | whisper.cpp decoding a 30 s window again, at a higher temperature, when its text fails the entropy or probability check |
+| `--no-dtw` | `EPUBUNUM_NO_DTW` | DTW word times (token time stamps are used; flash attention stays off, as with DTW) |
+
+Windows, in Steam's launch options:
+
+```
+--no-fallback --no-dtw
+```
+
+Linux and SteamOS, in Steam's launch options:
+
+```
+EPUBUNUM_NO_FALLBACK=1 EPUBUNUM_NO_DTW=1 %command%
+```
+
+A diagnostic build says so in its log ("DIAGNOSTIC ..."), always
+transcribes (no saved or part-way transcript is read), keeps no transcript
+and is not added to the build history, so the time estimates and the next
+normal build are not changed by it. Its book is written as usual, but its
+words may be less accurate or less accurately timed: take the switches out
+to build books.
+
+Every build, diagnostic or not, writes whisper.cpp's timings to the debug
+log after each part's first pass and again after its second pass
+("timings: part N of M, ..." followed by the "whisper_print_timings"
+lines): the time and number of runs of the encoder, the decoder and the
+sampling since the part began, and the fallbacks ("p" probability, "h"
+entropy) since the model was loaded. A part's own fallbacks are the
+difference from the part before. DTW has no timer of its own: its cost is
+the difference between a build with and without `--no-dtw`.
 
 ## Using it
 
@@ -571,6 +702,21 @@ Big Picture Start opens the same menu on the desktop too. Copy books into
 the books folder and audio into the audio folder first (on a Steam Deck in
 Desktop Mode); Tools > Folders changes them on the desktop. Save... and
 Load... of a queue need the desktop (file dialogs).
+
+Big Picture is dark: the pad's menu, its questions and the window behind
+them (the log). **Dark mode** on the home list (left / right, or A) turns
+that off and on; it is kept in the settings (`[View] Dark`, on unless
+turned off). The desktop window is not changed by it.
+
+The home list comes back by itself when something has ended - a download,
+a calibration, the diagnostics, a build, the queue - unless a question is
+on the screen (answer it first) or something else is still running. After
+a download, a calibration, the diagnostics or a declined "Calibrate it
+now?" it comes back on **Model**, ready for the next one; after a build
+or the queue on its first row. Directly under **Model** on the home list
+are what is done with a model: **Calibrate (this model)**, **Calibrate
+every model** (every downloaded model in one go - the desktop's Tools >
+Re-calibrate every model in its folder) and **Diagnostics (this model)**.
 
 ## Progress, and the log
 
