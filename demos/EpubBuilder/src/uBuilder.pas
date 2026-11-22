@@ -6104,6 +6104,26 @@ begin
 end;
 
 procedure TfrmBuilder.KeyDown(var Key: Word; var KeyChar: WideChar; Shift: TShiftState);
+
+  { The key belongs to the control that has the keyboard: a letter or a
+    space typed into a box, the space that presses a button, ticks a box
+    or opens a list. }
+  function ControlsKey(ASpace: Boolean): Boolean;
+  var
+    Obj: TFmxObject;
+  begin
+    Result := False;
+    if Focused = nil then
+      Exit;
+    Obj := Focused.GetObject;
+    if Obj is TCustomEdit then
+      Result := not TCustomEdit(Obj).ReadOnly
+    else if Obj is TCustomMemo then
+      Result := not TCustomMemo(Obj).ReadOnly
+    else if ASpace then
+      Result := (Obj is TCustomButton) or (Obj is TCheckBox) or (Obj is TCustomComboBox);
+  end;
+
 var
   Button: Integer;
 begin
@@ -6117,9 +6137,18 @@ begin
     begin
       // closed: in Big Picture what opens the menu or the queue (as on a
       // pad); the other actions' keys are left to the log. On the desktop
-      // every key is the window's
-      if not FBigPicture or ((Button <> BP_MENU) and (Button <> BP_CHOOSE) and (Button <> BP_QUEUE)) then
-        Button := -1;
+      // (owner, 2026-11-22: the Menu and Queue keys must open them; F2
+      // and F3 since zip 226) those two only - Enter is the window's - and
+      // not a character that is a control's own
+      if FBigPicture then
+      begin
+        if (Button <> BP_MENU) and (Button <> BP_CHOOSE) and (Button <> BP_QUEUE) then
+          Button := -1;
+      end
+      else if ((Button <> BP_MENU) and (Button <> BP_QUEUE)) or ((KeyChar <> #0) and ControlsKey(KeyChar = ' ')) then
+        Button := -1
+      else
+        DebugLog('keys: ' + BP_ACTIONS[Button] + ' on the desktop');
     end;
   end;
   if Button < 0 then

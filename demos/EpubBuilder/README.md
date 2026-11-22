@@ -48,7 +48,8 @@ Language, Power, Chapters of a file, Dark mode, Expert mode, Output, the
 Books / Audio / Output folders, Show the log, Calibration results, Build
 history, and AMD ROCm acceleration when it applies. Arrow keys or W A S
 D, Enter, the mouse and its wheel work it; Esc, a right click or **Back**
-closes it. (The View and Tools menus it replaces are gone.)
+closes it. (The View and Tools menus it replaces are gone.) **F2** opens
+the whole menu and **F3** the queue's, as in Big Picture.
 
 **Settings...** (the window's button) opens the settings on a page of
 their own over the window: Model (and its Folder...), Device, Language,
@@ -711,11 +712,11 @@ row, returns:
 | change a value | left / right | Left / Right, A / D | |
 | choose | A | Enter | left click, tap |
 | back (a question: no) | B | Esc | right click |
-| the menu / close it | Start / Menu | Space | a click beside the menu closes it |
-| the queue | View / Select | Q | |
+| the menu / close it | Start / Menu | F2 | a click beside the menu closes it |
+| the queue | View / Select | F3 | |
 
-The keys drive the menu while it shows; in Big Picture Space or Enter
-opens it. **Controls** lists these as they are bound now, the button or
+The keys drive the menu while it shows; in Big Picture F2 or Enter
+opens it, on the desktop F2. **Controls** lists these as they are bound now, the button or
 key on the left and what it does on the right: Steam's pictures of the
 pad's own controls (their names when Steam has none), or the keys and
 the mouse when those were used last. Use the other while the list shows
@@ -728,7 +729,7 @@ manifest, the pads' layouts and, beside them, the menu's keys and
 pointer (Steam Input itself binds controllers only - a keyboard or a
 mouse is not one of its devices). The programs ask which *action* a key
 or a click means and act on the action as for a pad; no key is named in
-their own code. Layout revision 1.2.
+their own code. Layout revision 1.3.
 
 In Big Picture the window behind the menu is the log alone, full screen
 in large type (24) - no menu bar, columns or settings: the pad's menu has

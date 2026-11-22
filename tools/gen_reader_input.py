@@ -54,7 +54,10 @@ SUMMARY = "EpubReader: reading, listening and its menu."
 #   1 - 2026-11-18: first version
 #   2 - 2026-11-22: the menu's keys and pointer tabled (MENU_KEYS,
 #       MENU_POINTER); the layouts' bindings as in 1
-LAYOUT_REVISION = 2
+#   3 - 2026-11-22: Menu on F2 and Queue ("Library") on F3, no longer
+#       Space and Q (owner: they did not open the builder's menus on the
+#       desktop - "Let's change them to F2 + F3 for now")
+LAYOUT_REVISION = 3
 # RAISE WHEN AN INTERACTION IS ADDED OR TAKEN AWAY (owner, 2026-11-22: "raise
 # the major revision code as well as defining new interactions"); written
 # into every layout in place of TSteamAPI's "major_revision" "0"
@@ -144,8 +147,8 @@ MENU_KEYS = [
     ("Right", "char", "D", "D"),
     ("Play", "vk", 13, "Enter"),
     ("Back", "vk", 27, "Esc"),
-    ("Menu", "char", " ", "Space"),
-    ("Library", "char", "Q", "Q"),
+    ("Menu", "vk", 113, "F2"),
+    ("Library", "vk", 114, "F3"),
 ]
 # THE MENU'S POINTER (mouse and finger): action, what was done - the names
 # uPadMenu reports (PADMENU_...) and Controls shows.

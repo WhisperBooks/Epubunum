@@ -1134,7 +1134,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 224 (224 = the next-session notes at the top, CLAUDE.md only).
+Last number used: 226 (224 = the next-session notes at the top, CLAUDE.md only).
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -3721,6 +3721,49 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 226 (on top of zip 225): Menu on F2, Queue on F3 (layout revision 1.3)
+Owner 2026-11-22 09:39: "Space + Q Still do not bring up the bound menus
+in desktop mode - Let's change them to F2 + F3 for now". NOT COMPILED.
+NO PACKAGE REBUILD. STEAM REBUILD NEEDED (uReaderInput and the layouts
+are the reader's too). Files: tools/gen_reader_input.py,
+demos/EpubReader/src/uReaderInput.pas and the eleven
+demos/EpubReader/steaminput/controllers/*.vdf (GENERATED: revision 1.3;
+the manifest is unchanged - the generator writes it with CRLF, the
+repository's copy has LF: put back, as in zip 217),
+demos/EpubBuilder/src/uBuilder.pas, demos/EpubBuilder/README.md,
+CLAUDE.md.
+- MENU_KEYS: Menu = vk 113 "F2", Library (the queue) = vk 114 "F3";
+  Space and Q are no longer keys of anything. LAYOUT_REVISION 3 (a
+  table change; no interaction added: LAYOUT_MAJOR stays 1). "For now":
+  the owner may go back.
+- WHY SPACE AND Q FAILED IS NOT KNOWN (no debug log seen). Zip 225 left
+  a character to an editable box that has the keyboard - the Output box
+  may well have it from the start, which would explain it. 226: a key
+  with no character (F2, F3) is never left to a control, the settings
+  panel no longer blocks it, and the debug log says "keys: Menu on the
+  desktop" when KeyDown takes one - if F2 fails too, that line (absent:
+  KeyDown is not reached, or FPad / FPadMenu is nil) is what to ask for.
+- The reader has its own F3 (find next) in its own keyboard code; it
+  does not use the menu's key table yet (zip 217's open question), so
+  nothing clashes today - it will when the reader is converted.
+
+## Zip 225 (on top of zip 224): Space and Q open the menus on the desktop
+Owner 2026-11-22 09:35: "Space + Q do not bring up the bound menus in
+desktop mode". NOT COMPILED. NO PACKAGE REBUILD; builder only. Files:
+demos/EpubBuilder/src/uBuilder.pas, demos/EpubBuilder/README.md,
+CLAUDE.md.
+- KeyDown, menu closed, desktop: the Menu and Queue actions' keys (from
+  uReaderInput's table - none named here) open PadHome / PadQueue; NOT
+  Play (Enter stays the window's). Left to the control (nested
+  ControlsKey): a TCustomEdit / TCustomMemo that is not ReadOnly (so Q
+  and Space can be typed into Output); for Space also a focused button,
+  check box or combo box; and everything while pnlSettings is open.
+- So Space does nothing when a button has the focus (it presses it) -
+  if the owner reports "Space sometimes does not open the menu", that is
+  why; the choice then is Space always the menu's.
+- Names to look at: Focused.GetObject, TCustomEdit.ReadOnly,
+  TCustomMemo.ReadOnly, TCustomButton, TCustomComboBox.
 
 ## Zip 223 (on top of zip 222): the desktop's View and Tools menus gone; File > Settings is the menu's Settings page
 Owner 2026-11-22 09:11: "The entire desktop view menu can be replaced by
