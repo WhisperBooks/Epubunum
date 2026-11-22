@@ -4,6 +4,85 @@ Read README.md first, then this file. Keep both up to date with every change.
 The rules follow TWhisper's and TFFMpegAPI's CLAUDE.md (same owner, same
 conventions); where this file is silent, theirs apply.
 
+## NEXT SESSION - THE TASK (owner, 2026-11-22 09:30) - READ THIS FIRST
+
+Owner: "the next task will be to replace Aladdin with the new book
+options so we can build the benchmark functionality which will include
+calibration via the new recordings. There will be a limited version of
+Builder that only includes Benchmark functionality and benchmarks will
+build a leaderboard. The full version will be DLC-enabled and include
+all functionality."
+
+WHERE THINGS STAND: the owner has compiled and run everything up to zip
+221; zips 222 (Controls width, desktop dark, shared uPadMenu - Steam
+rebuild of reader and builder) and 223 (File > Settings, no View / Tools
+menus) are delivered, NOT COMPILED. Ask for their compile result first.
+Last number used: see "Deliveries". Never commit or push.
+
+BEFORE BUILDING ANYTHING read, in this file: the standing rules under
+"Session 7 in brief" above it (chapter material only; Steam Input
+mapping; the Steam rebuild banner), "Survey of machines, 2026-11-21"
+(seven machines, the error table, the decision base + turbo), "NEXT
+PLAN OF ACTION: EpubReader free, EpubBuilder a paid DLC", and the
+calibration notes (zips 198 - 208). The owner was charged for a session
+in which a recorded rule was ignored: check the notes first, and ask one
+precise question where a wrong guess would cost a zip.
+
+THE TASK, in the order it has to be built:
+1. ALADDIN OUT, THE NEW RECORDINGS IN. Today the calibration and the
+   diagnostics use media/aladdin.m4a (uCalibration: CALIBRATION_AUDIO,
+   and the story's text compiled in for the accuracy figure); it is also
+   named in tools/deploy_redist.py, tools/steam_stage.py, the builder's
+   README and notes/. The two recordings chosen are LibriVox: "A Scandal
+   in Bohemia" and "A Christmas Carol" (public domain, as their texts).
+   Every LibriVox section has a spoken intro and outro: 30 s clear of
+   both ends of EVERY section, for timing and for scoring.
+2. CALIBRATION ON THE NEW RECORDINGS. The survey showed what the present
+   30 s stretch gets wrong: the .en models' temperature-fallback retries
+   do not happen in it, so it misranks them against a real build. The
+   deferred "calibration on a continuous stretch" change belongs here.
+   The fallback stays on. Every machine is calibrated again afterwards.
+3. THE BENCHMARK ("BookMark"): built with turbo and base (the decision),
+   speed and accuracy from chapter material only. The owner re-runs
+   every machine for it - the 2026-11-21 figures are a survey, not
+   results to publish.
+4. THE LEADERBOARD the benchmarks build.
+5. TWO BUILDERS: a LIMITED one with the benchmark only, and the FULL one
+   with everything, "DLC-enabled" - this joins the DLC plan above
+   (ownership asked of Steam: SteamDlcState / SteamGetDlc in uSteam; a
+   new STEAM_DLC_BUILDER constant).
+
+NOT DECIDED - ask the owner at the start, do not guess:
+- The recordings: which LibriVox versions / readers, which sections,
+  which text edition to score against, and whether the audio ships in
+  the depot (size) or is downloaded on first use.
+- "Book options": one of the two books chosen by the user, both run, or
+  a short one for calibration and a long one for the benchmark?
+- What a benchmark run is: how much audio, which models (base and turbo
+  only, or the expert list too), every device or the calibrated one, and
+  how long it may take on the slowest machine (the Miix: turbo 0.8x).
+- The leaderboard: Steam leaderboards (TSteamAPI - is ISteamUserStats
+  wrapped?) or something of our own; what the score is (speed alone,
+  speed and accuracy); one board per model / device class; how a machine
+  is named without machine or user names (the privacy rule); what stops
+  a made-up score.
+- The limited builder: a separate program, a build define, or the same
+  program asking Steam whether the DLC is owned; whether it is the free
+  part of the reader's app or its own launch option; what a non-Steam
+  build is (full?).
+- Open from session 12, still unanswered: the reader's page keys under
+  the Steam Input rule (zip 217); keep the display on while the builder
+  works; 960 in FMX units or pixels; Q for the queue; installed .en
+  models before uninstalled multilingual ones; whether the window's
+  Settings... button should open File > Settings' page (zip 223).
+
+KNOWN, NOT FIXED: the calibration log says "no graphics card here could
+run it" when the CPU is simply the fastest (Mac); nothing chooses base
+by itself on a slow machine; uInhibit takes desktop Big Picture for Game
+Mode; touch in the pad menu is untested; zip 207's redraw after display
+sleep (Windows) and zip 210's Mac full screen are untested; the desktop
+dark window of zip 222 was written unseen.
+
 ## Handover - READ THIS FIRST (latest: session 11, 2026-11-21 05:18)
 
 ### Session 11 (2026-11-20 19:35 - 2026-11-21 05:18) - where it stopped
@@ -664,6 +743,18 @@ redistributable_bin/Linux64 Deploy reports those files missing.
   written qualified (FMX.Graphics.TBitmap).
 - Shell scripts need the executable bit in git (`git update-index
   --chmod=+x`); check after a push.
+- A STEAM REBUILD IS FLAGGED LIKE A PACKAGE REBUILD (owner 2026-11-22
+  07:38: "similar to package rebuilds when a Steam rebuild is needed
+  highlight it with arrows (otherwise don't mention)"). A delivery that
+  changes more than the one program under test - a unit another Steam
+  program compiles too (demos/common, uPadMenu, uReaderInput, uCovers
+  ...), the Steam Input definitions, staged or redistributed files -
+  ends with
+      =====> STEAM REBUILD NEEDED <=====
+  and the programs to build and deploy. A delivery that needs none says
+  NOTHING about Steam builds. First used for zip 217 (EpubReader and
+  EpubBuilder: one manifest, written by both at start-up - an old reader
+  would write revision 1 back over the builder's 1.2).
 - STEAM BUILDS: EVERY BUTTON AND KEY MAPPING IS DEFINED VIA STEAM INPUT
   (owner 2026-11-22 07:15: "Make it a standing rule that for Steam
   builds all button and key mapping must be defined via steam input";
@@ -1043,7 +1134,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 217.
+Last number used: 224 (224 = the next-session notes at the top, CLAUDE.md only).
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -3630,6 +3721,153 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 223 (on top of zip 222): the desktop's View and Tools menus gone; File > Settings is the menu's Settings page
+Owner 2026-11-22 09:11: "The entire desktop view menu can be replaced by
+the Steam Settings menu now - Bind to File -> Settings. Remove View and
+Tools menus". NOT COMPILED (pasdoc_check, project_check: 0 problems). NO
+PACKAGE REBUILD; builder only (no Steam rebuild beyond zip 222's). Files:
+demos/EpubBuilder/src/uBuilder.pas, uCalibration.pas (wording),
+demos/EpubBuilder/README.md, CLAUDE.md.
+- BuildMenu: the bar has File (Settings..., -, Exit) only. The old View
+  and Tools items are STILL MADE, under two items with Parent nil (owned
+  by the form, on no bar): UpdateControls enables / ticks them and the
+  Settings page asks miCalibrate.Enabled etc. Do not delete them without
+  moving that logic.
+- miSettingsClick: PadHome(BPC_MODEL) then FPadSettingsOnly := True
+  (PadHome clears it for a first-page command) - PadBack and the Back
+  row then HIDE the menu instead of going to the first page. The desktop
+  can therefore have the pad menu open with no Steam (FPadMenu and FPad
+  are made before StartPad's Steam check; KeyDown feeds it).
+- New Settings rows (BPC_LOG 25 .. BPC_ROCM 31; all in BP_SETTINGS_ROWS,
+  which is a set of 0..31 - 31 IS THE LAST FREE NUMBER, a further row
+  needs another way): desktop only - Books / Audio / Output folder
+  (ChooseFolder(0..2), split out of miFolderClick), Show the log
+  (miLogClick), Build history; everywhere - Calibration results (log
+  shown, menu hidden); AMD ROCm acceleration when miRocm.Visible.
+- Wording: every "Tools > ..." / "View > ..." in log lines, comments and
+  the README is now "Settings > ..." ("Re-calibrate" -> "Calibrate", the
+  row's name). The window's Settings... button and its panel
+  (pnlSettings) are as they were - two "Settings" on the desktop; the
+  owner may want the button to open the same page.
+- Names to look at: Item(nil, ...), miSettingsClick, ChooseFolder,
+  FPadSettingsOnly, the BPC_* 25..31, EnsureRange (System.Math),
+  miCalibrationClick(nil) / miHistoryClick(nil) / miRocmClick(nil) /
+  miLogClick(nil) (none reads Sender).
+
+## Zip 222 (on top of zip 221): Controls the same width in both forms; the desktop window dark too
+Owner 2026-11-22 09:07: the two forms of Controls differ a little in
+width - "They should both be the same width (the larger possibility)";
+"Do any of the changes since 215 affect Reader?"; 09:08: "The desktop
+form should use the same dark mode option as the Steam version". NOT
+COMPILED (pasdoc_check, project_check: 0 problems). NO PACKAGE REBUILD.
+STEAM REBUILD NEEDED (uPadMenu is the reader's too). Files:
+demos/EpubReader/src/uPadMenu.pas (shared),
+demos/EpubBuilder/src/uBuilder.pas, demos/EpubBuilder/README.md,
+CLAUDE.md.
+- uPadMenu: Show's measuring is now the private Needed (and TextW a
+  method, no longer nested in Show); public WidthFor(title, rows, foot)
+  and MinWidth (the next Show is not narrower; the window's share and
+  960 still limit). The reader's menus: unchanged in what they do.
+- uBuilder.PadControls: its rows come from a nested ListFor(AKeys) (NOT
+  "Rows": the constant is ROWS and Pascal does not tell them apart),
+  TitleFor(AKeys), PadFootFor(AKeys); before Show MinWidth := WidthFor
+  of the OTHER form, 0 again after.
+- DARK ON THE DESKTOP: the same FPadDark / [View] Dark (so the desktop
+  window is DARK BY DEFAULT now - the setting's default was chosen for
+  Big Picture). View > Dark mode (miDarkMode, ticked) and the menu's row
+  both call ToggleDark. ApplyDarkWindow no longer stops outside Big
+  Picture: the form's fill; then, through the form's TLayouts only
+  (Walk) - labels that had the style's colour (marked TagString "dark",
+  so only those are put back), list boxes (StyleLookup
+  "transparentlistboxstyle", as the reader's contents; rows' text
+  light, marked), memos (the log's trick of zip 203, now for the book's
+  text too). NOT darkened: TEdit, TComboBox, TButton, the settings
+  TPanel and what is in it (the check boxes), the pairing bar, the menu
+  bar (Linux's drawn one too), splitters. tmDark (500 ms, made in
+  StartPad before the Steam check, so also without Steam) calls it
+  again while dark - a style applied again, a list's new rows; the dark
+  check in tmPadTimer and FDarkTick are gone.
+- A GUESS, NOT SEEN: how the desktop looks. Likely rough edges: light
+  boxes on a dark window; a list's new rows dark-on-dark for up to half
+  a second; rows the program coloured itself; the selected row's colour
+  in the transparent list. The owner's screenshots decide what follows.
+- THE READER SINCE 215 (asked): 215 - its menus take the mouse wheel;
+  217 - the shared Steam Input definitions, revision 1.2 (rebuild or
+  the two programs overwrite each other's layouts), OnGesture in
+  uPadMenu; 216, 218 - 221 - builder only; 222 - uPadMenu again, nothing
+  to see in the reader. Its own keyboard code is as it was (the open
+  question of zip 217).
+- Names to look at: Needed / WidthFor / MinWidth / the method TextW in
+  uPadMenu; ListFor, TitleFor, PadFootFor, tmDark, tmDarkTimer,
+  ToggleDark, miDarkMode in uBuilder; in ApplyDarkWindow the nested
+  DarkMemo, DarkLabel, DarkList, Walk, TListBoxItem.StyledSettings,
+  TagString, IfThen with strings.
+
+## Zip 221 (on top of zip 220): Controls says "Menu" and "Queue"
+Owner 2026-11-22 08:11: "Open or close the menu -> Menu; The queue ->
+Queue". NOT COMPILED (pasdoc_check, project_check: 0 problems). NO
+PACKAGE REBUILD. Files: demos/EpubBuilder/src/uBuilder.pas, CLAUDE.md.
+- PadControls' last two rows read "Menu" and "Queue". The list now:
+  Choose, Back, Up, Down, Decrease value, Increase value, Menu, Queue.
+  The owner wants SHORT action names here - one or two words.
+
+## Zip 220 (on top of zip 219): Controls says "Decrease value" and "Increase value"
+Owner 2026-11-22 08:09: "Left = Decrease Value, Right = Increase Value".
+NOT COMPILED (pasdoc_check, project_check: 0 problems). NO PACKAGE
+REBUILD. Files: demos/EpubBuilder/src/uBuilder.pas, CLAUDE.md.
+- PadControls' rows for Left and Right read "Decrease value" and
+  "Increase value" (zip 219: "Left: a value back", "Right: a value on").
+
+## Zip 219 (on top of zip 218): Controls - a row for each of Up, Down, Left, Right
+Owner 2026-11-22 08:09: "Make options Up. Down, Left _ Right seperate
+lines on controls display". NOT COMPILED (pasdoc_check, project_check: 0
+problems). NO PACKAGE REBUILD. Files:
+demos/EpubBuilder/src/uBuilder.pas, CLAUDE.md.
+- uBuilder.PadControls: eight rows, one action each (Choose, Back, Up,
+  Down, "Left: a value back", "Right: a value on", Open or close the
+  menu, The queue) + Back; TControlRow has one Button (the A / B pair
+  and the "/" joining are gone); one TSteamPadOrigin per row.
+- Names to look at: the local Origin (a TSteamPadOrigin), the field
+  Button of TControlRow.
+
+## Zip 218 (on top of zip 217): the menu's Settings page; Controls in one layout, changing over at once
+Owner 2026-11-22 08:06, two screenshots of Controls on the 5090 (zip 217
+compiled and ran, build 04e9903: keys from the table, Xbox glyphs): a
+submenu "Settings..." directly above Exit with Model, the two
+Calibrates, the two Diagnostics, Device, Language, Power, Chapters, Dark
+mode, Expert mode and Output; Controls "same layout on both versions:
+Key/Button on left, Action on Right"; using the other way of control
+while a menu shows changes the display over. NOT COMPILED (pasdoc_check,
+project_check: 0 problems). NO PACKAGE REBUILD. Files:
+demos/EpubBuilder/src/uBuilder.pas, demos/EpubBuilder/README.md,
+CLAUDE.md.
+- The home list has two PAGES, both FPadMode = BPM_HOME (so PadStep,
+  PadChoose and the foot's progress work on either): FPadSettings says
+  which. BP_SETTINGS_ROWS names the Settings page's rows; PadHome(row)
+  shows the page that row is on, its nested Add leaves out the other
+  page's rows. First page: Book, Audio, Add to queue, Queue, Cover,
+  Create, Update job, Cancel, Controls, Settings... (BPC_SETTINGS = 23),
+  Exit. Settings: the twelve + Back (BPC_SETTINGS_BACK = 24). B on the
+  Settings page: the first page on its Settings row. Everything that
+  came back "on Model" (a download, a calibration, the diagnostics)
+  comes back on the Settings page's Model row by itself.
+- FPadToOutput: the Output note's OK brings Settings back on Output.
+- PadControls: both forms put the button or key in the row's text
+  (left) and what it does in its value (right); a pad's glyphs with an
+  empty text. Its selected row is kept when it is shown again.
+- SetPadKeys(AKeys): FPadKeys changed -> Controls shown again in the
+  other form, the home / queue foot named again. Called from the pad's
+  poll (False), KeyDown (True), and - QUEUED (ForceQueue), because they
+  come from a row's own event and showing a list frees the rows - from
+  PadPointer and PadMenuGesture.
+- TO CHECK: Enter into Controls (keys), a d-pad press (pad form, the
+  row moves on), a key again; the wheel and a click on Controls from the
+  pad form; Left / Right on a Settings row; B from Settings; a download
+  ending on Settings > Model.
+- Names to look at: the set constant BP_SETTINGS_ROWS and "in" with an
+  Integer, the anonymous procedure with its own var in PadMenuGesture,
+  TThread.ForceQueue, the begin .. end under BPC_OUTPUT in PadChoose.
 
 ## Zip 217 (on top of zip 216): keys defined with the Steam Input actions; revision 1.2
 Owner 2026-11-22 07:15: the standing rule STEAM BUILDS: EVERY BUTTON AND

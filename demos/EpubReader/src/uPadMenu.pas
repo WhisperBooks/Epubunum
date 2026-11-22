@@ -98,8 +98,19 @@ type
     { When the mouse wheel last moved the selection (ms): one row per
       notch, not per event of a smooth wheel or a touch pad. }
     FWheelTick: UInt64;
+    { See MinWidth. }
+    FMinWidth: Single;
     { The rows drawn as selected or not. }
     procedure Paint;
+    { How wide AText is on one line at font size ASize (the title's font
+      family). }
+    function TextW(const AText: string; ASize: Single): Single;
+    { How wide the box must be for ATitle, AItems and AFoot at this font
+      size, before the window's and BOX_MAX_WIDTH's limits (never under
+      FFontSize x 24); AValueWidth: the value column's width (0 = no row
+      has a value). }
+    function Needed(const ATitle: string; const AItems: TArray<TPadMenuItem>; const AFoot: string;
+      out AValueWidth: Single): Single;
     { The selected row scrolled into view. }
     procedure KeepVisible;
     { A row clicked. }
@@ -145,6 +156,14 @@ type
       @param(AFoot  the hints at the foot) }
     procedure ShowText(const ATitle, AText: string; const AItems: TArray<TPadMenuItem>; ASelected: Integer;
       const AFoot: string);
+    { How wide Show would make the box for these, the window's limits
+      aside: two forms of one list are given the same width with it (set
+      MinWidth to the other form's).
+      @param(ATitle  the title)
+      @param(AItems  the rows)
+      @param(AFoot  the hints at the foot)
+      @returns(the width) }
+    function WidthFor(const ATitle: string; const AItems: TArray<TPadMenuItem>; const AFoot: string): Single;
     { Hides the menu. }
     procedure Hide;
     { True while it shows.
@@ -175,6 +194,9 @@ type
     property Selected: Integer read FSelected;
     { Text size (set before Show). }
     property FontSize: Single read FFontSize write FFontSize;
+    { The box is not made narrower than this by the next Show (0 = as its
+      own rows need; the window's limits still hold). }
+    property MinWidth: Single read FMinWidth write FMinWidth;
     { A row clicked or tapped (already selected). }
     property OnChoose: TPadMenuChooseEvent read FOnChoose write FOnChoose;
     { Closed by a click beside the box. }
@@ -335,6 +357,70 @@ begin
   FValues := nil;
 end;
 
+function TPadMenu.TextW(const AText: string; ASize: Single): Single;
+var
+  Lay: TTextLayout;
+begin
+  Result := 0;
+  if AText = '' then
+    Exit;
+  Lay := TTextLayoutManager.DefaultTextLayout.Create;
+  try
+    Lay.BeginUpdate;
+    try
+      Lay.Font.Family := FTitle.TextSettings.Font.Family;
+      Lay.Font.Size := ASize;
+      Lay.WordWrap := False;
+      Lay.MaxSize := TPointF.Create(100000, 1000);
+      Lay.Text := AText;
+    finally
+      Lay.EndUpdate;
+    end;
+    Result := Lay.TextWidth;
+  finally
+    Lay.Free;
+  end;
+end;
+
+function TPadMenu.Needed(const ATitle: string; const AItems: TArray<TPadMenuItem>; const AFoot: string;
+  out AValueWidth: Single): Single;
+var
+  I, Pics: Integer;
+  Icon, RowW: Single;
+begin
+  Icon := RowHeight * 0.8;
+  Pics := 0;
+  for I := 0 to Length(AItems) - 1 do
+    Pics := Max(Pics, Length(AItems[I].Glyphs));
+  // the value column: as wide as its widest value, not under FFontSize x 8
+  AValueWidth := 0;
+  for I := 0 to Length(AItems) - 1 do
+    AValueWidth := Max(AValueWidth, TextW(AItems[I].Value, FFontSize * 0.9));
+  if AValueWidth > 0 then
+    AValueWidth := Max(AValueWidth + 8, FFontSize * 8);
+  // the widest of the title, the foot and the rows: nothing cut short
+  // with "..." while the box may grow
+  Result := Max(TextW(ATitle, FFontSize * 1.2), TextW(AFoot, FFontSize * 0.75)) + 8;
+  for I := 0 to Length(AItems) - 1 do
+  begin
+    RowW := TextW(AItems[I].Text, FFontSize) + 8;
+    if Pics > 0 then
+      RowW := RowW + Pics * (Icon + 4) + PAD / 2;
+    if AItems[I].Value <> '' then
+      RowW := RowW + AValueWidth + PAD / 2;
+    Result := Max(Result, RowW);
+  end;
+  // the box's padding and the rows' own; never narrower than it was
+  Result := Max(Result + PAD * 3, FFontSize * 24 + Pics * (Icon + 4));
+end;
+
+function TPadMenu.WidthFor(const ATitle: string; const AItems: TArray<TPadMenuItem>; const AFoot: string): Single;
+var
+  ValW: Single;
+begin
+  Result := Needed(ATitle, AItems, AFoot, ValW);
+end;
+
 procedure TPadMenu.Show(const ATitle: string; const AItems: TArray<TPadMenuItem>; ASelected: Integer;
   const AFoot: string);
 var
@@ -344,37 +430,9 @@ var
   Img: TImage;
   B: TBitmap;
   Icons: TLayout;
-  W, H, MaxW, MaxH, Icon, BodyH, ValW, RowW, Need: Single;
+  W, H, MaxW, MaxH, Icon, BodyH, ValW, Need: Single;
   Body: string;
   TL: TTextLayout;
-
-  { How wide AText is on one line at font size ASize (the title's font
-    family). }
-  function TextW(const AText: string; ASize: Single): Single;
-  var
-    Lay: TTextLayout;
-  begin
-    Result := 0;
-    if AText = '' then
-      Exit;
-    Lay := TTextLayoutManager.DefaultTextLayout.Create;
-    try
-      Lay.BeginUpdate;
-      try
-        Lay.Font.Family := FTitle.TextSettings.Font.Family;
-        Lay.Font.Size := ASize;
-        Lay.WordWrap := False;
-        Lay.MaxSize := TPointF.Create(100000, 1000);
-        Lay.Text := AText;
-      finally
-        Lay.EndUpdate;
-      end;
-      Result := Lay.TextWidth;
-    finally
-      Lay.Free;
-    end;
-  end;
-
 begin
   // ShowText's text (a plain Show has none)
   Body := FBodyText;
@@ -395,26 +453,9 @@ begin
   FFoot.TextSettings.Font.Size := FFontSize * 0.75;
   FFoot.TextSettings.FontColor := Faded(FFore, $A0);
   FFoot.Height := FFontSize * 1.5;
-  // the value column: as wide as its widest value (not less than before);
-  // the box: as wide as its widest row, its title and its foot need at
-  // this font size - nothing cut short with "..." while the box may grow
-  ValW := 0;
-  for I := 0 to High(AItems) do
-    ValW := Max(ValW, TextW(AItems[I].Value, FFontSize * 0.9));
-  if ValW > 0 then
-    ValW := Max(ValW + 8, FFontSize * 8);
-  Need := Max(TextW(ATitle, FFontSize * 1.2), TextW(AFoot, FFontSize * 0.75)) + 8;
-  for I := 0 to High(AItems) do
-  begin
-    RowW := TextW(AItems[I].Text, FFontSize) + 8;
-    if Pics > 0 then
-      RowW := RowW + Pics * (Icon + 4) + PAD / 2;
-    if AItems[I].Value <> '' then
-      RowW := RowW + ValW + PAD / 2;
-    Need := Max(Need, RowW);
-  end;
-  // the box's padding and the rows' own
-  Need := Need + PAD * 3;
+  // the value column and the box as wide as the rows, the title and the
+  // foot need at this font size (Needed)
+  Need := Needed(ATitle, AItems, AFoot, ValW);
   for I := 0 to High(AItems) do
   begin
     R := TRectangle.Create(Self);
@@ -496,7 +537,7 @@ begin
     MaxH := TControl(FShade.Parent).Height * BOX_HEIGHT_SHARE;
   end;
   MaxW := Min(MaxW, BOX_MAX_WIDTH);
-  W := Max(FFontSize * 24 + Pics * (Icon + 4), Need);
+  W := Max(Need, FMinWidth);
   // a text: the widest box the window allows
   if Body <> '' then
     W := Max(W, MaxW);

@@ -456,7 +456,7 @@ type
     FDevices: TWhisperDeviceArray;
     { Why whisper.cpp is not there ('' when it is). }
     FWhisperNote: string;
-    { The books folder: where Book... opens (Tools > Folders; default
+    { The books folder: where Book... opens (Settings; default
       Documents/EpubBuilder/Books). }
     FBookFolder: string;
     { The audio folder: where Add audio... opens (default
@@ -466,7 +466,7 @@ type
       (default Documents/EpubBuilder/Output). }
     FOutFolder: string;
     { The output name given by DefaultOutput for the book in the window
-      (Tools > Output folder renames it only while it is unchanged). }
+      (Settings > Output folder renames it only while it is unchanged). }
     FAutoOut: string;
     { The chosen book's title. }
     FBookTitle: string;
@@ -498,19 +498,26 @@ type
     FPad: TSteamPad;
     { Polls FPad. }
     tmPad: TTimer;
+    { Looks twice a second whether the dark window is still dark
+      (ApplyDarkWindow): a style applied again brings light backgrounds
+      back, and a list's new rows come with the style's dark text. Runs
+      with or without Steam. }
+    tmDark: TTimer;
     { The pad's menu over the window. }
     FPadMenu: TPadMenu;
-    { Big Picture in dark colours - the pad's menu and the window behind
-      it ([View] Dark, on unless turned off; the home list's "Dark mode"
-      row - owner, 2026-11-21: "yes, all dark"). }
+    { Dark colours - the pad's menu and the window, in Big Picture and on
+      the desktop alike ([View] Dark, on unless turned off; Settings > Dark
+      mode, the menu's "Dark mode" row - owner, 2026-11-21: "yes, all
+      dark"; 2026-11-22: "The desktop form should use the same dark mode
+      option as the Steam version"). }
     FPadDark: Boolean;
     { The window is dark now (ApplyDarkWindow): its fill and the log's
       text colour were changed and are put back when dark is turned off. }
     FWindowDark: Boolean;
     { ApplyDarkWindow has said in the debug log why the log stays light. }
     FDarkNoted: Boolean;
-    { When ApplyDarkWindow last looked at the log's style (tmPadTimer). }
-    FDarkTick: UInt64;
+    { Settings > Dark mode: checked while it is on. }
+    miDarkMode: TMenuItem;
     { macOS, Big Picture: when tmPadTimer last looked whether the window is
       full screen. }
     FFullTick: UInt64;
@@ -539,6 +546,15 @@ type
     { The menu was last driven by the keyboard, the mouse or a finger, not
       a pad: its foot and Controls name keys (PadFoot, PadControls). }
     FPadKeys: Boolean;
+    { The home list shows its Settings page (PadHome): B and its Back row
+      go to the first page's Settings row. }
+    FPadSettings: Boolean;
+    { The Settings page was opened by File > Settings (the desktop): back
+      closes the menu, it does not go to the menu's first page. }
+    FPadSettingsOnly: Boolean;
+    { Big Picture: after the note's OK the list comes back on Output (the
+      Output row's note), not on Create. }
+    FPadToOutput: Boolean;
     { Exit was confirmed with the pad: no second question on closing. }
     FForceClose: Boolean;
     { Not calibrated, and no model to calibrate at start-up: the question
@@ -555,7 +571,7 @@ type
     FPadToModel: Boolean;
     { In the log's place (owner, 2026-11-20: "little point in having a debug
       output window for transcription"): what is being done, in large
-      type; the log behind View > Show the log. }
+      type; the log behind Settings > Show the log. }
     layProgress: TLayout;
     { Linux (Game Mode): the window brought back after the screen saver or
       a display that was off (uRedraw). }
@@ -605,7 +621,7 @@ type
     lblPTime: TLabel;
     { The speed so far. }
     lblPSpeed: TLabel;
-    { View > Show the log. }
+    { Settings > Show the log. }
     miLog: TMenuItem;
     { The title of the book being built. }
     FBuildTitle: string;
@@ -666,19 +682,19 @@ type
       Declared on Linux only (H2219 elsewhere). }
     mnuBar: TMenuBar;
     {$ENDIF}
-    { Tools > Re-calibrate (this model). }
+    { Settings > Calibrate (this model). }
     miCalibrate: TMenuItem;
-    { Tools > Re-calibrate every model in the model's folder. }
+    { Settings > Calibrate every model. }
     miCalibrateAll: TMenuItem;
-    { Tools > Run diagnostics (this model). }
+    { Settings > Diagnostics (this model). }
     miDiagnostics: TMenuItem;
-    { Tools > Run diagnostics on every model. }
+    { Settings > Diagnostics (every model). }
     miDiagnosticsAll: TMenuItem;
-    { Tools > Download every model. }
+    { Settings > Model > Download every model. }
     miDownloadAll: TMenuItem;
-    { Tools > Unlock expert mode (every model): checked while it is on. }
+    { Settings > Expert mode: checked while it is on. }
     miExpert: TMenuItem;
-    { Tools > Get AMD ROCm acceleration (free DLC): Linux Steam builds, an
+    { Settings > AMD ROCm acceleration: Linux Steam builds, an
       AMD GPU without a ROCm device (CheckRocmDlc). }
     miRocm: TMenuItem;
     { A label above AParent's next control. }
@@ -823,7 +839,7 @@ type
     procedure ClearBook;
     { Shows the log (AOn) or the progress panel in its place; kept. }
     procedure SetLogVisible(AOn: Boolean);
-    { View > Show the log. }
+    { Settings > Show the log. }
     procedure miLogClick(Sender: TObject);
     { cbLanguage set to ACode ('' = from the book). }
     procedure SelectLanguage(const ACode: string);
@@ -916,12 +932,23 @@ type
       from uReaderInput's table.
       @returns(the text) }
     function PadFoot: string;
+    { PadFoot for the keys (AKeys) or for a pad.
+      @returns(the text) }
+    function PadFootFor(AKeys: Boolean): string;
+    { What drives the menu changed - a pad, or the keyboard / mouse /
+      finger (FPadKeys): a list that shows goes over to it at once - the
+      Controls list is shown again in the other form (its row kept), the
+      home and queue lists' foot names the other buttons.
+      @param(AKeys  the keyboard, the mouse or a finger was used) }
+    procedure SetPadKeys(AKeys: Boolean);
     { The pad button (BP_*) of action AAction of the manifest.
       @returns(-1 when the builder has no such button) }
     function PadButtonOf(const AAction: string): Integer;
-    { The Controls list: what drives the menu and how each is bound now -
-      Steam's pictures of the pad's controls (their names without
-      pictures), or the keys and the mouse when those were used last. }
+    { The Controls list, the same in both forms: the button or key on the
+      left, what it does on the right - Steam's pictures of the pad's
+      controls (their names without pictures), or the keys and the mouse
+      when those were used last. Shown again by SetPadKeys when the other
+      is used while it shows. }
     procedure PadControls;
     { The menu's OnGesture: the right mouse button, the wheel - the action
       uReaderInput's table gives it, pressed as a pad's button. }
@@ -947,10 +974,25 @@ type
       is no longer drawn (the form shows through) and its text is light.
       The text is only made light once the background is known to be gone:
       a style this cannot change keeps a readable light log, and the debug
-      log says why. Called when the window is made, on a change, and once
-      a second (the style can be applied again and bring its background
-      back). Nothing outside Big Picture. }
+      log says why. Called on a change and twice a second (tmDark: the
+      style can be applied again and bring its background back).
+      On the desktop too: the window's fill, the labels of its layouts,
+      its two lists (FMX's transparent list style, light rows) and its
+      memos go dark; the edit and combo boxes, the buttons, the settings
+      panel and the menu bar keep the system's style. }
     procedure ApplyDarkWindow;
+    { tmDark: the dark window looked at again. }
+    procedure tmDarkTimer(Sender: TObject);
+    { Dark mode on or off: the menu's and the window's colours, saved. }
+    procedure ToggleDark;
+    { Dark mode's old menu item (on no menu bar now). }
+    procedure miDarkModeClick(Sender: TObject);
+    { File > Settings...: the menu's Settings page over the window (Esc, a
+      right click or its Back row closes it). }
+    procedure miSettingsClick(Sender: TObject);
+    { The folder dialog for the books (0), the audio (1) or the output (2)
+      folder; kept in the settings. }
+    procedure ChooseFolder(AKind: Integer);
     { The EPUB files of the books folder. }
     procedure PadBooks;
     { The audio for the book: the best matches first (AAll: every
@@ -1081,14 +1123,14 @@ type
       folder instead. It runs as a calibration does (FCalib: the same
       Cancel, progress and busy state) and changes no setting. }
     procedure StartDiagnostics(AAllModels: Boolean);
-    { Tools > Run diagnostics (this model). }
+    { Settings > Diagnostics (this model). }
     procedure miDiagnosticsClick(Sender: TObject);
-    { Tools > Run diagnostics on every model: StartDiagnostics for every
+    { Settings > Diagnostics (every model): StartDiagnostics for every
       ggml-*.bin in the model's folder, smallest first, each on the
       device its calibration chose - with a closing table, a line per
       model. }
     procedure miDiagnosticsAllClick(Sender: TObject);
-    { Tools > Download every model (the top row of Big Picture's model
+    { Settings > Model > Download every model (the top row of Big Picture's model
       list): asks, then fetches every model of the catalogue that is not
       in the models folder, one after another (FDownloadQueue). The model
       in the window is not changed, no calibration is offered between
@@ -1096,22 +1138,22 @@ type
     procedure DownloadEveryModel;
     { Starts the first model of FDownloadQueue and takes it off the queue. }
     procedure StartNextDownload;
-    { Tools > Download every model. }
+    { Settings > Model > Download every model. }
     procedure miDownloadAllClick(Sender: TObject);
     { Turns expert mode on or off (FExpert): kept in the settings, the
       model list filled again, a line in the log. }
     procedure ToggleExpert;
-    { Tools > Unlock expert mode (every model). }
+    { Settings > Expert mode. }
     procedure miExpertClick(Sender: TObject);
-    { Tools > Re-calibrate (this model). }
+    { Settings > Calibrate (this model). }
     procedure miCalibrateClick(Sender: TObject);
-    { Tools > Re-calibrate every model in its folder. }
+    { Settings > Calibrate every model. }
     procedure miCalibrateAllClick(Sender: TObject);
-    { Tools > Calibration results: what is kept, model by model. }
+    { Settings > Calibration results: what is kept, model by model. }
     procedure miCalibrationClick(Sender: TObject);
-    { Tools > Build history: every build's speed and accuracy, a table. }
+    { Settings > Build history: every build's speed and accuracy, a table. }
     procedure miHistoryClick(Sender: TObject);
-    { Tools > Get AMD ROCm acceleration: SteamGetDlc. }
+    { Settings > AMD ROCm acceleration: SteamGetDlc. }
     procedure miRocmClick(Sender: TObject);
     { cbLanguage's items: the book's language (ATag, '' = none) first,
       then the languages to choose; the book's selected.
@@ -1120,10 +1162,10 @@ type
     { The language chosen in cbLanguage ('' = the book's).
       @returns(the code) }
     function ChosenLanguage: string;
-    { Tools > Books folder... / Audio folder... / Output folder...: the
+    { Settings > Books folder / Audio folder / Output folder: the
       three folders (Tag 0, 1, 2 of the item). }
     procedure miFolderClick(Sender: TObject);
-    { Settings... / Tools > Settings...: the settings' page over the
+    { Settings... (the window's button): the settings' page over the
       window. }
     procedure btnSettingsClick(Sender: TObject);
     { The settings' page's Done: closed, saved, the line on the window
@@ -1291,7 +1333,7 @@ const
   QUIT_NOTE_SUFFIX = '-ended.txt';
   { The calibration's lines, beside the settings. }
   CALIBRATION_LOG_SUFFIX = '-calibration.log';
-  { The diagnostics' lines (Tools > Run diagnostics), beside the settings. }
+  { The diagnostics' lines (Settings > Diagnostics), beside the settings. }
   DIAGNOSTICS_LOG_SUFFIX = '-diagnostics.log';
   { The prompt given to every 30 s window: punctuated and capitalised, so
     the transcript is too. TWhisper's recommended settings for books
@@ -2608,7 +2650,7 @@ begin
   tmQueue.OnTimer := tmQueueTimer;
 
   // the settings: a page of their own over the window (Settings... /
-  // Tools > Settings...), closed with Done. The controls are the ones the
+  // the Settings... button), closed with Done. The controls are the ones the
   // rest of the code reads (cbModel, cbDevice, ...), only placed here.
   pnlSettings := TPanel.Create(Self);
   pnlSettings.Parent := Self;
@@ -2871,7 +2913,7 @@ begin
   StartLink;
   FillModels;
   LogLine('Models folder: ' + FModelsFolder);
-  LogLine(Format('Folders: books %s, audio %s, output %s (Tools to change)', [FBookFolder, FAudioFolder,
+  LogLine(Format('Folders: books %s, audio %s, output %s (Settings to change)', [FBookFolder, FAudioFolder,
     FOutFolder]));
   if FCoreML then
     LogLine('Core ML: built in - a model''s Core ML encoder is downloaded with it (the encoder then runs on the ' +
@@ -2910,7 +2952,7 @@ var
 
 begin
   // the three folders: books in, audio in, books out (owner, 2026-11-18) -
-  // Documents/EpubBuilder/... until Tools > ... folder chooses others
+  // Documents/EpubBuilder/... until Settings > ... folder chooses others
   // Documents/EpubUnum, shared with EpubReader (owner, 2026-11-20)
   Docs := EpubUnumDocsFolder;
   FBookFolder := TPath.Combine(Docs, 'Books');
@@ -3155,6 +3197,8 @@ begin
   // (owner, 2026-11-21)
   if tmPad <> nil then
     tmPad.Enabled := False;
+  if tmDark <> nil then
+    tmDark.Enabled := False;
   FreeAndNil(FPad);
   FreeAndNil(FBuildLog);
   FreeAndNil(FModelItems);
@@ -3350,6 +3394,8 @@ begin
       miDownloadAll.Enabled := miCalibrate.Enabled;
     if miExpert <> nil then
       miExpert.IsChecked := FExpert;
+    if miDarkMode <> nil then
+      miDarkMode.IsChecked := FPadDark;
   end;
   Waiting := False;
   for I := 0 to High(FJobs) do
@@ -3915,10 +3961,10 @@ begin
     lblStatus.Text := 'Downloaded ' + D.ModelName;
     ApplyCalibration(True);
     if CalibrationSummary(SettingsFile, FModelPath) = '' then
-      LogLine(D.ModelName + ' is not calibrated yet: the calibration is offered now (later: Tools > ' +
-        'Re-calibrate (this model)).')
+      LogLine(D.ModelName + ' is not calibrated yet: the calibration is offered now (later: Settings > ' +
+        'Calibrate (this model)).')
     else if D.WithEncoder then
-      LogLine(D.ModelName + ' was calibrated without its Core ML encoder: Tools > Re-calibrate (this model) ' +
+      LogLine(D.ModelName + ' was calibrated without its Core ML encoder: Settings > Calibrate (this model) ' +
         'times it with it (the first run compiles the encoder - slow once).');
     SaveSettings;
   end
@@ -4053,7 +4099,7 @@ begin
         if AResult = mrYes then
           CheckBookThen(Device, Q)
         else
-          Tell(Format('Not started: %s failed on %s in the calibration (Tools > Calibration results).',
+          Tell(Format('Not started: %s failed on %s in the calibration (Settings > Calibration results).',
             [ExtractFileName(FModelPath), D.Name]));
       end);
     Exit;
@@ -5281,11 +5327,20 @@ begin
   Bar := mnuMain;
   {$ENDIF}
   M := Item(Bar, '&File', nil);
+  // owner, 2026-11-22: the View and Tools menus are gone - File > Settings
+  // opens the menu's Settings page, which has what they had
+  Item(M, '&Settings...', miSettingsClick);
+  Item(M, '-', nil);
   Item(M, 'E&xit', miExitClick);
-  M := Item(Bar, '&View', nil);
+  // their items are still made (code enables, ticks and shows them, and
+  // the Settings page asks them what is allowed), under items that are on
+  // no menu bar
+  M := Item(nil, '&View', nil);
   miLog := Item(M, 'Show the &log', miLogClick);
+  miDarkMode := Item(M, '&Dark mode', miDarkModeClick);
+  miDarkMode.IsChecked := FPadDark;
   miLog.IsChecked := (mmLog <> nil) and mmLog.Visible;
-  M := Item(Bar, '&Tools', nil);
+  M := Item(nil, '&Tools', nil);
   Item(M, '&Settings...', btnSettingsClick);
   Item(M, '-', nil);
   miCalibrate := Item(M, '&Re-calibrate (this model)...', miCalibrateClick);
@@ -5415,6 +5470,30 @@ const
   BPC_EXPERT = 21;
   { The controls and their bindings. }
   BPC_CONTROLS = 22;
+  { The home list's first page: its Settings page. }
+  BPC_SETTINGS = 23;
+  { The Settings page: back to the first page. }
+  BPC_SETTINGS_BACK = 24;
+  { Settings, the desktop: the log or the progress panel. }
+  BPC_LOG = 25;
+  { Settings, the desktop: the books folder. }
+  BPC_FOLDER_BOOKS = 26;
+  { Settings, the desktop: the audio folder. }
+  BPC_FOLDER_AUDIO = 27;
+  { Settings, the desktop: the output folder. }
+  BPC_FOLDER_OUTPUT = 28;
+  { Settings: what the calibration keeps, into the log. }
+  BPC_RESULTS = 29;
+  { Settings, the desktop: the build history's table. }
+  BPC_HISTORY = 30;
+  { Settings: the AMD ROCm DLC, when it applies (CheckRocmDlc). }
+  BPC_ROCM = 31;
+  { The rows of the home list's Settings page (owner, 2026-11-22); the
+    others are its first page. PadHome shows the page of the row asked
+    for. }
+  BP_SETTINGS_ROWS = [BPC_MODEL, BPC_CALIBRATE, BPC_CALIBRATE_ALL, BPC_DIAGNOSE, BPC_DIAGNOSE_ALL, BPC_DEVICE,
+    BPC_LANGUAGE, BPC_POWER, BPC_CHAPTERS, BPC_DARK, BPC_EXPERT, BPC_OUTPUT, BPC_SETTINGS_BACK, BPC_LOG,
+    BPC_FOLDER_BOOKS, BPC_FOLDER_AUDIO, BPC_FOLDER_OUTPUT, BPC_RESULTS, BPC_HISTORY, BPC_ROCM];
   { The pad's menu in dark colours: its box, its text, the selected row
     (EpubReader's dark menu, uMain.PadMenuColors, with its panel text). }
   PAD_DARK_BACK = $FF23262E;
@@ -5600,12 +5679,15 @@ begin
   // the answer may ask again (or start a build: the window shows it)
   if (FPadMode <> BPM_ASK) and (FBuild = nil) and (FCalib = nil) and (FDownload = nil) then
   begin
-    if FPadToModel then
+    if FPadToOutput then
+      PadHome(BPC_OUTPUT)
+    else if FPadToModel then
       PadHome(BPC_MODEL)
     else
       PadHome(BPC_CREATE);
   end;
   FPadToModel := False;
+  FPadToOutput := False;
 end;
 
 procedure TfrmBuilder.ShowPairing(const AClient, ACode: string);
@@ -5759,7 +5841,7 @@ begin
   mmLog.Margins.Rect := RectF(GAP * 3, GAP * 3, GAP * 3, GAP * 3);
   mmLog.GoToTextEnd;
   DebugLog(Format('Big Picture: the window shows the log only (text %d)', [LOG_SIZE_BIG]));
-  // dark unless turned off (the style may not be applied yet: tmPadTimer
+  // dark unless turned off (the style may not be applied yet: tmDark
   // looks again)
   ApplyDarkWindow;
 end;
@@ -5777,6 +5859,11 @@ begin
   FPadMenu.OnGesture := PadMenuGesture;
   FPadMenu.OnPointer := PadPointer;
   PadColors;
+  // the dark window, with or without Steam, in Big Picture or not
+  tmDark := TTimer.Create(Self);
+  tmDark.Interval := 500;
+  tmDark.OnTimer := tmDarkTimer;
+  tmDark.Enabled := True;
   if FBigPicture then
     FPadMenu.FontSize := 30
   else
@@ -5869,7 +5956,7 @@ begin
       begin
         // the first press for a minute: the screen may be black
         FRedraw.UserInput;
-        FPadKeys := False;
+        SetPadKeys(False);
         PadPress(I);
       end;
     // the build's progress at the menu's foot, twice a second
@@ -5895,12 +5982,6 @@ begin
           [FFullTries, PAD_FULL_TRIES]));
         FullScreen := True;
       end;
-    end;
-    // a style applied again brings the log's light background back
-    if FBigPicture and FPadDark and (T - FDarkTick > 1000) then
-    begin
-      FDarkTick := T;
-      ApplyDarkWindow;
     end;
   except
     on E: Exception do
@@ -5955,7 +6036,12 @@ end;
 
 function TfrmBuilder.PadFoot: string;
 begin
-  if FPadKeys then
+  Result := PadFootFor(FPadKeys);
+end;
+
+function TfrmBuilder.PadFootFor(AKeys: Boolean): string;
+begin
+  if AKeys then
     Result := Format(BP_FOOT_KEYS, [ReaderMenuFirstKey(BP_ACTIONS[BP_CHOOSE]), ReaderMenuFirstKey(BP_ACTIONS[BP_BACK]),
       ReaderMenuFirstKey(BP_ACTIONS[BP_LEFT]), ReaderMenuFirstKey(BP_ACTIONS[BP_RIGHT]),
       ReaderMenuFirstKey(BP_ACTIONS[BP_MENU]), ReaderMenuFirstKey(BP_ACTIONS[BP_QUEUE])])
@@ -5975,19 +6061,46 @@ begin
       Exit(I);
 end;
 
+procedure TfrmBuilder.SetPadKeys(AKeys: Boolean);
+begin
+  if AKeys = FPadKeys then
+    Exit;
+  FPadKeys := AKeys;
+  if (FPadMenu = nil) or not FPadMenu.Showing then
+    Exit;
+  if FPadMode = BPM_CONTROLS then
+    PadControls
+  else if (FPadMode in [BPM_HOME, BPM_QUEUE]) and (FBuild = nil) and (FCalib = nil) and (FDownload = nil) then
+    FPadMenu.SetFoot(PadFoot);
+end;
+
 procedure TfrmBuilder.PadPointer(Sender: TObject);
 begin
-  FPadKeys := True;
+  // later: this comes from a row's own click, and going over to the keys'
+  // form frees the rows
+  TThread.ForceQueue(nil,
+    procedure
+    begin
+      SetPadKeys(True);
+    end);
 end;
 
 procedure TfrmBuilder.PadMenuGesture(Sender: TObject; const AGesture: string);
 var
-  Button: Integer;
+  Gesture: string;
 begin
-  FPadKeys := True;
-  Button := PadButtonOf(ReaderMenuPointerAction(AGesture));
-  if Button >= 0 then
-    PadPress(Button);
+  Gesture := AGesture;
+  // later: the wheel comes from a row's own event (see PadPointer)
+  TThread.ForceQueue(nil,
+    procedure
+    var
+      Button: Integer;
+    begin
+      SetPadKeys(True);
+      Button := PadButtonOf(ReaderMenuPointerAction(Gesture));
+      if Button >= 0 then
+        PadPress(Button);
+    end);
 end;
 
 procedure TfrmBuilder.KeyDown(var Key: Word; var KeyChar: WideChar; Shift: TShiftState);
@@ -6016,7 +6129,7 @@ begin
   end;
   Key := 0;
   KeyChar := #0;
-  FPadKeys := True;
+  SetPadKeys(True);
   if FRedraw <> nil then
     FRedraw.UserInput;
   PadPress(Button);
@@ -6024,79 +6137,96 @@ end;
 
 procedure TfrmBuilder.PadControls;
 type
-  { One row: what it does, the pad's button(s) (BP_*), their usual names
-    when Steam gives none. The keys are uReaderInput's. }
+  { One row: what it does, the pad's button (BP_*), its usual name when
+    Steam gives none. The keys are uReaderInput's. }
   TControlRow = record
     Text: string;
-    A, B: Integer;
+    Button: Integer;
     Pad: string;
   end;
 const
-  NO_BUTTON = -1;
-  ROWS: array[0..5] of TControlRow = (
-    (Text: 'Choose'; A: BP_CHOOSE; B: NO_BUTTON; Pad: 'A'),
-    (Text: 'Back'; A: BP_BACK; B: NO_BUTTON; Pad: 'B'),
-    (Text: 'Up / down'; A: BP_UP; B: BP_DOWN; Pad: 'D-pad up / down'),
-    (Text: 'Change a value'; A: BP_LEFT; B: BP_RIGHT; Pad: 'D-pad left / right'),
-    (Text: 'Open or close the menu'; A: BP_MENU; B: NO_BUTTON; Pad: 'Start'),
-    (Text: 'The queue'; A: BP_QUEUE; B: NO_BUTTON; Pad: 'View'));
+  { One row per action (owner, 2026-11-22: "Up, Down, Left, Right separate
+    lines"; short names). }
+  ROWS: array[0..7] of TControlRow = (
+    (Text: 'Choose'; Button: BP_CHOOSE; Pad: 'A'),
+    (Text: 'Back'; Button: BP_BACK; Pad: 'B'),
+    (Text: 'Up'; Button: BP_UP; Pad: 'D-pad up'),
+    (Text: 'Down'; Button: BP_DOWN; Pad: 'D-pad down'),
+    (Text: 'Decrease value'; Button: BP_LEFT; Pad: 'D-pad left'),
+    (Text: 'Increase value'; Button: BP_RIGHT; Pad: 'D-pad right'),
+    (Text: 'Menu'; Button: BP_MENU; Pad: 'Start'),
+    (Text: 'Queue'; Button: BP_QUEUE; Pad: 'View'));
+
+  { The list for the keys (AKeys) or for the pad, the same layout in both
+    (owner, 2026-11-22): the key or the button on the left, what it does
+    on the right; Back last. }
+  function ListFor(AKeys: Boolean): TArray<TPadMenuItem>;
+  var
+    I: Integer;
+    Row: TPadMenuItem;
+    Origin: TSteamPadOrigin;
+  begin
+    Result := nil;
+    for I := 0 to Length(ROWS) - 1 do
+    begin
+      Row := TPadMenu.Item('', ROWS[I].Text);
+      if AKeys then
+        // the keys, the mouse and the finger of the action, from the table
+        Row.Text := ReaderMenuKeyNames(BP_ACTIONS[ROWS[I].Button], True)
+      else
+      begin
+        // Steam's picture; its name, or the usual one, without
+        Origin := FPad.Origin(ROWS[I].Button, FPadDark);
+        if Origin.Glyph <> '' then
+          Row.Glyphs := Row.Glyphs + [Origin.Glyph]
+        else if Origin.Name <> '' then
+          Row.Text := Origin.Name
+        else
+          Row.Text := ROWS[I].Pad;
+      end;
+      Result := Result + [Row];
+    end;
+    Result := Result + [TPadMenu.Item('Back')];
+  end;
+
+  { The list's title for the keys or for the pad. }
+  function TitleFor(AKeys: Boolean): string;
+  begin
+    if AKeys then
+      Result := 'Controls - keyboard, mouse and touch'
+    else if FPad.PadName <> '' then
+      Result := 'Controls - ' + FPad.PadName
+    else
+      Result := 'Controls - controller';
+  end;
+
 var
   Items: TArray<TPadMenuItem>;
-  Row: TPadMenuItem;
-  I: Integer;
-  O1, O2: TSteamPadOrigin;
-  Names, Title: string;
+  I, Sel: Integer;
 begin
   if FPadMenu = nil then
     Exit;
-  Items := nil;
+  // shown again for the other way of control: the row stays
+  Sel := -1;
+  if FPadMenu.Showing and (FPadMode = BPM_CONTROLS) then
+    Sel := FPadMenu.Selected;
+  Items := ListFor(FPadKeys);
   FPadCmds := nil;
-  for I := 0 to Length(ROWS) - 1 do
-  begin
-    Row := TPadMenu.Item(ROWS[I].Text);
-    if FPadKeys then
-    begin
-      // the keys, the mouse and the finger of the action(s), from the table
-      Names := ReaderMenuKeyNames(BP_ACTIONS[ROWS[I].A], True);
-      if ROWS[I].B <> NO_BUTTON then
-        Names := Names + '  /  ' + ReaderMenuKeyNames(BP_ACTIONS[ROWS[I].B], True);
-      Row.Value := Names;
-    end
-    else
-    begin
-      O1 := FPad.Origin(ROWS[I].A, FPadDark);
-      O2.Name := '';
-      O2.Glyph := '';
-      if ROWS[I].B <> NO_BUTTON then
-        O2 := FPad.Origin(ROWS[I].B, FPadDark);
-      // Steam's pictures; their names, or the usual ones, without
-      if O1.Glyph <> '' then
-        Row.Glyphs := Row.Glyphs + [O1.Glyph];
-      if O2.Glyph <> '' then
-        Row.Glyphs := Row.Glyphs + [O2.Glyph];
-      if Length(Row.Glyphs) = 0 then
-      begin
-        Names := O1.Name;
-        if O2.Name <> '' then
-          Names := Names + ' / ' + O2.Name;
-        if Names = '' then
-          Names := ROWS[I].Pad;
-        Row.Value := Names;
-      end;
-    end;
-    Items := Items + [Row];
+  for I := 0 to Length(Items) - 2 do
     FPadCmds := FPadCmds + [PADROW_NONE];
-  end;
-  Items := Items + [TPadMenu.Item('Back')];
   FPadCmds := FPadCmds + [PADROW_BACK];
-  if FPadKeys then
-    Title := 'Controls - keyboard, mouse and touch'
-  else if FPad.PadName <> '' then
-    Title := 'Controls - ' + FPad.PadName
-  else
-    Title := 'Controls - controller';
   FPadMode := BPM_CONTROLS;
-  FPadMenu.Show(Title, Items, Length(Items) - 1, PadFoot);
+  if (Sel < 0) or (Sel > Length(Items) - 1) then
+    Sel := Length(Items) - 1;
+  // both forms the same width, the wider one's (owner, 2026-11-22): the
+  // box does not change size when the list changes over
+  FPadMenu.MinWidth := FPadMenu.WidthFor(TitleFor(not FPadKeys), ListFor(not FPadKeys),
+    PadFootFor(not FPadKeys));
+  try
+    FPadMenu.Show(TitleFor(FPadKeys), Items, Sel, PadFoot);
+  finally
+    FPadMenu.MinWidth := 0;
+  end;
 end;
 
 procedure TfrmBuilder.PadClosed(Sender: TObject);
@@ -6108,6 +6238,19 @@ end;
 
 procedure TfrmBuilder.PadBack;
 begin
+  // the Settings page: back to the first page, on its Settings row
+  if (FPadMode = BPM_HOME) and FPadSettings then
+  begin
+    if FPadSettingsOnly then
+    begin
+      // File > Settings: closed
+      FPadSettingsOnly := False;
+      FPadMenu.Hide;
+    end
+    else
+      PadHome(BPC_SETTINGS);
+    Exit;
+  end;
   case FPadMode of
     BPM_ASK: PadAnswer(-1);
     BPM_BOOKS, BPM_AUDIO, BPM_QUEUE: PadHome(BPC_BOOK);
@@ -6127,6 +6270,9 @@ var
 
   procedure Add(ACmd: Integer; const AText, AValue: string);
   begin
+    // the rows of the page shown only
+    if ((ACmd >= 0) and (ACmd <= 31) and (ACmd in BP_SETTINGS_ROWS)) <> FPadSettings then
+      Exit;
     if ACmd = ACommand then
       Sel := Length(Items);
     Items := Items + [TPadMenu.Item(AText, AValue)];
@@ -6149,6 +6295,10 @@ begin
   Items := nil;
   FPadCmds := nil;
   Sel := 0;
+  // the page ACommand's row is on
+  FPadSettings := (ACommand >= 0) and (ACommand <= 31) and (ACommand in BP_SETTINGS_ROWS);
+  if not FPadSettings then
+    FPadSettingsOnly := False;
   if FBookTitle <> '' then
     Book := FBookTitle
   else if edBook.Text <> '' then
@@ -6189,12 +6339,26 @@ begin
   Add(BPC_CHAPTERS, 'Chapters of a file are parts', IfThen(chkChapters.IsChecked, '< Yes >', '< No >'));
   Add(BPC_DARK, 'Dark mode', IfThen(FPadDark, '< Yes >', '< No >'));
   Add(BPC_EXPERT, 'Expert mode', IfThen(FExpert, '< Yes >', '< No >'));
-  Add(BPC_CONTROLS, 'Controls', '');
   // no book yet: the folder its copy will go to
   if edOut.Text <> '' then
     Add(BPC_OUTPUT, 'Output', ExtractFileName(edOut.Text))
   else
     Add(BPC_OUTPUT, 'Output', ExtractFileName(ExcludeTrailingPathDelimiter(FOutFolder)));
+  // what the View and Tools menus had besides (owner, 2026-11-22: they are
+  // gone); the folder dialogs, the log's switch and the history's window
+  // are the desktop's
+  if not FBigPicture then
+  begin
+    Add(BPC_FOLDER_BOOKS, 'Books folder', ExtractFileName(ExcludeTrailingPathDelimiter(FBookFolder)));
+    Add(BPC_FOLDER_AUDIO, 'Audio folder', ExtractFileName(ExcludeTrailingPathDelimiter(FAudioFolder)));
+    Add(BPC_FOLDER_OUTPUT, 'Output folder', ExtractFileName(ExcludeTrailingPathDelimiter(FOutFolder)));
+    Add(BPC_LOG, 'Show the log', IfThen(mmLog.Visible, '< Yes >', '< No >'));
+  end;
+  Add(BPC_RESULTS, 'Calibration results', '');
+  if not FBigPicture then
+    Add(BPC_HISTORY, 'Build history', '');
+  if (miRocm <> nil) and miRocm.Visible then
+    Add(BPC_ROCM, 'AMD ROCm acceleration', 'free DLC');
   if edBook.Text <> '' then
     Add(BPC_COVER, 'Cover', CoverChoiceText(FCoverChoice));
   if btnCreate.Enabled then
@@ -6203,10 +6367,17 @@ begin
     Add(BPC_UPDATE, Format('Update job %d', [FEditJob + 1]), '');
   if btnCancel.Enabled then
     Add(BPC_CANCEL, 'Cancel', PadShort(FStatusText));
+  Add(BPC_CONTROLS, 'Controls', '');
+  // owner, 2026-11-22: Settings directly above Exit
+  Add(BPC_SETTINGS, 'Settings...', '');
   Add(BPC_EXIT, 'Exit', '');
+  Add(BPC_SETTINGS_BACK, 'Back', '');
   FPadMode := BPM_HOME;
   FPadFootTick := 0;
-  FPadMenu.Show('EpubBuilder', Items, Sel, PadFoot);
+  if FPadSettings then
+    FPadMenu.Show('Settings', Items, Sel, PadFoot)
+  else
+    FPadMenu.Show('EpubBuilder', Items, Sel, PadFoot);
 end;
 
 procedure TfrmBuilder.PadColors;
@@ -6220,58 +6391,190 @@ begin
 end;
 
 procedure TfrmBuilder.ApplyDarkWindow;
-var
-  Obj: TFmxObject;
+const
+  { FMX's own list style with no background: the window's dark fill shows
+    through (the reader's contents list, its zip 10). }
+  DARK_LIST_STYLE = 'transparentlistboxstyle';
+  { Marks a label whose colour this changed: only those are put back. }
+  DARK_MARK = 'dark';
+
+  { A memo: its style's background picture no longer drawn, then its text
+    light; the style's own again when dark is off. }
+  procedure DarkMemo(AMemo: TMemo);
+  var
+    Obj: TFmxObject;
+  begin
+    if not FPadDark then
+    begin
+      if not (TStyledSetting.FontColor in AMemo.StyledSettings) then
+      begin
+        AMemo.StyledSettings := AMemo.StyledSettings + [TStyledSetting.FontColor];
+        // the style's own background again
+        AMemo.NeedStyleLookup;
+        AMemo.ApplyStyleLookup;
+        AMemo.Repaint;
+      end;
+      Exit;
+    end;
+    // the background is a picture taken from the style: with no picture
+    // to look up it draws nothing, and its children (the text) still do
+    Obj := AMemo.FindStyleResource('background');
+    if not (Obj is TCustomStyleObject) then
+    begin
+      if not FDarkNoted then
+      begin
+        FDarkNoted := True;
+        if Obj = nil then
+          DebugLog('dark: the log''s style has no "background" yet - looked for again')
+        else
+          DebugLog('dark: the log keeps the style''s colours - its background is a ' + Obj.ClassName +
+            ', not a style picture');
+      end;
+      Exit;
+    end;
+    if TCustomStyleObject(Obj).SourceLookup <> '' then
+    begin
+      TCustomStyleObject(Obj).SourceLookup := '';
+      TCustomStyleObject(Obj).Source := nil;
+      DebugLog('dark: the background of ' + IfThen(AMemo = mmLog, 'the log', 'the book''s text') + ' (' +
+        Obj.ClassName + ') is no longer drawn');
+      AMemo.Repaint;
+    end;
+    // light text only once the background is known to be gone
+    if TStyledSetting.FontColor in AMemo.StyledSettings then
+    begin
+      AMemo.StyledSettings := AMemo.StyledSettings - [TStyledSetting.FontColor];
+      AMemo.TextSettings.FontColor := PAD_DARK_TEXT;
+      AMemo.Repaint;
+    end;
+  end;
+
+  { A label that had the style's colour: light, and marked; a marked one
+    gets the style's colour back. }
+  procedure DarkLabel(ALabel: TLabel);
+  begin
+    if FPadDark then
+    begin
+      if TStyledSetting.FontColor in ALabel.StyledSettings then
+      begin
+        ALabel.StyledSettings := ALabel.StyledSettings - [TStyledSetting.FontColor];
+        ALabel.TextSettings.FontColor := PAD_DARK_TEXT;
+        ALabel.TagString := DARK_MARK;
+      end;
+    end
+    else if ALabel.TagString = DARK_MARK then
+    begin
+      ALabel.TagString := '';
+      ALabel.StyledSettings := ALabel.StyledSettings + [TStyledSetting.FontColor];
+    end;
+  end;
+
+  { A list: no background of its own, its rows' text light (new rows come
+    with the style's colour: looked at again by tmDark). }
+  procedure DarkList(AList: TListBox);
+  var
+    I: Integer;
+    Row: TListBoxItem;
+  begin
+    if FPadDark then
+    begin
+      if AList.StyleLookup <> DARK_LIST_STYLE then
+      begin
+        AList.StyleLookup := DARK_LIST_STYLE;
+        AList.NeedStyleLookup;
+        AList.ApplyStyleLookup;
+      end;
+    end
+    else if AList.StyleLookup = DARK_LIST_STYLE then
+    begin
+      AList.StyleLookup := '';
+      AList.NeedStyleLookup;
+      AList.ApplyStyleLookup;
+    end;
+    for I := 0 to AList.Count - 1 do
+    begin
+      Row := AList.ListItems[I];
+      if FPadDark then
+      begin
+        if TStyledSetting.FontColor in Row.StyledSettings then
+        begin
+          Row.StyledSettings := Row.StyledSettings - [TStyledSetting.FontColor];
+          Row.TextSettings.FontColor := PAD_DARK_TEXT;
+          Row.TagString := DARK_MARK;
+        end;
+      end
+      else if Row.TagString = DARK_MARK then
+      begin
+        Row.TagString := '';
+        Row.StyledSettings := Row.StyledSettings + [TStyledSetting.FontColor];
+      end;
+    end;
+  end;
+
+  { The labels, lists and memos of AParent and of the layouts in it. Only
+    layouts are gone into: a panel (the settings, a program asking to
+    connect), the pad's menu and the cover chooser keep their own colours. }
+  procedure Walk(AParent: TFmxObject);
+  var
+    I: Integer;
+    C: TFmxObject;
+  begin
+    for I := 0 to AParent.ChildrenCount - 1 do
+    begin
+      C := AParent.Children[I];
+      if C is TLabel then
+        DarkLabel(TLabel(C))
+      else if C is TListBox then
+        DarkList(TListBox(C))
+      else if C is TMemo then
+        DarkMemo(TMemo(C))
+      else if C is TLayout then
+        Walk(C);
+    end;
+  end;
+
 begin
-  if not FBigPicture or (mmLog = nil) then
+  if mmLog = nil then
     Exit;
-  if not FPadDark then
+  if FPadDark <> FWindowDark then
   begin
-    if FWindowDark then
+    FWindowDark := FPadDark;
+    if FPadDark then
     begin
-      FWindowDark := False;
+      Fill.Kind := TBrushKind.Solid;
+      Fill.Color := PAD_DARK_WINDOW;
+    end
+    else
       Fill.Kind := TBrushKind.None;
-      mmLog.StyledSettings := mmLog.StyledSettings + [TStyledSetting.FontColor];
-      // the style's own background again
-      mmLog.NeedStyleLookup;
-      mmLog.ApplyStyleLookup;
-      mmLog.Repaint;
-    end;
-    Exit;
   end;
-  // the log's background is a picture taken from the style: with no
-  // picture to look up it draws nothing, and its children (the text) still
-  // do
-  Obj := mmLog.FindStyleResource('background');
-  if not (Obj is TCustomStyleObject) then
-  begin
-    if not FDarkNoted then
-    begin
-      FDarkNoted := True;
-      if Obj = nil then
-        DebugLog('dark: the log''s style has no "background" yet - looked for again')
-      else
-        DebugLog('dark: the log keeps the style''s colours - its background is a ' + Obj.ClassName +
-          ', not a style picture');
-    end;
-    Exit;
+  Walk(Self);
+end;
+
+procedure TfrmBuilder.tmDarkTimer(Sender: TObject);
+begin
+  try
+    // dark: looked at again (a style applied again, a list's new rows);
+    // light: nothing to keep
+    if FPadDark or FWindowDark then
+      ApplyDarkWindow;
+  except
+    on E: Exception do
+      DebugLog('dark: ' + E.ClassName + ': ' + E.Message);
   end;
-  if TCustomStyleObject(Obj).SourceLookup <> '' then
-  begin
-    TCustomStyleObject(Obj).SourceLookup := '';
-    TCustomStyleObject(Obj).Source := nil;
-    DebugLog('dark: the log''s background (' + Obj.ClassName + ') is no longer drawn');
-    mmLog.Repaint;
-  end;
-  if not FWindowDark then
-  begin
-    FWindowDark := True;
-    Fill.Kind := TBrushKind.Solid;
-    Fill.Color := PAD_DARK_WINDOW;
-    mmLog.StyledSettings := mmLog.StyledSettings - [TStyledSetting.FontColor];
-    mmLog.TextSettings.FontColor := PAD_DARK_TEXT;
-    mmLog.Repaint;
-  end;
+end;
+
+procedure TfrmBuilder.ToggleDark;
+begin
+  FPadDark := not FPadDark;
+  PadColors;
+  ApplyDarkWindow;
+  SaveSettings;
+  UpdateControls;
+end;
+
+procedure TfrmBuilder.miDarkModeClick(Sender: TObject);
+begin
+  ToggleDark;
 end;
 
 procedure TfrmBuilder.PadBackToMenu(AModel: Boolean);
@@ -6308,15 +6611,10 @@ begin
     BPC_LANGUAGE: Turn(cbLanguage);
     BPC_POWER: Turn(cbPower);
     BPC_CHAPTERS: chkChapters.IsChecked := not chkChapters.IsChecked;
-    BPC_DARK:
-      begin
-        // the list is shown again below: in its new colours
-        FPadDark := not FPadDark;
-        PadColors;
-        ApplyDarkWindow;
-        SaveSettings;
-      end;
+    // the list is shown again below: in its new colours
+    BPC_DARK: ToggleDark;
     BPC_EXPERT: ToggleExpert;
+    BPC_LOG: miLogClick(nil);
   else
     Exit;
   end;
@@ -6344,17 +6642,47 @@ begin
         BPC_BOOK: PadBooks;
         BPC_AUDIO: PadAudioList(False);
         BPC_MODEL: PadModels;
-        BPC_DEVICE, BPC_LANGUAGE, BPC_POWER, BPC_CHAPTERS, BPC_DARK, BPC_EXPERT: PadStep(1);
+        BPC_DEVICE, BPC_LANGUAGE, BPC_POWER, BPC_CHAPTERS, BPC_DARK, BPC_EXPERT, BPC_LOG: PadStep(1);
         BPC_OUTPUT:
           // owner, 2026-11-22: the row "does nothing (just prints Output:
           // on screen)" - said in the menu now, with the folder when no
           // book is chosen yet
-          if edOut.Text <> '' then
-            Tell('The read-along book is written to:' + sLineBreak + edOut.Text)
-          else
-            Tell('No book is chosen yet. Its read-along copy will be written into:' + sLineBreak + FOutFolder +
-              sLineBreak + sLineBreak + 'Tools > Output folder (on the desktop) changes the folder.');
+          begin
+            // the note's OK brings the Settings page back on this row
+            FPadToOutput := FBigPicture;
+            if edOut.Text <> '' then
+              Tell('The read-along book is written to:' + sLineBreak + edOut.Text)
+            else
+              Tell('No book is chosen yet. Its read-along copy will be written into:' + sLineBreak + FOutFolder +
+              sLineBreak + sLineBreak + 'Settings > Output folder (on the desktop) changes the folder.');
+          end;
         BPC_CONTROLS: PadControls;
+        BPC_SETTINGS: PadHome(BPC_MODEL);
+        BPC_SETTINGS_BACK: PadBack;
+        BPC_FOLDER_BOOKS, BPC_FOLDER_AUDIO, BPC_FOLDER_OUTPUT:
+          begin
+            // the folder dialog, then the page again with the new name
+            ChooseFolder(Cmd - BPC_FOLDER_BOOKS);
+            PadHome(Cmd);
+          end;
+        BPC_RESULTS:
+          begin
+            // into the log: the menu out of its way
+            FPadMenu.Hide;
+            if not mmLog.Visible then
+              SetLogVisible(True);
+            miCalibrationClick(nil);
+          end;
+        BPC_HISTORY:
+          begin
+            FPadMenu.Hide;
+            miHistoryClick(nil);
+          end;
+        BPC_ROCM:
+          begin
+            FPadMenu.Hide;
+            miRocmClick(nil);
+          end;
         BPC_COVER: ShowCoverPicker;
         BPC_CREATE, BPC_ADD, BPC_UPDATE:
           begin
@@ -7506,12 +7834,12 @@ begin
   CalibrationState(SettingsFile, Done, DontAsk, Key, Made);
   if Done and SameText(Key, CalibrationDevicesKey(FDevices)) then
   begin
-    LogLine(Format('Calibrated %s (Tools > Calibration results; Tools > Re-calibrate after a new graphics card ' +
+    LogLine(Format('Calibrated %s (Settings > Calibration results; Settings > Calibrate after a new graphics card ' +
       'or driver).', [Made]));
     if (FModelPath <> '') and (CalibrationSummary(SettingsFile, FModelPath) <> '') then
       LogLine(ExtractFileName(FModelPath) + ': ' + CalibrationSummary(SettingsFile, FModelPath))
     else if FModelPath <> '' then
-      LogLine(ExtractFileName(FModelPath) + ' is not calibrated yet: Tools > Re-calibrate times it.');
+      LogLine(ExtractFileName(FModelPath) + ' is not calibrated yet: Settings > Calibrate times it.');
     Exit;
   end;
   Why := '';
@@ -7520,7 +7848,7 @@ begin
   if DontAsk then
   begin
     LogLine(Why + 'Not calibrated for this machine (you asked not to be reminded): "Default" lets whisper.cpp ' +
-      'choose, and it takes the first GPU in its list, not the fastest. Tools > Re-calibrate.');
+      'choose, and it takes the first GPU in its list, not the fastest. Settings > Calibrate.');
     Exit;
   end;
   if FModelPath = '' then
@@ -7546,7 +7874,7 @@ begin
     Format('The calibration times %s on every device here (%s): 30 seconds of speech, three times each, with ' +
     'the settings of a build, and makes the fastest the device for that model. It takes a minute or two per ' +
     'device - longer on the processor with a large model.', [Model, Names]) + sLineBreak + sLineBreak +
-    'Tools > Re-calibrate does it again later (a new graphics card or driver, another model).';
+    'Settings > Calibrate does it again later (a new graphics card or driver, another model).';
   if FBigPicture then
   begin
     // no dialog to reach with the pad: the question in the pad's menu -
@@ -7577,7 +7905,7 @@ begin
     if DontShow then
       CalibrationSetDontAsk(SettingsFile, True);
     LogLine('Not calibrated: "Default" lets whisper.cpp choose (the first GPU in its list, not always the ' +
-      'fastest). Tools > Re-calibrate does it later.');
+      'fastest). Settings > Calibrate does it later.');
   end;
 end;
 
@@ -7963,7 +8291,7 @@ begin
     end;
   end
   else
-    LogLine('The calibration did not finish: nothing was changed (Tools > Re-calibrate runs it again).');
+    LogLine('The calibration did not finish: nothing was changed (Settings > Calibrate runs it again).');
   LogLine(Format('Calibration took %s', [WhisperTimeToStr(MilliSecondsBetween(Now, FStarted) div 10)]));
   FLogging := False;
   LogFile := ChangeFileExt(SettingsFile, CALIBRATION_LOG_SUFFIX);
@@ -8002,11 +8330,11 @@ begin
         Exit;
       end;
     if ALog then
-      LogLine(Format('The calibration chose %s for %s, and whisper.cpp lists no %s now: Tools > Re-calibrate.',
+      LogLine(Format('The calibration chose %s for %s, and whisper.cpp lists no %s now: Settings > Calibrate.',
         [Dev, ExtractFileName(FModelPath), Dev]));
   end
   else if ALog then
-    LogLine(Format('%s is not calibrated on this machine: the device stays "%s". Tools > Re-calibrate times it ' +
+    LogLine(Format('%s is not calibrated on this machine: the device stays "%s". Settings > Calibrate times it ' +
       'on every device.', [ExtractFileName(FModelPath), cbDevice.Items[Max(0, cbDevice.ItemIndex)]]));
 end;
 
@@ -8052,7 +8380,7 @@ begin
       'whisper.cpp lines say why (ggml-hip; /dev/kfd, the GPU''s kernels). Vulkan is used meanwhile.')
   else if State <> sdsNoSteam then
   begin
-    LogLine('This AMD GPU may transcribe faster with AMD ROCm acceleration, a free DLC: Tools > Get AMD ROCm ' +
+    LogLine('This AMD GPU may transcribe faster with AMD ROCm acceleration, a free DLC: Settings > AMD ROCm ' +
       'acceleration.');
     miRocm.Visible := True;
     if (mnuMain <> nil) and (mnuMain.Parent <> nil) then
@@ -8121,6 +8449,19 @@ begin
 end;
 
 procedure TfrmBuilder.miFolderClick(Sender: TObject);
+begin
+  ChooseFolder((Sender as TMenuItem).Tag);
+end;
+
+procedure TfrmBuilder.miSettingsClick(Sender: TObject);
+begin
+  if FPadMenu = nil then
+    Exit;
+  PadHome(BPC_MODEL);
+  FPadSettingsOnly := True;
+end;
+
+procedure TfrmBuilder.ChooseFolder(AKind: Integer);
 const
   NAMES: array[0..2] of string = ('Books folder (the EPUBs to read along)', 'Audio folder (the recordings)',
     'Output folder (the books made)');
@@ -8128,7 +8469,7 @@ var
   K: Integer;
   Folder: string;
 begin
-  K := (Sender as TMenuItem).Tag;
+  K := EnsureRange(AKind, 0, 2);
   case K of
     0: Folder := FBookFolder;
     1: Folder := FAudioFolder;
@@ -8197,12 +8538,12 @@ begin
   LogLine('');
   if not Done then
   begin
-    LogLine('Not calibrated on this machine yet: Tools > Re-calibrate.');
+    LogLine('Not calibrated on this machine yet: Settings > Calibrate.');
     Exit;
   end;
   LogLine(Format('Calibration of %s:', [Made]));
   if not SameText(Key, CalibrationDevicesKey(FDevices)) then
-    LogLine('  THE DEVICES HAVE CHANGED SINCE: Tools > Re-calibrate.');
+    LogLine('  THE DEVICES HAVE CHANGED SINCE: Settings > Calibrate.');
   Ini := TMemIniFile.Create(SettingsFile, TEncoding.UTF8);
   Sections := TStringList.Create;
   try
@@ -8224,7 +8565,7 @@ begin
     for I := 0 to Crashes.Count - 1 do
     begin
       P := Pos(#9, Crashes[I]);
-      LogLine(Format('  %s on %s ended the program: left out until Tools > Re-calibrate', [Copy(Crashes[I], 1,
+      LogLine(Format('  %s on %s ended the program: left out until Settings > Calibrate', [Copy(Crashes[I], 1,
         P - 1), Copy(Crashes[I], P + 1, MaxInt)]));
     end;
   finally
@@ -8358,7 +8699,7 @@ begin
         CalibrationSummary(SettingsFile, AModel)]));
   end
   else
-    LogLine(Format('  %s is not calibrated on this machine (Tools > Re-calibrate)', [ExtractFileName(AModel)]));
+    LogLine(Format('  %s is not calibrated on this machine (Settings > Calibrate)', [ExtractFileName(AModel)]));
 end;
 
 initialization

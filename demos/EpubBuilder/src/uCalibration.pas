@@ -11,8 +11,8 @@
   WhisperFindSpeech, away from both ends of the recording), with the
   settings of a build (DTW word times, the book prompt, each window on its
   own) - and the fastest device made the model's device. Asked for once at
-  start-up ("Do not show this again" stops that), again from Tools >
-  Re-calibrate when the graphics card changes.
+  start-up ("Do not show this again" stops that), again from Settings >
+  Calibrate when the graphics card changes.
 
   Kept in EpubBuilder.ini: [Calibration] (Done, DontAsk, Made, Devices -
   the device list it was made with, Audio) and a section per model,
@@ -271,7 +271,7 @@ function FindCalibrationAudio(const ASaved: string): string;
   @returns(True for Start calibration) }
 function AskCalibration(AOwner: TComponent; const AText: string; out ADontAsk: Boolean): Boolean;
 
-{ Tools > Build history: the history (uHistory) as a table, newest first,
+{ Settings > Build history: the history (uHistory) as a table, newest first,
   under a line per model and device of this machine; Copy puts it on the
   clipboard as tab-separated text. Modal.
   @param(AOwner  the window it is centred on)
@@ -319,7 +319,7 @@ const
   FAILED_PREFIX = 'failed: ';
   { Why a pair was not timed. }
   SKIPPED_TEXT = 'not timed: EpubBuilder ended while it was being timed in an earlier calibration ' +
-    '(Tools > Re-calibrate tries it again)';
+    '(Settings > Calibrate tries it again)';
 
 { The settings' section of AModelFile. }
 function ModelSection(const AModelFile: string): string;
@@ -724,7 +724,7 @@ begin
   end;
   Result := Format('EpubBuilder ended during the last calibration, while %s was timed on %s (a GPU runtime ' +
     'that gave up - not enough memory for the model?). That pair is recorded as failed and the calibration ' +
-    'offered now leaves it out; Tools > Re-calibrate tries it again.', [Model, Device]);
+    'offered now leaves it out; Settings > Calibrate tries it again.', [Model, Device]);
 end;
 
 function FindCalibrationAudio(const ASaved: string): string;

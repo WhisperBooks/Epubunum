@@ -37,10 +37,20 @@ At the top the **book** (left) and its **audio** (right); below them,
 across the window, the **job queue** (Load, Save, Remove, Up, Down, Run
 queue); at the bottom the **output**, a line of the settings with
 **Settings...**, Create / Add to queue / Update job / Cancel, and the
-progress (or the log, View). The dividers between book and audio and
+progress (or the log, Settings > Show the log). The dividers between book and audio and
 between them and the queue can be dragged.
 
-**Settings...** (or Tools > Settings...) opens the settings on a page of
+The menu bar has **File** only: **Settings...** and **Exit**. "Settings >"
+in this text is **File > Settings...**: the Settings page of the menu
+that Big Picture uses, over the window - Model (with Download every
+model), Calibrate and Diagnostics (this model, every model), Device,
+Language, Power, Chapters of a file, Dark mode, Expert mode, Output, the
+Books / Audio / Output folders, Show the log, Calibration results, Build
+history, and AMD ROCm acceleration when it applies. Arrow keys or W A S
+D, Enter, the mouse and its wheel work it; Esc, a right click or **Back**
+closes it. (The View and Tools menus it replaces are gone.)
+
+**Settings...** (the window's button) opens the settings on a page of
 their own over the window: Model (and its Folder...), Device, Language,
 Power, Window GPU (Windows), "Chapters of a file are parts" and "Use a
 saved transcript". **Done** closes it (Enter too) and saves; the line on
@@ -75,7 +85,7 @@ decode a passage again; base was faster than it on every machine and
 within a point of it. The English-only models (the `.en` ones) decoded
 many passages again and so were slower in a build than their twins.
 
-**Tools > Unlock expert mode (every model)** - in Big Picture **Expert
+**Settings > Expert mode** - in Big Picture **Expert
 mode** - puts all ten in the list: base and turbo first, always; then
 the models of every language (tiny, small, medium, large), those
 installed before those still to download, each smallest first; the
@@ -118,7 +128,7 @@ so the two can be compared.
 
 ### Every model at once
 
-**Tools > Download every model...** - in Big Picture the first row of the
+**Settings > Model > Download every model...** - in Big Picture the first row of the
 model list - asks once, with the total size, and then fetches every model
 of the list that is not in the models folder (the two, or all ten in
 expert mode), one after another, each checked. Calibrating or running the
@@ -150,12 +160,12 @@ chosen, because it may not compute correctly. A device the model fails
 on (not enough memory) is recorded. Create and Add to queue ask before
 building on it (No by default).
 
-- **Tools > Re-calibrate (this model)**: again, after a new graphics card
+- **Settings > Calibrate (this model)**: again, after a new graphics card
   or driver. The start-up question also comes back when the device list
   has changed.
-- **Tools > Re-calibrate every model in its folder**: every
+- **Settings > Calibrate every model**: every
   `ggml-*.bin` beside the model, smallest first.
-- **Tools > Calibration results**: what is kept, model by model.
+- **Settings > Calibration results**: what is kept, model by model.
 
 Choosing a model that has been calibrated sets the device to its fastest.
 Results are kept per model in `EpubBuilder.ini`
@@ -189,7 +199,7 @@ words) and the matched share (the verdict's), and the book: its title, the
 language transcribed and the output's file name (rows from before these
 columns have them empty; the file's header line is brought up to date
 on the next build). A spreadsheet opens it, and
-**Tools > Build history...** shows it as a table, newest first, under a
+**Settings > Build history...** shows it as a table, newest first, under a
 line per model and device of this machine (builds, median speed, exact
 and matched); **Copy** puts the table on the clipboard as tab-separated
 text.
@@ -214,10 +224,10 @@ backends. AMD's ROCm (HIP) backend - with its runtime and kernels, about
 1 GB - is a free DLC, "AMD ROCm acceleration", installed into the
 program's folder, where ggml finds it at the next start. In a Linux
 Steam build with an AMD GPU and no ROCm device the log says so and
-**Tools > Get AMD ROCm acceleration (free DLC)...** appears: a DLC in the
+**Settings > AMD ROCm acceleration...** appears: a DLC in the
 account is installed by Steam; one that is not opens its store page in
 the Steam overlay (add it - it is free - and Steam installs it). Start
-EpubBuilder again afterwards, then **Tools > Re-calibrate**: ROCm0 is
+EpubBuilder again afterwards, then **Settings > Calibrate**: ROCm0 is
 timed against Vulkan0. When the DLC is installed but no ROCm device
 appears, the log says so and the debug log's whisper.cpp lines say why.
 
@@ -287,7 +297,7 @@ in a book count as no language (Whisper detects it). The log says
 EpubBuilder works with three folders: books (the EPUBs to read along),
 audio (the recordings) and output (the books it makes). At first they
 are Documents/EpubUnum/Books, Audio and Transcribed, made at start-up;
-Tools > Books folder... / Audio folder... / Output folder... choose
+Settings > Books folder / Audio folder / Output folder choose
 others (kept in the settings). Each also follows its dialog: Book... and
 Add audio... (and Add folder...) open where a file was last chosen, and
 an output chosen with Output... - or typed into the Output box, once the
@@ -431,7 +441,7 @@ doing. The previous run's log is kept as `EpubBuilder-debug.log.old`.
 
 ### Diagnostics (what makes a model slow here)
 
-**Tools > Run diagnostics (this model)...** - in Big Picture, **Diagnostics
+**Settings > Diagnostics (this model)...** - in Big Picture, **Diagnostics
 (this model)** on the home list - measures the model in the window on its
 device. **Run diagnostics on every model...** (Big Picture: **Diagnostics
 (every model)**) does the same for every model in the models folder,
@@ -678,14 +688,22 @@ model list):
 - **Add to queue**, then **Queue** (Run queue is its first row; each job:
   show it in the window, Up, Down, Remove) - Queue is selected after Add
   to queue;
-- **Model**: a list of every model - here, or its size to download
+- **Cover**, **Create**, **Update job**, **Cancel**, **Controls**,
+  **Settings...**, **Exit**.
+
+**Settings...** (directly above Exit) is a second page - B, or its Back
+row, returns:
+
+- **Model**: a list of every model - installed, or its size to download
   (choosing one not installed asks to download it; turbo is a good
   first choice);
 - **Device**, **Language**, **Power**, **Chapters of a file are parts**:
   left / right change them;
+- **Calibrate (this model)**, **Calibrate every model**, **Diagnostics
+  (this model)**, **Diagnostics (every model)**;
+- **Dark mode**, **Expert mode**;
 - **Output** (says where the book is written; with no book chosen yet,
-  the folder), **Cover**, **Create**, **Update job**, **Cancel**,
-  **Calibrate (this model)**, **Expert mode**, **Controls**, **Exit**.
+  the folder).
 
 | | Pad | Keyboard | Mouse, finger |
 |---|---|---|---|
@@ -697,10 +715,12 @@ model list):
 | the queue | View / Select | Q | |
 
 The keys drive the menu while it shows; in Big Picture Space or Enter
-opens it. **Controls** lists these as they are bound now: Steam's
-pictures of the pad's own controls (their names when Steam has none), or
-the keys and the mouse when those were used last - the hints at the
-menu's foot change in the same way.
+opens it. **Controls** lists these as they are bound now, the button or
+key on the left and what it does on the right: Steam's pictures of the
+pad's own controls (their names when Steam has none), or the keys and
+the mouse when those were used last. Use the other while the list shows
+and it changes over at once - as the hints at the menu's foot do. Both
+forms of the list have the same width, the wider one's.
 
 Every button and key mapping has one definition: the tables of
 `tools/gen_reader_input.py`, which writes the Steam Input action
@@ -720,13 +740,16 @@ download, the calibration) are asked in the same menu. The pad uses
 EpubReader's Steam Input actions (one manifest per Steam app); outside
 Big Picture Start opens the same menu on the desktop too. Copy books into
 the books folder and audio into the audio folder first (on a Steam Deck in
-Desktop Mode); Tools > Folders changes them on the desktop. Save... and
+Desktop Mode); Settings changes them on the desktop. Save... and
 Load... of a queue need the desktop (file dialogs).
 
-Big Picture is dark: the pad's menu, its questions and the window behind
-them (the log). **Dark mode** on the home list (left / right, or A) turns
-that off and on; it is kept in the settings (`[View] Dark`, on unless
-turned off). The desktop window is not changed by it.
+EpubBuilder is dark, in Big Picture and on the desktop alike: the pad's
+menu, its questions and the window. **Settings > Dark mode** (left / right, or A) - turns that off and
+on; it is one setting for both (`[View] Dark`, on unless turned off). On
+the desktop the window's background, its captions and status line, the
+audio and queue lists, the book's text and the log go dark; the edit and
+combo boxes, the buttons, the settings panel and the menu bar keep the
+system's own look.
 
 The home list comes back by itself when something has ended - a download,
 a calibration, the diagnostics, a build, the queue - unless a question is
@@ -735,8 +758,7 @@ a download, a calibration, the diagnostics or a declined "Calibrate it
 now?" it comes back on **Model**, ready for the next one; after a build
 or the queue on its first row. Directly under **Model** on the home list
 are what is done with a model: **Calibrate (this model)**, **Calibrate
-every model** (every downloaded model in one go - the desktop's Tools >
-Re-calibrate every model in its folder) and **Diagnostics (this model)**.
+every model** (every downloaded model in one go - the desktop has the same row) and **Diagnostics (this model)**.
 
 ## Progress, and the log
 
@@ -745,7 +767,7 @@ type: the book, its job in the queue, how far it is, the time taken and
 left, and the transcription's speed so far (x real time); when idle, the
 jobs waiting and the last build's result. The line above it still shows
 the words being transcribed. The log - every line also kept in the book's
-.log and the debug log - is behind **View > Show the log** (kept between
+.log and the debug log - is behind **Settings > Show the log** (kept between
 starts).
 
 ## The cover
