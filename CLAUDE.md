@@ -1021,7 +1021,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 212.
+Last number used: 214.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -3608,6 +3608,46 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 214 (on top of zip 213): the pad's model list says "installed"
+Owner 2026-11-22 06:44: "Change the wording on this menu from "here" to
+"installed"". NOT COMPILED (pasdoc_check, project_check: 0 problems).
+NO PACKAGE REBUILD. Files: demos/EpubBuilder/src/uBuilder.pas, CLAUDE.md.
+- uBuilder.PadModels: a downloaded model's value "installed" (was
+  "here"); the first row "Download every model - all not installed"
+  (was "all that are not here"); its question "... model(s) that are
+  not installed yet?". The window's list and the other texts
+  ("... to download", "in the models folder") are as they were.
+
+## Zip 213 (on top of zip 212): the pad menu as wide as its text needs, at most 960
+Owner 2026-11-22 06:43, a screenshot of the builder's model list in Big
+Picture on the 5090 (zips up to 212 compiled and ran; expert mode's
+short list shown): "Menu needs to be wider but max = 960, this will
+avoid ellipses. Size should really be dynamic so larger font = wider
+menu (limit 960)". NOT COMPILED (pasdoc_check, project_check: 0
+problems). NO PACKAGE REBUILD. Files: demos/EpubReader/src/uPadMenu.pas
+(shared: reader and builder), demos/EpubBuilder/src/uModels.pas,
+CLAUDE.md.
+- TPadMenu.Show: a nested TextW (TTextLayout, the title's font family)
+  measures every row's text and value, the title and the foot at the
+  menu's font size. The value column is as wide as its widest value
+  (not under FFontSize x 8, as before); the box is as wide as the
+  widest row + padding, not under FFontSize x 24 (as before), not over
+  BOX_SHARE of the window and BOX_MAX_WIDTH = 960 (FMX units, not
+  pixels: 1440 px on a 150 % display). ShowText's box, which took all
+  the window allowed, is held to 960 too.
+- A value set later with SetValue keeps the column's width of Show (the
+  builder shows its list again after every change; the reader: to
+  watch).
+- uModels: tiny.en's note ended "(decodes again often)" and PadModels
+  took the bracket for the row's value ("decodes again..." where "here"
+  belonged): now "... slow in a build: decodes again often". A note
+  must not end in a bracket.
+- TO CHECK: no "..." in the model list and its foot at the 5090's font
+  size; the reader's menus (shared unit) look right; a long question
+  (ShowText) still reads well at 960.
+- Names to look at: the nested function TextW in Show (before its
+  begin), TTextLayout.TextWidth, Lay.Font.Family, BOX_MAX_WIDTH.
 
 ## Zip 212 (on top of zip 211): the nine compiler hints of a Windows build gone
 Owner 2026-11-22 06:12, a dcc64 build (so zips 207 - 211 COMPILE on

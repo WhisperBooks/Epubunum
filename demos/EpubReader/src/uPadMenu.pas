@@ -157,6 +157,9 @@ implementation
 const
   { The box's width as a share of the window's, at most. }
   BOX_SHARE = 0.7;
+  { The box's width at most, whatever the window's (owner, 2026-11-22:
+    "max = 960"). }
+  BOX_MAX_WIDTH = 960;
   { The box's height as a share of the window's, at most. }
   BOX_HEIGHT_SHARE = 0.85;
   { Rows shown at most before the list scrolls. }
@@ -295,9 +298,37 @@ var
   Img: TImage;
   B: TBitmap;
   Icons: TLayout;
-  W, H, MaxW, MaxH, Icon, BodyH: Single;
+  W, H, MaxW, MaxH, Icon, BodyH, ValW, RowW, Need: Single;
   Body: string;
   TL: TTextLayout;
+
+  { How wide AText is on one line at font size ASize (the title's font
+    family). }
+  function TextW(const AText: string; ASize: Single): Single;
+  var
+    Lay: TTextLayout;
+  begin
+    Result := 0;
+    if AText = '' then
+      Exit;
+    Lay := TTextLayoutManager.DefaultTextLayout.Create;
+    try
+      Lay.BeginUpdate;
+      try
+        Lay.Font.Family := FTitle.TextSettings.Font.Family;
+        Lay.Font.Size := ASize;
+        Lay.WordWrap := False;
+        Lay.MaxSize := TPointF.Create(100000, 1000);
+        Lay.Text := AText;
+      finally
+        Lay.EndUpdate;
+      end;
+      Result := Lay.TextWidth;
+    finally
+      Lay.Free;
+    end;
+  end;
+
 begin
   // ShowText's text (a plain Show has none)
   Body := FBodyText;
@@ -318,6 +349,26 @@ begin
   FFoot.TextSettings.Font.Size := FFontSize * 0.75;
   FFoot.TextSettings.FontColor := Faded(FFore, $A0);
   FFoot.Height := FFontSize * 1.5;
+  // the value column: as wide as its widest value (not less than before);
+  // the box: as wide as its widest row, its title and its foot need at
+  // this font size - nothing cut short with "..." while the box may grow
+  ValW := 0;
+  for I := 0 to High(AItems) do
+    ValW := Max(ValW, TextW(AItems[I].Value, FFontSize * 0.9));
+  if ValW > 0 then
+    ValW := Max(ValW + 8, FFontSize * 8);
+  Need := Max(TextW(ATitle, FFontSize * 1.2), TextW(AFoot, FFontSize * 0.75)) + 8;
+  for I := 0 to High(AItems) do
+  begin
+    RowW := TextW(AItems[I].Text, FFontSize) + 8;
+    if Pics > 0 then
+      RowW := RowW + Pics * (Icon + 4) + PAD / 2;
+    if AItems[I].Value <> '' then
+      RowW := RowW + ValW + PAD / 2;
+    Need := Max(Need, RowW);
+  end;
+  // the box's padding and the rows' own
+  Need := Need + PAD * 3;
   for I := 0 to High(AItems) do
   begin
     R := TRectangle.Create(Self);
@@ -357,7 +408,7 @@ begin
     V := TLabel.Create(R);
     V.Parent := R;
     V.Align := TAlignLayout.Right;
-    V.Width := FFontSize * 8;
+    V.Width := Max(ValW, FFontSize * 8);
     // no value: the text has the row's whole width (the empty column cut
     // short rows' text)
     V.Visible := AItems[I].Value <> '';
@@ -381,7 +432,8 @@ begin
     FRows := FRows + [R];
     FValues := FValues + [V];
   end;
-  // the box: wide enough for a long row, at most BOX_SHARE of the window;
+  // the box: wide enough for its longest row, at most BOX_SHARE of the
+  // window and BOX_MAX_WIDTH;
   // as tall as MAX_ROWS rows (or the window allows)
   MaxW := 1E6;
   MaxH := 1E6;
@@ -395,7 +447,8 @@ begin
     MaxW := TControl(FShade.Parent).Width * BOX_SHARE;
     MaxH := TControl(FShade.Parent).Height * BOX_HEIGHT_SHARE;
   end;
-  W := FFontSize * 24 + Pics * (Icon + 4);
+  MaxW := Min(MaxW, BOX_MAX_WIDTH);
+  W := Max(FFontSize * 24 + Pics * (Icon + 4), Need);
   // a text: the widest box the window allows
   if Body <> '' then
     W := Max(W, MaxW);

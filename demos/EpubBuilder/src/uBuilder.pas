@@ -3804,7 +3804,7 @@ begin
     Tell('Every model of the list is in the models folder already.');
     Exit;
   end;
-  Ask(Format('Download the %d model(s) that are not here yet?' + sLineBreak + sLineBreak +
+  Ask(Format('Download the %d model(s) that are not installed yet?' + sLineBreak + sLineBreak +
     'About %s in all, from whisper.cpp''s model repository on Hugging Face, into %s - one after another, each ' +
     'checked. Cancel stops it; what is here stays.', [Length(Names), ModelSizeText(MB), FModelsFolder]),
     TMsgDlgType.mtConfirmation, [TMsgDlgBtn.mbYes, TMsgDlgBtn.mbNo], TMsgDlgBtn.mbYes,
@@ -6773,7 +6773,7 @@ begin
   // owner, 2026-11-21: "a download all models at the top of models"
   if (FDownload = nil) and (FBuild = nil) and (FCalib = nil) and not FQueueRunning then
   begin
-    Items := Items + [TPadMenu.Item('Download every model', 'all that are not here')];
+    Items := Items + [TPadMenu.Item('Download every model', 'all not installed')];
     FPadCmds := FPadCmds + [PADROW_DOWNLOAD_ALL];
     Sel := 1;
   end;
@@ -6790,8 +6790,9 @@ begin
       V := Copy(T, P + 1, Length(T) - P - 1)
     else if T.Contains(' - in the models folder') then
       V := 'in the models folder';
+    // owner, 2026-11-22: "installed", not "here"
     if V = '' then
-      V := 'here';
+      V := 'installed';
     if I = cbModel.ItemIndex then
       Sel := Length(Items);
     Items := Items + [TPadMenu.Item(PadShort(T), V)];

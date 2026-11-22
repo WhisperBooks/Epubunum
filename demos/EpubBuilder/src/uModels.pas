@@ -58,7 +58,7 @@ const
     README gives them; large-v3-turbo as measured, 2026-11-18; the Core ML
     encoders' as Hugging Face lists them, tiny's not known). }
   MODEL_CATALOGUE: array[0..9] of TWhisperModelInfo = (
-    (Name: 'tiny.en'; SizeMB: 75; Note: 'English only; slow in a build (decodes again often)'; EncoderMB: 0),
+    (Name: 'tiny.en'; SizeMB: 75; Note: 'English only; slow in a build: decodes again often'; EncoderMB: 0),
     (Name: 'tiny'; SizeMB: 75; Note: 'every language, fastest, least accurate'; EncoderMB: 0),
     (Name: 'base.en'; SizeMB: 142; Note: 'English only; slower in a build than base'; EncoderMB: 38),
     (Name: 'base'; SizeMB: 142; Note: 'every language, fast - the fast choice'; EncoderMB: 38),
