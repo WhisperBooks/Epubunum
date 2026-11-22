@@ -282,6 +282,11 @@ type
     { Recently opened books, the latest first (at most RECENT_MAX), with
       their reading positions. }
     FRecent: TArray<TRecentBook>;
+    { The books of EpubBuilder's output folder the library has seen (file
+      names, lower case - as RecentIndex matches): ScanTranscribed adds a
+      book only once, so one taken off the list stays off. Kept in the
+      settings ("seen"). }
+    FSeen: TArray<string>;
     { The book open now ('' = none): its position is kept for it. }
     FBookFile: string;
     { Folder the audio files are extracted to. }
@@ -519,6 +524,12 @@ type
     { Index in FRecent of the book with file name AFileName (the name
       without folder decides, for now: owner), -1 when none. }
     function RecentIndex(const AFileName: string): Integer;
+    { EpubBuilder's output folder (Transcribed) looked through: a book not
+      seen there before goes into the library (FRecent) after the book read
+      last, the newest first (owner, 2026-11-22: a benchmark's books kept,
+      then "Reader had no content"). Called by ShowLibrary.
+      @returns(how many were added) }
+    function ScanTranscribed: Integer;
     { Goes to word AWord as when reading paused there: its clip
       highlighted, Play starts there. }
     procedure RestoreWord(AWord: Integer);
@@ -1676,6 +1687,8 @@ begin
   Splitter1.Visible := False;
   // the open book first, with where it is
   RememberBook;
+  // EpubBuilder's books not seen before: into the library
+  ScanTranscribed;
   for I := 0 to High(FCoverImages) do
     FCoverImages[I].Free;
   FCoverImages := nil;
@@ -2172,6 +2185,11 @@ begin
         View1.FontSize := Size;
       if O.TryGetValue<Double>('speed', Speed) then
         tbSpeed.Value := EnsureRange(Speed, SPEED_MIN, SPEED_MAX);
+      FSeen := nil;
+      if O.TryGetValue<TJSONArray>('seen', A) then
+        for I := 0 to A.Count - 1 do
+          if A.Items[I] is TJSONString then
+            FSeen := FSeen + [LowerCase(TJSONString(A.Items[I]).Value)];
       FRecent := nil;
       if O.TryGetValue<TJSONArray>('recent', A) then
         for I := 0 to A.Count - 1 do
@@ -2222,6 +2240,10 @@ begin
       E.AddPair('word', TJSONNumber.Create(FRecent[I].Word));
       A.AddElement(E);
     end;
+    A := TJSONArray.Create;
+    O.AddPair('seen', A);
+    for I := 0 to High(FSeen) do
+      A.Add(FSeen[I]);
     try
       ForceDirectories(ExtractFilePath(SettingsFile));
       TFile.WriteAllText(SettingsFile, O.Format(2), TEncoding.UTF8);
@@ -2801,6 +2823,109 @@ begin
   except
     Result := '';
   end;
+end;
+
+function TfrmMain.ScanTranscribed: Integer;
+const
+  { Names kept in "seen" at most (the oldest go). }
+  SEEN_MAX = 1000;
+var
+  Folders, Files, Found: TArray<string>;
+  Times: TArray<TDateTime>;
+  I, J, K, At: Integer;
+  Name, T: string;
+  D: TDateTime;
+  R: TRecentBook;
+  Book: TEpubBook;
+  Have: Boolean;
+begin
+  Result := 0;
+  // EpubBuilder's output folder (its settings, else Documents/EpubUnum/
+  // Transcribed), and the shared Transcribed folder when that is another
+  Folders := nil;
+  Name := BuilderOutputFolder;
+  if Name <> '' then
+    Folders := [Name];
+  Name := EpubUnumFolder(EU_TRANSCRIBED);
+  if (Length(Folders) = 0) or not SameFileName(ExcludeTrailingPathDelimiter(ExpandFileName(Folders[0])),
+    ExcludeTrailingPathDelimiter(ExpandFileName(Name))) then
+    Folders := Folders + [Name];
+  Found := nil;
+  Times := nil;
+  for I := 0 to High(Folders) do
+  try
+    if not TDirectory.Exists(Folders[I]) then
+      Continue;
+    Files := TDirectory.GetFiles(Folders[I], '*.epub', TSearchOption.soAllDirectories);
+    for J := 0 to High(Files) do
+    begin
+      Name := LowerCase(ExtractFileName(Files[J]));
+      Have := False;
+      for K := 0 to High(FSeen) do
+        if FSeen[K] = Name then
+        begin
+          Have := True;
+          Break;
+        end;
+      if Have then
+        Continue;
+      FSeen := FSeen + [Name];
+      // already in the library (opened from elsewhere)
+      if RecentIndex(Files[J]) >= 0 then
+        Continue;
+      Found := Found + [Files[J]];
+      Times := Times + [TFile.GetLastWriteTime(Files[J])];
+    end;
+  except
+    on E: Exception do
+      DebugLog('library: ' + Folders[I] + ': ' + E.Message);
+  end;
+  if Length(FSeen) > SEEN_MAX then
+    Delete(FSeen, 0, Length(FSeen) - SEEN_MAX);
+  if Length(Found) = 0 then
+    Exit;
+  // the oldest first: each goes in at the same place, so the newest ends
+  // up nearest the front
+  for I := 1 to High(Found) do
+    for J := I downto 1 do
+      if Times[J - 1] > Times[J] then
+      begin
+        T := Found[J - 1];
+        Found[J - 1] := Found[J];
+        Found[J] := T;
+        D := Times[J - 1];
+        Times[J - 1] := Times[J];
+        Times[J] := D;
+      end
+      else
+        Break;
+  // after the book read last (the library shows it large), else first
+  At := Min(1, Length(FRecent));
+  for K := 0 to High(Found) do
+  begin
+    R.FileName := Found[K];
+    R.Title := '';
+    R.Word := -1;
+    // its title (the book opened without its text)
+    Book := nil;
+    try
+      try
+        Book := TEpubBook.Create(Found[K]);
+        R.Title := Book.Title;
+      except
+        on E: Exception do
+          DebugLog('library: ' + Found[K] + ' not read: ' + E.Message);
+      end;
+    finally
+      Book.Free;
+    end;
+    Insert(R, FRecent, At);
+    Inc(Result);
+    DebugLog('library: added from EpubBuilder''s output - ' + Found[K]);
+  end;
+  if Length(FRecent) > RECENT_MAX then
+    SetLength(FRecent, RECENT_MAX);
+  BuildRecentMenu;
 end;
 
 procedure TfrmMain.ShowBooksMenu;

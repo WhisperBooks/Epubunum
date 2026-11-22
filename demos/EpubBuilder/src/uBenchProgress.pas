@@ -70,9 +70,25 @@ type
     FHeader: TLabel;
     { The first block shown (more than MAX_VISIBLE: the rest scroll). }
     FTop: Integer;
+    { The blocks' frame colour (the table's too). }
+    FFrameColor: TAlphaColor;
+    { ShowTable was called: the table in place of the blocks. }
+    FTable: Boolean;
+    { The table's frame. }
+    FTableBox: TRectangle;
+    { The table's title (centred). }
+    FTableTitle: TLabel;
+    { The line under the title. }
+    FTableNote: TLabel;
+    { The line under the table ('' = none). }
+    FTableFootnote: TLabel;
+    { The last line ('' = none). }
+    FTableFoot: TLabel;
+    { The table's cells, a row at a time; the first row is its heading. }
+    FCells: TArray<TArray<TLabel>>;
     { A label in AParent with the view's colour. }
     function NewLabel(AParent: TFmxObject; AAlign: TTextAlign): TLabel;
-    { Places the blocks in the layer: 80 % of its width, at most 20 % of
+    { Places the blocks in the layer: 95 % of its width, at most 20 % of
       its height each, a quarter of a block between two, the whole group
       in the middle. }
     procedure Arrange;
@@ -82,6 +98,12 @@ type
     procedure TimerTick(Sender: TObject);
     { The corner's button: OnButton. }
     procedure CancelClick(Sender: TObject);
+    { A click on the layer: OnButton while the table shows. }
+    procedure BackClick(Sender: TObject);
+    { Places the table (ShowTable) in the layer: as wide as a block, its
+      lines as tall as the layer allows (at most 8 % of it each), in the
+      middle. }
+    procedure ArrangeTable;
   public
     { The view over AForm, a block per ATitles' line, dark or light
       (ADark), with a Cancel button when ACancel (the desktop; Big Picture
@@ -105,9 +127,20 @@ type
       MAX_VISIBLE ("Model 5 of 10").
       @param(AText  the line) }
     procedure SetHeader(const AText: string);
+    { The blocks make way for a table (owner, 2026-11-22: the calibration's
+      results, and what they mean for some books): ATitle above it,
+      ANote under the title (bold, in the frame's colour: what must not be
+      missed), ACells a row at a time (the first row is the
+      heading; the first column on the left, the others on the right),
+      AFootnote (one line or more, sLineBreak between) and AFoot under it
+      ('' = none). OnTick stops; a click
+      anywhere on the layer, or on the corner's button, is OnButton. }
+    procedure ShowTable(const ATitle, ANote: string; const ACells: TArray<TArray<string>>;
+      const AFootnote, AFoot: string);
     { Ten times a second, for the window to fill the rows. }
     property OnTick: TNotifyEvent read FOnTick write FOnTick;
-    { The corner's button was clicked (Cancel while it runs). }
+    { The corner's button was clicked (Cancel while it runs); while the
+      table shows, also a click anywhere on the layer. }
     property OnButton: TNotifyEvent read FOnButton write FOnButton;
   end;
 
@@ -136,8 +169,9 @@ const
   { The space between a block's frame and what it holds, share of the
     block's height. }
   FRAME_PAD = 0.1;
-  { Width of a block, share of the layer's. }
-  BLOCK_WIDTH = 0.8;
+  { Width of a block, share of the layer's (owner, 2026-11-22: 80 % cut
+    the text off - "Lets give them 95%"). }
+  BLOCK_WIDTH = 0.95;
   { Height of a block at most, share of the layer's. }
   BLOCK_HEIGHT = 0.2;
   { The gap between two blocks, share of a block's height. }
@@ -149,6 +183,14 @@ const
   MAX_VISIBLE = 4;
   { The header line's height, share of a block's. }
   HEADER_HEIGHT = 0.35;
+  { The table: a line's height at most, share of the layer's height. }
+  TABLE_LINE_MAX = 0.08;
+  { The table: the lines (in line heights) besides its rows - the title
+    (1.4), the note, two gaps of a half, the footnote, the foot and the
+    padding. }
+  TABLE_EXTRA_LINES = 6.4;
+  { The table: each column after the first, share of its width. }
+  TABLE_COLUMN = 0.17;
 
 constructor TBenchProgress.Create(AForm: TCommonCustomForm; const ATitles: TArray<string>; ADark, ACancel: Boolean);
 var
@@ -170,6 +212,7 @@ begin
     FillColor := FILL_LIGHT;
     FrameColor := FRAME_LIGHT;
   end;
+  FFrameColor := FrameColor;
   FBack := TRectangle.Create(Self);
   FBack.Parent := AForm;
   // the whole window, whatever else is aligned in it; clicks stop here
@@ -181,6 +224,7 @@ begin
   else
     FBack.Fill.Color := BACK_LIGHT;
   FBack.OnResized := BackResized;
+  FBack.OnClick := BackClick;
   SetLength(FRows, Length(ATitles));
   for I := 0 to High(ATitles) do
   begin
@@ -250,6 +294,12 @@ var
   W, H, BlockW, BlockH, Gap, Total, X, Y, Font, LineH, Pad, InW, InH, HeadH: Double;
   I, N, V: Integer;
 begin
+  // the table in place of the blocks
+  if FTable then
+  begin
+    ArrangeTable;
+    Exit;
+  end;
   N := Length(FRows);
   if (FBack = nil) or (N = 0) then
     Exit;
@@ -356,6 +406,134 @@ procedure TBenchProgress.CancelClick(Sender: TObject);
 begin
   if Assigned(FOnButton) then
     FOnButton(Self);
+end;
+
+procedure TBenchProgress.BackClick(Sender: TObject);
+begin
+  if FTable and Assigned(FOnButton) then
+    FOnButton(Self);
+end;
+
+procedure TBenchProgress.ShowTable(const ATitle, ANote: string; const ACells: TArray<TArray<string>>;
+  const AFootnote, AFoot: string);
+var
+  R, C: Integer;
+  L: TLabel;
+begin
+  FTimer.Enabled := False;
+  FTable := True;
+  for R := 0 to High(FRows) do
+    FRows[R].Box.Visible := False;
+  FHeader.Visible := False;
+  FTableBox := TRectangle.Create(Self);
+  FTableBox.Parent := FBack;
+  FTableBox.Fill.Kind := TBrushKind.None;
+  FTableBox.Stroke.Kind := TBrushKind.Solid;
+  FTableBox.Stroke.Color := FFrameColor;
+  FTableBox.Stroke.Thickness := 4;
+  // a click on it is the layer's
+  FTableBox.HitTest := False;
+  FTableTitle := NewLabel(FTableBox, TTextAlign.Center);
+  FTableTitle.Text := ATitle;
+  FTableNote := NewLabel(FTableBox, TTextAlign.Center);
+  FTableNote.Text := ANote;
+  // owner, 2026-11-22: stressed - the times are a rough guide only (bold,
+  // in the frame's yellow)
+  FTableNote.StyledSettings := FTableNote.StyledSettings - [TStyledSetting.Style];
+  FTableNote.TextSettings.Font.Style := [TFontStyle.fsBold];
+  FTableNote.TextSettings.FontColor := FFrameColor;
+  FTableFootnote := NewLabel(FTableBox, TTextAlign.Leading);
+  FTableFootnote.Text := AFootnote;
+  FTableFoot := NewLabel(FTableBox, TTextAlign.Center);
+  FTableFoot.Text := AFoot;
+  SetLength(FCells, Length(ACells));
+  for R := 0 to High(ACells) do
+  begin
+    SetLength(FCells[R], Length(ACells[R]));
+    for C := 0 to High(ACells[R]) do
+    begin
+      if C = 0 then
+        L := NewLabel(FTableBox, TTextAlign.Leading)
+      else
+        L := NewLabel(FTableBox, TTextAlign.Trailing);
+      L.Text := ACells[R][C];
+      // the heading in bold
+      if R = 0 then
+      begin
+        L.StyledSettings := L.StyledSettings - [TStyledSetting.Style];
+        L.TextSettings.Font.Style := [TFontStyle.fsBold];
+      end;
+      FCells[R][C] := L;
+    end;
+  end;
+  if FCancel <> nil then
+  begin
+    FCancel.Text := 'OK';
+    FCancel.BringToFront;
+  end;
+  Arrange;
+end;
+
+procedure TBenchProgress.ArrangeTable;
+var
+  W, H, LineH, Font, BoxW, BoxH, Pad, InW, ColW, FirstW, X, Y: Double;
+  R, C, Cols, More: Integer;
+begin
+  W := FBack.Width;
+  H := FBack.Height;
+  if (W <= 0) or (H <= 0) or (FTableBox = nil) then
+    Exit;
+  // the footnote's lines after its first (TABLE_EXTRA_LINES has one)
+  More := Length(FTableFootnote.Text) - Length(StringReplace(FTableFootnote.Text, #10, '', [rfReplaceAll]));
+  LineH := Min(H * BLOCKS_MAX / (Length(FCells) + TABLE_EXTRA_LINES + More), H * TABLE_LINE_MAX);
+  Font := EnsureRange(LineH * 0.55, 11.0, 32.0);
+  BoxW := W * BLOCK_WIDTH;
+  Pad := LineH * 0.5;
+  BoxH := LineH * (Length(FCells) + TABLE_EXTRA_LINES + More);
+  FTableBox.SetBounds((W - BoxW) / 2, (H - BoxH) / 2, BoxW, BoxH);
+  FTableBox.XRadius := Pad;
+  FTableBox.YRadius := Pad;
+  InW := BoxW - 4 * Pad;
+  Y := Pad;
+  FTableTitle.SetBounds(2 * Pad, Y, InW, LineH * 1.4);
+  FTableTitle.TextSettings.Font.Size := Font * 1.3;
+  Y := Y + LineH * 1.4;
+  FTableNote.SetBounds(2 * Pad, Y, InW, LineH);
+  FTableNote.TextSettings.Font.Size := Font * 0.9;
+  Y := Y + LineH * 1.5;
+  // the first column takes what the others leave
+  Cols := 0;
+  for R := 0 to High(FCells) do
+    Cols := Max(Cols, Length(FCells[R]));
+  ColW := InW * TABLE_COLUMN;
+  FirstW := InW - ColW * Max(0, Cols - 1);
+  for R := 0 to High(FCells) do
+  begin
+    X := 2 * Pad;
+    for C := 0 to High(FCells[R]) do
+    begin
+      if C = 0 then
+      begin
+        FCells[R][C].SetBounds(X, Y, FirstW, LineH);
+        X := X + FirstW;
+      end
+      else
+      begin
+        FCells[R][C].SetBounds(X, Y, ColW, LineH);
+        X := X + ColW;
+      end;
+      FCells[R][C].TextSettings.Font.Size := Font;
+    end;
+    Y := Y + LineH;
+  end;
+  Y := Y + LineH * 0.5;
+  FTableFootnote.SetBounds(2 * Pad, Y, InW, LineH * (1 + More));
+  FTableFootnote.TextSettings.Font.Size := Font * 0.8;
+  Y := Y + LineH * (1 + More);
+  FTableFoot.SetBounds(2 * Pad, Y, InW, LineH);
+  FTableFoot.TextSettings.Font.Size := Font * 0.9;
+  if FCancel <> nil then
+    FCancel.SetBounds(W - FCancel.Width - 12, H - FCancel.Height - 12, FCancel.Width, FCancel.Height);
 end;
 
 procedure TBenchProgress.SetButtonText(const AText: string);

@@ -1170,7 +1170,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 248 (224 = the next-session notes at the top, CLAUDE.md only).
+Last number used: 256 (224 = the next-session notes at the top, CLAUDE.md only).
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -3757,6 +3757,239 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 256 (on top of zip 255): calibration page - laid out again when the window grows; keys on the left
+Owner 2026-11-22 17:32, three screenshots (build 17:27 = zips 254 + 255,
+MONSTER): "on start...." - the box narrow, its text running into the
+foot, no answers in sight; "I have to use keyboard to get it like
+this..." - 60 % wide, both answers, "Enter" / "Esc" on the right: "Note
+Calibrate Now is on the wrong side"; "Use pad and it's correct" - the A
+and B pictures on the left. The estimate showed "roughly 2 min" (it
+takes 1:15). NOT COMPILED. NO PACKAGE REBUILD. STEAM REBUILD NEEDED
+(uPadMenu). Files: demos/EpubReader/src/uPadMenu.pas,
+demos/EpubBuilder/src/uBuilder.pas, CLAUDE.md.
+- Cause of the start: AfterShow shows the page before the window has its
+  full size (Big Picture's full screen comes after); TPadMenu sizes its
+  box once, at Show. A key press showed it again (SetPadKeys), at the
+  full size.
+- uBuilder: OnResize := FormResized (StartPad; the form had none) -
+  while the introduction shows, tmIntro (250 ms, restarted by every
+  resize) shows it again at the new size. CalibrationGuess(ACard, ALog):
+  the guesses and the estimate go into the debug log the first time only
+  (FCalIntroLogged).
+- uPadMenu: TPadMenuItem.Key - a key's name in the left column where a
+  picture would be (LeftWidth: the widest pictures or key name, + PAD /
+  2; Needed and Show use it). IntroRow puts the key there (was the
+  value, on the right).
+
+## Zip 255 (on top of zip 254): calibration page 60 % wide, the text's height
+Owner 2026-11-22 17:24, a screenshot (MONSTER: Core Ultra 9 275HX, 24
+threads; Vulkan0 RTX 5090 Laptop, Vulkan1 Intel(R) Graphics - no
+CUDA device listed), "This screen is still wrong / 80% wide", 17:25 "No
+- make that 60%". The screenshot's build was 17:07 - before zip 254
+(17:21): the old width (960 cap), the old estimate (7 min), no button
+pictures; only "Calibrate now" visible under the text, the second
+answer scrolled out of sight. NOT COMPILED. NO PACKAGE REBUILD. STEAM
+REBUILD NEEDED (uPadMenu). Files: demos/EpubReader/src/uPadMenu.pas,
+demos/EpubBuilder/src/uBuilder.pas, CLAUDE.md.
+- ShowCalibrationIntro: NextWidthShare 0.6 (was 0.8).
+- TPadMenu.Show, a text's height: measured 4 x PAD narrower than the box
+  (was 3: the label wrapped "(graphics card)" onto a line the measure
+  did not count) and a spare line (FFontSize x 1.5, was 0.5) - every
+  question with a text gets the room; its answers stay in view.
+- Zip 254's estimate for this machine (worked by hand from the
+  screenshot's devices): CPU 24 / 16 x 3 = 4.5x turbo; Vulkan0 RTX 40x;
+  Vulkan1 Intel(R) Graphics 6x -> about 2 min (it took 1:15).
+
+## Zip 254 (on top of zip 253): calibration page - estimate, width, button pictures
+Owner 2026-11-22 17:19: "The calibration intro page is good enough but
+it way overestimated how long my machine would take saying 7 mins when
+it actually took 1:15. There is not enough space under the text to see
+both continue and quit options, you need to scroll. Make the panel
+wider (80%). Button Glyphs must be used!" NOT COMPILED. NO PACKAGE
+REBUILD. STEAM REBUILD NEEDED (uPadMenu is the reader's too). Files:
+demos/EpubReader/src/uPadMenu.pas, demos/EpubBuilder/src/uBuilder.pas,
+CLAUDE.md.
+- Which machine: not said (no log). Worked by hand for the 5090 laptop
+  (assumed Core Ultra, 24 threads, an RTX 5090 on CUDA and Vulkan,
+  perhaps Intel's iGPU as Vulkan1): the old guess gave about 7 min -
+  Intel's newer graphics taken as a UHD 620 (0.7x) and a recent CPU as
+  the Miix's. Now about 2 min; the Miix still about 10 min.
+- GuessSpeed: CPU = threads / 16 x Gen - Gen 3 for Core Ultra, Apple,
+  Core i 12th generation on (5 digits, first two >= 12), Ryzen x7xxx
+  on; 1 for older Core i and Ryzen x1xxx - x3xxx; else 2 (the Ally's
+  Z1, the Deck's custom APU). GPU: RTX with a 4-digit number from 3xxx
+  40x, other cards 15x; Intel UHD / HD 0.7x, Iris 2x, other Intel 6x;
+  Metal 20x; other integrated 8x. DigitsAfter (Core i 'i5-' / 'ryzen ' /
+  'rtx ': the number after). Debug log per guess: "calibration: guessed
+  N.Nx for <model> on <device>" - with "the introduction's estimate"
+  and the log's "Calibration took", the guess can be checked.
+- uPadMenu: NextWidthShare (one Show: that share of the window, no
+  BOX_MAX_WIDTH cap; then 0). The introduction uses 0.8.
+- The introduction's answers carry their buttons (IntroRow): Steam's
+  picture on the left with a pad (PadHintsFor), the key's name as the
+  value with the keyboard; FCalIntro / FCalIntroWhy - SetPadKeys shows
+  the page again when the pad and the keys change places.
+
+## Zip 253 (on top of zip 252): the reader's library picks up EpubBuilder's books
+Owner 2026-11-22 17:04, Ally: "I just did a benchmark on Ally. I saved
+the transcripts at the end then opened Reader. Reader had no content.
+Reader should do an initial scan of the Transcribed folder and pick up
+any titles there it hasn't seen before and if any are present add them
+to it's library. It can then open with a populated library." The
+library is FRecent (books opened, at most RECENT_MAX 10); the builder's
+output was only in Open a book (ShowBooksMenu). NOT COMPILED. NO PACKAGE
+REBUILD. Files: demos/EpubReader/src/uMain.pas,
+demos/EpubReader/README.md, CLAUDE.md. One program only (the reader):
+no Steam rebuild banner.
+- FSeen (lower-case file names, "seen" in EpubReader.json, at most 1000);
+  a settings file without "seen" (everyone now) = nothing seen: every
+  book there is added on the first start.
+- ScanTranscribed (from ShowLibrary, after RememberBook - so at start-up
+  and whenever the library shows): BuilderOutputFolder, plus
+  EpubUnumFolder(EU_TRANSCRIBED) when another; *.epub, sub-folders too; a
+  name not in FSeen is marked seen and, unless RecentIndex has it,
+  added: oldest first, each Insert at Min(1, Length(FRecent)) (after
+  the book read last; the newest ends nearest the front); the title from
+  TEpubBook.Create (no text); FRecent cut to RECENT_MAX (more than nine
+  new books: the oldest of them are seen but not in the library - Open
+  a book lists them); BuildRecentMenu. Debug log "library: added from
+  EpubBuilder's output - <file>".
+- Not saved at once (SaveSettings at the end, as before: FPendingSpeed
+  may not be set yet during FormCreate); a re-scan after a crash adds
+  nothing twice (RecentIndex).
+
+## Zip 252 (on top of zip 251): calibration introduction; results' footnote
+Owner 2026-11-22 16:58: "Perhaps mention that better estimates will be
+available after the user has transcribed a few books. We also need an
+introductory screen before Calibration starts. If we peek at the
+devices available we may even be able to give a guide as to how long
+Calibration will take. The page should state that we need to Calibrate
+epubunum to their particular machine and the CPU/GPU it has as these
+greatly affect the speed. If we can discover if the machine is likely to
+be very slow we can therefore warn them ... If they have decent hardware
+we can state that a few minutes. They then have the option to [A]
+proceed to Calibration or [B] Come back when I have more time to spare.
+A starts calibration, B exits the program". NOT COMPILED. NO PACKAGE
+REBUILD. Files: demos/EpubBuilder/src/uBuilder.pas,
+demos/EpubBuilder/src/uBenchProgress.pas, demos/EpubBuilder/README.md,
+CLAUDE.md.
+- Results: the footnote's first line "Better estimates come once you
+  have transcribed a few books: they learn from this machine's own
+  builds."; the star / dash notes on a second line. ArrangeTable sizes
+  the footnote by its line count (More); the log gets each line.
+- CheckCalibrationAtStart: instead of StartCalibration straight away,
+  ShowCalibrationIntro(Why) (Why = a re-calibration's reason, or '').
+  Only at start-up: models downloaded later still calibrate with no
+  question (OfferCalibration, CalibrateNewModels).
+- ShowCalibrationIntro: a pad-menu page on the desktop and in Big Picture
+  (ShowText, title "Calibration", centred): why, "Found here:" a line per
+  device (name - description (processor, N threads / integrated graphics
+  / graphics card)), then "a few minutes (roughly X)" up to FEW_MINUTES
+  (10 min), else "Owing to this hardware (no separate graphics card)
+  calibration may take some time: roughly X. It can be left to run."
+  Rows "Calibrate now" (mrYes, selected) / "Come back when I have more
+  time to spare" (mrNo = FAskCancel, so B / Escape is it); foot
+  PadFootOf([BP_CHOOSE, BP_BACK], ['choose', 'come back later']);
+  FAskThenClose (the answer decides). Yes: StartCalibration(True,
+  False), FCalAtStart, PadBackToMenu(False) if it did not start. No: a
+  log line, Close.
+- CalibrationGuess: the models StartCalibration(True) times (ModelFilesOf
+  + KeepStandardModels) x every device: MB / 400 + (25 + 120) / speed,
+  + 20 s; speed = an earlier calibration's (CalibrationSpeed), else
+  GuessSpeed - turbo: CPU threads / 16 (>= 0.2), Metal 20, wdtGPU 15,
+  Intel Iris / Arc 2, other Intel 0.7, other integrated 8; smaller
+  models by sqrt(1549 / MB) on graphics, 1549 / MB on the CPU. Checked by
+  hand: the Miix -> about 10 min (it took 9:53). Debug log: "calibration:
+  the introduction's estimate N s".
+- LongTime moved above (used by the introduction too).
+
+## Zip 251 (on top of zip 250): calibration results - what they mean for a book
+Owner 2026-11-22 16:46: "After Calibration finishes for a newly
+installed device the screen immediately switches to the menu. You can
+miss the calibration speed for turbo very easily. It would be nice to
+show your calibration results and what that meant in the real world.
+Find some popular books on Librivox and get their recording length ...
+| Title | Time for base | Time for turbo | ... a dozen books ... all of
+war + peace (total the parts)". 16:50: "Stress on the Calibration
+results page that these timings are extremely approximate and act as a
+guide to the performance you can expect". NOT COMPILED. NO PACKAGE
+REBUILD. Files: demos/EpubBuilder/src/uBenchProgress.pas,
+demos/EpubBuilder/src/uBuilder.pas, demos/EpubBuilder/README.md,
+CLAUDE.md.
+- Lengths: LibriVox's API (librivox.org/api/feed/audiobooks/?title=^...
+  &format=json, totaltimesecs), the first recording of each title:
+  Alice 10731, Time Machine 14969, Treasure Island 27008, Frankenstein
+  29808, Adventures of Sherlock Holmes 37079, Pride and Prejudice 47204,
+  Tale of Two Cities 53975, Dracula 59469, Jane Eyre 74196, Moby Dick
+  88670, Count of Monte Cristo 178995, War and Peace Books 01 - 17
+  (ids 722 ... 4104) 232564 (64:36:04). (Maude's 4 volumes, ids 18545 -
+  18549: 224833.) Left out: Great Expectations 73563.
+- uBenchProgress.ShowTable(title, note, cells, footnote, foot): the
+  blocks hidden, a framed table (95 % wide, lines up to 8 % of the
+  height, fonts 11 - 32), the note bold in the frame's yellow, the
+  heading row bold, the first column left, the others right (17 % each);
+  the timer stops; a click on the layer (or the desktop's corner button,
+  now OK) is OnButton. Arrange hands over to ArrangeTable.
+- uBuilder: CalibrationDone - completed with a view: ShowCalibrationResults
+  and stop; otherwise CalResultsClosed (the old end: FreeAndNil(FCalView),
+  PadBackToMenu). ShowCalibrationResults: columns Book (LibriVox
+  recording) | Recording | base (8.6x) | turbo (0.6x); BookSeconds =
+  the benchmarks' estimate (BenchmarkDevice, Core ML key, HistoryExpect:
+  calibration speed and the history's ratios); LongTime ('45 min', '3 h
+  05 min', '4 days 11 h'); '~' before each time; '*' + footnote below the
+  lowest acceptable speed; '-' not installed / calibrated. Note:
+  GUIDE_NOTE "A ROUGH GUIDE ONLY - these times are extremely
+  approximate: a guide to the performance you can expect". Foot: "Press
+  any button to continue" (Big Picture; no button named) / "Press a key
+  or click to continue". The table into the log too.
+- Going on: FCalResults - PadPress (any pad button), KeyDown (Enter,
+  Escape, any character, the menu's keys), the layer's click / OK ->
+  CalResultsButton -> TThread.ForceQueue(CalResultsClosed) (not freed
+  inside its own event).
+
+## Zip 250 (on top of zip 249): progress blocks 95 % wide
+Owner 2026-11-22 16:40: "We chose 80% width for progress bars - they
+still get cut off. Lets give them 95%, here's plenty of free space".
+uBenchProgress BLOCK_WIDTH 0.8 -> 0.95 (benchmarks and calibration
+alike; heights, gaps and fonts unchanged). NOT COMPILED. NO PACKAGE
+REBUILD. Files: demos/EpubBuilder/src/uBenchProgress.pas, CLAUDE.md.
+
+## Zip 249 (on top of zip 248): Settings > Lowest acceptable speed
+Owner 2026-11-22 16:12, with the Miix's calibration log (i5-8250U, UHD
+620; base 6.7x CPU / 8.6x Vulkan0, large-v3-turbo 0.5x CPU / 0.6x
+Vulkan0, calibration 9:53): "any driver that scores that badly should be
+excluded from transcription / benchmark ... Anything that falls below
+say 2.0 is deemed unusable ... a setting that allows the modification
+... drop the allowable device cut-off to 0.1 in steps from 2.0 down to
+0.0 ... 'Lowest acceptable speed'". NOT COMPILED. NO PACKAGE REBUILD.
+Files: demos/EpubBuilder/src/uBuilder.pas, demos/EpubBuilder/README.md,
+CLAUDE.md.
+- FLowestSpeed: tenths, 0 .. LOWEST_SPEED_TOP (20); [Build] LowestSpeed
+  ('2.0', invariant); 2.0 before LoadSettings (a first start has no
+  file). StepLowestSpeed (wraps, as the combos do; logs the new value;
+  RefreshBenchmarks), LowestSpeedText ('< 2.0x >', '< 0.0x - any speed
+  >').
+- TooSlow(model, device ('' = default), out Why): 0 = never; the model's
+  CalibrationBest speed > 0 and below -> too slow on this machine (hours
+  per hour of audio, choose base or lower the setting); else the device's
+  CalibrationSpeed > 0 and below -> too slow on that device (names the
+  best device). Not calibrated / failed (0): not held back.
+- Gates: CheckThen (Create, Add to queue, Update job) - Tell('Not
+  started: ' + Why) unless a saved transcript is used; RunNextJob - a
+  waiting job too slow becomes jsFailed, Note 'too slow here', a log
+  line, the next one tried; RefreshBenchmarks - SlowFast / SlowDetailed
+  (BenchTooSlow(1) / (2), once per call) grey the items (Run all 4:
+  either); StartBenchmark - BenchTooSlow(AOption) says why (a faded Big
+  Picture row comes here).
+- Settings page: BPC_LOWEST (33) after Power, in BP_SETTINGS_ROWS;
+  BPC_SETTINGS_TOP replaces the two "<= 31" guards before "in"; PadStep
+  left / right +-1 tenth; chosen = PadStep(-1) ("from 2.0 down").
+- PadModels: an installed model below it at its best is faded, value
+  "too slow here: 0.6x" (still choosable - to re-calibrate it).
+- NOT done (ask): after the start-up calibration the model chosen
+  (turbo first) may be too slow (the Miix) - Create then says so;
+  switching to base by itself was not asked.
 
 ## Zip 248 (on top of zip 247; NEEDS TWhisper-32): calibration bars move within a device
 Owner 2026-11-22 15:49: "When calibrating three runs are typically done.

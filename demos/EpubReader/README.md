@@ -199,6 +199,14 @@ cover or Esc goes back to it. File > Library shows it at any time. A
 book that is no longer there is shown faint (a click takes it off the
 list).
 
+Each time the library shows (at start-up too), EpubBuilder's output
+folder (Transcribed - or the one set in EpubBuilder) is looked through:
+a book the reader has not seen there before is added to the library,
+after the book read last, the newest first - so a book just built, or a
+benchmark's book kept, is there when the reader opens. Each book is
+added once: one taken off the list stays off (the settings keep the
+names seen, "seen"); every book there is still in Open a book.
+
 Covers are cached as PNG in a `covers` folder beside `EpubReader.json`,
 named by a hash of the book's file name, at most 600 px high: the book's
 own cover picture, or - when it has none, or one the reader cannot draw

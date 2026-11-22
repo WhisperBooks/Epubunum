@@ -436,6 +436,24 @@ type
       and "Other model file ..."; without it only MODEL_STANDARD (base and
       large-v3-turbo) and the model in use. }
     FExpert: Boolean;
+    { Settings > Lowest acceptable speed, in tenths of real time (0 ..
+      LOWEST_SPEED_TOP; 0 = any speed): a model, or a device, that the
+      calibration timed below it is not used for builds or benchmarks
+      (owner, 2026-11-22: the Miix's 0.6x). }
+    FLowestSpeed: Integer;
+    { The calibration's results show (ShowCalibrationResults): any button,
+      key or click goes on (CalResultsButton). }
+    FCalResults: Boolean;
+    { The calibration's introduction shows (ShowCalibrationIntro): shown
+      again when the pad and the keys change places (its buttons). }
+    FCalIntro: Boolean;
+    { Its AWhy. }
+    FCalIntroWhy: string;
+    { Its estimate has been written to the debug log (once). }
+    FCalIntroLogged: Boolean;
+    { Shows the introduction again once the window has stopped changing
+      size (FormResized). }
+    tmIntro: TTimer;
     { The computer is kept awake (a build, queue, calibration or download
       runs) - see uInhibit. }
     FAwake: Boolean;
@@ -1360,6 +1378,58 @@ type
     { Turns expert mode on or off (FExpert): kept in the settings, the
       model list filled again, a line in the log. }
     procedure ToggleExpert;
+    { Settings > Lowest acceptable speed: ADelta tenths up or down (past
+      either end it goes round, as the other settings' values do); kept. }
+    procedure StepLowestSpeed(ADelta: Integer);
+    { Settings > Lowest acceptable speed as the Settings page shows it.
+      @returns(the text) }
+    function LowestSpeedText: string;
+    { Whether AModel on ADevice ('' = the default device) is below the
+      lowest acceptable speed: the model at its best in the calibration,
+      or on that device. Not calibrated: not known, so not.
+      @param(AWhy  why, and what to do, for the user)
+      @returns(the answer) }
+    function TooSlow(const AModel, ADevice: string; out AWhy: string): Boolean;
+    { TooSlow for benchmark AOption (Run all 4: either model).
+      @param(AWhy  why, for the user)
+      @returns(the answer) }
+    function BenchTooSlow(AOption: Integer; out AWhy: string): Boolean;
+    { How long a build of ALength seconds of audio with AModel is expected
+      to take here (the benchmarks' estimate: its calibration's device,
+      the build history).
+      @returns(seconds; 0 = not known) }
+    function BookSeconds(const AHistory: TBuildHistory; const AModel: string; ALength: Double): Double;
+    { After a calibration (owner, 2026-11-22: "You can miss the calibration
+      speed for turbo very easily"): the calibration view shows base's and
+      turbo's speeds and how long some well-known LibriVox books would
+      take with each - a rough guide - until a button, a key or a click
+      (CalResultsButton). Also into the log. }
+    procedure ShowCalibrationResults;
+    { The calibration's results seen: they go, after this event
+      (CalResultsClosed). }
+    procedure CalResultsButton(Sender: TObject);
+    { The calibration view freed, the menu next (what CalibrationDone did
+      before the results). }
+    procedure CalResultsClosed;
+    { How long calibrating every model here (StartCalibration(True, ...))
+      may take: an earlier calibration's speeds, else GuessSpeed's.
+      @param(ACard  True when a graphics card (or Apple's Metal) is here)
+      @param(ALog  each guess into the debug log)
+      @returns(seconds; 0 without a model) }
+    function CalibrationGuess(out ACard: Boolean; ALog: Boolean): Double;
+    { Before the calibration at start-up (owner, 2026-11-22): why it is
+      needed, the devices found and how long it may take (a warning when
+      long), then "Calibrate now" or "Come back when I have more time to
+      spare" (closes EpubBuilder); B is the second. AWhy: a re-calibration's
+      reason ('' = the first). }
+    procedure ShowCalibrationIntro(const AWhy: string);
+    { The window changed size: the calibration's introduction is laid out
+      again for it (tmIntro) - at start-up it can be shown before the
+      window has its full size (owner, 2026-11-22: narrow, its answers
+      out of sight, until a key was pressed). }
+    procedure FormResized(Sender: TObject);
+    { tmIntro: the introduction shown again. }
+    procedure tmIntroTimer(Sender: TObject);
     { Settings > Expert mode. }
     procedure miExpertClick(Sender: TObject);
     { Settings > Re-calibrate (this model). }
@@ -1539,6 +1609,11 @@ end;
 const
   { The Power row's choices in the settings (cbPower's order). }
   POWER_KEYS: array[0..3] of string = ('Automatic', 'Fastest', 'SavePower', 'Sleep');
+  { Settings > Lowest acceptable speed, tenths of real time: the highest
+    and the first value (owner, 2026-11-22: "Anything that falls below say
+    2.0 is deemed unusable ... drop the allowable device cut-off ... in
+    steps from 2.0 down to 0.0"). }
+  LOWEST_SPEED_TOP = 20;
   { The "AMD ROCm acceleration" DLC's AppID (Steamworks: a free DLC of
     EpubBuilder whose Linux depot holds ROCm - tools/steam_stage.py's HIP
     folder). 0 = not created yet: nothing is offered. }
@@ -3232,6 +3307,8 @@ begin
   // dark by default (zip 203): a first start has no settings file, and
   // LoadSettings reads [View] Dark only from one
   FPadDark := True;
+  // the same for the lowest acceptable speed: 2.0x at first
+  FLowestSpeed := LOWEST_SPEED_TOP;
   LoadSettings;
   // the three folders there from the start (the dialogs open in them)
   try
@@ -3331,6 +3408,8 @@ begin
       // and the window are made)
       FPadDark := Ini.ReadBool('View', 'Dark', True);
       FExpert := Ini.ReadBool('Models', 'Expert', False);
+      FLowestSpeed := EnsureRange(Round(StrToFloatDef(Ini.ReadString('Build', 'LowestSpeed', ''),
+        LOWEST_SPEED_TOP / 10, TFormatSettings.Invariant) * 10), 0, LOWEST_SPEED_TOP);
       // not a change of the user's (which saves the settings half read)
       cbPower.OnChange := nil;
       try
@@ -3387,6 +3466,7 @@ begin
       Ini.WriteBool('Build', 'Chapters', chkChapters.IsChecked);
       Ini.WriteBool('View', 'Dark', FPadDark);
       Ini.WriteBool('Models', 'Expert', FExpert);
+      Ini.WriteString('Build', 'LowestSpeed', FormatFloat('0.0', FLowestSpeed / 10, TFormatSettings.Invariant));
       // no longer kept (off at every start)
       Ini.DeleteKey('Build', 'UseSavedTranscript');
       Ini.WriteString('Folders', 'Book', FBookFolder);
@@ -4181,6 +4261,68 @@ begin
   DownloadEveryModel;
 end;
 
+procedure TfrmBuilder.StepLowestSpeed(ADelta: Integer);
+begin
+  FLowestSpeed := (FLowestSpeed + ADelta + LOWEST_SPEED_TOP + 1) mod (LOWEST_SPEED_TOP + 1);
+  SaveSettings;
+  if FLowestSpeed = 0 then
+    LogLine('Lowest acceptable speed: any - every calibrated model and device can be used, however slow.')
+  else
+    LogLine(Format('Lowest acceptable speed: %.1fx real time - a model or device the calibration timed below it ' +
+      'is not used for builds or benchmarks.', [FLowestSpeed / 10]));
+  // the benchmarks' items: faded or not
+  RefreshBenchmarks;
+end;
+
+function TfrmBuilder.LowestSpeedText: string;
+begin
+  if FLowestSpeed = 0 then
+    Result := '< 0.0x - any speed >'
+  else
+    Result := Format('< %.1fx >', [FLowestSpeed / 10]);
+end;
+
+function TfrmBuilder.TooSlow(const AModel, ADevice: string; out AWhy: string): Boolean;
+var
+  D: TWhisperDevice;
+  Dev, Best, Name: string;
+  Speed, BestSpeed, Limit: Double;
+begin
+  Result := False;
+  AWhy := '';
+  if (FLowestSpeed <= 0) or (AModel = '') then
+    Exit;
+  Limit := FLowestSpeed / 10;
+  Name := ChangeFileExt(ExtractFileName(AModel), '');
+  Dev := ADevice;
+  if BuilderFindDevice(ADevice, D) then
+    Dev := D.Name;
+  Speed := CalibrationSpeed(SettingsFile, AModel, Dev);
+  if not CalibrationBest(SettingsFile, AModel, Best, BestSpeed) then
+    BestSpeed := 0;
+  // the model at its best here
+  if (BestSpeed > 0) and (BestSpeed < Limit) then
+  begin
+    AWhy := Format('%s is too slow on this machine: the calibration timed it at %.1fx real time at best (on %s) - ' +
+      'about %.1f hours for each hour of audio. The lowest acceptable speed is %.1fx.' + sLineBreak + sLineBreak +
+      'Choose a faster model (base), or lower Settings > Lowest acceptable speed to use it anyway.',
+      [Name, BestSpeed, Best, 1 / BestSpeed, Limit]);
+    Exit(True);
+  end;
+  // this device: another one is fast enough
+  if (Speed > 0) and (Speed < Limit) then
+  begin
+    AWhy := Format('%s is too slow on %s: %.1fx real time in the calibration (the lowest acceptable speed is ' +
+      '%.1fx).', [Name, Dev, Speed, Limit]);
+    if BestSpeed > 0 then
+      AWhy := AWhy + sLineBreak + sLineBreak + Format('It runs at %.1fx on %s: choose that device (Settings > ' +
+        'Device), or lower Settings > Lowest acceptable speed.', [BestSpeed, Best])
+    else
+      AWhy := AWhy + sLineBreak + sLineBreak + 'Choose another device, or lower Settings > Lowest acceptable speed.';
+    Exit(True);
+  end;
+end;
+
 procedure TfrmBuilder.ToggleExpert;
 begin
   FExpert := not FExpert;
@@ -4399,7 +4541,7 @@ end;
 
 procedure TfrmBuilder.CheckThen(AQueue: Boolean);
 var
-  Device: string;
+  Device, Why: string;
 begin
   if SameFileName(ExpandFileName(edOut.Text), ExpandFileName(edBook.Text)) then
   begin
@@ -4416,6 +4558,14 @@ begin
   Device := GDefaultDevice;
   if cbDevice.ItemIndex > 0 then
     Device := FDevices[cbDevice.ItemIndex - 1].Name;
+  // below Settings > Lowest acceptable speed (owner, 2026-11-22): not
+  // started, not queued - unless a saved transcript is used (nothing is
+  // transcribed)
+  if not (chkReuse.IsChecked and FileExists(TranscriptFileOf(edOut.Text))) and TooSlow(FModelPath, Device, Why) then
+  begin
+    Tell('Not started: ' + Why);
+    Exit;
+  end;
   CheckCalibrationThen(Device, AQueue);
 end;
 
@@ -4805,12 +4955,25 @@ end;
 procedure TfrmBuilder.RunNextJob;
 var
   I, Done, Failed: Integer;
+  Why: string;
 begin
   if (FBuild <> nil) or not FQueueRunning then
     Exit;
   for I := 0 to High(FJobs) do
     if FJobs[I].State = jsWaiting then
     begin
+      // queued before Settings > Lowest acceptable speed was raised (or
+      // before the calibration): left out, said why
+      if not (FJobs[I].Reuse and FileExists(TranscriptFileOf(FJobs[I].Output))) and
+        TooSlow(FJobs[I].Model, FJobs[I].Device, Why) then
+      begin
+        FJobs[I].State := jsFailed;
+        FJobs[I].Note := 'too slow here';
+        LogLine(Format('Job %d (%s) left out: %s', [I + 1, FJobs[I].Title, StringReplace(Why, sLineBreak +
+          sLineBreak, ' ', [rfReplaceAll])]));
+        ShowJobs;
+        Continue;
+      end;
       StartJob(FJobs[I], I);
       Exit;
     end;
@@ -5862,12 +6025,17 @@ const
   BPC_ROCM = 31;
   { Benchmark: its list (faded without base and turbo). }
   BPC_BENCH = 32;
+  { Settings: the lowest acceptable speed (left / right). }
+  BPC_LOWEST = 33;
   { The rows of the home list's Settings page (owner, 2026-11-22); the
     others are its first page. PadHome shows the page of the row asked
     for. }
   BP_SETTINGS_ROWS = [BPC_MODEL, BPC_CALIBRATE, BPC_CALIBRATE_ALL, BPC_DIAGNOSE, BPC_DIAGNOSE_ALL, BPC_DEVICE,
     BPC_LANGUAGE, BPC_POWER, BPC_CHAPTERS, BPC_DARK, BPC_EXPERT, BPC_OUTPUT, BPC_SETTINGS_BACK, BPC_LOG,
-    BPC_FOLDER_BOOKS, BPC_FOLDER_AUDIO, BPC_FOLDER_OUTPUT, BPC_RESULTS, BPC_HISTORY, BPC_ROCM];
+    BPC_FOLDER_BOOKS, BPC_FOLDER_AUDIO, BPC_FOLDER_OUTPUT, BPC_RESULTS, BPC_HISTORY, BPC_ROCM, BPC_LOWEST];
+  { The highest BPC_* in BP_SETTINGS_ROWS (a set holds 0 .. 255: the
+    command is checked against this before "in"). }
+  BPC_SETTINGS_TOP = BPC_LOWEST;
   { The pad's menu in dark colours: its box, its text, the selected row
     (EpubReader's dark menu, uMain.PadMenuColors, with its panel text). }
   PAD_DARK_BACK = $FF23262E;
@@ -6232,6 +6400,8 @@ var
   Any: Boolean;
 begin
   FBigPicture := SteamBigPicture;
+  // the calibration's introduction laid out again when the window grows
+  OnResize := FormResized;
   FPadMenu := TPadMenu.Create(Self, Self);
   FPadMenu.OnChoose := PadChoose;
   FPadMenu.OnClose := PadClosed;
@@ -6391,6 +6561,12 @@ procedure TfrmBuilder.PadPress(AButton: Integer);
 begin
   if not (AButton in [BP_UP, BP_DOWN, BP_LEFT, BP_RIGHT]) then
     DebugLog('pad: ' + BP_ACTIONS[AButton]);
+  // the calibration's results: any button goes on
+  if FCalResults then
+  begin
+    CalResultsButton(nil);
+    Exit;
+  end;
   // the benchmark results: X / H hides or shows them; hidden, any other
   // button shows them again
   if FBenchResults and ((AButton = BP_TOGGLE) or FBenchHidden) then
@@ -6543,6 +6719,9 @@ begin
     Exit;
   if FPadMode = BPM_CONTROLS then
     PadControls
+  else if FCalIntro and (FPadMode = BPM_ASK) then
+    // its answers carry their buttons
+    ShowCalibrationIntro(FCalIntroWhy)
   else if FPadMenu.HasHints then
     // any list whose foot names buttons: the other way's pictures or keys
     RefreshFoot;
@@ -6601,6 +6780,15 @@ procedure TfrmBuilder.KeyDown(var Key: Word; var KeyChar: WideChar; Shift: TShif
 var
   Button: Integer;
 begin
+  // the calibration's results: Enter, Escape, the space or a character
+  // goes on too (the menu's keys do through PadPress)
+  if FCalResults and ((Key = vkReturn) or (Key = vkEscape) or (KeyChar <> #0)) then
+  begin
+    Key := 0;
+    KeyChar := #0;
+    CalResultsButton(nil);
+    Exit;
+  end;
   Button := -1;
   if (FPadMenu <> nil) and (FPad <> nil) and (Shift * [ssCtrl, ssAlt, ssCommand] = []) then
   begin
@@ -6614,7 +6802,10 @@ begin
       // (owner, 2026-11-22: the Menu and Queue keys must open them; F2
       // and F3 since zip 226) those two only - Enter is the window's - and
       // not a character that is a control's own
-      if FBenchResults and FBenchHidden then
+      if FCalResults then
+        // the calibration's results: any of the menu's keys goes on
+        // (PadPress)
+      else if FBenchResults and FBenchHidden then
         // the benchmark results hidden: any of the menu's keys shows them
         // (PadPress)
       else if FBigPicture then
@@ -6780,7 +6971,7 @@ var
   procedure Add(ACmd: Integer; const AText, AValue: string);
   begin
     // the rows of the page shown only
-    if ((ACmd >= 0) and (ACmd <= 31) and (ACmd in BP_SETTINGS_ROWS)) <> FPadSettings then
+    if ((ACmd >= 0) and (ACmd <= BPC_SETTINGS_TOP) and (ACmd in BP_SETTINGS_ROWS)) <> FPadSettings then
       Exit;
     if ACmd = ACommand then
       Sel := Length(Items);
@@ -6805,7 +6996,7 @@ begin
   FPadCmds := nil;
   Sel := 0;
   // the page ACommand's row is on
-  FPadSettings := (ACommand >= 0) and (ACommand <= 31) and (ACommand in BP_SETTINGS_ROWS);
+  FPadSettings := (ACommand >= 0) and (ACommand <= BPC_SETTINGS_TOP) and (ACommand in BP_SETTINGS_ROWS);
   if not FPadSettings then
     FPadSettingsOnly := False;
   if FBookTitle <> '' then
@@ -6845,6 +7036,8 @@ begin
   if cbLanguage <> nil then
     Add(BPC_LANGUAGE, 'Language', Combo(cbLanguage));
   Add(BPC_POWER, 'Power', Combo(cbPower));
+  // owner, 2026-11-22: a model or device slower than this is not used
+  Add(BPC_LOWEST, 'Lowest acceptable speed', LowestSpeedText);
   Add(BPC_CHAPTERS, 'Chapters of a file are parts', IfThen(chkChapters.IsChecked, '< Yes >', '< No >'));
   Add(BPC_DARK, 'Dark mode', IfThen(FPadDark, '< Yes >', '< No >'));
   Add(BPC_EXPERT, 'Expert mode', IfThen(FExpert, '< Yes >', '< No >'));
@@ -7165,6 +7358,7 @@ begin
     BPC_DARK: ToggleDark;
     BPC_EXPERT: ToggleExpert;
     BPC_LOG: miLogClick(nil);
+    BPC_LOWEST: StepLowestSpeed(ADelta);
   else
     Exit;
   end;
@@ -7193,6 +7387,8 @@ begin
         BPC_AUDIO: PadAudioList(False);
         BPC_MODEL: PadModels;
         BPC_DEVICE, BPC_LANGUAGE, BPC_POWER, BPC_CHAPTERS, BPC_DARK, BPC_EXPERT, BPC_LOG: PadStep(1);
+        // chosen: a step down (owner, 2026-11-22: "from 2.0 down to 0.0")
+        BPC_LOWEST: PadStep(-1);
         BPC_OUTPUT:
           // owner, 2026-11-22: the row "does nothing (just prints Output:
           // on screen)" - said in the menu now, with the folder when no
@@ -7872,7 +8068,9 @@ procedure TfrmBuilder.PadModels;
 var
   Items: TArray<TPadMenuItem>;
   I, P, Sel: Integer;
-  T, V: string;
+  T, V, Best: string;
+  Speed: Double;
+  Slow: Boolean;
 begin
   Items := nil;
   FPadCmds := nil;
@@ -7900,9 +8098,19 @@ begin
     // owner, 2026-11-22: "installed", not "here"
     if V = '' then
       V := 'installed';
+    // below Settings > Lowest acceptable speed at its best: faded, with its
+    // speed (still chosen here - to re-calibrate it; a build says why not)
+    Slow := False;
+    if (FLowestSpeed > 0) and (I < FModelItems.Count) and FileExists(FModelItems[I]) and
+      CalibrationBest(SettingsFile, FModelItems[I], Best, Speed) and (Speed > 0) and (Speed < FLowestSpeed / 10) then
+    begin
+      Slow := True;
+      V := Format('too slow here: %.1fx', [Speed]);
+    end;
     if I = cbModel.ItemIndex then
       Sel := Length(Items);
     Items := Items + [TPadMenu.Item(PadShort(T), V)];
+    Items[High(Items)].Dim := Slow;
     FPadCmds := FPadCmds + [I];
   end;
   Items := Items + [TPadMenu.Item('Back')];
@@ -8468,13 +8676,10 @@ begin
   // and the desktop "should be the same as Big Picture" - no question, no
   // dialog: every model here is calibrated now (a line in the log says
   // why; Cancel stops it)
-  if Why = '' then
-    Why := 'Not calibrated for this machine yet. ';
-  LogLine(Why.Replace(sLineBreak, ' ').Trim + ' Calibrating every model here now: which device is fastest for ' +
-    'each (a minute or two per device; Cancel stops it, Settings > Re-calibrate does it again later).');
-  StartCalibration(True, False);
-  // owner, 2026-11-22: after it, the main menu (CalibrationDone)
-  FCalAtStart := FCalib <> nil;
+  LogLine(IfThen(Why = '', 'Not calibrated for this machine yet.', Why.Replace(sLineBreak, ' ').Trim));
+  // owner, 2026-11-22: an introduction first - why, what was found here,
+  // how long it may take; then calibrate now, or close and come back
+  ShowCalibrationIntro(Why);
 end;
 
 procedure TfrmBuilder.miCalibrateClick(Sender: TObject);
@@ -8524,6 +8729,301 @@ begin
   for I := AModels.Count - 1 downto 0 do
     if not ModelIsStandard(ModelShortName(AModels[I])) and not SameFileName(AModels[I], AInUse) then
       AModels.Delete(I);
+end;
+
+{ ASeconds in words for the results' table: '45 min', '3 h 05 min', and
+  from two days on (ADays) '4 days 11 h'. }
+function LongTime(ASeconds: Double; ADays: Boolean): string;
+var
+  M, H, D: Int64;
+begin
+  M := Max(Int64(1), Round(ASeconds / 60));
+  if M < 60 then
+    Exit(Format('%d min', [M]));
+  H := M div 60;
+  if ADays and (H >= 48) then
+  begin
+    D := Round(ASeconds / 3600);
+    Exit(Format('%d days %d h', [D div 24, D mod 24]));
+  end;
+  Result := Format('%d h %.2d min', [H, M mod 60]);
+end;
+
+{ The number after AKey in AText ('' when none): the digits that follow
+  it at once ('i5-' in 'Core i5-8250U' gives '8250'), or with AKey ending
+  in a space, the first run of digits after it. }
+function DigitsAfter(const AText, AKey: string): string;
+var
+  P: Integer;
+begin
+  Result := '';
+  P := Pos(AKey, AText);
+  if P = 0 then
+    Exit;
+  P := P + Length(AKey);
+  // 'ryzen ': past the tier ('7 ') to the model's digits
+  if AKey.EndsWith(' ') then
+    while (P <= Length(AText)) and not ((AText[P] >= '0') and (AText[P] <= '9') and (P + 1 <= Length(AText)) and
+      (AText[P + 1] >= '0') and (AText[P + 1] <= '9')) do
+      Inc(P);
+  while (P <= Length(AText)) and (AText[P] >= '0') and (AText[P] <= '9') do
+  begin
+    Result := Result + AText[P];
+    Inc(P);
+  end;
+end;
+
+{ A rough guess at a model's speed (x real time) on ADevice before any
+  calibration, for the introduction's estimate, from the surveys of
+  machines (CLAUDE.md, 2026-11-21/22). large-v3-turbo: on the processor a
+  sixteenth of its threads (the Miix's 8 of a 2017 i5-8250U: 0.5x), three
+  times that for a recent one (Core Ultra, Core i 12th generation on,
+  Ryzen 7000 on), twice for the others (owner, 2026-11-22: the first
+  version said 7 min for a 1:15 calibration); Apple's Metal 20x; an RTX
+  30 / 40 / 50 card 40x (the 5090: 83x), another card 15x (a GTX 1650:
+  15x); Intel's UHD / HD 0.7x (the Miix: 0.6x), Iris 2x, its newer
+  graphics (Arc, "Intel(R) Graphics") 6x; AMD's integrated graphics 8x (a
+  Steam Deck 7.9x, the Ally 16.7x). A smaller model is faster: by the
+  square root of the size ratio on graphics, by the whole ratio on the
+  processor (base: 8.6x / 6.7x on the Miix). }
+function GuessSpeed(const ADevice: TWhisperDevice; ASizeMB: Double): Double;
+const
+  { large-v3-turbo's file, MB: the sizes are compared with it. }
+  TURBO_MB = 1549;
+var
+  D, N: string;
+  Turbo, Gen: Double;
+begin
+  ASizeMB := Max(ASizeMB, 1);
+  D := ' ' + LowerCase(ADevice.Description + ' ' + ADevice.Name) + ' ';
+  if ADevice.DeviceType = wdtCPU then
+  begin
+    Gen := 2;
+    if (Pos('ultra', D) > 0) or (Pos('apple', D) > 0) then
+      Gen := 3
+    else
+    begin
+      N := DigitsAfter(D, 'i3-') + DigitsAfter(D, 'i5-') + DigitsAfter(D, 'i7-') + DigitsAfter(D, 'i9-');
+      // Core i: the generation is the first digit, or two of five
+      if (Length(N) >= 5) and (StrToIntDef(Copy(N, 1, 2), 0) >= 12) then
+        Gen := 3
+      else if Length(N) >= 4 then
+        Gen := 1;
+      N := DigitsAfter(D, 'ryzen ');
+      if Length(N) = 4 then
+      begin
+        if N[1] >= '7' then
+          Gen := 3
+        else if N[1] <= '3' then
+          Gen := 1;
+      end;
+    end;
+    Exit(Max(0.2, TThread.ProcessorCount / 16 * Gen) * TURBO_MB / ASizeMB);
+  end;
+  if SameText(ADevice.Backend, 'Metal') or StartsText('MTL', ADevice.Name) then
+    Turbo := 20
+  else if ADevice.DeviceType = wdtGPU then
+  begin
+    N := DigitsAfter(D, 'rtx ');
+    if (Length(N) = 4) and (N[1] >= '3') then
+      Turbo := 40
+    else
+      Turbo := 15;
+  end
+  else if Pos('intel', D) > 0 then
+  begin
+    if (Pos('uhd', D) > 0) or (Pos(' hd graphics', D) > 0) then
+      Turbo := 0.7
+    else if Pos('iris', D) > 0 then
+      Turbo := 2
+    else
+      Turbo := 6;
+  end
+  else
+    Turbo := 8;
+  Result := Turbo * Sqrt(TURBO_MB / ASizeMB);
+end;
+
+function TfrmBuilder.CalibrationGuess(out ACard: Boolean; ALog: Boolean): Double;
+const
+  { Reading the recording and choosing its stretch, seconds. }
+  START_SECONDS = 20;
+  { The warm-up, as seconds of speech (a whole 30 s window is encoded
+    even for its 5 s: the Miix's turbo warm-up took 47 s at 0.5x). }
+  WARMUP_SECONDS = 25;
+  { Loading a model, MB a second. }
+  LOAD_MB_S = 400;
+var
+  Models: TStringList;
+  I, K: Integer;
+  Speed, MB: Double;
+begin
+  Result := 0;
+  ACard := False;
+  for K := 0 to High(FDevices) do
+    if (FDevices[K].DeviceType = wdtGPU) or SameText(FDevices[K].Backend, 'Metal') then
+      ACard := True;
+  if FModelPath = '' then
+    Exit;
+  // the models StartCalibration(True, ...) times, on every device
+  Models := ModelFilesOf(ExtractFileDir(FModelPath));
+  try
+    if not FExpert then
+      KeepStandardModels(Models, FModelPath);
+    Result := START_SECONDS;
+    for I := 0 to Models.Count - 1 do
+    begin
+      MB := TFile.GetSize(Models[I]) / 1048576;
+      for K := 0 to High(FDevices) do
+      begin
+        // an earlier calibration's figure (a re-calibration), else a guess
+        Speed := CalibrationSpeed(SettingsFile, Models[I], FDevices[K].Name);
+        if Speed <= 0 then
+        begin
+          Speed := GuessSpeed(FDevices[K], MB);
+          if ALog then
+            DebugLog(Format('calibration: guessed %.1fx for %s on %s', [Speed, ExtractFileName(Models[I]),
+              WhisperDeviceText(FDevices[K])]));
+        end;
+        Result := Result + MB / LOAD_MB_S + (WARMUP_SECONDS + CALIBRATION_STRETCH_SECONDS) / Max(Speed, 0.05);
+      end;
+    end;
+  finally
+    Models.Free;
+  end;
+end;
+
+procedure TfrmBuilder.FormResized(Sender: TObject);
+begin
+  if not FCalIntro or (FPadMode <> BPM_ASK) then
+    Exit;
+  if tmIntro = nil then
+  begin
+    tmIntro := TTimer.Create(Self);
+    tmIntro.Interval := 250;
+    tmIntro.OnTimer := tmIntroTimer;
+  end;
+  // once it has stopped changing
+  tmIntro.Enabled := False;
+  tmIntro.Enabled := True;
+end;
+
+procedure TfrmBuilder.tmIntroTimer(Sender: TObject);
+begin
+  tmIntro.Enabled := False;
+  if FCalIntro and (FPadMode = BPM_ASK) then
+    ShowCalibrationIntro(FCalIntroWhy);
+end;
+
+procedure TfrmBuilder.ShowCalibrationIntro(const AWhy: string);
+const
+  { Up to this, "a few minutes"; above it, a warning (seconds). }
+  FEW_MINUTES = 10 * 60;
+
+  { An answer with its button on the left: Steam's picture of it on the
+    pad in hand, else (the keyboard, or no picture) its name on the
+    right. }
+  function IntroRow(const AText: string; AButton: Integer): TPadMenuItem;
+  var
+    Hints: TArray<TPadHint>;
+  begin
+    Result := TPadMenu.Item(AText);
+    Hints := PadHintsFor([AButton], [''], FPadKeys);
+    if Length(Hints) = 0 then
+      Exit;
+    // on the left either way (owner, 2026-11-22: the key on the right was
+    // "on the wrong side")
+    if Hints[0].Glyph <> '' then
+      Result.Glyphs := [Hints[0].Glyph]
+    else
+      Result.Key := Hints[0].Name;
+  end;
+
+var
+  Items: TArray<TPadMenuItem>;
+  Text, Kind: string;
+  T: Double;
+  K: Integer;
+  Card: Boolean;
+begin
+  if FPadMenu = nil then
+  begin
+    // no menu to ask with: as before - calibrated now
+    StartCalibration(True, False);
+    FCalAtStart := FCalib <> nil;
+    Exit;
+  end;
+  T := CalibrationGuess(Card, not FCalIntroLogged);
+  if not FCalIntroLogged then
+    DebugLog(Format('calibration: the introduction''s estimate %.0f s (%s)', [T, IfThen(Card, 'a graphics card',
+      'no graphics card')]));
+  FCalIntroLogged := True;
+  Text := AWhy + 'EpubBuilder first needs to calibrate itself to this machine: how fast it turns speech into ' +
+    'text depends greatly on the processor (CPU) and the graphics (GPU), so each model is timed once on each of ' +
+    'them, to find the fastest.' + sLineBreak + sLineBreak + 'Found here:';
+  for K := 0 to High(FDevices) do
+  begin
+    case FDevices[K].DeviceType of
+      wdtCPU: Kind := Format('processor, %d threads', [TThread.ProcessorCount]);
+      wdtIGPU: Kind := 'integrated graphics';
+      wdtGPU: Kind := 'graphics card';
+    else
+      Kind := FDevices[K].Backend;
+    end;
+    Text := Text + sLineBreak + Format('- %s - %s (%s)', [FDevices[K].Name, FDevices[K].Description, Kind]);
+  end;
+  Text := Text + sLineBreak + sLineBreak;
+  if T <= FEW_MINUTES then
+    Text := Text + Format('On this hardware it should take a few minutes (roughly %s).', [LongTime(T, True)])
+  else if not Card then
+    Text := Text + Format('Owing to this hardware (no separate graphics card) calibration may take some time: ' +
+      'roughly %s. It can be left to run.', [LongTime(T, True)])
+  else
+    Text := Text + Format('Owing to this hardware calibration may take some time: roughly %s. It can be left to ' +
+      'run.', [LongTime(T, True)]);
+  // owner, 2026-11-22: "[A] proceed to Calibration or [B] Come back when
+  // I have more time to spare - A starts calibration, B exits the
+  // program" (the buttons are shown as the pad in hand draws them)
+  // each with its button: Steam's picture with a pad, the key's name with
+  // the keyboard (owner, 2026-11-22: "Button Glyphs must be used!")
+  Items := [IntroRow('Calibrate now', BP_CHOOSE), IntroRow('Come back when I have more time to spare', BP_BACK)];
+  FPadCmds := [PADROW_NONE, PADROW_NONE];
+  FCalIntro := True;
+  FCalIntroWhy := AWhy;
+  FAskResults := [mrYes, mrNo];
+  FAskCancel := mrNo;
+  FPairPad := False;
+  // the menu does not come back by itself after the answer (the answer
+  // says where to go)
+  FAskThenClose := True;
+  FAskProc :=
+    procedure(const AResult: TModalResult)
+    begin
+      FCalIntro := False;
+      if AResult = mrYes then
+      begin
+        LogLine('Calibrating every model here now: which device is fastest for each (Cancel stops it, ' +
+          'Settings > Re-calibrate does it again later).');
+        StartCalibration(True, False);
+        // owner, 2026-11-22: after it, the main menu (CalibrationDone)
+        FCalAtStart := FCalib <> nil;
+        if FCalib = nil then
+          PadBackToMenu(False);
+      end
+      else
+      begin
+        LogLine('Calibration put off: EpubBuilder closes (it asks again at the next start).');
+        Close;
+      end;
+    end;
+  FPadMode := BPM_ASK;
+  FPadMenu.NextTitleCentered := True;
+  // owner, 2026-11-22: wider - both answers under the text without
+  // scrolling ("80%", then 17:25 "No - make that 60%")
+  FPadMenu.NextWidthShare := 0.6;
+  FPadMenu.ShowText('Calibration', Text, Items, 0, PadFootOf([BP_CHOOSE, BP_BACK], ['choose',
+    'come back later']));
+  RefreshFoot;
 end;
 
 procedure TfrmBuilder.miDiagnosticsClick(Sender: TObject);
@@ -8598,10 +9098,33 @@ begin
     Result := Own.Name;
 end;
 
+function TfrmBuilder.BenchTooSlow(AOption: Integer; out AWhy: string): Boolean;
+var
+  I: Integer;
+  Model: string;
+begin
+  Result := False;
+  AWhy := '';
+  for I := 1 to 4 do
+    if (AOption = 0) or (AOption = I) then
+    begin
+      Model := BenchmarkModel(I);
+      if (Model <> '') and TooSlow(Model, BenchmarkDevice(Model), AWhy) then
+      begin
+        if AOption = 0 then
+          AWhy := 'Running all 4 benchmarks needs both models fast enough on this machine.' + sLineBreak +
+            sLineBreak + AWhy
+        else
+          AWhy := BENCH_NAMES[I] + ' cannot run here.' + sLineBreak + sLineBreak + AWhy;
+        Exit(True);
+      end;
+    end;
+end;
+
 procedure TfrmBuilder.RefreshBenchmarks;
 var
-  Busy, Changed: Boolean;
-  Key, Model, Dev, DevKey, Source, Audio: string;
+  Busy, Changed, SlowFast, SlowDetailed, Slow: Boolean;
+  Key, Model, Dev, DevKey, Source, Audio, Why: string;
   I, R: Integer;
   Hist: TBuildHistory;
   D: TWhisperDevice;
@@ -8683,9 +9206,19 @@ begin
         DebugLog('benchmark estimates: ' + E.Message);
     end;
   end;
+  // the two models' calibrations, once (the ini file is read for each)
+  SlowFast := BenchTooSlow(1, Why);
+  SlowDetailed := BenchTooSlow(2, Why);
   for I := 0 to High(miBench) do
   begin
-    miBench[I].Enabled := not Busy and (FWhisperNote = '') and (BenchmarkModel(I) <> '');
+    // below Settings > Lowest acceptable speed: faded, says why when chosen
+    if I = 0 then
+      Slow := SlowFast or SlowDetailed
+    else if BENCH_DETAILED[I] then
+      Slow := SlowDetailed
+    else
+      Slow := SlowFast;
+    miBench[I].Enabled := not Busy and (FWhisperNote = '') and (BenchmarkModel(I) <> '') and not Slow;
     if Changed then
       miBench[I].Text := BenchmarkText(I);
   end;
@@ -8711,6 +9244,7 @@ procedure TfrmBuilder.StartBenchmark(AOption: Integer);
 var
   I: Integer;
   Titles: TArray<string>;
+  Why: string;
 begin
   if (AOption < 0) or (AOption > High(BENCH_NAMES)) then
     Exit;
@@ -8732,6 +9266,11 @@ begin
     else
       Tell(Format('%s needs the model %s: choose it in the Model list to download it.', [BENCH_NAMES[AOption],
         IfThen(BENCH_DETAILED[AOption], 'large-v3-turbo', 'base')]));
+    Exit;
+  end;
+  if BenchTooSlow(AOption, Why) then
+  begin
+    Tell(Why);
     Exit;
   end;
   FBenchAll := AOption = 0;
@@ -9620,11 +10159,186 @@ begin
   tmStatus.Enabled := False;
   ShowStatus;
   UpdateControls;
+  // owner, 2026-11-22: the results first, and what they mean for a book
+  // (the menu once they are seen)
+  if T.Completed and (FCalView <> nil) then
+  begin
+    ShowCalibrationResults;
+    Exit;
+  end;
+  CalResultsClosed;
+end;
+
+procedure TfrmBuilder.CalResultsClosed;
+begin
+  FCalResults := False;
   // the calibration's bars go: the menu next - the main menu after the
   // one at start-up (owner, 2026-11-22), else on Model for the next one
   FreeAndNil(FCalView);
   PadBackToMenu(not FCalAtStart);
   FCalAtStart := False;
+end;
+
+procedure TfrmBuilder.CalResultsButton(Sender: TObject);
+begin
+  if not FCalResults then
+    Exit;
+  FCalResults := False;
+  // not freed inside its own event
+  TThread.ForceQueue(nil, CalResultsClosed);
+end;
+
+type
+  { A LibriVox recording for the calibration's results. }
+  TLibriVoxBook = record
+    { The book. }
+    Title: string;
+    { The recording's length, seconds (librivox.org's catalogue). }
+    Seconds: Integer;
+  end;
+
+const
+  { Well-known LibriVox recordings, shortest first (owner, 2026-11-22:
+    "Find some popular books on Librivox and get their recording length
+    ... Maybe put a dozen books in that list. An interesting one would be
+    all of war + peace (total the parts)"). Lengths from LibriVox's
+    catalogue (api/feed/audiobooks totaltimesecs, 2026-11-22), the first
+    recording of each; War and Peace = its Books 01 - 17 added up. }
+  LIBRIVOX_BOOKS: array[0..11] of TLibriVoxBook = (
+    (Title: 'Alice''s Adventures in Wonderland'; Seconds: 10731),
+    (Title: 'The Time Machine'; Seconds: 14969),
+    (Title: 'Treasure Island'; Seconds: 27008),
+    (Title: 'Frankenstein'; Seconds: 29808),
+    (Title: 'The Adventures of Sherlock Holmes'; Seconds: 37079),
+    (Title: 'Pride and Prejudice'; Seconds: 47204),
+    (Title: 'A Tale of Two Cities'; Seconds: 53975),
+    (Title: 'Dracula'; Seconds: 59469),
+    (Title: 'Jane Eyre'; Seconds: 74196),
+    (Title: 'Moby Dick'; Seconds: 88670),
+    (Title: 'The Count of Monte Cristo'; Seconds: 178995),
+    (Title: 'War and Peace (all 17 books)'; Seconds: 232564));
+
+function TfrmBuilder.BookSeconds(const AHistory: TBuildHistory; const AModel: string; ALength: Double): Double;
+var
+  Dev, DevKey, Source: string;
+  D: TWhisperDevice;
+  Speed, After, Prior: Double;
+begin
+  Result := 0;
+  if (AModel = '') or (ALength <= 0) then
+    Exit;
+  // as RefreshBenchmarks: the device a build of it uses, Core ML apart
+  Dev := BenchmarkDevice(AModel);
+  if BuilderFindDevice(Dev, D) then
+    Dev := D.Name;
+  DevKey := Dev;
+  if UsesCoreML(AModel) then
+    DevKey := Dev + '+CoreML';
+  if HistoryExpect(AHistory, HistoryMachine(MachineText), ExtractFileName(AModel), DevKey,
+    CalibrationSpeed(SettingsFile, AModel, Dev), CalibrationSeconds(SettingsFile, AModel), Speed, After, Prior,
+    Source) and (Speed > 0) then
+    Result := ALength / Speed + After * ALength;
+end;
+
+procedure TfrmBuilder.ShowCalibrationResults;
+const
+  { The two models of the table: base, large-v3-turbo. }
+  NAMES: array[0..1] of string = ('base', 'turbo');
+  { Said under the title, in bold (owner, 2026-11-22: "Stress on the
+    Calibration results page that these timings are extremely
+    approximate and act as a guide to the performance you can expect"). }
+  GUIDE_NOTE = 'A ROUGH GUIDE ONLY - these times are extremely approximate: a guide to the performance you can expect';
+var
+  Hist: TBuildHistory;
+  Models: array[0..1] of string;
+  Speeds: array[0..1] of Double;
+  Slow: array[0..1] of Boolean;
+  Cells: TArray<TArray<string>>;
+  Row: TArray<string>;
+  Best, Footnote, Foot, Line: string;
+  I, M: Integer;
+  T: Double;
+  AnySlow: Boolean;
+begin
+  Models[0] := BenchmarkModel(1);
+  Models[1] := BenchmarkModel(2);
+  AnySlow := False;
+  for M := 0 to 1 do
+  begin
+    Speeds[M] := 0;
+    if (Models[M] <> '') and not CalibrationBest(SettingsFile, Models[M], Best, Speeds[M]) then
+      Speeds[M] := 0;
+    Slow[M] := (FLowestSpeed > 0) and (Speeds[M] > 0) and (Speeds[M] < FLowestSpeed / 10);
+    AnySlow := AnySlow or Slow[M];
+  end;
+  Hist := nil;
+  try
+    Hist := HistoryLoad(HistoryFile);
+  except
+    on E: Exception do
+      DebugLog('calibration results: the history was not read: ' + E.Message);
+  end;
+  // the heading: each model with its speed here
+  Row := ['Book (LibriVox recording)', 'Recording'];
+  for M := 0 to 1 do
+    if Speeds[M] > 0 then
+      Row := Row + [Format('%s (%.1fx)', [NAMES[M], Speeds[M]])]
+    else
+      Row := Row + [NAMES[M]];
+  Cells := [Row];
+  for I := 0 to High(LIBRIVOX_BOOKS) do
+  begin
+    Row := [LIBRIVOX_BOOKS[I].Title, LongTime(LIBRIVOX_BOOKS[I].Seconds, False)];
+    for M := 0 to 1 do
+    begin
+      T := 0;
+      if Speeds[M] > 0 then
+        T := BookSeconds(Hist, Models[M], LIBRIVOX_BOOKS[I].Seconds);
+      if T <= 0 then
+        Row := Row + ['-']
+      else if Slow[M] then
+        Row := Row + ['~' + LongTime(T, True) + ' *']
+      else
+        Row := Row + ['~' + LongTime(T, True)];
+    end;
+    Cells := Cells + [Row];
+  end;
+  // owner, 2026-11-22: "mention that better estimates will be available
+  // after the user has transcribed a few books"
+  Footnote := 'Better estimates come once you have transcribed a few books: they learn from this machine''s own ' +
+    'builds.';
+  Line := '';
+  if AnySlow then
+    Line := Format('* below the lowest acceptable speed (%.1fx): not used - Settings > Lowest acceptable speed',
+      [FLowestSpeed / 10]);
+  if (Speeds[0] <= 0) or (Speeds[1] <= 0) then
+  begin
+    if Line <> '' then
+      Line := Line + '.  ';
+    Line := Line + '- not installed or not calibrated';
+  end;
+  if Line <> '' then
+    Footnote := Footnote + sLineBreak + Line;
+  // no button named (a PlayStation pad has no A): any of them goes on
+  if FBigPicture then
+    Foot := 'Press any button to continue'
+  else
+    Foot := 'Press a key or click to continue';
+  FCalView.OnButton := CalResultsButton;
+  FCalView.ShowTable('Calibration results', GUIDE_NOTE, Cells, Footnote, Foot);
+  FCalResults := True;
+  // the same into the log
+  LogLine('');
+  LogLine('What that means for a book (' + GUIDE_NOTE + '):');
+  for I := 0 to High(Cells) do
+  begin
+    Line := Format('  %-36s %12s', [Cells[I][0], Cells[I][1]]);
+    for M := 2 to High(Cells[I]) do
+      Line := Line + Format(' %16s', [Cells[I][M]]);
+    LogLine(Line);
+  end;
+  for Line in Footnote.Split([sLineBreak]) do
+    LogLine('  ' + Line);
 end;
 
 procedure TfrmBuilder.ApplyCalibration(ALog: Boolean);

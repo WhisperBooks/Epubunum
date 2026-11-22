@@ -168,8 +168,15 @@ CUDA (whisper.cpp's choice) and in 29 min on Vulkan; a 4 GB GTX 1650 cannot
 hold large-v3 at all.
 
 So the builder **calibrates** when it starts, until a calibration has
-been made - straight away, on the desktop and in Big Picture alike, with
-a line in the log saying why (no question: Cancel stops it). It times
+been made - on the desktop and in Big Picture alike. A **Calibration**
+page comes first: why it is needed (the speed depends greatly on the
+processor and the graphics), the devices found here, and how long it
+may take - "a few minutes" on decent hardware, a warning with a rough
+time when the hardware is slow (no separate graphics card, Intel's
+integrated graphics). Then **Calibrate now** (the pad's first button,
+or Enter), or **Come back when I have more time to spare** (the second
+button, or Escape), which closes EpubBuilder - it asks again at the
+next start. Cancel stops a calibration that runs. It times
 every model in the models folder (base and turbo; every model in expert
 mode) on every device; with no model chosen yet it chooses turbo (else
 base) when it is there - the Steam depots install both. For each: the model is loaded, a short warm-up, then
@@ -227,6 +234,30 @@ four blocks at a time under a "Model 5 of 10" line, the model being timed
 at the top, the next ones under it. On the desktop a Cancel button sits
 in the corner. At start-up it is the first thing seen; the menu comes
 after it.
+
+When a calibration ends, its view shows **Calibration results** until a
+button, a key or a click: base's and turbo's speeds here and, for a
+dozen well-known LibriVox recordings (Alice's Adventures in Wonderland,
+2 h 58 min, up to all 17 books of War and Peace, 64 h 36 min), how long
+each would take start to finish with each model - estimated the way the
+Benchmark menu's times are (the calibration, then this machine's own
+builds). A bold line says it plainly: a rough guide only, the times are
+extremely approximate. A model below the lowest acceptable speed is
+marked with a star. Under the table: better estimates come once a few
+books have been transcribed here (they learn from this machine's own
+builds). The same table goes into the log.
+
+**Settings > Lowest acceptable speed** (2.0x at first): a model the
+calibration timed below it at its best - or the device chosen for it,
+when that one is below it - is not used. Create and Add to queue say why
+and what to do, a waiting job of the queue is left out (marked "too slow
+here", the log says why), the benchmarks that need it are greyed out
+(faded in Big Picture, saying why when chosen), and the model list shows
+it faded with its speed ("too slow here: 0.6x"). Left / right change it
+by 0.1, from 2.0 down to 0.0 (any speed: "it might take a week but I
+will get the result I want"); choosing the row steps it down. A model
+not calibrated yet is not held back (its speed is not known), nor is a
+build from a saved transcript (nothing is transcribed).
 
 ## Benchmarks
 
@@ -799,8 +830,8 @@ row, returns:
 - **Model**: a list of every model - installed, or its size to download
   (choosing one not installed asks to download it; turbo is a good
   first choice);
-- **Device**, **Language**, **Power**, **Chapters of a file are parts**:
-  left / right change them;
+- **Device**, **Language**, **Power**, **Lowest acceptable speed**,
+  **Chapters of a file are parts**: left / right change them;
 - **Re-calibrate (this model)**, **Re-calibrate every model**, **Diagnostics
   (this model)**, **Diagnostics (every model)**;
 - **Dark mode**, **Expert mode**;

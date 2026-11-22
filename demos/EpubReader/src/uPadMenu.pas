@@ -50,6 +50,11 @@ type
     Value: string;
     { Pictures on the left (PNG files; '' or missing files are left out). }
     Glyphs: TArray<string>;
+    { A key's name in the same column on the left, where a picture would be
+      ('' = none): the keyboard's form of a row that names its button
+      (EpubBuilder's calibration page, owner 2026-11-22: "Calibrate now is
+      on the wrong side" - the key had been the value, on the right). }
+    Key: string;
     { Shown faded: a row of less interest (EpubBuilder: a book already
       transcribed). }
     Dim: Boolean;
@@ -121,6 +126,8 @@ type
     FInfo: TArray<Boolean>;
     { Backing field of @link(NextTitleCentered). }
     FTitleCentered: Boolean;
+    { Backing field of @link(NextWidthShare). }
+    FNextShare: Single;
     { The foot's hints as pictures and words (SetHints; nil = its text). }
     FHintBar: TLayout;
     { What FHintBar shows (SetHints draws it again only when it changes). }
@@ -140,6 +147,10 @@ type
       has a value). }
     function Needed(const ATitle: string; const AItems: TArray<TPadMenuItem>; const AFoot: string;
       out AValueWidth: Single): Single;
+    { The left column's width for AItems: the widest row of pictures, or
+      of a key's name (TPadMenuItem.Key), with its gap; 0 = no row has
+      either. }
+    function LeftWidth(const AItems: TArray<TPadMenuItem>): Single;
     { The selected row scrolled into view. }
     procedure KeepVisible;
     { A row clicked. }
@@ -248,6 +259,11 @@ type
     { The next Show (or ShowText) centres its title; it is left-aligned
       again after it. }
     property NextTitleCentered: Boolean read FTitleCentered write FTitleCentered;
+    { The next Show (or ShowText) may be this share of the window wide
+      (0 = BOX_SHARE, at most BOX_MAX_WIDTH; set: that share, no other
+      limit - EpubBuilder's calibration page, 0.6, owner 2026-11-22: its
+      answers were under the text); back to 0 after it. }
+    property NextWidthShare: Single read FNextShare write FNextShare;
     { A row clicked or tapped (already selected). }
     property OnChoose: TPadMenuChooseEvent read FOnChoose write FOnChoose;
     { Closed by a click beside the box. }
@@ -287,6 +303,7 @@ begin
   Result.Text := AText;
   Result.Value := AValue;
   Result.Glyphs := nil;
+  Result.Key := '';
   Result.Dim := False;
   Result.Info := False;
 end;
@@ -438,13 +455,10 @@ end;
 function TPadMenu.Needed(const ATitle: string; const AItems: TArray<TPadMenuItem>; const AFoot: string;
   out AValueWidth: Single): Single;
 var
-  I, Pics: Integer;
-  Icon, RowW: Single;
+  I: Integer;
+  RowW, Left: Single;
 begin
-  Icon := RowHeight * 0.8;
-  Pics := 0;
-  for I := 0 to Length(AItems) - 1 do
-    Pics := Max(Pics, Length(AItems[I].Glyphs));
+  Left := LeftWidth(AItems);
   // the value column: as wide as its widest value, not under FFontSize x 8
   AValueWidth := 0;
   for I := 0 to Length(AItems) - 1 do
@@ -457,14 +471,29 @@ begin
   for I := 0 to Length(AItems) - 1 do
   begin
     RowW := TextW(AItems[I].Text, FFontSize) + 8;
-    if Pics > 0 then
-      RowW := RowW + Pics * (Icon + 4) + PAD / 2;
+    if Left > 0 then
+      RowW := RowW + Left;
     if AItems[I].Value <> '' then
       RowW := RowW + AValueWidth + PAD / 2;
     Result := Max(Result, RowW);
   end;
   // the box's padding and the rows' own; never narrower than it was
-  Result := Max(Result + PAD * 3, FFontSize * 24 + Pics * (Icon + 4));
+  Result := Max(Result + PAD * 3, FFontSize * 24 + Left);
+end;
+
+function TPadMenu.LeftWidth(const AItems: TArray<TPadMenuItem>): Single;
+var
+  I: Integer;
+begin
+  Result := 0;
+  for I := 0 to High(AItems) do
+  begin
+    Result := Max(Result, Length(AItems[I].Glyphs) * (RowHeight * 0.8 + 4));
+    if AItems[I].Key <> '' then
+      Result := Max(Result, TextW(AItems[I].Key, FFontSize * 0.9) + 8);
+  end;
+  if Result > 0 then
+    Result := Result + PAD / 2;
 end;
 
 function TPadMenu.WidthFor(const ATitle: string; const AItems: TArray<TPadMenuItem>; const AFoot: string): Single;
@@ -477,13 +506,13 @@ end;
 procedure TPadMenu.Show(const ATitle: string; const AItems: TArray<TPadMenuItem>; ASelected: Integer;
   const AFoot: string);
 var
-  I, K, Pics: Integer;
+  I, K: Integer;
   R: TRectangle;
-  L, V: TLabel;
+  L, V, KeyL: TLabel;
   Img: TImage;
   B: TBitmap;
   Icons: TLayout;
-  W, H, MaxW, MaxH, Icon, BodyH, ValW, Need: Single;
+  W, H, MaxW, MaxH, Icon, BodyH, ValW, Need, LeftW: Single;
   Body: string;
   TL: TTextLayout;
 begin
@@ -494,10 +523,8 @@ begin
   // the hints are the last Show's: SetHints gives this one's
   ClearHints;
   Icon := RowHeight * 0.8;
-  // the widest picture column any row needs: the rows line up
-  Pics := 0;
-  for I := 0 to High(AItems) do
-    Pics := Max(Pics, Length(AItems[I].Glyphs));
+  // the widest picture (or key) column any row needs: the rows line up
+  LeftW := LeftWidth(AItems);
   FTitle.Text := ATitle;
   // centred for this Show only (NextTitleCentered)
   if FTitleCentered then
@@ -535,14 +562,27 @@ begin
     R.OnMouseDown := AnyMouseDown;
     R.OnMouseWheel := AnyMouseWheel;
     R.Padding.Rect := TRectF.Create(PAD / 2, 0, PAD / 2, 0);
-    if Pics > 0 then
+    if LeftW > 0 then
     begin
-      // the controls' pictures, in a column of the same width on every row
+      // the controls' pictures (or the keys' names), in a column of the
+      // same width on every row
       Icons := TLayout.Create(R);
       Icons.Parent := R;
       Icons.Align := TAlignLayout.Left;
-      Icons.Width := Pics * (Icon + 4) + PAD / 2;
+      Icons.Width := LeftW;
       Icons.HitTest := False;
+      if AItems[I].Key <> '' then
+      begin
+        KeyL := TLabel.Create(Icons);
+        KeyL.Parent := Icons;
+        KeyL.Align := TAlignLayout.Client;
+        KeyL.StyledSettings := KeyL.StyledSettings - [TStyledSetting.FontColor, TStyledSetting.Size];
+        KeyL.TextSettings.Font.Size := FFontSize * 0.9;
+        KeyL.TextSettings.FontColor := Faded(FFore, $C0);
+        KeyL.TextSettings.WordWrap := False;
+        KeyL.Text := AItems[I].Key;
+        KeyL.HitTest := False;
+      end;
       for K := 0 to High(AItems[I].Glyphs) do
       begin
         B := Bitmap(AItems[I].Glyphs[K]);
@@ -592,13 +632,20 @@ begin
   begin
     MaxW := TCommonCustomForm(FShade.Parent).ClientWidth * BOX_SHARE;
     MaxH := TCommonCustomForm(FShade.Parent).ClientHeight * BOX_HEIGHT_SHARE;
+    if FNextShare > 0 then
+      MaxW := TCommonCustomForm(FShade.Parent).ClientWidth * FNextShare;
   end
   else if FShade.Parent is TControl then
   begin
     MaxW := TControl(FShade.Parent).Width * BOX_SHARE;
     MaxH := TControl(FShade.Parent).Height * BOX_HEIGHT_SHARE;
+    if FNextShare > 0 then
+      MaxW := TControl(FShade.Parent).Width * FNextShare;
   end;
-  MaxW := Min(MaxW, BOX_MAX_WIDTH);
+  // NextWidthShare: that share, for this Show only
+  if FNextShare <= 0 then
+    MaxW := Min(MaxW, BOX_MAX_WIDTH);
+  FNextShare := 0;
   W := Max(Need, FMinWidth);
   // a text: the widest box the window allows
   if Body <> '' then
@@ -619,12 +666,16 @@ begin
       try
         TL.Font.Assign(FBody.TextSettings.Font);
         TL.WordWrap := True;
-        TL.MaxSize := TPointF.Create(W - PAD * 3, 100000);
+        // a little narrower than the label: the label's own drawing can
+        // wrap a line the measure did not (EpubBuilder's calibration page,
+        // 2026-11-22: its last answer pushed out of sight)
+        TL.MaxSize := TPointF.Create(W - PAD * 4, 100000);
         TL.Text := Body;
       finally
         TL.EndUpdate;
       end;
-      BodyH := TL.TextHeight + FFontSize * 0.5;
+      // a spare line for the same reason
+      BodyH := TL.TextHeight + FFontSize * 1.5;
     finally
       TL.Free;
     end;
