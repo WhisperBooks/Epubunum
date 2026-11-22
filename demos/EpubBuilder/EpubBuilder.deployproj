@@ -44,18 +44,18 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\OSXARM64\media\aladdin.m4a">
-            <RemoteDir>EpubBuilder.app\Contents\Resources\media\</RemoteDir>
-            <RemoteName>aladdin.m4a</RemoteName>
+        <DeployFile Include="..\..\redistributable_bin\OSXARM64\libggml.dylib">
+            <RemoteDir>EpubBuilder.app\Contents\Frameworks\</RemoteDir>
+            <RemoteName>libggml.dylib</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\OSXARM64\libggml.dylib">
-            <RemoteDir>EpubBuilder.app\Contents\Frameworks\</RemoteDir>
-            <RemoteName>libggml.dylib</RemoteName>
+        <DeployFile Include="..\..\media\A_Scandal_in_Bohemia.epub">
+            <RemoteDir>EpubBuilder.app\Contents\Resources\media\</RemoteDir>
+            <RemoteName>A_Scandal_in_Bohemia.epub</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
@@ -135,11 +135,29 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
+        <DeployFile Include="..\..\media\AChristmasCarol_librivox.m4b">
+            <RemoteDir>EpubBuilder.app\Contents\Resources\media\</RemoteDir>
+            <RemoteName>AChristmasCarol_librivox.m4b</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
         <DeployFile Include="OSXARM64\Steam\EpubBuilder.entitlements" Condition="'$(Config)'=='Steam'">
             <RemoteDir>EpubBuilder.app\..\</RemoteDir>
             <RemoteName>EpubBuilder.entitlements</RemoteName>
             <DeployClass>ProjectOSXEntitlements</DeployClass>
             <Operation>1</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\media\A_Christmas_Carol.epub">
+            <RemoteDir>EpubBuilder.app\Contents\Resources\media\</RemoteDir>
+            <RemoteName>A_Christmas_Carol.epub</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
             <LocalCommand/>
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
@@ -276,6 +294,15 @@
             <RemoteName>Info.plist</RemoteName>
             <DeployClass>ProjectOSXInfoPList</DeployClass>
             <Operation>1</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\media\ScandalBohemia_librivox.m4b">
+            <RemoteDir>EpubBuilder.app\Contents\Resources\media\</RemoteDir>
+            <RemoteName>ScandalBohemia_librivox.m4b</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
             <LocalCommand/>
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
@@ -457,9 +484,9 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\Linux64\media\aladdin.m4a">
+        <DeployFile Include="..\..\media\ScandalBohemia_librivox.m4b">
             <RemoteDir>EpubBuilder\media\</RemoteDir>
-            <RemoteName>aladdin.m4a</RemoteName>
+            <RemoteName>ScandalBohemia_librivox.m4b</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
@@ -496,6 +523,15 @@
         <DeployFile Include="..\..\redistributable_bin\Linux64\libavutil.so">
             <RemoteDir>EpubBuilder\</RemoteDir>
             <RemoteName>libavutil.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\media\A_Scandal_in_Bohemia.epub">
+            <RemoteDir>EpubBuilder\media\</RemoteDir>
+            <RemoteName>A_Scandal_in_Bohemia.epub</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
@@ -550,6 +586,15 @@
         <DeployFile Include="..\..\redistributable_bin\Linux64\libggml-cpu-sapphirerapids.so">
             <RemoteDir>EpubBuilder\</RemoteDir>
             <RemoteName>libggml-cpu-sapphirerapids.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\media\AChristmasCarol_librivox.m4b">
+            <RemoteDir>EpubBuilder\media\</RemoteDir>
+            <RemoteName>AChristmasCarol_librivox.m4b</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
@@ -866,6 +911,15 @@
         <DeployFile Include="..\..\redistributable_bin\Linux64\libggml.so">
             <RemoteDir>EpubBuilder\</RemoteDir>
             <RemoteName>libggml.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\media\A_Christmas_Carol.epub">
+            <RemoteDir>EpubBuilder\media\</RemoteDir>
+            <RemoteName>A_Christmas_Carol.epub</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>

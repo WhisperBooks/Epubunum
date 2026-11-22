@@ -2,11 +2,11 @@
 {
 	"version"		"3"
 	"revision"		"1"
-	"title"		"EpubReader - Switch 2 Pro (r3)"
-	"description"		"Default layout for the Switch 2 Pro (reader_controller_switch2_pro.vdf, revision 3) - EpubReader: reading, listening and its menu."
+	"title"		"EpubReader - Switch 2 Pro (r4)"
+	"description"		"Default layout for the Switch 2 Pro (reader_controller_switch2_pro.vdf, revision 4) - EpubReader: reading, listening and its menu."
 	"controller_type"		"controller_switch2_pro"
-	"major_revision"		"1"
-	"minor_revision"		"3"
+	"major_revision"		"2"
+	"minor_revision"		"4"
 	"Timestamp"		"0"
 	"actions"
 	{
@@ -44,8 +44,8 @@
 	{
 		"english"
 		{
-			"title"		"EpubReader - Switch 2 Pro (r3)"
-			"description"		"Default layout for the Switch 2 Pro (reader_controller_switch2_pro.vdf, revision 3) - EpubReader: reading, listening and its menu."
+			"title"		"EpubReader - Switch 2 Pro (r4)"
+			"description"		"Default layout for the Switch 2 Pro (reader_controller_switch2_pro.vdf, revision 4) - EpubReader: reading, listening and its menu."
 			"Set_Reader"		"Reading"
 			"Action_Scroll"		"Scroll the page"
 			"Action_Up"		"Up (menu, library) / scroll up"

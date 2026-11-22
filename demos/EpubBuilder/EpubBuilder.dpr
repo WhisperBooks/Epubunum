@@ -51,6 +51,10 @@ uses
   uCovers in 'src\uCovers.pas',
   // the cover chooser (thumbnails)
   uCoverPick in 'src\uCoverPick.pas',
+  // the benchmarks' progress view
+  uBenchProgress in 'src\uBenchProgress.pas',
+  // macOS: the window full screen in Big Picture (Cocoa)
+  uMacWindow in 'src\uMacWindow.pas',
   uBuilder in 'src\uBuilder.pas' {frmBuilder};
 
 {$R *.res}

@@ -15,9 +15,15 @@ all functionality."
 
 WHERE THINGS STAND: the owner has compiled and run everything up to zip
 221; zips 222 - 226 were pushed (cade964 "Menu tidy"), their compile
-result not reported. Zips 227 (step 1 below: Aladdin out, the reference
-texts in) and 228 (media/ deployed from the repository,
-deploy_redist.py --media-only) are delivered, NOT COMPILED.
+result not reported. Zip 227 (step 1 below: Aladdin out, the reference
+texts in) COMPILED AND RAN (calibration, 5090, 10:49); 228 (media/
+deployed from the repository, deploy_redist.py --media-only) and 229
+(the calibration times the clearest 30 s of the recording), 230
+(benchmarks - step 3), 231 (keep the book: No) and 232 (the Benchmark
+menu of five with times expected; the score = transcription time
+H:MM:SS.mmm) and 233 (the benchmarks' progress bars) are delivered,
+NOT COMPILED. Step 4 (the leaderboard) is
+not to be mentioned to users yet (owner 11:34).
 Last number used: see "Deliveries". Never commit or push.
 
 BEFORE BUILDING ANYTHING read, in this file: the standing rules under
@@ -43,7 +49,8 @@ THE TASK, in the order it has to be built:
    git-ignored), A_Scandal_in_Bohemia.epub, A_Christmas_Carol.epub
    (committed). Every LibriVox section has a spoken intro and outro: 30 s
    clear of both ends of EVERY section, for timing and for scoring.
-2. CALIBRATION ON THE NEW RECORDINGS. The survey showed what the present
+2. BUILT IN ZIP 242 (not compiled): CALIBRATION ON A CONTINUOUS STRETCH
+   (owner 13:37 "2"). Before it: the survey showed what the
    30 s stretch gets wrong: the .en models' temperature-fallback retries
    do not happen in it, so it misranks them against a real build. The
    deferred "calibration on a continuous stretch" change belongs here.
@@ -793,6 +800,19 @@ redistributable_bin/Linux64 Deploy reports those files missing.
   away raises LAYOUT_MAJOR too. Done for the builder's menu (zip 217).
   STILL BREAKS IT: EpubReader.FormKeyDown (arrows, Enter, Esc in its
   menu; P, D, L, R, [ ] on the page) - see zip 217's notes.
+- STEAM BUILDS: EVERY BUTTON IS SHOWN AS STEAM'S GLYPH WHEN A PAD IS IN
+  USE, AND AS ITS KEY WHEN THE KEYBOARD IS (owner 2026-11-22 12:43 / 12:44:
+  "All buttons must be shown as their Glyphs when a stick is in use and
+  the Key shown when keyboard is in use. This is important as PS4/5
+  controllers don't have A/B/X/Y etc" - "This applies to ALL menus").
+  NEVER write a button's letter or name ("A answer", "B back", "Start",
+  "View") into a text. Menu feet are hints built from ACTIONS (uPadMenu
+  TPadHint / SetHints / HintsText): EpubBuilder PadFootOf(buttons, texts)
+  + RefreshFoot after the Show; EpubReader PadMenuFoot + RefreshPadFoot.
+  A pad: TSteamPad.Origin(button, dark) - its Glyph, else its Name; the
+  keyboard / mouse: ReaderMenuFirstKey of the action (uReaderInput's
+  table). The foot changes over when the other way is used (SetPadKeys in
+  both programs). Done for every menu foot that names controls in zip 240.
 - ONLY CHAPTER MATERIAL IS TRUSTED FOR TIMING (decided 2026-11-15,
   TWhisper zip 26; owner restated 2026-11-21 18:59). Whisper deliberately
   leaves a LibriVox recording's spoken intro and outro untranscribed, and
@@ -1150,7 +1170,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 228 (224 = the next-session notes at the top, CLAUDE.md only).
+Last number used: 248 (224 = the next-session notes at the top, CLAUDE.md only).
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -3737,6 +3757,690 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 248 (on top of zip 247; NEEDS TWhisper-32): calibration bars move within a device
+Owner 2026-11-22 15:49: "When calibrating three runs are typically done.
+This means the progress bar goes 0, 33, 66, 100. If calibrating a very
+slow machine it can look like it's stuck. Can we get some callbacks while
+calibrating so the calibration is more granular?" The three steps are
+the devices (one pair each, CALIBRATION_RUNS 1): the bar moved only at
+OnPair's end. NOT COMPILED. PACKAGE REBUILD (TWhisper's Whisper.Core
+interface changed). Files: demos/EpubBuilder/src/uCalibration.pas,
+demos/EpubBuilder/src/uBuilder.pas, demos/EpubBuilder/README.md,
+CLAUDE.md.
+- TWhisper-32 (TWhisper's CLAUDE.md "Benchmark progress"):
+  TWhisperBenchmark.OnProgress(Sender, APhase: wbpLoading / wbpWarmup /
+  wbpTiming, APercent of the pair): loading 0 - 10, warm-up 10 - 20,
+  timed runs 20 - 100 by whisper.cpp's progress (each 30 s window: a
+  120 s stretch = about four steps), 100 when Ok.
+- uCalibration: TCalibrationStepEvent(AModel, ADevice, APhase text,
+  APercent); TCalibrationThread.OnStep; BenchProgress (Bench.OnProgress,
+  on the thread) queues it with FStepModel / FStepDevice (set before
+  RunOne) and sends the whole calibration's progress, 100 * (FStepDone +
+  APercent / 100) / FStepTotal, to OnProgress (the desktop's bar too).
+  Phase texts: 'Loading the model onto', 'Warming up on', 'Timing on'
+  (the device's name follows).
+- uBuilder: TCalibrationRow.Phase / Step (cleared at OnPair's start and
+  end); FCalib.OnStep fills them (a step whose device is no longer the
+  row's is left out); CalTick: Pct = (Done + Step / 100) * 100 / devices,
+  the middle text Phase + ' ' + Device ("Timing on" + Device before the
+  first step).
+
+## Zip 247 (on top of zip 246): macOS - Big Picture full screen through Cocoa
+Owner 2026-11-22 15:06: "Mac Big Picture - Still not Full Screen (maybe
+it needs Game Mode?)" - zip 210's FMX FullScreen asked for again did not
+help. Answered: Game Mode is not it - macOS turns Game Mode on for a game
+that is already full screen (and only for the games category; ours is
+productivity); it never makes a window full screen. NOT COMPILED. NO
+PACKAGE REBUILD. Files: demos/EpubBuilder/src/uMacWindow.pas (new),
+demos/EpubBuilder/src/uBuilder.pas, demos/EpubBuilder/EpubBuilder.dpr,
+demos/EpubBuilder/EpubBuilder.dproj, CLAUDE.md.
+- Suspects (no log yet): FMX's FullScreen read True in an ordinary window
+  (so zip 210 never asked again), or the NSWindow lacked
+  NSWindowCollectionBehaviorFullScreenPrimary (toggleFullScreen is then
+  ignored without a word).
+- uMacWindow (new, builder only): MacIsFullScreen - the NSWindow's real
+  state (styleMask NSWindowStyleMaskFullScreen) or covered by
+  MacCoverScreen; MacMakeFullScreen - collection behaviour Primary on,
+  Auxiliary / None off, activateIgnoringOtherApps, makeKeyAndOrderFront,
+  toggleFullScreen (only while not full screen); MacCoverScreen - the
+  fallback: presentation options HideDock + HideMenuBar, BorderStyle None
+  (the NSWindow looked up after: FMX may make it again), setFrame to the
+  screen's frame. Other systems: FullScreen / nothing.
+- tmPadTimer: first look 1.5 s after StartPad (FFullTick set there), then
+  every 1.5 s; PAD_FULL_TRIES 4 - tries 1-3 the Mac's full screen, try 4
+  covers the screen. Debug lines: "Big Picture: the window is not full
+  screen (n of 4) - FMX full screen <b>, visible <b>, collection
+  behaviour $x -> $y, full screen asked for", "... macOS did not make the
+  window full screen (4 of 4) - the window covers the display (W x H
+  points) ...", "... is full screen (after n of 4)". FMX full screen
+  True in the first line = suspect 1.
+- Names to look at if it does not compile: NSWindow.toggleFullScreen /
+  collectionBehavior / setCollectionBehavior / styleMask / screen /
+  setFrame(NSRect, Boolean), NSApplication.setPresentationOptions,
+  TFmxFormBorderStyle (FMX.Forms or FMX.Types - both used).
+- EpubReader on the Mac in Big Picture: not reported; uMacWindow can be
+  moved to demos/common for it if it shows the same.
+
+## Zip 246 (on top of zip 245): at most four blocks at a time
+Owner 2026-11-22 14:27: "What happens if the user loads all models then
+chooses Calibrate All? Each bar is 20% so the height required will
+exceed 100%". Answered: Arrange shrank every block to fit 90 % - ten
+models gave blocks of ~7 % (59 px on a Deck, fonts at their minimum 11).
+Offered (1) four at a time, scrolling, or (2) a compact form; owner
+14:28 "(1)". NOT COMPILED. NO PACKAGE REBUILD. Files:
+demos/EpubBuilder/src/uBenchProgress.pas, demos/EpubBuilder/src/uBuilder.pas,
+demos/EpubBuilder/README.md, CLAUDE.md.
+- uBenchProgress: MAX_VISIBLE 4; FHeader (a centred line above the
+  blocks, HEADER_HEIGHT 0.35 of a block, shown only with more than four);
+  FTop - the first block shown; Arrange lays out at most four (the rest
+  Visible False), sized as before for four plus the header (Deck 800 px:
+  141 px blocks, 1080p: 191 px). SetCurrent(index): FTop = index, kept
+  within [0, N - 4] (the last four stay at the end); SetHeader(text).
+- CalTick: Current = the first model not ended -> SetCurrent and "Model
+  k of N"; all ended -> the last four, "All N models calibrated". The
+  benchmarks (at most four) are unchanged.
+
+## Zip 245 (on top of zip 244): the main menu after the start-up calibration
+Owner 2026-11-22 14:24: "After automatic calibration on first start it
+should end up on the main menu not the settings menu as it currently
+does". CalibrationDone's PadBackToMenu(True) = PadHome(BPC_MODEL), a row
+of the Settings page (zip 205's "back on Model, for the next one").
+FCalAtStart (new): set when CheckCalibrationAtStart started a
+calibration (also the first model's, FCalibPending); CalibrationDone
+then PadBackToMenu(False) = PadHome(BPC_BOOK), the first page, and
+clears it. Calibrations from Settings, of a model added later, or
+after Download every model still come back on Model. NOT COMPILED. NO
+PACKAGE REBUILD. Files: demos/EpubBuilder/src/uBuilder.pas, CLAUDE.md.
+
+## Zip 244 (on top of zip 243): the calibration's progress bars; new models calibrate by themselves; Re-calibrate
+Owner 2026-11-22 14:15: "We need a Calibration progress bar, similar to
+the Benchmark version adapted to role. When the user starts the first
+thing they should see is the Calibration taking place. When this has
+finished they get to see the menu"; 14:16: "If models are added later on
+they should also auto-calibrate - The Calibrate menu options will become
+Re-Calibrate options". NOT COMPILED (pasdoc_check, project_check: 0
+problems). NO PACKAGE REBUILD. Files: demos/EpubBuilder/src/uCalibration.pas,
+demos/EpubBuilder/src/uBuilder.pas, demos/EpubBuilder/README.md,
+CLAUDE.md.
+- uCalibration: TCalibrationPairEvent (model index, device index,
+  speed); TCalibrationThread.OnPair - Pair(M, D, -1) before each pair
+  (skipped ones too), Pair(M, D, speed or 0) after it (not on a Cancel
+  mid-pair); queued to the main thread. Not called by the diagnostics.
+- uBuilder: TCalibrationRow (Model, Started, Ended, Done, Device, Best,
+  BestSpeed); FCalRows filled in StartCalibration from the models list;
+  FCalib.OnPair keeps them; FCalView (a TBenchProgress, the benchmarks'
+  view: frames, dark / light, Cancel in the corner on the desktop) made
+  just before FCalib.Start, a block per model "Calibrating <label> :
+  <device names>"; CalTick: the clock from the model's first pair to its
+  last (BenchClock), "Waiting" / "Timing on Vulkan0" / "Done - fastest:
+  Vulkan0 (92.1x)" (the fastest that succeeded - the choice itself may
+  leave a suspect device out: CalibrationBestIndex) / "Done - no device
+  could run it", the share = devices done. The pad's menu is hidden when
+  it starts; CalibrationDone frees the view, then PadBackToMenu(True).
+  Big Picture start: StartPad no longer shows the home list when
+  CalibrationDueAtStart (new: whisper.cpp and devices there, not DontAsk,
+  and no calibration / other devices / an older method) - the
+  calibration (AfterShow) is the first thing seen, the menu after it.
+- New models: OfferCalibration no longer asks - it calibrates the
+  model in the window when it is not calibrated (after a download, on a
+  choice; DontAsk still respected); FCalibDeclined gone. Download every
+  model: at its end CalibrateNewModels (FCalOnlyNew: StartCalibration
+  with AAllModels keeps only the models without a calibration; nothing
+  when all have one).
+- Wording: Big Picture's rows "Re-calibrate (this model)" / "Re-calibrate
+  every model" (the desktop's items were Re-calibrate already); "Settings
+  > Calibrate" -> "Settings > Re-calibrate" in every log line; README.
+NAMES TO LOOK AT if the compiler complains: TCalibrationPairEvent
+(reference to procedure) and the anonymous OnPair in StartCalibration
+(FCalRows / FDevices of Self); Row / Titles / Names locals in
+StartCalibration; the empty "then" in StartPad (if ... then else if);
+CalTick's body after BenchClock; Models.Free + Exit in the FCalOnlyNew
+branch (Models made just above, before the try that frees it).
+TO TEST (owner): first start with the depots (no settings): the bars
+straight away (desktop and Big Picture), base and turbo, the menu after;
+choose / download another model in expert mode - it calibrates at once
+with the bars; Download every model - the new ones calibrate at the end.
+
+## Zip 243 (on top of zip 242): calibrated at start-up straight away
+Owner 2026-11-22 13:59: the models now ship in Steam depots ("setting up
+the depots was easy, only needed the files. All done"): one depot for
+every OS with models/ggml-base.bin and models/ggml-large-v3-turbo.bin, a
+macOS one with models/ggml-base-encoder.mlmodelc/ and
+models/ggml-large-v3-turbo-encoder.mlmodelc/ (unzipped from
+huggingface.co/ggerganov/whisper.cpp's *-encoder.mlmodelc.zip). 14:09:
+"As models are pre-installed Big Picture should directly calibrate the
+models - this doesn't happen. On Desktop mode I get a big warning pop-up
+- this should be the same as Big Picture". NOT COMPILED. NO PACKAGE
+REBUILD. Files: demos/EpubBuilder/src/uBuilder.pas,
+demos/EpubBuilder/README.md, CLAUDE.md.
+- Why Big Picture did nothing: no model was chosen on a first start, so
+  CheckCalibrationAtStart took its "no model to calibrate" branch
+  (FCalibPending) - the depot's models were never picked.
+- CheckCalibrationAtStart: with FModelPath '' it chooses turbo, else base,
+  from FModelsFolder (FillModels, SaveSettings; log "Model: turbo
+  (installed with EpubBuilder)"); then - not calibrated, other devices,
+  or the old method - NO question and NO dialog on either: a log line
+  with the reason and StartCalibration(True, False) = every model (base
+  + turbo; the expert list in expert mode). [Calibration] DontAsk (set by
+  the old dialog's "Do not show this again") is still respected (a log
+  line only). uCalibration.AskCalibration is no longer called (kept, in
+  case a question is wanted back). FCalibPending (no model at all): the
+  first model downloaded or chosen calibrates every model the same way.
+  OfferCalibration (a model downloaded / chosen later, not calibrated:
+  "Calibrate it now?") is unchanged.
+TO TEST (owner): a machine with the depots and no EpubBuilder.ini (or
+Method < 2): desktop and Big Picture start calibrating base and turbo at
+once, the log says why, the bars / progress show it, Cancel stops it.
+
+## Zip 242 (on top of zip 241): step 2 - the calibration on a continuous stretch
+Owner 2026-11-22 13:34 "OK, Benchmark estimates are a lot better now"
+(zip 241 run); 13:37, asked which step next: "2". The plan of zip 205's
+notes, built. NOT COMPILED (pasdoc_check, project_check: 0 problems). NO
+PACKAGE REBUILD. Files: demos/EpubBuilder/src/uCalibration.pas,
+demos/EpubBuilder/src/uHistory.pas, demos/EpubBuilder/src/uBuilder.pas,
+demos/EpubBuilder/README.md, CLAUDE.md.
+- uCalibration: CALIBRATION_STRETCH_SECONDS 30 -> 120, CALIBRATION_RUNS
+  3 -> 1: ONE run of the clearest 120 s of chapter material
+  (FindReferenceStretch, 30 s from both ends of its section; sections
+  shorter than 180 s cannot hold it: the longest is then used, as
+  before). The fallback stays on. CALIBRATION_METHOD = 2 written as
+  [Calibration] Method by CalibrationSave; each model's section gets
+  Seconds = 120. CalibrationMethod (1 when Done without Method, 0 with no
+  calibration), CalibrationSeconds (the section's Seconds;
+  CALIBRATION_OLD_SECONDS 30 for a section without it; 0 not
+  calibrated). Status / log texts: "120 s of speech timed", "one run of
+  120 s"; the diagnostics' "The calibration timed it there at ... (N s of
+  speech)".
+- uHistory: TBuildHistoryRow.CalibrationSeconds, column calibration_s
+  (last; HEADER + ',calibration_s'; MID_HEADER = the header of zips
+  before, upgraded like OLD_HEADER; rows without it read 0 = the old
+  30 s kind). HistoryExpect(.., ACalibrationSpeed, ACalibrationSeconds,
+  ..): rule 2's ratios only from rows of the same model AND the same
+  kind of calibration (Long: > HISTORY_SHORT_CALIBRATION 45 s); rule 3:
+  HISTORY_BOOK_RATIO_CONTINUOUS 1.0 for a long calibration (to be
+  measured on the machines), HISTORY_BOOK_RATIO 1.35 for an old one.
+- uBuilder: PrepareEstimate and RefreshBenchmarks pass
+  CalibrationSeconds; RecordHistory keeps it in the row (0 when the pair
+  was not calibrated). CheckCalibrationAtStart: Old = Done and Method <
+  CALIBRATION_METHOD - treated as out of date: "The calibration has
+  changed since yours of <date>: it now times two minutes of speech in
+  one run ... Every model here is calibrated again." and Yes runs
+  StartCalibration(Old, ..) = every model (base + turbo, the expert list
+  with expert mode). The calibration's header and start-up texts say two
+  minutes, one run.
+- What to expect: the calibration's speeds DROP towards a book's (turbo
+  no longer encodes a short clip twice; base / .en models' retries now
+  happen in it) - turbo on the 5090 near its ~92x as a book (was 82.9x
+  calibrated against 30 s, faster than the book only through the clip),
+  base near its 97 - 120x (was 140.9x). The ranking of devices should
+  not change for turbo; for small models it may (retry-heavy devices
+  lose). Time: about the same as 3 x 30 s + a warm-up per pair.
+- Every machine must be calibrated again (the start-up offer does it);
+  after that the benchmarks' and builds' estimates use the new kind only.
+NAMES TO LOOK AT if the compiler complains: HistoryExpect's new
+parameter in both callers; the nested Long function before HistoryExpect's
+begin; Ini.ReadInteger / WriteInteger on the sections; Old captured by the
+pad question's anonymous method (CheckCalibrationAtStart).
+TO TEST (owner): start EpubBuilder - the "calibration has changed" offer;
+Yes: base and turbo calibrated, the log's per-device lines "one run of
+120 s from h:mm:ss into the section"; EpubBuilder.ini: [Calibration]
+Method=2, Seconds=120 per model; a benchmark afterwards - its Expected
+line, then EpubBuilder-history.csv's last column 120.
+
+## Zip 241 (on top of zip 240): the benchmarks' estimates
+Owner 2026-11-22 12:58, screenshots (the 5090, Vulkan0): the menu said
+Short / Fast about 0:00:07 and Long / Fast about 0:00:25, the scores
+were 0:00:26.4 and 0:01:54.8 (Detailed: 0:00:38 / 0:02:10 against
+34.6 / 2:04.5 - fine). "The estimates are sometimes way off compared to
+results. They should be fairly close at least". The log: "Expected:
+about 00:00:07.300 for 00:56:22.850 of audio - 479.8x real time, from
+the calibration (140.9x) times 3.41 - how 10 earlier build(s) here
+compared with their calibration". CAUSE: HistoryExpect's rule 2 took the
+ratio from the last 10 builds of ANY model here - turbo's, against stale
+calibrations (zip 201: a 26.1x turbo calibration while it built at
+~100x) - and base had no build of its own (benchmarks were not recorded).
+NOT COMPILED. NO PACKAGE REBUILD. Files: demos/EpubBuilder/src/uHistory.pas,
+demos/EpubBuilder/src/uBuilder.pas, demos/EpubBuilder/README.md,
+CLAUDE.md.
+- uHistory.HistoryExpect: Ratios only from rows of the same model; the
+  source text names the model. (The deferred step 2 - calibration
+  length per row, like with like - is still to do.)
+- BuildDone: a benchmark that succeeded is RECORDED in the build history
+  (RecordHistory; was skipped since zip 230) - a whole book's build, so
+  rule 1 (this model on this device) gives the next estimate, for
+  benchmarks and books alike. The "Open ... in EpubReader" line and
+  FMadeBook stay for books only. Its TranscribeSeconds is the whole
+  transcription (with the sections' edges): the estimate is of the whole
+  run, the score of the chapter material - the score stays a little
+  under it.
+OPEN, owner 12:58: "I THINK Christmas Carol may be stalling" - asked for
+the run's log (Benchmarks\A Christmas Carol (Long Text, Fast
+Model).epub.log: "Part n of 5 ... s" per stave) and
+EpubBuilder-debug.log (whisper.cpp's timings per part: fallbacks).
+Seen: base ran the Carol at 97x (186 min in 1:54.8) against the
+Scandal's 120x; turbo the same on both (~92x). Suspects: base's
+temperature-fallback retries on that reading (slow windows in bursts),
+and each stave's audio decoded before it is transcribed (the clock
+stands still meanwhile; 54 min of AAC per stave).
+
+## Zip 240 (on top of zip 239): every menu's foot - Steam's glyphs or the keys
+Owner 2026-11-22 12:43, a screenshot of the Results ("A answer B no X / H
+hide"): the standing rule above; 12:44 "This applies to ALL menus". NOT
+COMPILED (pasdoc_check, project_check: 0 problems). NO PACKAGE REBUILD.
+Files: demos/EpubReader/src/uPadMenu.pas, demos/EpubReader/src/uMain.pas,
+demos/EpubBuilder/src/uBuilder.pas, CLAUDE.md.
+- uPadMenu (SHARED): TPadHint (Glyph, Name, Text); TPadMenu.Hint,
+  HintsText (the words - "Enter choose   Esc back" - given to Show as its
+  foot: they size the box), SetHints (the foot drawn as a row in its
+  middle: each control's picture at 90 % of the foot's height, else its
+  name, then its words; a hint without words joins the next - "<left>
+  <right> change"; the same hints again draw nothing - FHintKey),
+  HasHints; Show and SetFoot take the hints away (ClearHints).
+- EpubBuilder: BP_FOOT / BP_FOOT_KEYS gone; BP_FOOT_BUTTONS /
+  BP_FOOT_TEXTS (choose, back, left+right change, close, the queue);
+  PadHintsFor(buttons, texts, keys) - FPad.Origin's Glyph / Name, else
+  ReaderMenuFirstKey; PadFootOf keeps FFootButtons / FFootTexts and
+  returns the words; RefreshFoot draws them. Now hints: the home list and
+  its Settings page, the queue, Controls, every Ask (answer, no /
+  cancel), the pairing box (A / B refuse -> <choose> <back> refuse), the
+  Results (answer, no, hide). SetPadKeys: any foot with hints changes
+  over (was the home and queue lists only); the timer's idle foot is
+  hints again after a build's status line. The other lists' feet are
+  sentences (a folder, the model advice) and stay text.
+- EpubReader: FPadKeys (set by a menu key in FormKeyDown, cleared by a
+  pad press in tmPadTimer) and SetPadKeys; PadMenuFoot keeps FFootChange
+  and returns the words; PadFootHints / RefreshPadFoot after the menu's,
+  Contents' and Controls' Show. Before: the pad's NAMES as text, Enter /
+  Esc without a pad.
+NAMES TO LOOK AT if the compiler complains: dynamic-array literals passed
+to TArray<Integer> / TArray<string> parameters (PadFootOf([BP_CHOOSE,
+BP_BACK], ['answer', IfThen(...)])) and of records (PadFootHints' Result
+:= [One(..), One(..)]); TPadHint in both programs (uPadMenu); the nested
+Word procedure in SetHints using the outer W, L, X, H, Size, Color;
+TImageWrapMode (FMX.Objects); BP_FOOT_BUTTONS above PadFoot.
+TO TEST (owner): an Xbox pad and a PS4 / PS5 pad (Steam's pictures, no
+letters), then the keyboard (Enter, Esc, Left / Right, F2, F3, H) - the
+foot changes over at the next key or press without the menu closing;
+the Results, a question, the home list, Controls, the reader's menu.
+
+## Zip 239 (on top of zip 238): the benchmarks' names - "Short Text, Fast Model"
+Owner 2026-11-22 12:36: "From e.g. Short + Fast -> Short Text, Fast
+Model i.e. just append Text + Model". BENCH_NAMES: Short Text, Fast
+Model / Short Text, Detailed Model / Long Text, Fast Model / Long Text,
+Detailed Model (Run all 4 benchmarks unchanged). They name the menu
+items, the bars, the results rows, a kept book's file ("<title> (Short
+Text, Detailed Model).epub") and benchmarks.csv's Benchmark column (rows
+before 239 say "Short + Detailed"). NOT COMPILED. NO PACKAGE REBUILD.
+Files: demos/EpubBuilder/src/uBuilder.pas, demos/EpubBuilder/README.md,
+CLAUDE.md.
+
+## Zip 238 (on top of zip 237): dark before the builder's window is drawn
+Owner 2026-11-22 12:32: "The screen briefly flashes white on form load
+before the theme takes over. Can we switch theme before anything is
+shown?" The dark window was applied only by StartPad (from FormShow, in
+Big Picture through BigPictureWindow) and tmDark (500 ms): the first
+frames had the style's light background. NOT COMPILED. NO PACKAGE
+REBUILD. Files: demos/EpubBuilder/src/uBuilder.pas, CLAUDE.md.
+- DarkBeforeShow (new): when dark, ApplyStyleLookup on the memos and
+  lists of the window's layouts (what ApplyDarkWindow walks), then
+  ApplyDarkWindow - the form's fill dark, the memos' style backgrounds
+  off, the labels and lists light-on-dark at once. Called at the end of
+  FormCreate and first in FormShow (before StartPad); tmDark goes on as
+  before (a style applied again).
+- FOUND: a first start (no settings file) came up LIGHT - LoadSettings
+  reads [View] Dark (default True, zip 203) only from an existing file
+  and FPadDark started False. FPadDark := True before LoadSettings.
+- A frame drawn by the system before FMX's first paint (the native
+  window's own background) is outside FMX's reach: if a flash remains,
+  say on which system.
+
+## Zip 237 (on top of zip 236): Results - a table, centred title; X / H hides them; frames 4 px
+Owner 2026-11-22 12:23, a screenshot of Run all 4 with zip 235's frames
+("Nicer but make the border 2x as thick"): "When it finishes it returns
+to a panel that is headed "Note"... Heading Results (centered). Remove
+Scored (transcription time). List results as a table - Benchmark on
+left, score on right (right aligned). Add a "X" button / H key binding
+that Hides/Shows the results". NOT COMPILED (pasdoc_check, project_check:
+0 problems). NO PACKAGE REBUILD. Files: demos/EpubReader/src/uPadMenu.pas,
+tools/gen_reader_input.py, demos/EpubReader/src/uReaderInput.pas and
+demos/EpubReader/steaminput/controllers/*.vdf (11, REGENERATED - only
+their revision lines; the manifest unchanged; LF as committed - the
+generator writes CRLF here, converted back),
+demos/EpubBuilder/src/uBuilder.pas, demos/EpubBuilder/src/uBenchProgress.pas,
+demos/EpubBuilder/README.md, CLAUDE.md.
+- uPadMenu (SHARED): TPadMenuItem.Info - a line of information: Move
+  passes over it (in the direction moved), Show never selects it, a click
+  on it does nothing (FInfo per row, cleared with the rows); Item sets it
+  False. NextTitleCentered - the next Show centres its title, then left
+  again.
+- Steam Input rule: pad X is the action "Again" (the reader's "say it
+  again") already; gen_reader_input.py MENU_KEYS + ("Again", "char", "H",
+  "H"); LAYOUT_REVISION 3 -> 4, LAYOUT_MAJOR 1 -> 2 (an interaction
+  added). The builder: BP_TOGGLE = 8, BP_ACTIONS + 'Again' (its TSteamPad
+  now reads 9 actions); Controls lists "Show / hide results" (X, H). The
+  reader does not look keys up in the menu table (its own FormKeyDown),
+  so H changes nothing there.
+- Results (BenchmarkFinished -> BenchShowResults), in the pad's menu on
+  the desktop too: title "Results" centred; a row per benchmark (name,
+  score as the value on the right), Info rows; a blank Info row; "Keep
+  the book(s) to read in EpubReader?" (Info); with a Fast book offered
+  "Detailed makes the better book." (Info, faded); Yes / No (No
+  selected) - or OK without books. "Score (transcription time)" gone.
+  Answers as Ask's (FAskResults, FAskProc; B / a click beside = No);
+  FAskThenClose: on the desktop PadAnswer closes the menu instead of
+  showing the home list. FBenchKeep / FBenchCandidates /
+  FBenchFastOffered hold what the answer needs (shown again by X / H).
+- BenchToggleResults (X / H; the corner button, now "Hide results" /
+  "Show results" - TBenchProgress.SetButtonText, OnCancel renamed
+  OnButton): hidden = FPadMenu.Hide with the question kept open
+  (FPadMode BPM_ASK); while hidden any button or menu key shows them
+  again (PadPress, FormKeyDown).
+- uBenchProgress: frames 4 px (were 2); the corner button 140 wide.
+ASKED, ANSWERED (no code), 12:26: "Where are the output texts stored? I
+see nothing in [Documents]\Epubunum\Transcribed" - a benchmark's book is
+written to <settings folder>\Benchmarks (Windows: %APPDATA%\EpubUnum\
+Benchmarks) and DELETED unless the question is answered Yes (No is the
+default); Yes copies it to the output folder (Transcribed unless the
+output folder was changed). The run's .log files and benchmarks.csv stay
+in Benchmarks.
+NAMES TO LOOK AT if the compiler complains: Items[High(Items)].Info and
+Row.Info; FPadMenu.NextTitleCentered; the empty "then" before "else if"
+in FormKeyDown (a comment only); FAskProc's anonymous method using the
+FBench* fields; BP_ACTIONS[0..8] wherever its length was assumed 8.
+
+## Zip 236 (on top of zip 235): the bar's clock is the score
+Owner 2026-11-22 12:11: "the timing for the benchmark for the progress
+bars should be the same. Before transcription starts the clock shows
+00:00:00.000 and the status (middle) says "Preparing Benchmark", we then
+get to transcription and the clock starts. After transcription ends the
+clock stops and the status says "Finalizing"". NOT COMPILED. NO PACKAGE
+REBUILD. Files: demos/EpubBuilder/src/uBuilder.pas,
+demos/EpubBuilder/README.md, CLAUDE.md.
+- TBuildThread.BenchElapsed (public, any thread): Summary.BenchSeconds
+  so far + (while a timed piece runs: FBenchFrom set in Transcribe) the
+  piece's time without the time asleep - the very sum the score is, so
+  the clock ends on the score. FBenchFrom cleared when the piece ends
+  (before its time is added) and on Cancel.
+- BenchTick: phases Preparing Benchmark (until the transcription's
+  first progress or "Part ..." status) / Transcribing / Finalizing
+  (owner's spelling; >= 90 %); clock = FBuild.BenchElapsed; Done shows
+  FBenchScores (the score), Stopped the last clock (FBenchClock), Waiting
+  00:00:00.000. FBenchStart / FBenchEnd gone (FBenchEnded, FBenchClock);
+  BenchClock takes seconds.
+- The clock stands still while each section's first and last 30 s are
+  transcribed (not timed): a fraction of a second each on a fast GPU.
+
+## Zip 235 (on top of zip 234): a frame round each benchmark's block
+Owner 2026-11-22 12:04, screenshots of Run all 4 and of a Short + Fast
+end on the 5090 ("That's more like it"): "The progress bar needs a
+border around it (Yellow with rounded corners?) ... 4 benchmarks at once
+- it is unclear which is which". uBenchProgress: TBenchRow.Box is a
+TRectangle - no fill, a 2 px stroke FRAME_DARK $FFE8C547 / FRAME_LIGHT
+$FFC99A06, corners of FRAME_PAD (10 % of the block's height), the same
+pad inside on all sides; the title, bar and line laid out in the inside
+(fonts 18 % of the inside's height, 11 - 28). FMX.Layouts out of its
+uses. NOT COMPILED. NO PACKAGE REBUILD. Files:
+demos/EpubBuilder/src/uBenchProgress.pas, demos/EpubBuilder/README.md,
+CLAUDE.md.
+ASKED, ANSWERED (no code): "Why does the elapsed time say 31.497 when
+the score says 26.552?" - the time under the bar is the whole run
+(reading the book and the audio, loading the model, all three sections
+transcribed WITH their first / last 30 s - 3 min of the 56 - aligning
+and writing the EPUB); the score is only the middle pieces'
+transcription (chapter material). The first shot: Short + Fast (base,
+Vulkan0) scored 0:00:26.552, 31.497 s in all.
+
+## Zip 234 (on top of zip 233): the bar's device as the log has it
+Owner 2026-11-22 11:55: "The log shows stuff like... Device: Vulkan0 -
+NVIDIA GeForce RTX 5090 Laptop GPU (GPU, Vulkan, 22.7 of 23.6 GB free).
+The bit after Vulkan0 - is fine for the description". BenchTitle:
+WhisperDeviceText(D) without its leading "<name> - " (was Backend + ' on '
++ Description). NOT COMPILED. NO PACKAGE REBUILD. Files:
+demos/EpubBuilder/src/uBuilder.pas, demos/EpubBuilder/README.md,
+CLAUDE.md.
+
+## Zip 233 (on top of zip 232): the benchmarks' progress bars
+Owner 2026-11-22 11:51: a progress bar per benchmark - "At the top ... a
+label with the benchmark name along with some very basic details - Text
+being transcribed by what device e.g. Scandal in Bohemia : Vulkan on
+NVIDIA RTX5090. Under that is the progress bar. Under the progress bar
+left aligned is current runtime HH:MM:SS.nnn and right aligned is
+percentage of transcription done. In the middle ... Warming Up / Reading
+Book / Transcribing / Finalising. This bar can take up to 80% of the
+screen width and 20% of the height. You may select up to 4 benchmarks
+... up to 4 bars are shown with a gap vertically - ... the space on each
+side above/below and left/right are balanced". READ AS: Run all 4 = four
+bars, one benchmark = one (the menu has no multiple choice - ask if a
+pick of 2 or 3 was meant). NOT COMPILED (pasdoc_check, project_check: 0
+problems). NO PACKAGE REBUILD. Files: demos/EpubBuilder/src/uBenchProgress.pas
+(NEW), demos/EpubBuilder/EpubBuilder.dpr, demos/EpubBuilder/EpubBuilder.dproj
+(one DCCReference line, by hand), demos/EpubBuilder/src/uBuilder.pas,
+demos/EpubBuilder/README.md, CLAUDE.md.
+- uBenchProgress (a unit of its own: FMX.Objects' TRectangle; its TPath
+  would hide System.IOUtils.TPath in uBuilder - zip 182): TBenchProgress
+  (TComponent owned by the form): an opaque TRectangle Align Contents
+  over the window (dark / light from [View] Dark), a block per title -
+  title label, a track and fill (TRectangles, not TProgressBar: the same
+  look in dark and light, every platform), then Time (left), Phase
+  (centre), Percent (right) on one line. Arrange (on the layer's
+  OnResized): blocks 80 % of the width, 20 % of the height each, a gap
+  of a quarter block, all together at most 90 % of the height (smaller
+  blocks then), centred both ways; fonts 16 % of a block, 11 - 28. A
+  Cancel button bottom-right on the desktop (OnCancel); a 100 ms TTimer
+  -> OnTick. SetRow(index, time, phase, percent).
+- uBuilder: StartBenchmark makes the view (FBenchView; titles from
+  BenchTitle: "<name> - <title> : <Backend> on <Description>" of the
+  device BenchmarkDevice gives); FBenchList (the run's options in order),
+  FBenchStart / FBenchEnd / FBenchPct per option; BenchTick: the running
+  one from FPercent / FStatusText - transcription % = (FPercent - 5) / 85;
+  phase: >= 90 Finalising (100 %), > 5 or a "Part ..." status
+  Transcribing, a "Loading ..." status Warming Up, else Reading Book;
+  ended ones Done (100 %) or Stopped; the rest Waiting. Time =
+  Now - start (HH:MM:SS.mmm, BenchClock) - the run's wall time, not the
+  score. BenchCancel = btnCancelClick. The view stays (final bars)
+  until the keep-the-book question is answered, then FreeAndNil.
+NAMES TO LOOK AT if the compiler complains: TRectangle.OnResized,
+TStyledSetting / TTextTrimming / TTextAlign (FMX.Types), TBrushKind
+(FMX.Graphics), the constructor's reintroduce, TCommonCustomForm as the
+owner and parent; in uBuilder BenchClock (a plain function below
+PadBenchmarks, above BenchTick), MSecsPerDay, IfThen not used on
+numbers here.
+TO TEST (owner): Run all 4 - four bars centred, Waiting until each
+starts, the phases in order, the time ticking in ms, the % to 100, Done;
+resize the window (desktop) - the blocks follow; Cancel (button, and
+the pad's menu in Big Picture) - Stopped, no score; dark and light.
+
+## Zip 232 (on top of zip 231): a Benchmark menu of five, times expected, the score a time
+Owner 2026-11-22 11:34: "As we have calibration for each model we can
+display the estimated time it will take for the benchmark to run. Let's
+make Benchmark it's own menu with 5 options: Run All 4 Benchmarks - ETA,
+Short + Fast - ETA, Short + Detailed - ETA, Long + Fast - ETA, Long +
+Detailed - ETA. Don't tell them where things are saved and take out the
+leaderboard thing (I know) they're not bothered about the model, text or
+device either. All we want is a score which is Transcription time in
+H:M:S.nnn". REPLACES zip 230's File > Benchmark Lite / Full, its Quick /
+Detailed question (AskChoice - gone) and its score box. NOT COMPILED
+(pasdoc_check, project_check: 0 problems). NO PACKAGE REBUILD. Files:
+demos/EpubBuilder/src/uBuilder.pas, demos/EpubBuilder/README.md,
+CLAUDE.md.
+- Short = BENCHMARK_LITE_REFERENCE (the Scandal), Long =
+  BENCHMARK_FULL_REFERENCE (the Carol); Fast = base, Detailed = turbo
+  (BENCH_NAMES / BENCH_REFS / BENCH_DETAILED, option 0 = Run all 4).
+- Desktop: a top-level &Benchmark menu after File: miBench[0] (Run all 4
+  benchmarks), a separator, miBench[1..4]. Text "<name> - about
+  H:MM:SS" (HmsText); no estimate, no suffix. Enabled: nothing running,
+  whisper.cpp there, the option's model there (Run all 4: both).
+- RefreshBenchmarks (from UpdateControls): the estimates worked out
+  again only when a key changes (both models there, both
+  CalibrationSummary lines, the window's device, the history file's
+  time) and nothing runs: the recordings' lengths once (FFmpeg,
+  FBenchAudio), then per option HistoryExpect as PrepareEstimate does
+  (machine, model, device with +CoreML, calibration speed) WITHOUT
+  touching FExp* (a running build's time left); ETA = audio / speed +
+  after share x audio, of the WHOLE recording; Run all 4 = the sum when
+  all four are known. New texts -> mnuMain.RecreateOSMenu.
+- Big Picture: one home row "Benchmark" (BPC_BENCH 32, faded when no
+  option can run - chosen then, it says why) -> PadBenchmarks
+  (BPM_BENCH 9): the five rows, value "about H:MM:SS", faded when not
+  available, and Back; B goes back to the home list's Benchmark row.
+- Run: StartBenchmark(option) -> FBenchQueue ([1..4] or [option]),
+  RunNextBenchmark -> RunBenchmark (zip 230's build, output "<title>
+  (<name>).epub" beside the settings); BenchmarkDone keeps the score
+  (Summary.BenchSeconds: the chapter material's transcription time),
+  appends the CSV line SILENTLY (Benchmarks/benchmarks.csv: Date,
+  Benchmark, Score, Transcription s, Chapter material s, Words, Words
+  matched, Model, Device, Device text, Build - for later), then the next
+  through TThread.ForceQueue(nil, RunNextBenchmark), or
+  BenchmarkFinished. A failure or Cancel stops Run all 4. BuildDone does
+  not show the pad's home list between two benchmarks.
+- BenchmarkFinished: "Score (transcription time)" / "Scores ..." and a
+  line per benchmark "<name>: H:MM:SS.mmm"; then "Keep the book(s) to
+  read in EpubReader?" - No by default; Run all 4 offers the two
+  Detailed books; with a Fast book offered, "Detailed makes the better
+  book ...". No paths, no model / text / device, no leaderboard in what
+  the user is shown (the window's log still has the build's own lines).
+NAMES TO LOOK AT if the compiler complains: miBench (array[0..4] of
+TMenuItem field) and High(miBench); FBenchScores / FBenchBooks /
+FBenchAudio / FBenchEta static array fields; BENCH_NAMES / BENCH_REFS /
+BENCH_DETAILED typed constants (below the BPC_ block, above their
+users); TBuildHistory / HistoryLoad / HistoryExpect / HistoryMachine
+(uHistory); TThread.ForceQueue(nil, RunNextBenchmark) (a method, as
+AfterShow); Delete(FBenchQueue, 0, 1); IndexStr with a TArray<string>;
+the anonymous method's own var K in BenchmarkFinished; I in BuildMenu.
+TO TEST (owner): the menu's five items with times (a calibrated machine)
+and greyed ones without a model; Short + Fast end to end - one score
+line, the question (No selected); Run all 4 - four builds, four scores,
+the Detailed books kept on Yes; Big Picture's Benchmark list and Back.
+
+## Zip 231 (on top of zip 230): keeping a benchmark's book - No by default
+Owner 2026-11-22 11:25: "The default for Saving the resultant book should
+be no". BenchmarkDone's Ask: ADefault mbNo (was mbYes); README.
+NOT COMPILED. NO PACKAGE REBUILD. Files:
+demos/EpubBuilder/src/uBuilder.pas, demos/EpubBuilder/README.md,
+CLAUDE.md.
+
+## Zip 230 (on top of zip 229): Benchmark Lite and Benchmark Full
+Owner 2026-11-22 11:09: "2 new menu options Benchmark Lite + Benchmark
+Full. If the user has both base + turbo they can choose between them
+labelled as Quick + Detailed then benchmark. If they only have one of
+those models go straight to benchmarking. If they have neither model
+Benchmarks are unavailable (Greyed out). The audio to use with
+benchmarks: Lite = Scandal, Full = Carol. The benchmark then does a
+transcribe using the selected model + text. At the end they are shown
+the score - which will be added to Leaderboard when that's set up. They
+may also save the resulting epub for reading later with Reader (they
+should be advised that Detailed will provide the superior result)".
+NOT COMPILED (pasdoc_check, project_check: 0 problems). NO PACKAGE
+REBUILD. Files: demos/EpubBuilder/src/uBuilder.pas,
+demos/EpubBuilder/src/uCalibration.pas, demos/EpubBuilder/README.md
+("Benchmarks"), CLAUDE.md.
+- uCalibration: BENCHMARK_LITE_REFERENCE 0, BENCHMARK_FULL_REFERENCE 1,
+  BENCH_EDGE_SECONDS (= 30), BENCH_QUICK_MODEL 'ggml-base.bin',
+  BENCH_DETAILED_MODEL 'ggml-large-v3-turbo.bin'.
+- A BENCHMARK IS A REAL BUILD (StartJob(Job, -1, True) -> TBuildThread.
+  Benchmark): book = the reference EPUB, audio = its recording, chapters
+  as parts, Reuse off, language en, device = the model's calibrated best
+  (else the window's), output <settings folder>/Benchmarks/<title>
+  (Benchmark Quick|Detailed).epub (+ its .log). No ReadSaved / ReadPartial
+  / SavePartial / SaveTranscript; RecordHistory not called.
+- CHAPTER MATERIAL ONLY (standing rule): Transcribe cuts each part of at
+  least 3 x 30 s into three pieces - [0, 30 s), the middle, the last
+  30 s - each its own Execute / Clean / FillGaps / Trim / Append (offset
+  = part offset + piece start); only the middle is timed
+  (Summary.BenchAudioSeconds / BenchSeconds, the time asleep left out).
+  A build's part is one piece, the same calls as before (Piece :=
+  Samples, no copy). ScoreBenchmark (after LogResults): the aligner's
+  book words with a time inside the middles (exact, similar,
+  interpolated, not heard, moved - the verdict's "timed") ->
+  BenchWords, of them exact or similar -> BenchMatched; the log's
+  "BENCHMARK - ..." line. The book written is whole (every piece timed
+  in it). Cutting at 30 s may cost a word at each cut (a window edge,
+  as any) - the same cuts on every machine.
+- THE SCORE SHOWN: Speed (x real time) and Accuracy (%), both of the
+  chapter material. NOT DECIDED (owner, with the leaderboard): one
+  number or two, and how they combine. Every run is appended to
+  <settings>/Benchmarks/benchmarks.csv (Date, Benchmark, Reference text,
+  Model (Quick/Detailed), Model file, Device, Device text, Speed x,
+  Accuracy %, Words, Words matched, Chapter material s, Transcription s,
+  Build) - no machine or user name (privacy rule).
+- The window: File > Benchmark Lite... / Benchmark Full... (above
+  Settings), Enabled = not busy, whisper.cpp there, base or turbo in the
+  models folder (BenchmarkModels; UpdateControls). Big Picture home
+  list: BPC_BENCH_LITE 32 / BPC_BENCH_FULL 33 above Controls, value =
+  the reference text's title, faded (TPadMenuItem.Dim) when not
+  available; choosing a faded one says why (StartBenchmark's Tell).
+  StartBenchmark: both models -> AskChoice('Quick (base)', 'Detailed
+  (large-v3-turbo)', default Detailed); one -> RunBenchmark at once.
+  AskChoice (new): Big Picture = the pad's question rows (CHOICE_BASE
+  1000 + index in FAskResults, Cancel), desktop = a small modal window
+  (as uCalibration.AskCalibration). BenchmarkDone (from BuildDone, after
+  the log is saved): the score in the log, the CSV line, then Ask "Keep
+  the book to read in EpubReader?" (default No - zip 231; Quick adds that
+  Detailed makes the better book) - Yes copies it to the output folder
+  (FOutFolder, which the reader lists), either way the Benchmarks copy
+  is deleted. A failed or cancelled benchmark: no score, its book
+  deleted.
+NAMES TO LOOK AT if the compiler complains: StartJob's new default
+parameter (declaration and body); TArray<Integer> literals (Pieces :=
+[0, Edge, ...]); Ranges + [..] on TArray<Double>; the anonymous methods
+in StartBenchmark (capturing Ref, Quick, Detailed), BenchmarkDone
+(OutFile, Kept) and AskChoice (Done); TStreamWriter.Create(file, True,
+TEncoding.UTF8); string.Join with an open array; FormatFloat with
+TFormatSettings.Invariant; TBorderIcon / TFormPosition / RectF in
+AskChoice; Items[High(Items)].Dim in PadHome; the new fields after
+miRocm (still the fields' section).
+TO TEST (owner): File menu greyed with neither model; one model -> it
+starts; both -> Quick / Detailed (desktop window, Big Picture rows);
+Lite on the 5090 with turbo: the log's "Part n ... words" per section,
+the "BENCHMARK - ..." line, the score box, Yes -> the book in the
+output folder and EpubReader lists and plays it (every section timed,
+its first 30 s included); benchmarks.csv; Cancel part way -> no score.
+
+## Zip 229 (on top of zip 228): the calibration times the clearest 30 s
+Owner 2026-11-22 10:49, the first calibration on the Scandal (5090,
+Windows, Big Picture): base Vulkan0 140.8x, turbo Vulkan0 82.9x (Aladdin
+gave 82.6x / 83.6x there), 1:15 - but the stretch was section 1 from
+0:00:30 with 76 % sound. 10:55: "Before you messed it up we'd scan the
+file for a section 30s in length that had decent sound"; 10:57 "yes, we
+want a good calibration after all". (The scan had not gone:
+WhisperFindSpeech takes the FIRST 30 s from the edge with at most 25 %
+quiet frames - 0:30 had 24 %, and the whole file would have given the
+same. What was wanted is the BEST.) NOT COMPILED (pasdoc_check,
+project_check: 0 problems). NO PACKAGE REBUILD. Files:
+demos/EpubBuilder/src/uCalibration.pas, demos/EpubBuilder/src/uBuilder.pas,
+demos/EpubBuilder/README.md, CLAUDE.md.
+- uCalibration.FindReferenceStretch: the whole recording decoded once,
+  section by section (one section's samples in memory at a time); every
+  100 ms frame's RMS level; quiet = under a tenth of the 90th percentile
+  of the WHOLE recording (WhisperFindSpeech's rule, its constants
+  copied); in every section at least 30 + 2 x 30 s long, the 30 s with
+  the fewest quiet frames, 30 s from both of the SECTION's ends; the
+  earliest of equals. Returns that section's samples and the start in
+  it; no section long enough -> the longest section and start -1 (the
+  benchmark's own WhisperFindSpeech then, as before).
+- Execute: Bench.MaxSeconds := CALIBRATION_STRETCH_SECONDS (30),
+  Bench.StartSeconds := the start found. Log: "Recording: <file>,
+  section k of n, "<title>": 30 s from h:mm:ss into it (h:mm:ss of the
+  file), x % sound - the clearest 30 s of the recording" (the doubled
+  length of 227's line gone); the device lines say "from h:mm:ss into the
+  section" and give the benchmark's own share of sound only when it chose
+  (it judges the stretch against itself, not the recording).
+  CALIBRATION_SECTION_SECONDS gone. uBuilder's calibration header line:
+  "the stretch is the clearest 30 s of the recording, 30 s away from both
+  ends of every section".
+- Deterministic: the same file gives the same stretch on every machine
+  (decoding is FFmpeg's, the same build everywhere).
+- The diagnostics are unchanged (their fixed 10 min from 30 s into the
+  first long-enough section: a fixed place, comparable between machines).
+NAMES TO LOOK AT if the compiler complains: Levels (array of
+TArray<Single>, Levels[P][I]); Int64(Total) in the percentile loop;
+IfThen on strings in the device line (System.StrUtils after System.Math
+in the uses); Bench.MaxSeconds / StartSeconds (TWhisperBenchmark).
+TO TEST (owner): Calibrate on the 5090 again - the Recording line's
+section, place and share of sound (expect well over 76 %); the speeds
+near 10:49's (a clearer stretch has more words per second, so a little
+slower is possible); a second machine gives the same stretch.
 
 ## Zip 228 (on top of zip 227): media/ deployed from the repository
 Owner 2026-11-22 10:39: "redist.sh collect ... is usually only done for

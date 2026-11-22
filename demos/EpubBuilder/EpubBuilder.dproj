@@ -7,9 +7,8 @@
         <MainSource>EpubBuilder.dpr</MainSource>
         <Base>True</Base>
         <Config Condition="'$(Config)'==''">Steam</Config>
-        <Platform Condition="'$(Platform)'==''">Win64</Platform>
+        <Platform Condition="'$(Platform)'==''">Linux64</Platform>
         <TargetedPlatforms>135298</TargetedPlatforms>
-        <ProjectName Condition="'$(ProjectName)'==''">EpubBuilder</ProjectName>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Base' or '$(Base)'!=''">
         <Base>true</Base>
@@ -325,6 +324,8 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <DCCReference Include="src\uModels.pas"/>
         <DCCReference Include="src\uCovers.pas"/>
         <DCCReference Include="src\uCoverPick.pas"/>
+        <DCCReference Include="src\uBenchProgress.pas"/>
+        <DCCReference Include="src\uMacWindow.pas"/>
         <DCCReference Include="src\uBuilder.pas">
             <Form>frmBuilder</Form>
             <FormType>fmx</FormType>
@@ -371,62 +372,6 @@ $(PreBuildEvent)]]></PreBuildEvent>
                 <Platform value="Win64">True</Platform>
             </Platforms>
             <Deployment Version="5">
-                <DeployFile LocalName="..\..\media\AChristmasCarol_librivox.m4b" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Resources\media\</RemoteDir>
-                        <RemoteName>AChristmasCarol_librivox.m4b</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\media\A_Christmas_Carol.epub" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Resources\media\</RemoteDir>
-                        <RemoteName>A_Christmas_Carol.epub</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\media\A_Scandal_in_Bohemia.epub" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Resources\media\</RemoteDir>
-                        <RemoteName>A_Scandal_in_Bohemia.epub</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\media\ScandalBohemia_librivox.m4b" Class="File">
-                    <Platform Name="OSXARM64">
-                        <RemoteDir>Contents\Resources\media\</RemoteDir>
-                        <RemoteName>ScandalBohemia_librivox.m4b</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\media\AChristmasCarol_librivox.m4b" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\media\</RemoteDir>
-                        <RemoteName>AChristmasCarol_librivox.m4b</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\media\A_Christmas_Carol.epub" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\media\</RemoteDir>
-                        <RemoteName>A_Christmas_Carol.epub</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\media\A_Scandal_in_Bohemia.epub" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\media\</RemoteDir>
-                        <RemoteName>A_Scandal_in_Bohemia.epub</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\media\ScandalBohemia_librivox.m4b" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\media\</RemoteDir>
-                        <RemoteName>ScandalBohemia_librivox.m4b</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
                 <DeployFile LocalName="$(BDS)\Redist\iossimulator\libcgunwind.1.0.dylib" Class="DependencyModule">
                     <Platform Name="iOSSimulator">
                         <Overwrite>true</Overwrite>
@@ -439,6 +384,62 @@ $(PreBuildEvent)]]></PreBuildEvent>
                 </DeployFile>
                 <DeployFile LocalName="$(BDS)\Redist\osx32\libcgunwind.1.0.dylib" Class="DependencyModule">
                     <Platform Name="OSX32">
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\media\AChristmasCarol_librivox.m4b" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\media\</RemoteDir>
+                        <RemoteName>AChristmasCarol_librivox.m4b</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\media\AChristmasCarol_librivox.m4b" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Resources\media\</RemoteDir>
+                        <RemoteName>AChristmasCarol_librivox.m4b</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\media\A_Christmas_Carol.epub" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\media\</RemoteDir>
+                        <RemoteName>A_Christmas_Carol.epub</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\media\A_Christmas_Carol.epub" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Resources\media\</RemoteDir>
+                        <RemoteName>A_Christmas_Carol.epub</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\media\A_Scandal_in_Bohemia.epub" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\media\</RemoteDir>
+                        <RemoteName>A_Scandal_in_Bohemia.epub</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\media\A_Scandal_in_Bohemia.epub" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Resources\media\</RemoteDir>
+                        <RemoteName>A_Scandal_in_Bohemia.epub</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\media\ScandalBohemia_librivox.m4b" Class="File">
+                    <Platform Name="Linux64">
+                        <RemoteDir>.\media\</RemoteDir>
+                        <RemoteName>ScandalBohemia_librivox.m4b</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="..\..\media\ScandalBohemia_librivox.m4b" Class="File">
+                    <Platform Name="OSXARM64">
+                        <RemoteDir>Contents\Resources\media\</RemoteDir>
+                        <RemoteName>ScandalBohemia_librivox.m4b</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>

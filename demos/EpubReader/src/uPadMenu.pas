@@ -53,6 +53,23 @@ type
     { Shown faded: a row of less interest (EpubBuilder: a book already
       transcribed). }
     Dim: Boolean;
+    { A line of information, not a choice: the selection passes over it
+      and a click on it does nothing (EpubBuilder: a benchmark's results,
+      a table of text and value). }
+    Info: Boolean;
+  end;
+
+  { One hint at the menu's foot: a control and what it does (owner's
+    standing rule, 2026-11-22: a pad's buttons are shown as Steam's
+    pictures of them - a PlayStation pad has no A or B - and the keys when
+    the keyboard is in use). }
+  TPadHint = record
+    { Steam's PNG of the control ('' = none: Name is shown). }
+    Glyph: string;
+    { The control's or the key's name (shown without a picture). }
+    Name: string;
+    { What it does ('' = nothing after it: "<left> <right> change"). }
+    Text: string;
   end;
 
   { The menu: see the unit's text. }
@@ -100,8 +117,20 @@ type
     FWheelTick: UInt64;
     { See MinWidth. }
     FMinWidth: Single;
+    { Each row is a line of information (TPadMenuItem.Info). }
+    FInfo: TArray<Boolean>;
+    { Backing field of @link(NextTitleCentered). }
+    FTitleCentered: Boolean;
+    { The foot's hints as pictures and words (SetHints; nil = its text). }
+    FHintBar: TLayout;
+    { What FHintBar shows (SetHints draws it again only when it changes). }
+    FHintKey: string;
     { The rows drawn as selected or not. }
     procedure Paint;
+    { Takes the foot's hints away (its text shows again). }
+    procedure ClearHints;
+    { See HasHints. }
+    function GetHasHints: Boolean;
     { How wide AText is on one line at font size ASize (the title's font
       family). }
     function TextW(const AText: string; ASize: Single): Single;
@@ -180,6 +209,23 @@ type
       build's progress).
       @param(AFoot  the new text ('' = hidden)) }
     procedure SetFoot(const AFoot: string);
+    { The foot as hints: each control's picture (else its name) and what it
+      does, in a row in the middle. Show the menu first with HintsText of
+      the same hints as its foot (the box is sized by it); they stay until
+      the next Show or SetFoot. The same hints again draw nothing.
+      @param(AHints  the hints) }
+    procedure SetHints(const AHints: TArray<TPadHint>);
+    { AHints as words ("Enter choose   Esc back"): the foot Show is given,
+      which sizes the box.
+      @param(AHints  the hints)
+      @returns(the text) }
+    class function HintsText(const AHints: TArray<TPadHint>): string; static;
+    { A hint.
+      @param(AGlyph  Steam's picture of the control ('' = none))
+      @param(AName  its name)
+      @param(AText  what it does)
+      @returns(the hint) }
+    class function Hint(const AGlyph, AName, AText: string): TPadHint; static;
     { The colours: box, text, selected row (the reader's theme).
       @param(ABack  the box)
       @param(AFore  the text)
@@ -197,6 +243,11 @@ type
     { The box is not made narrower than this by the next Show (0 = as its
       own rows need; the window's limits still hold). }
     property MinWidth: Single read FMinWidth write FMinWidth;
+    { The foot shows hints (SetHints) rather than a text. }
+    property HasHints: Boolean read GetHasHints;
+    { The next Show (or ShowText) centres its title; it is left-aligned
+      again after it. }
+    property NextTitleCentered: Boolean read FTitleCentered write FTitleCentered;
     { A row clicked or tapped (already selected). }
     property OnChoose: TPadMenuChooseEvent read FOnChoose write FOnChoose;
     { Closed by a click beside the box. }
@@ -237,6 +288,7 @@ begin
   Result.Value := AValue;
   Result.Glyphs := nil;
   Result.Dim := False;
+  Result.Info := False;
 end;
 
 constructor TPadMenu.Create(AOwner: TComponent; AParent: TFmxObject);
@@ -355,6 +407,7 @@ begin
     FRows[I].Free;
   FRows := nil;
   FValues := nil;
+  FInfo := nil;
 end;
 
 function TPadMenu.TextW(const AText: string; ASize: Single): Single;
@@ -438,12 +491,20 @@ begin
   Body := FBodyText;
   FBodyText := '';
   ClearRows;
+  // the hints are the last Show's: SetHints gives this one's
+  ClearHints;
   Icon := RowHeight * 0.8;
   // the widest picture column any row needs: the rows line up
   Pics := 0;
   for I := 0 to High(AItems) do
     Pics := Max(Pics, Length(AItems[I].Glyphs));
   FTitle.Text := ATitle;
+  // centred for this Show only (NextTitleCentered)
+  if FTitleCentered then
+    FTitle.TextSettings.HorzAlign := TTextAlign.Center
+  else
+    FTitle.TextSettings.HorzAlign := TTextAlign.Leading;
+  FTitleCentered := False;
   FTitle.TextSettings.Font.Size := FFontSize * 1.2;
   FTitle.TextSettings.FontColor := FFore;
   FTitle.Height := RowHeight;
@@ -468,6 +529,7 @@ begin
     R.XRadius := 10;
     R.YRadius := 10;
     R.Tag := I;
+    FInfo := FInfo + [AItems[I].Info];
     R.HitTest := True;
     R.OnClick := RowClick;
     R.OnMouseDown := AnyMouseDown;
@@ -578,6 +640,12 @@ begin
   FSelected := EnsureRange(ASelected, -1, High(FRows));
   if (FSelected < 0) and (Length(FRows) > 0) then
     FSelected := 0;
+  // never on a line of information: the next choice after it
+  if (FSelected >= 0) and FInfo[FSelected] then
+  begin
+    FSelected := FSelected - 1;
+    Move(1);
+  end;
   Paint;
   if not FShade.Visible then
   begin
@@ -611,12 +679,23 @@ end;
 
 procedure TPadMenu.Move(ADelta: Integer);
 var
-  N: Integer;
+  N, K: Integer;
 begin
   N := Length(FRows);
   if N = 0 then
     Exit;
   FSelected := ((FSelected + ADelta) mod N + N) mod N;
+  // over lines of information (TPadMenuItem.Info), in the same direction;
+  // a menu of nothing but them keeps the row reached
+  K := 0;
+  while (K < N) and (FSelected <= High(FInfo)) and FInfo[FSelected] do
+  begin
+    if ADelta < 0 then
+      FSelected := (FSelected - 1 + N) mod N
+    else
+      FSelected := (FSelected + 1) mod N;
+    Inc(K);
+  end;
   Paint;
   KeepVisible;
 end;
@@ -629,8 +708,9 @@ end;
 
 procedure TPadMenu.SetFoot(const AFoot: string);
 begin
-  if FFoot.Text = AFoot then
+  if (FFoot.Text = AFoot) and (FHintBar = nil) then
     Exit;
+  ClearHints;
   FFoot.Text := AFoot;
   if FFoot.Visible <> (AFoot <> '') then
   begin
@@ -652,6 +732,126 @@ begin
   FBack := ABack;
   FFore := AFore;
   FAccent := AAccent;
+end;
+
+procedure TPadMenu.ClearHints;
+begin
+  FreeAndNil(FHintBar);
+  FHintKey := '';
+end;
+
+function TPadMenu.GetHasHints: Boolean;
+begin
+  Result := FHintBar <> nil;
+end;
+
+class function TPadMenu.Hint(const AGlyph, AName, AText: string): TPadHint;
+begin
+  Result.Glyph := AGlyph;
+  Result.Name := AName;
+  Result.Text := AText;
+end;
+
+class function TPadMenu.HintsText(const AHints: TArray<TPadHint>): string;
+var
+  I: Integer;
+begin
+  Result := '';
+  for I := 0 to High(AHints) do
+  begin
+    if Result <> '' then
+    begin
+      // "Left Right change": a hint without words joins the next
+      if (I > 0) and (AHints[I - 1].Text = '') then
+        Result := Result + ' '
+      else
+        Result := Result + '   ';
+    end;
+    Result := Result + AHints[I].Name;
+    if AHints[I].Text <> '' then
+      Result := Result + ' ' + AHints[I].Text;
+  end;
+end;
+
+procedure TPadMenu.SetHints(const AHints: TArray<TPadHint>);
+var
+  I: Integer;
+  Key: string;
+  X, H, G, Size, W: Single;
+  B: TBitmap;
+  Img: TImage;
+  L: TLabel;
+  Color: TAlphaColor;
+
+  { A word of the row at X. }
+  procedure Word(const AText: string);
+  begin
+    W := TextW(AText, Size) + 2;
+    L := TLabel.Create(FHintBar);
+    L.Parent := FHintBar;
+    L.StyledSettings := L.StyledSettings - [TStyledSetting.FontColor, TStyledSetting.Size];
+    L.TextSettings.Font.Size := Size;
+    L.TextSettings.FontColor := Color;
+    L.TextSettings.WordWrap := False;
+    L.TextSettings.VertAlign := TTextAlign.Center;
+    L.HitTest := False;
+    L.SetBounds(X, 0, W, H);
+    L.Text := AText;
+    X := X + W;
+  end;
+
+begin
+  Key := '';
+  for I := 0 to High(AHints) do
+    Key := Key + AHints[I].Glyph + #1 + AHints[I].Name + #1 + AHints[I].Text + #2;
+  if (FHintBar <> nil) and (Key = FHintKey) then
+    Exit;
+  ClearHints;
+  if Length(AHints) = 0 then
+    Exit;
+  FHintKey := Key;
+  Size := FFontSize * 0.75;
+  Color := Faded(FFore, $A0);
+  if FFoot.Height <= 0 then
+    FFoot.Height := FFontSize * 1.5;
+  FFoot.Visible := True;
+  FFoot.Text := '';
+  H := FFoot.Height;
+  G := H * 0.9;
+  FHintBar := TLayout.Create(Self);
+  FHintBar.Parent := FFoot;
+  FHintBar.HitTest := False;
+  X := 0;
+  for I := 0 to High(AHints) do
+  begin
+    // the control: Steam's picture, else its name
+    B := Bitmap(AHints[I].Glyph);
+    if B <> nil then
+    begin
+      Img := TImage.Create(FHintBar);
+      Img.Parent := FHintBar;
+      Img.SetBounds(X, (H - G) / 2, G, G);
+      Img.WrapMode := TImageWrapMode.Fit;
+      Img.Bitmap.Assign(B);
+      Img.HitTest := False;
+      X := X + G;
+    end
+    else
+      Word(AHints[I].Name);
+    X := X + 4;
+    if AHints[I].Text <> '' then
+    begin
+      Word(AHints[I].Text);
+      // the next hint at a distance
+      if I < High(AHints) then
+        X := X + Size * 1.5;
+    end;
+  end;
+  // the row in the foot's middle
+  FHintBar.SetBounds(Max(0, (FFoot.Width - X) / 2), 0, X, H);
+  FHintBar.Align := TAlignLayout.Center;
+  FHintBar.Width := X;
+  FHintBar.Height := H;
 end;
 
 procedure TPadMenu.Paint;
@@ -684,6 +884,9 @@ var
   I: Integer;
 begin
   I := (Sender as TRectangle).Tag;
+  // a line of information is not a choice
+  if (I >= 0) and (I <= High(FInfo)) and FInfo[I] then
+    Exit;
   FSelected := I;
   Paint;
   if Assigned(FOnPointer) then

@@ -6,10 +6,14 @@
   laptop built Night Watch with large-v3 in 39:20 on CUDA0 (whisper.cpp's
   own choice) and in 29:16 on Vulkan; on a GTX 1650 Vulkan beat CUDA with
   base.en, and large-v3 does not fit its 4 GB at all. So (owner,
-  2026-11-17): a calibration - TWhisperBenchmark on every device, three
-  timed runs of 30 s of speech each (the stretch chosen by
-  WhisperFindSpeech in one section of the reference text's recording,
-  30 s away from both of its ends - see TReferenceText), with the
+  2026-11-17): a calibration - TWhisperBenchmark on every device, one
+  timed run of CALIBRATION_STRETCH_SECONDS of speech (the stretch: the
+  clearest two minutes of the reference text's recording, in any section,
+  30 s away from both of that section's ends - FindReferenceStretch; since
+  zip 242 - CALIBRATION_METHOD 2 - the calibration was three runs of 30 s,
+  which whisper.cpp encodes twice and in which a model's fallback retries
+  never happen: it misranked the .en models and ran 1.2 - 1.6 times slower
+  than a book), with the
   settings of a build (DTW word times, the book prompt, each window on its
   own) - and the fastest device made the model's device. Asked for once at
   start-up ("Do not show this again" stops that), again from Settings >
@@ -39,8 +43,17 @@ const
   { Section of the pairs that ended the program (key: device + '@' +
     model file name, value: when). }
   CAL_CRASH_SECTION = 'Calibration crashes';
-  { Timed runs per pair (the median counts). }
-  CALIBRATION_RUNS = 3;
+  { Timed runs per pair (the median counts): one run of a long stretch
+    (zip 242; was 3 of 30 s). }
+  CALIBRATION_RUNS = 1;
+  { How the calibration times (kept as [Calibration] Method; a model's
+    section keeps its stretch's length as Seconds): 1 = three runs of 30 s
+    (none kept: before zip 242), 2 = one run of CALIBRATION_STRETCH_SECONDS
+    of continuous speech. A calibration of an older method is offered
+    again at start-up. }
+  CALIBRATION_METHOD = 2;
+  { The stretch of a calibration of method 1 (no Seconds key), s. }
+  CALIBRATION_OLD_SECONDS = 30;
   { The folder of the reference texts' files (REFERENCE_TEXTS), looked for
     beside the program and in the folders above it. }
   REFERENCE_FOLDER = 'media';
@@ -58,10 +71,10 @@ const
     LibriVox recording's, about 26 s), so only chapter material is timed
     and scored. }
   DIAGNOSTIC_EDGE_SECONDS = 30;
-  { Seconds a section of the recording should have for the calibration
-    (besides the 30 s at both of its ends): enough for WhisperFindSpeech
-    to find 30 s of speech in it. }
-  CALIBRATION_SECTION_SECONDS = 60;
+  { Seconds of the stretch the calibration times (FindReferenceStretch,
+    TWhisperBenchmark.MaxSeconds): about four Whisper windows, continuous -
+    a book's way (step 2, 2026-11-22; zip 205's plan). }
+  CALIBRATION_STRETCH_SECONDS = 120;
 
 type
   { A reference text: a public-domain recording and the EPUB of the text
@@ -92,8 +105,32 @@ const
   { The reference text the calibration and the diagnostics use (a short
     one). The benchmark offers every one of REFERENCE_TEXTS. }
   CALIBRATION_REFERENCE = 0;
+  { The reference text of Benchmark Lite (short). }
+  BENCHMARK_LITE_REFERENCE = 0;
+  { The reference text of Benchmark Full (long). }
+  BENCHMARK_FULL_REFERENCE = 1;
+  { Seconds at both ends of every part (a LibriVox section) that a
+    benchmark neither times nor scores. }
+  BENCH_EDGE_SECONDS = DIAGNOSTIC_EDGE_SECONDS;
+  { The benchmark's Quick model (owner 2026-11-21: base, the fast one). }
+  BENCH_QUICK_MODEL = 'ggml-base.bin';
+  { The benchmark's Detailed model (turbo, the accurate one). }
+  BENCH_DETAILED_MODEL = 'ggml-large-v3-turbo.bin';
 
 type
+  { A calibration pair started (ASpeed < 0) or ended (ASpeed: x real
+    time; 0 = failed or skipped): AModel and ADevice are indices of the
+    calibration's models and devices. }
+  TCalibrationPairEvent = reference to procedure(AModel, ADevice: Integer; ASpeed: Double);
+
+  { How far the pair being timed is (owner, 2026-11-22: "If calibrating a
+    very slow machine it can look like it's stuck"): AModel and ADevice as
+    TCalibrationPairEvent's, APhase what it does ('Loading the model onto',
+    'Warming up on', 'Timing on' - the device's name follows), APercent of
+    the pair (TWhisperBenchmark.OnProgress's estimate). }
+  TCalibrationStepEvent = reference to procedure(AModel, ADevice: Integer; const APhase: string;
+    APercent: Integer);
+
   { Times every model on every device on its own thread (one
     TWhisperBenchmark, the stretch chosen once for all pairs). Messages
     reach the window through TThread.Queue, as the build's. }
@@ -157,10 +194,31 @@ type
     FOnProgress: TProc<Double>;
     { Receives what is being done now (on the main thread). }
     FOnStatus: TProc<string>;
+    { Receives each pair's start and end (on the main thread). }
+    FOnPair: TCalibrationPairEvent;
+    { Receives how far the pair being timed is (on the main thread). }
+    FOnStep: TCalibrationStepEvent;
+    { The pair being timed: its model, its device (indices), how many pairs
+      were done before it and how many there are (BenchProgress). }
+    FStepModel: Integer;
+    { See FStepModel. }
+    FStepDevice: Integer;
+    { See FStepModel. }
+    FStepDone: Integer;
+    { See FStepModel. }
+    FStepTotal: Integer;
     { Sends AText to OnLog. }
     procedure Log(const AText: string);
+    { Sends a pair's start (ASpeed < 0) or end (ASpeed: x real time, 0 =
+      failed or skipped) to OnPair: model AModel, device ADevice (indices
+      of the models and devices given to Create). }
+    procedure Pair(AModel, ADevice: Integer; ASpeed: Double);
     { Sends APercent to OnProgress. }
     procedure Progress(APercent: Double);
+    { The benchmark's progress within a pair (TWhisperBenchmark.OnProgress,
+      on this thread): to OnStep, and the whole calibration's to
+      OnProgress. }
+    procedure BenchProgress(Sender: TObject; APhase: TWhisperBenchmarkPhase; APercent: Integer);
     { Sends AText to OnStatus. }
     procedure Status(const AText: string);
     { whisper.cpp's log during the diagnostics: the lines of
@@ -199,6 +257,13 @@ type
     property OnProgress: TProc<Double> read FOnProgress write FOnProgress;
     { Receives what is being done now. }
     property OnStatus: TProc<string> read FOnStatus write FOnStatus;
+    { Each model / device pair of the calibration as it starts and ends
+      (the calibration's progress view; not called by the diagnostics). }
+    property OnPair: TCalibrationPairEvent read FOnPair write FOnPair;
+    { How far the pair being timed is: its phase and percentage, as the
+      benchmark reports them (between OnPair's start and end; not called
+      by the diagnostics). }
+    property OnStep: TCalibrationStepEvent read FOnStep write FOnStep;
     { One result per pair timed or skipped (complete once it has ended). }
     property Results: TWhisperBenchmarkArray read FResults;
     { True when every pair was timed (not cancelled, no error); with
@@ -265,6 +330,16 @@ function CalibrationBest(const AIniFile, AModelFile: string; out ADevice: string
   @returns(x real time; 0 when not timed there or it failed) }
 function CalibrationSpeed(const AIniFile, AModelFile, ADevice: string): Double;
 
+{ The length of the stretch AModelFile's calibration timed (its section's
+  Seconds; CALIBRATION_OLD_SECONDS for a calibration before zip 242).
+  @returns(s; 0 when the model is not calibrated) }
+function CalibrationSeconds(const AIniFile, AModelFile: string): Double;
+
+{ The method of the calibration kept ([Calibration] Method; 1 before zip
+  242).
+  @returns(the method; 0 when there is no calibration) }
+function CalibrationMethod(const AIniFile: string): Integer;
+
 { Why AModelFile failed on ADevice in the calibration ('' when it did not
   or was not timed there).
   @returns(the reason) }
@@ -321,6 +396,21 @@ function ReferenceWords(AIndex: Integer; out AError: string): TWhisperStringArra
   @returns(the section's samples) }
 function ReadReferenceSection(AFFmpeg: TFFmpegLibrary; const AAudioFile: string; AMinSeconds: Double;
   out ANote: string): TWhisperSamples;
+
+{ The calibration's stretch: the ASeconds of AAudioFile with the most
+  sound - the fewest quiet 100 ms frames, judged against the loudness of
+  the whole recording (as WhisperFindSpeech judges) - in any section (a
+  chapter of the file), 30 s (DIAGNOSTIC_EDGE_SECONDS) away from both of
+  that section's ends; the earliest of equals. The whole recording is
+  decoded once to choose it.
+  @param(ASamples  receives the chosen section's samples)
+  @param(AStart  receives where the stretch starts in that section, s)
+  @param(AShare  receives the stretch's share of sound, 0 .. 1)
+  @param(ANote  receives the section and the stretch's place, for the log)
+  @returns(False when no section is long enough: ASamples is then the
+    longest section and AStart -1 - the benchmark chooses in it) }
+function FindReferenceStretch(AFFmpeg: TFFmpegLibrary; const AAudioFile: string; ASeconds: Double;
+  out ASamples: TWhisperSamples; out AStart, AShare: Double; out ANote: string): Boolean;
 
 { The calibration's recording: the reference text's (CALIBRATION_REFERENCE)
   when it is there, else ASaved (one chosen by the user before) when that
@@ -560,6 +650,8 @@ begin
         Done.Add(ExtractFileName(Model));
         Ini.EraseSection(ModelSection(Model));
         Ini.WriteString(ModelSection(Model), 'Made', Made);
+        // the stretch's length: like is compared with like (uHistory)
+        Ini.WriteInteger(ModelSection(Model), 'Seconds', CALIBRATION_STRETCH_SECONDS);
         B := CalibrationBestIndex(AResults, Model);
         if B >= 0 then
         begin
@@ -579,6 +671,7 @@ begin
     end;
     Ini.WriteBool(CAL_SECTION, 'Done', True);
     Ini.WriteString(CAL_SECTION, 'Made', Made);
+    Ini.WriteInteger(CAL_SECTION, 'Method', CALIBRATION_METHOD);
     Ini.WriteString(CAL_SECTION, 'Devices', ADevicesKey);
     Ini.WriteString(CAL_SECTION, 'Audio', AAudioFile);
     Ini.UpdateFile;
@@ -603,6 +696,38 @@ begin
     ASpeed := StrToFloatDef(Ini.ReadString(ModelSection(AModelFile), 'BestSpeed', '0'), 0,
       TFormatSettings.Invariant);
     Result := ADevice <> '';
+  finally
+    Ini.Free;
+  end;
+end;
+
+function CalibrationSeconds(const AIniFile, AModelFile: string): Double;
+var
+  Ini: TMemIniFile;
+begin
+  Result := 0;
+  if (AModelFile = '') or not FileExists(AIniFile) then
+    Exit;
+  Ini := TMemIniFile.Create(AIniFile, TEncoding.UTF8);
+  try
+    if Ini.ReadString(ModelSection(AModelFile), 'Made', '') <> '' then
+      Result := Ini.ReadInteger(ModelSection(AModelFile), 'Seconds', CALIBRATION_OLD_SECONDS);
+  finally
+    Ini.Free;
+  end;
+end;
+
+function CalibrationMethod(const AIniFile: string): Integer;
+var
+  Ini: TMemIniFile;
+begin
+  Result := 0;
+  if not FileExists(AIniFile) then
+    Exit;
+  Ini := TMemIniFile.Create(AIniFile, TEncoding.UTF8);
+  try
+    if Ini.ReadBool(CAL_SECTION, 'Done', False) then
+      Result := Ini.ReadInteger(CAL_SECTION, 'Method', 1);
   finally
     Ini.Free;
   end;
@@ -922,6 +1047,133 @@ begin
   end;
 end;
 
+function FindReferenceStretch(AFFmpeg: TFFmpegLibrary; const AAudioFile: string; ASeconds: Double;
+  out ASamples: TWhisperSamples; out AStart, AShare: Double; out ANote: string): Boolean;
+const
+  { Samples per frame (100 ms), as WhisperFindSpeech. }
+  FRAME = WHISPER_SAMPLE_RATE div 10;
+  { Histogram bins for the loudness percentile, as WhisperFindSpeech. }
+  BINS = 1000;
+var
+  Files: TStringList;
+  Audio: TWhisperAudioSet;
+  Levels: array of TArray<Single>;
+  Hist: array of Integer;
+  S: TWhisperSamples;
+  Sum, Top, Threshold: Double;
+  P, I, J, NFrames, Total, W, Edge, Quiet, At, BestPart, BestAt, BestQuiet, Longest: Integer;
+begin
+  Result := False;
+  ASamples := nil;
+  AStart := -1;
+  AShare := 0;
+  ANote := '';
+  W := Max(1, Round(ASeconds * 10));
+  Edge := Round(DIAGNOSTIC_EDGE_SECONDS * 10);
+  Files := TStringList.Create;
+  Audio := nil;
+  try
+    Files.Add(AAudioFile);
+    // a LibriVox book's sections are the file's chapters
+    Audio := TWhisperAudioSet.Create(AFFmpeg, Files, True);
+    // 1. the level of every 100 ms frame, section by section (one section's
+    // samples in memory at a time)
+    SetLength(Levels, Length(Audio.Parts));
+    Top := 0;
+    Total := 0;
+    for P := 0 to High(Audio.Parts) do
+    begin
+      S := Audio.Read(P);
+      NFrames := Length(S) div FRAME;
+      SetLength(Levels[P], NFrames);
+      for I := 0 to NFrames - 1 do
+      begin
+        Sum := 0;
+        for J := I * FRAME to I * FRAME + FRAME - 1 do
+          Sum := Sum + Sqr(S[J]);
+        Levels[P][I] := Sqrt(Sum / FRAME);
+        if Levels[P][I] > Top then
+          Top := Levels[P][I];
+      end;
+      Inc(Total, NFrames);
+      S := nil;
+    end;
+    // 2. quiet = under a tenth of the loud end (the 90th percentile) of
+    // the whole recording, as WhisperFindSpeech decides
+    SetLength(Hist, BINS);
+    for P := 0 to High(Levels) do
+      for I := 0 to High(Levels[P]) do
+        Inc(Hist[Min(BINS - 1, Trunc(Levels[P][I] / Max(Top, 1E-9) * BINS))]);
+    J := 0;
+    I := 0;
+    while (I < BINS - 1) and (J + Hist[I] < (Int64(Total) * 9) div 10) do
+    begin
+      Inc(J, Hist[I]);
+      Inc(I);
+    end;
+    Threshold := Max(0.002, 0.1 * (I + 1) * Top / BINS);
+    // 3. in every section long enough, the stretch with the fewest quiet
+    // frames, kept 30 s away from the section's ends
+    BestPart := -1;
+    BestAt := 0;
+    BestQuiet := MaxInt;
+    for P := 0 to High(Levels) do
+    begin
+      NFrames := Length(Levels[P]);
+      if NFrames < W + 2 * Edge then
+        Continue;
+      Quiet := 0;
+      for I := Edge to Edge + W - 1 do
+        if Levels[P][I] < Threshold then
+          Inc(Quiet);
+      At := Edge;
+      while True do
+      begin
+        if Quiet < BestQuiet then
+        begin
+          BestQuiet := Quiet;
+          BestPart := P;
+          BestAt := At;
+        end;
+        if At >= NFrames - Edge - W then
+          Break;
+        if Levels[P][At] < Threshold then
+          Dec(Quiet);
+        if Levels[P][At + W] < Threshold then
+          Inc(Quiet);
+        Inc(At);
+      end;
+    end;
+    if BestPart < 0 then
+    begin
+      // no section long enough: the longest, the benchmark chooses in it
+      Longest := 0;
+      for P := 1 to High(Audio.Parts) do
+        if Length(Levels[P]) > Length(Levels[Longest]) then
+          Longest := P;
+      ASamples := Audio.Read(Longest);
+      ANote := Format('section %d of %d, "%s" - no section is long enough to keep 30 s from both of its ends: ' +
+        'the stretch is chosen in the longest', [Longest + 1, Length(Audio.Parts), Audio.Parts[Longest].Title]);
+      Exit;
+    end;
+    // 4. the chosen section's samples
+    ASamples := Audio.Read(BestPart);
+    AStart := BestAt / 10;
+    AShare := 1 - BestQuiet / W;
+    Result := True;
+    if Length(Audio.Parts) > 1 then
+      ANote := Format('section %d of %d, "%s": %.0f s from %s into it (%s of the file), %.0f %% sound - the ' +
+        'clearest %.0f s of the recording', [BestPart + 1, Length(Audio.Parts), Audio.Parts[BestPart].Title,
+        ASeconds, Hms(AStart), Hms(Audio.Parts[BestPart].Start + AStart), AShare * 100, ASeconds])
+    else
+      ANote := Format('one section (the file has no chapters): %.0f s from %s, %.0f %% sound - the clearest ' +
+        '%.0f s of the recording', [ASeconds, Hms(AStart), AShare * 100, ASeconds]);
+  finally
+    Audio.Free;
+    Files.Free;
+  end;
+end;
+
 function FindCalibrationAudio(const ASaved: string): string;
 begin
   // the reference text first: a recording chosen before (when the
@@ -1153,6 +1405,42 @@ begin
       end);
 end;
 
+procedure TCalibrationThread.BenchProgress(Sender: TObject; APhase: TWhisperBenchmarkPhase; APercent: Integer);
+const
+  { What each phase is called; the device's name follows. }
+  PHASE_TEXT: array[TWhisperBenchmarkPhase] of string = ('Loading the model onto', 'Warming up on', 'Timing on');
+var
+  P: TCalibrationStepEvent;
+  M, D: Integer;
+  Text: string;
+begin
+  Progress(100 * (FStepDone + APercent / 100) / Max(1, FStepTotal));
+  P := FOnStep;
+  if not Assigned(P) then
+    Exit;
+  M := FStepModel;
+  D := FStepDevice;
+  Text := PHASE_TEXT[APhase];
+  TThread.Queue(nil,
+    procedure
+    begin
+      P(M, D, Text, APercent);
+    end);
+end;
+
+procedure TCalibrationThread.Pair(AModel, ADevice: Integer; ASpeed: Double);
+var
+  P: TCalibrationPairEvent;
+begin
+  P := FOnPair;
+  if Assigned(P) then
+    TThread.Queue(nil,
+      procedure
+      begin
+        P(AModel, ADevice, ASpeed);
+      end);
+end;
+
 procedure TCalibrationThread.Status(const AText: string);
 var
   P: TProc<string>;
@@ -1302,7 +1590,8 @@ var
     begin
       Speed := CalibrationSpeed(FIniFile, ExtractFileName(AModelFile), ADev.Name);
       if Speed > 0 then
-        Log(Format('The calibration timed it there at %.1fx real time (one 30 s stretch).', [Speed]))
+        Log(Format('The calibration timed it there at %.1fx real time (%.0f s of speech).', [Speed,
+          CalibrationSeconds(FIniFile, ExtractFileName(AModelFile))]))
       else
         Log('It is not calibrated on that device.');
     end;
@@ -1627,6 +1916,7 @@ var
   R: TWhisperBenchmarkResult;
   M, D, N, Total, B, I: Integer;
   Key, Line, Section: string;
+  Start, Share: Double;
 begin
   if FDiagnostics then
   begin
@@ -1638,21 +1928,21 @@ begin
   Bench := nil;
   try
     try
-      // one section of the recording (a LibriVox book's sections each
-      // open and close with a spoken notice): the 30 s timed are chosen
-      // in it, 30 s clear of both of its ends (WhisperFindSpeech)
-      Status('Calibrating: reading the recording ...');
+      // the clearest 30 s of the recording, in any section, 30 s clear of
+      // both of its ends (a LibriVox book's sections each open and close
+      // with a spoken notice); the same stretch on every machine
+      Status('Calibrating: reading the recording and choosing its clearest 30 s ...');
       FF := OpenBuilderFFmpeg;
-      Samples := ReadReferenceSection(FF, FAudioFile, CALIBRATION_SECTION_SECONDS, Section);
+      FindReferenceStretch(FF, FAudioFile, CALIBRATION_STRETCH_SECONDS, Samples, Start, Share, Section);
       Seconds := WhisperSamplesSeconds(Samples);
       if Length(Samples) = 0 then
         raise EWhisperError.Create('The recording has no sound: ' + FAudioFile);
-      Log(Format('Recording: %s, %s (%s)', [FAudioFile, Section, Hms(Seconds)]));
+      Log(Format('Recording: %s, %s', [FAudioFile, Section]));
       if ReferenceIndexOf(FAudioFile) >= 0 then
         Log(Format('Reference text: %s (%s)', [REFERENCE_TEXTS[ReferenceIndexOf(FAudioFile)].Title,
           REFERENCE_TEXTS[ReferenceIndexOf(FAudioFile)].Source]));
-      if Seconds < CALIBRATION_SECTION_SECONDS + 2 * DIAGNOSTIC_EDGE_SECONDS then
-        Log('A short section: the 30 s timed cannot keep 30 s away from both of its ends (the middle is timed)');
+      if (Start < 0) and (Seconds < CALIBRATION_STRETCH_SECONDS + 2 * DIAGNOSTIC_EDGE_SECONDS) then
+        Log('A short recording: the 30 s timed cannot keep 30 s away from both ends (the middle is timed)');
       if Terminated then
         Exit;
 
@@ -1670,9 +1960,15 @@ begin
       Params.InitialPrompt := FPrompt;
       Params.CarryInitialPrompt := FPrompt <> '';
       Bench := TWhisperBenchmark.Create(FModels[0], Samples);
+      Bench.MaxSeconds := CALIBRATION_STRETCH_SECONDS;
+      // the stretch chosen above (-1: the benchmark chooses)
+      Bench.StartSeconds := Start;
       Bench.Params := Params;
       Bench.ContextParams := CP;
       Bench.Runs := CALIBRATION_RUNS;
+      // each pair's phase and percentage: the bars move while a slow machine
+      // times a pair (owner, 2026-11-22)
+      Bench.OnProgress := BenchProgress;
       TMonitor.Enter(Self);
       try
         FBench := Bench;
@@ -1693,9 +1989,10 @@ begin
           if Terminated then
             Break;
           Progress(100 * N / Max(1, Total));
-          Status(Format('Calibrating: %s on %s (%d of %d; loading, a warm-up and %d timed runs) ...',
-            [ExtractFileName(FModels[M]), FDevices[D].Name, N + 1, Total, CALIBRATION_RUNS]));
+          Status(Format('Calibrating: %s on %s (%d of %d; loading, a warm-up and %d s of speech timed) ...',
+            [ExtractFileName(FModels[M]), FDevices[D].Name, N + 1, Total, CALIBRATION_STRETCH_SECONDS]));
           Key := ExtractFileName(FModels[M]) + #9 + FDevices[D].Name;
+          Pair(M, D, -1);
           if FSkip.IndexOf(Key) >= 0 then
           begin
             R := Default(TWhisperBenchmarkResult);
@@ -1714,6 +2011,10 @@ begin
               on E: Exception do
                 DebugLog('calibration marker not written: ' + E.Message);
             end;
+            FStepModel := M;
+            FStepDevice := D;
+            FStepDone := N;
+            FStepTotal := Total;
             R := Bench.RunOne(FModels[M], FDevices[D]);
             System.SysUtils.DeleteFile(FMarkerFile);
             // cancelled mid-run: not a result
@@ -1721,16 +2022,24 @@ begin
               Break;
             if R.Ok then
             begin
-              Log(Format('  %s: %.1fx real time (median of %d runs of %.0f s from %s, %.0f %% sound; ' +
-                'loading %.1f s, warm-up %.1f s, %d threads)', [WhisperDeviceText(R.Device), R.Speed, R.Runs,
-                R.AudioSeconds, Hms(R.StartSeconds), R.SpeechShare * 100, R.LoadMs / 1000, R.WarmupMs / 1000,
-                R.Threads]));
+              // the share of sound: the Recording line's when the stretch was
+              // chosen above (the benchmark's own figure is judged against
+              // the stretch alone, not the recording)
+              Log(Format('  %s: %.1fx real time (%s of %.0f s from %s into the section%s; ' +
+                'loading %.1f s, warm-up %.1f s, %d threads)', [WhisperDeviceText(R.Device), R.Speed,
+                IfThen(R.Runs = 1, 'one run', Format('median of %d runs', [R.Runs])), R.AudioSeconds,
+                Hms(R.StartSeconds), IfThen(Start < 0, Format(', %.0f %% sound', [R.SpeechShare * 100]), ''),
+                R.LoadMs / 1000, R.WarmupMs / 1000, R.Threads]));
               DebugLog('calibration text: ' + R.Text);
             end
             else
               Log(Format('  %s: FAILED - %s', [WhisperDeviceText(R.Device), OneLine(R.ErrorMessage)]));
           end;
           FResults := FResults + [R];
+          if R.Ok then
+            Pair(M, D, R.Speed)
+          else
+            Pair(M, D, 0);
           Inc(N);
         end;
       end;

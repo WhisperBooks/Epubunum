@@ -2,11 +2,11 @@
 {
 	"version"		"3"
 	"revision"		"1"
-	"title"		"EpubReader - Xbox One / Series (r3)"
-	"description"		"Default layout for the Xbox One / Series (reader_controller_xboxone.vdf, revision 3) - EpubReader: reading, listening and its menu."
+	"title"		"EpubReader - Xbox One / Series (r4)"
+	"description"		"Default layout for the Xbox One / Series (reader_controller_xboxone.vdf, revision 4) - EpubReader: reading, listening and its menu."
 	"controller_type"		"controller_xboxone"
-	"major_revision"		"1"
-	"minor_revision"		"3"
+	"major_revision"		"2"
+	"minor_revision"		"4"
 	"Timestamp"		"0"
 	"actions"
 	{
@@ -44,8 +44,8 @@
 	{
 		"english"
 		{
-			"title"		"EpubReader - Xbox One / Series (r3)"
-			"description"		"Default layout for the Xbox One / Series (reader_controller_xboxone.vdf, revision 3) - EpubReader: reading, listening and its menu."
+			"title"		"EpubReader - Xbox One / Series (r4)"
+			"description"		"Default layout for the Xbox One / Series (reader_controller_xboxone.vdf, revision 4) - EpubReader: reading, listening and its menu."
 			"Set_Reader"		"Reading"
 			"Action_Scroll"		"Scroll the page"
 			"Action_Up"		"Up (menu, library) / scroll up"

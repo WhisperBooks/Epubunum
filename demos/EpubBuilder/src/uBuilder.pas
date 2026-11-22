@@ -20,7 +20,7 @@ uses
   FFmpeg.API, FFmpeg.Media,
   Whisper.Types, Whisper.API, Whisper.Audio, Whisper.Core, Whisper.Words, Whisper.Align, Whisper.AudioSet,
   uDebugLog, uMachine, uCalibration, uHistory, uModels, uSteam, uInhibit, uQuitSignal, uSteamPad, uPadMenu, uCards,
-  uRedraw, uLink, uCovers, uCoverPick, uEpubUnum;
+  uRedraw, uLink, uCovers, uCoverPick, uEpubUnum, uBenchProgress, uMacWindow;
 
 type
   { Audio for a book, offered in Big Picture: one file, or a folder's
@@ -86,6 +86,21 @@ type
       normal build - BuildDiagnostics). A diagnostic build is not kept in
       the build history: its speed is not a build's. }
     Diagnostic: string;
+    { A benchmark's build (TBuildThread.Benchmark): the figures below are
+      of chapter material only - every part (a LibriVox section) without
+      its first and last BENCH_EDGE_SECONDS. }
+    Benchmark: Boolean;
+    { Benchmark: seconds of chapter material transcribed and timed. }
+    BenchAudioSeconds: Double;
+    { Benchmark: the time its transcription took (the first pass and the
+      second over gaps; the time asleep not counted), s. }
+    BenchSeconds: Double;
+    { Benchmark: book words timed inside the chapter material (as the
+      aligner counts words: split at dashes). }
+    BenchWords: Integer;
+    { Benchmark: of BenchWords, those heard exactly or nearly as the book
+      has them. }
+    BenchMatched: Integer;
   end;
 
   { Builds one read-along EPUB on its own thread. Messages and progress
@@ -162,6 +177,14 @@ type
       every diagnostic build transcribes all of the audio and leaves the
       next normal build nothing made with other settings. }
     FDiagnostic: string;
+    { Backing field of @link(Benchmark). }
+    FBenchmark: Boolean;
+    { A benchmark: when the timed piece being transcribed began (0 = none
+      is: BenchElapsed stands still). }
+    FBenchFrom: TDateTime;
+    { A benchmark: FPausedSeconds when that piece began (the time asleep
+      is not the piece's). }
+    FBenchPaused: Double;
     { Writes whisper.cpp's timings since the part began to the debug log
       (whisper_print_timings: fallbacks, and the time and runs of the
       encoder, the decoder and the sampling). ANote says which pass they
@@ -220,6 +243,11 @@ type
     { Transcribes every part of AAudio into one transcription (the joined
       time line), as WhisperConsole does: clean, second pass over gaps. }
     function Transcribe(AAudio: TWhisperAudioSet): TWhisperTranscription;
+    { A benchmark's score (Summary's Bench* fields): the book words
+      (AAligned, the aligner's) timed inside the chapter material of
+      AParts - each part without its first and last BENCH_EDGE_SECONDS -
+      and how many of them were heard exactly or nearly. }
+    procedure ScoreBenchmark(const AAligned: TWhisperAlignedWordArray; const AParts: TWhisperAudioPartArray);
   protected
     { The build. }
     procedure Execute; override;
@@ -251,6 +279,19 @@ type
     { The cover chosen ('' automatic, 'book', 'audio', a picture's path):
       set before Start. }
     property CoverChoice: string read FCoverChoice write FCoverChoice;
+    { Set before Start: a benchmark's build (Benchmark Lite / Full). No
+      saved or part-way transcript is read or kept (every benchmark
+      transcribes all of its audio), and each part long enough is
+      transcribed in three pieces - its first BENCH_EDGE_SECONDS, the
+      chapter material, its last BENCH_EDGE_SECONDS - of which only the
+      middle one is timed and scored (the standing rule: a LibriVox
+      section's spoken notices are never measured). The book written is
+      a whole one, every piece timed in it. }
+    property Benchmark: Boolean read FBenchmark write FBenchmark;
+    { A benchmark's clock as it runs (any thread): the timed pieces'
+      transcription so far, s - the score's own measure, which it equals
+      once the transcription has ended (Summary.BenchSeconds). }
+    function BenchElapsed: Double;
   end;
 
   { Where a job of the queue is. }
@@ -302,6 +343,29 @@ type
     OutputBytes: Int64;
     { The build's figures (from this session's run). }
     Summary: TBuildSummary;
+  end;
+
+  { One model of a calibration, as its progress view shows it. }
+  TCalibrationRow = record
+    { The model file. }
+    Model: string;
+    { When its first device began (0 = not yet). }
+    Started: TDateTime;
+    { When its last device ended (0 = not yet). }
+    Ended: TDateTime;
+    { Its devices ended. }
+    Done: Integer;
+    { The device being timed now ('' = none). }
+    Device: string;
+    { What is being done on it ('' = not said yet; TCalibrationStepEvent's
+      APhase). }
+    Phase: string;
+    { How far the device being timed is, % (TCalibrationStepEvent). }
+    Step: Integer;
+    { The fastest so far, by name ('' = none yet). }
+    Best: string;
+    { Its speed, x real time. }
+    BestSpeed: Double;
   end;
 
   { The builder's window. }
@@ -521,8 +585,9 @@ type
     { macOS, Big Picture: when tmPadTimer last looked whether the window is
       full screen. }
     FFullTick: UInt64;
-    { macOS, Big Picture: how often full screen has been asked for again
-      (PAD_FULL_TRIES when it is, or has been asked for often enough). }
+    { macOS, Big Picture: how often full screen has been asked for
+      (PAD_FULL_TRIES when it is, or has been asked for often enough; the
+      last time the window covers the screen instead - uMacWindow). }
     FFullTries: Integer;
     { Which list FPadMenu shows (BPM_*). }
     FPadMode: Integer;
@@ -560,10 +625,13 @@ type
     { Not calibrated, and no model to calibrate at start-up: the question
       is asked once a model is here (downloaded or chosen). }
     FCalibPending: Boolean;
-    { Models (file names, lower case, each between tabs) whose calibration
-      was offered and declined in this run: not offered again until the
-      program starts again (OfferCalibration). }
-    FCalibDeclined: string;
+    { The next StartCalibration with AAllModels times only the models not
+      calibrated yet (CalibrateNewModels: after Download every model). }
+    FCalOnlyNew: Boolean;
+    { The calibration running was started by itself at start-up
+      (CheckCalibrationAtStart): Big Picture's main menu after it, not the
+      Settings page's Model row. }
+    FCalAtStart: Boolean;
     { The home list that follows the answer to a pad question shows the
       Model row selected (set by the question's answer, cleared by
       PadAnswer): after "Calibrate it now? - No" the next model is one
@@ -682,9 +750,9 @@ type
       Declared on Linux only (H2219 elsewhere). }
     mnuBar: TMenuBar;
     {$ENDIF}
-    { Settings > Calibrate (this model). }
+    { Settings > Re-calibrate (this model). }
     miCalibrate: TMenuItem;
-    { Settings > Calibrate every model. }
+    { Settings > Re-calibrate every model. }
     miCalibrateAll: TMenuItem;
     { Settings > Diagnostics (this model). }
     miDiagnostics: TMenuItem;
@@ -697,6 +765,62 @@ type
     { Settings > AMD ROCm acceleration: Linux Steam builds, an
       AMD GPU without a ROCm device (CheckRocmDlc). }
     miRocm: TMenuItem;
+    { The Benchmark menu: [0] Run all 4 benchmarks, [1 .. 4] one each
+      (BENCH_NAMES), with the time each takes; greyed when its model is
+      not there. }
+    miBench: array[0..4] of TMenuItem;
+    { The benchmark being built (1 .. 4, BENCH_NAMES; -1 = none: the build
+      running is a book's). }
+    FBenchOption: Integer;
+    { The benchmarks still to run after it (Run all 4). }
+    FBenchQueue: TArray<Integer>;
+    { The run is Run all 4. }
+    FBenchAll: Boolean;
+    { Each benchmark's score in this run, s (0 = not run). }
+    FBenchScores: array[1..4] of Double;
+    { The book each benchmark of the run made ('' = none; kept or deleted
+      when the run ends). }
+    FBenchBooks: array[1..4] of string;
+    { Each recording's length, s (0 = not read yet). }
+    FBenchAudio: array[0..1] of Double;
+    { What the time estimates were worked out from (RefreshBenchmarks
+      works them out again when it changes). }
+    FBenchKey: string;
+    { Each option's time estimate, s (0 = none). }
+    FBenchEta: array[0..4] of Double;
+    { The benchmarks of the run, in order (the progress view's rows). }
+    FBenchList: TArray<Integer>;
+    { Each benchmark of the run has ended. }
+    FBenchEnded: array[1..4] of Boolean;
+    { Each benchmark's clock as last shown, s (a stopped one keeps it). }
+    FBenchClock: array[1..4] of Double;
+    { Each benchmark's share of the transcription done, % (its bar). }
+    FBenchPct: array[1..4] of Double;
+    { The progress view while a run is on (nil otherwise). }
+    FBenchView: TBenchProgress;
+    { The calibration's progress view (nil when none runs; owner,
+      2026-11-22: "a Calibration progress bar, similar to the Benchmark
+      version adapted to role"). }
+    FCalView: TBenchProgress;
+    { The calibration's models, a block each in FCalView. }
+    FCalRows: TArray<TCalibrationRow>;
+    { The results are up (their question not answered yet). }
+    FBenchResults: Boolean;
+    { The results are hidden (X / H): the bars show. }
+    FBenchHidden: Boolean;
+    { The run's books (deleted when the results are answered). }
+    FBenchKeep: TArray<string>;
+    { Of them, the ones offered to keep. }
+    FBenchCandidates: TArray<string>;
+    { A Fast book is offered (Detailed makes the better one: said). }
+    FBenchFastOffered: Boolean;
+    { The question answered by PadAnswer closes the menu instead of going
+      to the home list (the desktop's results). }
+    FAskThenClose: Boolean;
+    { The buttons the foot of the menu shown names (PadFootOf). }
+    FFootButtons: TArray<Integer>;
+    { What each of them does there. }
+    FFootTexts: TArray<string>;
     { A label above AParent's next control. }
     function AddCaption(AParent: TFmxObject; const AText: string): TLabel;
     { A row in AParent: a caption, then a control filling it. }
@@ -787,8 +911,9 @@ type
       whisper.cpp's default). }
     procedure StartBuild(const ADevice: string);
     { Starts building AJob on a TBuildThread (AIndex: its place in FJobs,
-      -1 for Create's build). }
-    procedure StartJob(const AJob: TBuildJob; AIndex: Integer);
+      -1 for Create's build; ABenchmark: RunBenchmark's build -
+      TBuildThread.Benchmark). }
+    procedure StartJob(const AJob: TBuildJob; AIndex: Integer; ABenchmark: Boolean = False);
     { The window's choices as a job (ADevice: the device's name). }
     function JobFromWindow(const ADevice: string): TBuildJob;
     { Checks the window's choices (as Create does: the output, a model,
@@ -935,6 +1060,21 @@ type
     { PadFoot for the keys (AKeys) or for a pad.
       @returns(the text) }
     function PadFootFor(AKeys: Boolean): string;
+    { The hints of buttons AButtons (BP_*), doing ATexts: Steam's pictures
+      of the pad's controls (their names without pictures), or with AKeys
+      the keys' names from uReaderInput's table (owner's standing rule,
+      2026-11-22: a PlayStation pad has no A or B).
+      @returns(the hints) }
+    function PadHintsFor(const AButtons: TArray<Integer>; const ATexts: TArray<string>;
+      AKeys: Boolean): TArray<TPadHint>;
+    { The foot of the menu about to be shown: AButtons doing ATexts, kept
+      for RefreshFoot; the hints as words (the foot Show sizes the box by).
+      @returns(the text) }
+    function PadFootOf(const AButtons: TArray<Integer>; const ATexts: TArray<string>): string;
+    { The foot kept by PadFootOf drawn as hints, for the pad or the keys
+      (FPadKeys) - after every Show of a list with button hints, and when
+      the other way of control is used. }
+    procedure RefreshFoot;
     { What drives the menu changed - a pad, or the keyboard / mouse /
       finger (FPadKeys): a list that shows goes over to it at once - the
       Controls list is shown again in the other form (its row kept), the
@@ -981,6 +1121,11 @@ type
       memos go dark; the edit and combo boxes, the buttons, the settings
       panel and the menu bar keep the system's style. }
     procedure ApplyDarkWindow;
+    { The window dark before it is drawn (FormCreate, FormShow): the memos'
+      and the lists' styles applied first, so ApplyDarkWindow finds their
+      backgrounds at once instead of at tmDark's next tick. Nothing when
+      the window is light. }
+    procedure DarkBeforeShow;
     { tmDark: the dark window looked at again. }
     procedure tmDarkTimer(Sender: TObject);
     { Dark mode on or off: the menu's and the window's colours, saved. }
@@ -1097,12 +1242,14 @@ type
       and the user has not said not to ask. }
     procedure CheckCalibrationAtStart;
     { The model in the window is not calibrated on this machine (just
-      downloaded, or chosen): asks whether to calibrate it now - Yes starts
-      the calibration, No is remembered for this run (FCalibDeclined). Not
-      asked while anything runs, nor when the user said not to be reminded
-      ([Calibration] DontAsk). Big Picture: the question is in the pad's
-      menu, and the home list follows the answer or the calibration. }
+      downloaded, or chosen): it is calibrated now - no question (owner,
+      2026-11-22: "If models are added later on they should also
+      auto-calibrate"). Not while anything runs, nor when the user said
+      not to be reminded ([Calibration] DontAsk). }
     procedure OfferCalibration;
+    { The models of the models folder not calibrated yet, calibrated now
+      (after Download every model); nothing when all are. }
+    procedure CalibrateNewModels;
     { Starts a calibration of the model in the window (AAllModels: every
       ggml-*.bin in its folder, smallest first); ARetry: pairs that ended
       the program before are timed again. Asks for a model or a recording
@@ -1130,6 +1277,76 @@ type
       device its calibration chose - with a closing table, a line per
       model. }
     procedure miDiagnosticsAllClick(Sender: TObject);
+    { Benchmark option AOption's model file (1 .. 4: base for Fast,
+      large-v3-turbo for Detailed) when it is in the models folder; for 0
+      (Run all 4) base's when both are there.
+      @returns('' when it is not there) }
+    function BenchmarkModel(AOption: Integer): string;
+    { The device a benchmark of AModel uses: its calibration's choice,
+      else the window's ("Default" as the device it stands for).
+      @returns(the device's name) }
+    function BenchmarkDevice(const AModel: string): string;
+    { The Benchmark menu (and the pad's list) brought up to date: each
+      option enabled when its model is there and nothing runs, with its
+      time estimate - worked out again only when the models, the
+      calibration, the build history or the window's device changed. }
+    procedure RefreshBenchmarks;
+    { Option AOption with its time estimate, as the menus show it.
+      @returns(the text) }
+    function BenchmarkText(AOption: Integer): string;
+    { The Benchmark menu's items (Tag: the option). }
+    procedure miBenchmarkClick(Sender: TObject);
+    { Starts benchmark option AOption (owner, 2026-11-22): 0 runs all
+      four one after another, 1 .. 4 one (BENCH_NAMES). }
+    procedure StartBenchmark(AOption: Integer);
+    { Runs the next benchmark of FBenchQueue (from ForceQueue: the build
+      before it has finished). }
+    procedure RunNextBenchmark;
+    { Builds option AOption's reference text with its model: a build of
+      its own (StartJob, TBuildThread.Benchmark), beside the settings, on
+      BenchmarkDevice. }
+    procedure RunBenchmark(AOption: Integer);
+    { A benchmark's build has ended (from BuildDone): its score kept, the
+      next one of Run all 4 started, or the scores shown.
+      @param(ASummary  the build's figures)
+      @param(AOk  the build succeeded) }
+    procedure BenchmarkDone(const ASummary: TBuildSummary; AOk: Boolean);
+    { The run has ended: the scores (transcription times) shown, then
+      the question whether to keep the book (Run all 4: the Detailed
+      books) to read in EpubReader - No by default. }
+    procedure BenchmarkFinished;
+    { Big Picture: the Benchmark list - its five options with their time
+      estimates, faded when not available, and Back. }
+    procedure PadBenchmarks;
+    { The progress view's tick: each block's time, what is being done and
+      the share of the transcription done, from the running build. }
+    procedure BenchTick(Sender: TObject);
+    { Option AOption's line above its bar: its name, its text, and the
+      device it runs on as the log describes it, without the device's name
+      ('NVIDIA GeForce RTX 5090 Laptop GPU (GPU, Vulkan, 22.7 of 23.6 GB
+      free)').
+      @returns(the line) }
+    function BenchTitle(AOption: Integer): string;
+    { The progress view's corner button (the desktop): Cancel while the
+      run is on, then the results shown or hidden. }
+    procedure BenchCancel(Sender: TObject);
+    { The calibration's progress view's tick: each model's clock, what is
+      being done (the device being timed, or the fastest), and the share of
+      its devices done. }
+    procedure CalTick(Sender: TObject);
+    { CheckCalibrationAtStart will calibrate: whisper.cpp and devices are
+      there, it was not asked not to, and there is no calibration, or one
+      of other devices or of an older method.
+      @returns(the answer) }
+    function CalibrationDueAtStart: Boolean;
+    { The results in the pad's menu, on the desktop too (owner,
+      2026-11-22): the title "Results" centred, a row per benchmark - its
+      name, its score on the right (lines of information) - then whether
+      to keep the book(s), Yes / No (No selected). }
+    procedure BenchShowResults;
+    { X / H, or the corner's button: the results hidden (the bars show)
+      or shown again. }
+    procedure BenchToggleResults;
     { Settings > Model > Download every model (the top row of Big Picture's model
       list): asks, then fetches every model of the catalogue that is not
       in the models folder, one after another (FDownloadQueue). The model
@@ -1145,9 +1362,9 @@ type
     procedure ToggleExpert;
     { Settings > Expert mode. }
     procedure miExpertClick(Sender: TObject);
-    { Settings > Calibrate (this model). }
+    { Settings > Re-calibrate (this model). }
     procedure miCalibrateClick(Sender: TObject);
-    { Settings > Calibrate every model. }
+    { Settings > Re-calibrate every model. }
     procedure miCalibrateAllClick(Sender: TObject);
     { Settings > Calibration results: what is kept, model by model. }
     procedure miCalibrationClick(Sender: TObject);
@@ -1891,10 +2108,14 @@ var
   Params: TWhisperParams;
   Samples: TWhisperSamples;
   Part: TWhisperTranscription;
-  I, Done, Kept: Integer;
-  Started, RunStarted: TDateTime;
+  I, Done, Kept, J, Edge, PartWords: Integer;
+  Started, RunStarted, PieceStarted: TDateTime;
   Prompt, Heard: string;
-  Paused: Double;
+  Paused, PiecePaused, PartSeconds: Double;
+  // a part's pieces: sample indices, a piece from each to the next
+  Pieces: TArray<Integer>;
+  Piece: TWhisperSamples;
+  Timed, Stop: Boolean;
 begin
   Result := Default(TWhisperTranscription);
   RunStarted := Now;
@@ -1954,7 +2175,8 @@ begin
       FPartCount := Length(AAudio.Parts);
       // a build of this book stopped part way: on from the next part
       Done := 0;
-      if (FDiagnostic = '') and ReadPartial(AAudio.Parts, Result, Done, Heard, FPriorSeconds) then
+      if (FDiagnostic = '') and not FBenchmark and ReadPartial(AAudio.Parts, Result, Done, Heard,
+        FPriorSeconds) then
       begin
         if (Heard <> '') and SameText(Params.Language, WHISPER_LANGUAGE_AUTO) then
           Params.Language := Heard;
@@ -1981,51 +2203,98 @@ begin
           Continue;
         Status(Format('Part %d of %d "%s": transcribing (the words appear as they are heard) ...', [I + 1,
           FPartCount, AAudio.Parts[I].Title]));
-        // the timings below are this part's (the fallback counts are not:
-        // LogTimings)
-        if Assigned(Lib.Flat.whisper_reset_timings) then
-          Lib.Flat.whisper_reset_timings(Model.Handle);
-        Part := FRun.Execute(Samples);
-        if Part.Cancelled then
-          Break;
-        LogTimings(Model, 'the first pass');
-        // a part that failed ends the build: going on gave a book with
-        // part of its audio timed, reported as done, and kept the cut
-        // transcript "for next time" (review, zip 73)
-        if Part.ResultCode <> 0 then
+        // a benchmark: the part in three pieces, the middle one (chapter
+        // material) timed; a build: the part whole, as one piece
+        Edge := Round(BENCH_EDGE_SECONDS * WHISPER_SAMPLE_RATE);
+        if FBenchmark and (Length(Samples) >= 3 * Edge) then
+          Pieces := [0, Edge, Length(Samples) - Edge, Length(Samples)]
+        else
+          Pieces := [0, Length(Samples)];
+        PartSeconds := FPartSeconds;
+        PartWords := 0;
+        Stop := False;
+        for J := 0 to High(Pieces) - 1 do
         begin
-          if Kept > 0 then
-            Log(Format('Parts 1 - %d are kept (%s): building it again goes on from part %d', [Kept,
-              ExtractFileName(FPartialFile), Kept + 1]));
-          raise EWhisperError.CreateFmt('Part %d of %d "%s" was not transcribed: %s', [I + 1, FPartCount,
-            AAudio.Parts[I].Title, Part.ErrorMessage]);
+          if Length(Pieces) = 2 then
+            Piece := Samples
+          else
+            Piece := Copy(Samples, Pieces[J], Pieces[J + 1] - Pieces[J]);
+          FPartSeconds := WhisperSamplesSeconds(Piece);
+          // the status's times: on the joined time line
+          FPartOffset := AAudio.Parts[I].Offset + Pieces[J] / WHISPER_SAMPLE_RATE;
+          Timed := FBenchmark and (Length(Pieces) = 4) and (J = 1);
+          PieceStarted := Now;
+          PiecePaused := FPausedSeconds;
+          if Timed then
+          begin
+            // the progress view's clock runs from here (BenchElapsed)
+            FBenchPaused := PiecePaused;
+            FBenchFrom := PieceStarted;
+          end;
+          // the timings below are this part's (the fallback counts are not:
+          // LogTimings)
+          if Assigned(Lib.Flat.whisper_reset_timings) then
+            Lib.Flat.whisper_reset_timings(Model.Handle);
+          Part := FRun.Execute(Piece);
+          if Part.Cancelled then
+          begin
+            FBenchFrom := 0;
+            Stop := True;
+            Break;
+          end;
+          LogTimings(Model, 'the first pass');
+          // a part that failed ends the build: going on gave a book with
+          // part of its audio timed, reported as done, and kept the cut
+          // transcript "for next time" (review, zip 73)
+          if Part.ResultCode <> 0 then
+          begin
+            if (Kept > 0) and not FBenchmark then
+              Log(Format('Parts 1 - %d are kept (%s): building it again goes on from part %d', [Kept,
+                ExtractFileName(FPartialFile), Kept + 1]));
+            raise EWhisperError.CreateFmt('Part %d of %d "%s" was not transcribed: %s', [I + 1, FPartCount,
+              AAudio.Parts[I].Title, Part.ErrorMessage]);
+          end;
+          // as WhisperConsole: take out loops and echoes, then a second pass
+          // over the stretches left without words
+          WhisperCleanTranscription(Part, Prompt);
+          Status(Format('Part %d of %d: second pass over stretches left without words ...', [I + 1, FPartCount]));
+          FRun.FillGaps(Piece, Part);
+          LogTimings(Model, 'with the second pass');
+          if Timed then
+          begin
+            // the clock stops: the piece's time goes into the sum
+            FBenchFrom := 0;
+            // the chapter material's time; the time asleep is not its
+            FSummary.BenchAudioSeconds := FSummary.BenchAudioSeconds + FPartSeconds;
+            FSummary.BenchSeconds := FSummary.BenchSeconds + MilliSecondsBetween(Now, PieceStarted) / 1000 -
+              (FPausedSeconds - PiecePaused);
+          end;
+          // the pause before a word is not the word: DTW starts the first
+          // word after a pause in it (the next sentence lit too early)
+          WhisperTrimWordSilence(Part, Piece);
+          WhisperAppendTranscription(Result, Part, AAudio.Parts[I].Offset + Pieces[J] / WHISPER_SAMPLE_RATE);
+          Inc(PartWords, Length(Part.Words));
+          // keep the language the first part was heard in
+          if SameText(Params.Language, WHISPER_LANGUAGE_AUTO) and (Part.LanguageCode <> '') then
+            Params.Language := Part.LanguageCode;
+          FDoneSeconds := FDoneSeconds + FPartSeconds;
         end;
-        // as WhisperConsole: take out loops and echoes, then a second pass
-        // over the stretches left without words
-        WhisperCleanTranscription(Part, Prompt);
-        Status(Format('Part %d of %d: second pass over stretches left without words ...', [I + 1, FPartCount]));
-        FRun.FillGaps(Samples, Part);
-        LogTimings(Model, 'with the second pass');
-        // the pause before a word is not the word: DTW starts the first
-        // word after a pause in it (the next sentence lit too early)
-        WhisperTrimWordSilence(Part, Samples);
-        WhisperAppendTranscription(Result, Part, AAudio.Parts[I].Offset);
-        // keep the language the first part was heard in
-        if SameText(Params.Language, WHISPER_LANGUAGE_AUTO) and (Part.LanguageCode <> '') then
-          Params.Language := Part.LanguageCode;
-        FDoneSeconds := FDoneSeconds + FPartSeconds;
+        Piece := nil;
+        FPartSeconds := PartSeconds;
+        if Stop then
+          Break;
         // the time paused for sleep is not the part's
         Log(Format('Part %d of %d "%s": %.0f s of audio, %d words, %.1f s', [I + 1, Length(AAudio.Parts),
-          AAudio.Parts[I].Title, FPartSeconds, Length(Part.Words), MilliSecondsBetween(Now, Started) / 1000 -
+          AAudio.Parts[I].Title, FPartSeconds, PartWords, MilliSecondsBetween(Now, Started) / 1000 -
           (FPausedSeconds - Paused)]));
         // kept part by part: a stop (Steam's Exit Game, a crash, Cancel)
         // loses at most the part being transcribed
         Kept := I + 1;
-        if FDiagnostic = '' then
+        if (FDiagnostic = '') and not FBenchmark then
           SavePartial(Result, AAudio.Parts, Kept, Params.Language, FPriorSeconds +
             MilliSecondsBetween(Now, RunStarted) / 1000 - FPausedSeconds);
       end;
-      if Terminated and (Kept > 0) and (Kept < Length(AAudio.Parts)) then
+      if Terminated and not FBenchmark and (Kept > 0) and (Kept < Length(AAudio.Parts)) then
         Log(Format('Stopped after part %d of %d: parts 1 - %d are kept (%s) - building it again goes on from ' +
           'part %d', [Kept, FPartCount, Kept, ExtractFileName(FPartialFile), Kept + 1]));
     finally
@@ -2035,6 +2304,65 @@ begin
     Params.Free;
     Model.Free;
   end;
+end;
+
+function TBuildThread.BenchElapsed: Double;
+var
+  From: TDateTime;
+begin
+  Result := FSummary.BenchSeconds;
+  From := FBenchFrom;
+  if From <> 0 then
+    Result := Result + Max(0.0, MilliSecondsBetween(Now, From) / 1000 - (FPausedSeconds - FBenchPaused));
+end;
+
+procedure TBuildThread.ScoreBenchmark(const AAligned: TWhisperAlignedWordArray;
+  const AParts: TWhisperAudioPartArray);
+var
+  Ranges: TArray<Double>;
+  I, K: Integer;
+  T: Double;
+begin
+  FSummary.Benchmark := True;
+  FSummary.BenchWords := 0;
+  FSummary.BenchMatched := 0;
+  // the chapter material on the joined time line: the parts transcribed
+  // in three pieces (Transcribe), each without its two edges
+  Ranges := nil;
+  for I := 0 to High(AParts) do
+    if AParts[I].Duration * WHISPER_SAMPLE_RATE >= 3 * Round(BENCH_EDGE_SECONDS * WHISPER_SAMPLE_RATE) then
+      Ranges := Ranges + [AParts[I].Offset + BENCH_EDGE_SECONDS,
+        AParts[I].Offset + AParts[I].Duration - BENCH_EDGE_SECONDS];
+  // the words timed in it, as the verdict counts them (not spoken words
+  // have no time)
+  for I := 0 to High(AAligned) do
+  begin
+    if (AAligned[I].T0 < 0) or not (AAligned[I].Match in [wamExact, wamSimilar, wamInterpolated, wamNotHeard,
+      wamMoved]) then
+      Continue;
+    T := AAligned[I].T0 / WHISPER_TICKS_PER_SECOND;
+    K := 0;
+    while K < High(Ranges) do
+    begin
+      if (T >= Ranges[K]) and (T < Ranges[K + 1]) then
+      begin
+        Inc(FSummary.BenchWords);
+        if AAligned[I].Match in [wamExact, wamSimilar] then
+          Inc(FSummary.BenchMatched);
+        Break;
+      end;
+      Inc(K, 2);
+    end;
+  end;
+  Log('');
+  if (FSummary.BenchSeconds > 0) and (FSummary.BenchWords > 0) then
+    Log(Format('BENCHMARK - chapter material only (every section without its first and last %d s): %s of ' +
+      'audio transcribed in %s = %.1fx real time; %d of its %d words (%.1f %%) heard as the book has them, ' +
+      'exactly or nearly', [BENCH_EDGE_SECONDS, WhisperTimeToStr(Round(FSummary.BenchAudioSeconds * 100)),
+      WhisperTimeToStr(Round(FSummary.BenchSeconds * 100)), FSummary.BenchAudioSeconds / FSummary.BenchSeconds,
+      FSummary.BenchMatched, FSummary.BenchWords, FSummary.BenchMatched * 100 / FSummary.BenchWords]))
+  else
+    Log('BENCHMARK - no chapter material was timed (no section long enough)');
 end;
 
 procedure TBuildThread.LogResults(const AStats: TWhisperAlignStats; AHeard: Integer;
@@ -2309,6 +2637,9 @@ begin
           // take them for its own (a saved or part-way transcript of a
           // normal build is left as it is)
           Log(Format('DIAGNOSTIC build (%s): the transcript is not kept for next time', [FDiagnostic]))
+        else if FBenchmark then
+          // every benchmark transcribes all of its audio
+          Log('Benchmark: the transcript is not kept for next time')
         else
         begin
           SaveTranscript(R, Parts, ExtractFileName(FModelFile), FormatDateTime('yyyy-mm-dd hh:nn', Now));
@@ -2334,6 +2665,8 @@ begin
       Aligned := WhisperAlignText(Split, R.Words, Stats);
       Joined := WhisperJoinAligned(Aligned, Map, Length(Given));
       LogResults(Stats, Length(R.Words), Split, Aligned, WhisperAlignRegions(Aligned, REGION_MIN_WORDS));
+      if FBenchmark then
+        ScoreBenchmark(Aligned, Parts);
       Files := WhisperPartFiles(Parts);
       Times := WhisperWordFileTimes(Joined, Parts, Files);
       Progress(93);
@@ -2822,6 +3155,7 @@ begin
   // a crash in a library (Steam Deck, 2026-11-17): logged with where it was
   Application.OnException := AppException;
   FJob := -1;
+  FBenchOption := -1;
   FBuildLog := TStringList.Create;
   FModelItems := TStringList.Create;
   BuildWindow;
@@ -2895,6 +3229,9 @@ begin
   FModelsFolder := ModelsDefaultFolder(SteamBuild, ExtractFilePath(SettingsFile));
   if SteamBuild and not FolderWritable(FModelsFolder) then
     FModelsFolder := ModelsDefaultFolder(False, ExtractFilePath(SettingsFile));
+  // dark by default (zip 203): a first start has no settings file, and
+  // LoadSettings reads [View] Dark only from one
+  FPadDark := True;
   LoadSettings;
   // the three folders there from the start (the dialogs open in them)
   try
@@ -2929,6 +3266,10 @@ begin
   LogLine('Debug log: ' + DebugLogFile);
   CheckRocmDlc;
   UpdateControls;
+  // owner, 2026-11-22: "The screen briefly flashes white on form load
+  // before the theme takes over" - dark before the window is first drawn
+  // (the timer and StartPad came after it: up to half a second light)
+  DarkBeforeShow;
 end;
 
 procedure TfrmBuilder.WhisperLog(Sender: TObject; ALevel: TWhisperLogLevel; const AText: string);
@@ -3392,6 +3733,8 @@ begin
       miDiagnosticsAll.Enabled := miCalibrate.Enabled;
     if miDownloadAll <> nil then
       miDownloadAll.Enabled := miCalibrate.Enabled;
+    // the benchmarks: greyed without their model, with the time each takes
+    RefreshBenchmarks;
     if miExpert <> nil then
       miExpert.IsChecked := FExpert;
     if miDarkMode <> nil then
@@ -3945,14 +4288,18 @@ begin
       Exit;
     end;
     if D.Succeeded then
-      LogLine('Every model is downloaded. Calibrate every model times them all; Diagnostics (every model) ' +
-        'measures them.')
+      LogLine('Every model is downloaded; the new ones are calibrated now (Diagnostics (every model) measures ' +
+        'them).')
     else
       LogLine(Format('The downloads stopped at %s: %d more model(s) were not fetched (Download every model ' +
         'fetches what is missing).', [D.ModelName, Length(FDownloadQueue)]));
     FDownloadQueue := nil;
     FDownloadAll := False;
-    PadBackToMenu(True);
+    // owner, 2026-11-22: models added later calibrate by themselves - the
+    // ones that came (also after a stop part way)
+    CalibrateNewModels;
+    if FCalib = nil then
+      PadBackToMenu(True);
     Exit;
   end;
   if D.Succeeded then
@@ -3961,10 +4308,10 @@ begin
     lblStatus.Text := 'Downloaded ' + D.ModelName;
     ApplyCalibration(True);
     if CalibrationSummary(SettingsFile, FModelPath) = '' then
-      LogLine(D.ModelName + ' is not calibrated yet: the calibration is offered now (later: Settings > ' +
-        'Calibrate (this model)).')
+      LogLine(D.ModelName + ' is not calibrated yet: it is calibrated now (later: Settings > ' +
+        'Re-calibrate (this model)).')
     else if D.WithEncoder then
-      LogLine(D.ModelName + ' was calibrated without its Core ML encoder: Settings > Calibrate (this model) ' +
+      LogLine(D.ModelName + ' was calibrated without its Core ML encoder: Settings > Re-calibrate (this model) ' +
         'times it with it (the first run compiles the encoder - slow once).');
     SaveSettings;
   end
@@ -3980,8 +4327,7 @@ begin
     CheckCalibrationAtStart;
   end
   else if D.Succeeded then
-    // owner, 2026-11-21: "It should automatically ask if it should
-    // calibrate"
+    // owner, 2026-11-22: calibrated by itself (was asked, 2026-11-21)
     OfferCalibration;
   // no question shown: the menu again, on Model (the next one to get)
   PadBackToMenu(True);
@@ -4221,7 +4567,7 @@ begin
   Result.State := jsWaiting;
 end;
 
-procedure TfrmBuilder.StartJob(const AJob: TBuildJob; AIndex: Integer);
+procedure TfrmBuilder.StartJob(const AJob: TBuildJob; AIndex: Integer; ABenchmark: Boolean);
 var
   Audio: TStringList;
   I: Integer;
@@ -4271,6 +4617,7 @@ begin
     FBuild := TBuildThread.Create(AJob.Book, Audio, AJob.Model, AJob.Device, AJob.Output, AJob.Chapters,
       AJob.Reuse, AJob.Language);
     FBuild.CoverChoice := AJob.Cover;
+    FBuild.Benchmark := ABenchmark;
   finally
     Audio.Free;
   end;
@@ -5045,7 +5392,7 @@ end;
 
 procedure TfrmBuilder.BuildDone(Sender: TObject);
 var
-  Ok: Boolean;
+  Ok, Bench: Boolean;
   Taken: string;
   I: Integer;
 begin
@@ -5055,10 +5402,14 @@ begin
   LogLine(Format('Finished after %s', [Taken]));
   // what the thread says, not what the progress bar shows
   Ok := (Sender as TBuildThread).Succeeded;
+  Bench := (Sender as TBuildThread).Benchmark;
+  // a benchmark is a whole book's build too: in the history, so the next
+  // estimate of that model on that device is its own speed (owner,
+  // 2026-11-22: "The estimates are sometimes way off")
   if Ok then
-  begin
-    // before the log is saved: the line goes into the build's .log too
     RecordHistory((Sender as TBuildThread).Summary);
+  if Ok and not Bench then
+  begin
     LogLine('Open ' + FRunOut + ' in EpubReader.');
     FMadeBook := FRunBook;
     FMadeOut := FRunOut;
@@ -5130,9 +5481,14 @@ begin
       tmQueue.Enabled := True;
   end;
   UpdateControls;
+  // a benchmark: its score and the question about its book
+  if Bench then
+    BenchmarkDone((Sender as TBuildThread).Summary, Ok);
   // a build on its own, or a queue stopped: the menu again (a queue that
-  // goes on shows it when it has finished - RunNextJob)
-  PadBackToMenu(False);
+  // goes on shows it when it has finished - RunNextJob); not over a
+  // question (PadBackToMenu), nor between two benchmarks of Run all 4
+  if Length(FBenchQueue) = 0 then
+    PadBackToMenu(False);
 end;
 
 procedure TfrmBuilder.ShowStatus;
@@ -5310,6 +5666,7 @@ procedure TfrmBuilder.BuildMenu;
 var
   M: TMenuItem;
   Bar: TFmxObject;
+  I: Integer;
 begin
   {$IF Defined(LINUX) and not Defined(ANDROID)}
   mnuBar := TMenuBar.Create(Self);
@@ -5332,6 +5689,16 @@ begin
   Item(M, '&Settings...', miSettingsClick);
   Item(M, '-', nil);
   Item(M, 'E&xit', miExitClick);
+  // owner, 2026-11-22: a menu of its own, five items with the time each
+  // takes (RefreshBenchmarks writes their text)
+  M := Item(Bar, '&Benchmark', nil);
+  for I := 0 to High(miBench) do
+  begin
+    miBench[I] := Item(M, BenchmarkText(I), miBenchmarkClick);
+    miBench[I].Tag := I;
+    if I = 0 then
+      Item(M, '-', nil);
+  end;
   // their items are still made (code enables, ticks and shows them, and
   // the Settings page asks them what is allowed), under items that are on
   // no menu bar
@@ -5401,8 +5768,11 @@ const
   BP_MENU = 6;
   { View / Select ("Library" in the reader): the queue. }
   BP_QUEUE = 7;
+  { X ("Again" in the reader), the key H: the benchmark results shown or
+    hidden (owner, 2026-11-22). }
+  BP_TOGGLE = 8;
   { The actions' names in the manifest. }
-  BP_ACTIONS: array[0..7] of string = ('Up', 'Down', 'Left', 'Right', 'Play', 'Back', 'Menu', 'Library');
+  BP_ACTIONS: array[0..8] of string = ('Up', 'Down', 'Left', 'Right', 'Play', 'Back', 'Menu', 'Library', 'Again');
   { The lists of the pad's menu. }
   BPM_HOME = 0;
   { The books folder's EPUB files. }
@@ -5423,6 +5793,8 @@ const
   BPM_QUEUES = 7;
   { The controls and their bindings (PadControls). }
   BPM_CONTROLS = 8;
+  { The Benchmark list (PadBenchmarks). }
+  BPM_BENCH = 9;
   { The home list's rows. }
   BPC_BOOK = 0;
   { The audio. }
@@ -5488,6 +5860,8 @@ const
   BPC_HISTORY = 30;
   { Settings: the AMD ROCm DLC, when it applies (CheckRocmDlc). }
   BPC_ROCM = 31;
+  { Benchmark: its list (faded without base and turbo). }
+  BPC_BENCH = 32;
   { The rows of the home list's Settings page (owner, 2026-11-22); the
     others are its first page. PadHome shows the page of the row asked
     for. }
@@ -5536,11 +5910,6 @@ const
   BP_SMALL_WORDS: array[0..7] of string = ('the', 'a', 'an', 'of', 'and', 'by', 'in', 'to');
   { How many matches the audio list offers first. }
   BP_AUDIO_FIRST = 8;
-  { The foot of the lists when nothing runs: a pad. }
-  BP_FOOT = 'A choose   B back   Left / Right change   Start close   View the queue';
-  { The same for the keyboard: the first key of the actions Play, Back,
-    Left, Right, Menu and Library (PadFoot). }
-  BP_FOOT_KEYS = '%s choose   %s back   %s / %s change   %s close   %s the queue';
 
 { AText's words, lower case, without the small ones. }
 function PadWords(const AText: string): TArray<string>;
@@ -5647,8 +6016,10 @@ begin
     FAskCancel := mrOk;
   FAskProc := AResult;
   FPadMode := BPM_ASK;
-  FPadMenu.ShowText(TITLES[AType], AText, Items, Sel, 'A answer   B ' + IfThen(FAskCancel = mrNo, 'no',
-    'cancel'));
+  // the buttons as the pad in hand shows them, or the keys (owner's rule)
+  FPadMenu.ShowText(TITLES[AType], AText, Items, Sel, PadFootOf([BP_CHOOSE, BP_BACK], ['answer',
+    IfThen(FAskCancel = mrNo, 'no', 'cancel')]));
+  RefreshFoot;
 end;
 
 procedure TfrmBuilder.Tell(const AText: string);
@@ -5676,6 +6047,13 @@ begin
   FPadMenu.Hide;
   if Assigned(P) then
     P(R);
+  // the desktop's results: the menu closes with them
+  if FAskThenClose then
+  begin
+    FAskThenClose := False;
+    if FPadMode <> BPM_ASK then
+      Exit;
+  end;
   // the answer may ask again (or start a build: the window shows it)
   if (FPadMode <> BPM_ASK) and (FBuild = nil) and (FCalib = nil) and (FDownload = nil) then
   begin
@@ -5762,7 +6140,8 @@ begin
     FPairPad := True;
     FPadMenu.ShowText('Connect', Text + sLineBreak + sLineBreak + lblPairCode.Text + sLineBreak + sLineBreak +
       Format('(It works for %d minutes; this box closes by itself once it is typed.)', [LINK_PAIR_MINUTES]),
-      [TPadMenu.Item('Refuse connection')], 0, 'A / B refuse');
+      [TPadMenu.Item('Refuse connection')], 0, PadFootOf([BP_CHOOSE, BP_BACK], ['', 'refuse']));
+    RefreshFoot;
   end;
 end;
 
@@ -5910,6 +6289,8 @@ begin
       [READER_INPUT_MAJOR, READER_INPUT_REVISION]));
   if not FPad.Started then
     Exit;
+  // macOS, Big Picture: full screen first looked at 1.5 s from now
+  FFullTick := TThread.GetTickCount64;
   tmPad := TTimer.Create(Self);
   tmPad.Interval := 16;
   tmPad.OnTimer := tmPadTimer;
@@ -5923,7 +6304,10 @@ begin
     for I := 0 to FModelItems.Count - 1 do
       if (FModelItems[I] <> '') and FileExists(FModelItems[I]) then
         Any := True;
-    if Any then
+    // a calibration about to start (CheckCalibrationAtStart, AfterShow):
+    // it is the first thing seen, the menu comes after it
+    if Any and CalibrationDueAtStart then
+    else if Any then
       PadHome(BPC_BOOK)
     else
       PadModels;
@@ -5933,12 +6317,14 @@ end;
 procedure TfrmBuilder.tmPadTimer(Sender: TObject);
 const
   { macOS: full screen asked for while the window is being made does not
-    take (the Mac, 2026-11-21: Big Picture's view in an ordinary window),
-    so it is asked for again once the window is there. }
+    take (the Mac, 2026-11-21: Big Picture's view in an ordinary window;
+    2026-11-22: still so after FMX's FullScreen asked for again), so it is
+    asked for through Cocoa once the window is there (uMacWindow). }
   PAD_FULL_AGAIN = {$IFDEF MACOS} True {$ELSE} False {$ENDIF};
-  { Asked for at most this often, a second apart; then left alone (the
-    user may have left full screen on purpose). }
-  PAD_FULL_TRIES = 3;
+  { Looked at this often, a second and a half apart: the Mac's full screen
+    the first times, the window over the whole screen the last time; then
+    left alone (the user may have left full screen on purpose). }
+  PAD_FULL_TRIES = 4;
 var
   Presses: TSteamPadPresses;
   Y: Single;
@@ -5967,20 +6353,32 @@ begin
       if (FBuild <> nil) or (FCalib <> nil) or (FDownload <> nil) then
         FPadMenu.SetFoot(lblStatus.Text)
       else
-        FPadMenu.SetFoot(PadFoot);
+      begin
+        PadFoot;
+        RefreshFoot;
+      end;
     end;
-    // macOS: the window made full screen once it is there
-    if PAD_FULL_AGAIN and FBigPicture and (FFullTries < PAD_FULL_TRIES) and (T - FFullTick > 1000) then
+    // macOS: the window made full screen once it is there - its real
+    // state read from Cocoa (FMX's FullScreen can read True in a window)
+    if PAD_FULL_AGAIN and FBigPicture and (FFullTries < PAD_FULL_TRIES) and (T - FFullTick > 1500) then
     begin
       FFullTick := T;
-      if FullScreen then
-        FFullTries := PAD_FULL_TRIES
+      if MacIsFullScreen(Self) then
+      begin
+        if FFullTries > 0 then
+          DebugLog(Format('Big Picture: the window is full screen (after %d of %d)', [FFullTries,
+            PAD_FULL_TRIES]));
+        FFullTries := PAD_FULL_TRIES;
+      end
       else
       begin
         Inc(FFullTries);
-        DebugLog(Format('Big Picture: the window is not full screen - asked for again (%d of %d)',
-          [FFullTries, PAD_FULL_TRIES]));
-        FullScreen := True;
+        if FFullTries < PAD_FULL_TRIES then
+          DebugLog(Format('Big Picture: the window is not full screen (%d of %d) - %s', [FFullTries,
+            PAD_FULL_TRIES, MacMakeFullScreen(Self)]))
+        else
+          DebugLog(Format('Big Picture: macOS did not make the window full screen (%d of %d) - %s',
+            [FFullTries, PAD_FULL_TRIES, MacCoverScreen(Self)]));
       end;
     end;
   except
@@ -5993,6 +6391,15 @@ procedure TfrmBuilder.PadPress(AButton: Integer);
 begin
   if not (AButton in [BP_UP, BP_DOWN, BP_LEFT, BP_RIGHT]) then
     DebugLog('pad: ' + BP_ACTIONS[AButton]);
+  // the benchmark results: X / H hides or shows them; hidden, any other
+  // button shows them again
+  if FBenchResults and ((AButton = BP_TOGGLE) or FBenchHidden) then
+  begin
+    BenchToggleResults;
+    Exit;
+  end;
+  if AButton = BP_TOGGLE then
+    Exit;
   // the cover chooser over everything: the pad moves its frame
   if (FCoverPick <> nil) and FCoverPick.Showing then
   begin
@@ -6034,19 +6441,85 @@ begin
   end;
 end;
 
+const
+  { The lists' foot when nothing runs: the buttons and what they do (a
+    button without words joins the next: "<left> <right> change"). }
+  BP_FOOT_BUTTONS: array[0..5] of Integer = (BP_CHOOSE, BP_BACK, BP_LEFT, BP_RIGHT, BP_MENU, BP_QUEUE);
+  { What each of BP_FOOT_BUTTONS does. }
+  BP_FOOT_TEXTS: array[0..5] of string = ('choose', 'back', '', 'change', 'close', 'the queue');
+
 function TfrmBuilder.PadFoot: string;
+var
+  B: TArray<Integer>;
+  T: TArray<string>;
+  I: Integer;
 begin
-  Result := PadFootFor(FPadKeys);
+  SetLength(B, Length(BP_FOOT_BUTTONS));
+  SetLength(T, Length(BP_FOOT_TEXTS));
+  for I := 0 to High(B) do
+  begin
+    B[I] := BP_FOOT_BUTTONS[I];
+    T[I] := BP_FOOT_TEXTS[I];
+  end;
+  Result := PadFootOf(B, T);
 end;
 
 function TfrmBuilder.PadFootFor(AKeys: Boolean): string;
+var
+  B: TArray<Integer>;
+  T: TArray<string>;
+  I: Integer;
 begin
-  if AKeys then
-    Result := Format(BP_FOOT_KEYS, [ReaderMenuFirstKey(BP_ACTIONS[BP_CHOOSE]), ReaderMenuFirstKey(BP_ACTIONS[BP_BACK]),
-      ReaderMenuFirstKey(BP_ACTIONS[BP_LEFT]), ReaderMenuFirstKey(BP_ACTIONS[BP_RIGHT]),
-      ReaderMenuFirstKey(BP_ACTIONS[BP_MENU]), ReaderMenuFirstKey(BP_ACTIONS[BP_QUEUE])])
-  else
-    Result := BP_FOOT;
+  SetLength(B, Length(BP_FOOT_BUTTONS));
+  SetLength(T, Length(BP_FOOT_TEXTS));
+  for I := 0 to High(B) do
+  begin
+    B[I] := BP_FOOT_BUTTONS[I];
+    T[I] := BP_FOOT_TEXTS[I];
+  end;
+  Result := TPadMenu.HintsText(PadHintsFor(B, T, AKeys));
+end;
+
+function TfrmBuilder.PadHintsFor(const AButtons: TArray<Integer>; const ATexts: TArray<string>;
+  AKeys: Boolean): TArray<TPadHint>;
+var
+  I: Integer;
+  Origin: TSteamPadOrigin;
+  Name, Glyph: string;
+begin
+  Result := nil;
+  for I := 0 to High(AButtons) do
+  begin
+    Glyph := '';
+    Name := '';
+    if not AKeys and (FPad <> nil) then
+    begin
+      // Steam's picture of the control on the pad in hand, else its name
+      Origin := FPad.Origin(AButtons[I], FPadDark);
+      Glyph := Origin.Glyph;
+      Name := Origin.Name;
+    end;
+    // the keys (or no pad Steam knows): the key's name from the table
+    if (Glyph = '') and (Name = '') then
+      Name := ReaderMenuFirstKey(BP_ACTIONS[AButtons[I]]);
+    if I <= High(ATexts) then
+      Result := Result + [TPadMenu.Hint(Glyph, Name, ATexts[I])]
+    else
+      Result := Result + [TPadMenu.Hint(Glyph, Name, '')];
+  end;
+end;
+
+function TfrmBuilder.PadFootOf(const AButtons: TArray<Integer>; const ATexts: TArray<string>): string;
+begin
+  FFootButtons := AButtons;
+  FFootTexts := ATexts;
+  Result := TPadMenu.HintsText(PadHintsFor(AButtons, ATexts, FPadKeys));
+end;
+
+procedure TfrmBuilder.RefreshFoot;
+begin
+  if (FPadMenu <> nil) and FPadMenu.Showing and (Length(FFootButtons) > 0) then
+    FPadMenu.SetHints(PadHintsFor(FFootButtons, FFootTexts, FPadKeys));
 end;
 
 function TfrmBuilder.PadButtonOf(const AAction: string): Integer;
@@ -6070,8 +6543,9 @@ begin
     Exit;
   if FPadMode = BPM_CONTROLS then
     PadControls
-  else if (FPadMode in [BPM_HOME, BPM_QUEUE]) and (FBuild = nil) and (FCalib = nil) and (FDownload = nil) then
-    FPadMenu.SetFoot(PadFoot);
+  else if FPadMenu.HasHints then
+    // any list whose foot names buttons: the other way's pictures or keys
+    RefreshFoot;
 end;
 
 procedure TfrmBuilder.PadPointer(Sender: TObject);
@@ -6140,7 +6614,10 @@ begin
       // (owner, 2026-11-22: the Menu and Queue keys must open them; F2
       // and F3 since zip 226) those two only - Enter is the window's - and
       // not a character that is a control's own
-      if FBigPicture then
+      if FBenchResults and FBenchHidden then
+        // the benchmark results hidden: any of the menu's keys shows them
+        // (PadPress)
+      else if FBigPicture then
       begin
         if (Button <> BP_MENU) and (Button <> BP_CHOOSE) and (Button <> BP_QUEUE) then
           Button := -1;
@@ -6176,7 +6653,7 @@ type
 const
   { One row per action (owner, 2026-11-22: "Up, Down, Left, Right separate
     lines"; short names). }
-  ROWS: array[0..7] of TControlRow = (
+  ROWS: array[0..8] of TControlRow = (
     (Text: 'Choose'; Button: BP_CHOOSE; Pad: 'A'),
     (Text: 'Back'; Button: BP_BACK; Pad: 'B'),
     (Text: 'Up'; Button: BP_UP; Pad: 'D-pad up'),
@@ -6184,7 +6661,8 @@ const
     (Text: 'Decrease value'; Button: BP_LEFT; Pad: 'D-pad left'),
     (Text: 'Increase value'; Button: BP_RIGHT; Pad: 'D-pad right'),
     (Text: 'Menu'; Button: BP_MENU; Pad: 'Start'),
-    (Text: 'Queue'; Button: BP_QUEUE; Pad: 'View'));
+    (Text: 'Queue'; Button: BP_QUEUE; Pad: 'View'),
+    (Text: 'Show / hide results'; Button: BP_TOGGLE; Pad: 'X'));
 
   { The list for the keys (AKeys) or for the pad, the same layout in both
     (owner, 2026-11-22): the key or the button on the left, what it does
@@ -6256,6 +6734,7 @@ begin
   finally
     FPadMenu.MinWidth := 0;
   end;
+  RefreshFoot;
 end;
 
 procedure TfrmBuilder.PadClosed(Sender: TObject);
@@ -6285,6 +6764,7 @@ begin
     BPM_BOOKS, BPM_AUDIO, BPM_QUEUE: PadHome(BPC_BOOK);
     BPM_MODELS: PadHome(BPC_MODEL);
     BPM_CONTROLS: PadHome(BPC_CONTROLS);
+    BPM_BENCH: PadHome(BPC_BENCH);
     BPM_QUEUES: PadQueue(-1);
     BPM_JOB: PadQueue(FPadJob);
   else
@@ -6354,9 +6834,9 @@ begin
   // what is done with a model, right under it (owner, 2026-11-21: "Move
   // calibrate and diagnostics under model")
   if (miCalibrate <> nil) and miCalibrate.Enabled then
-    Add(BPC_CALIBRATE, 'Calibrate (this model)', '');
+    Add(BPC_CALIBRATE, 'Re-calibrate (this model)', '');
   if (miCalibrateAll <> nil) and miCalibrateAll.Enabled and (FModelPath <> '') then
-    Add(BPC_CALIBRATE_ALL, 'Calibrate every model', 'All installed');
+    Add(BPC_CALIBRATE_ALL, 'Re-calibrate every model', 'All installed');
   if (miDiagnostics <> nil) and miDiagnostics.Enabled and (FModelPath <> '') then
     Add(BPC_DIAGNOSE, 'Diagnostics (this model)', 'four test runs');
   if (miDiagnosticsAll <> nil) and miDiagnosticsAll.Enabled and (FModelPath <> '') then
@@ -6396,6 +6876,15 @@ begin
     Add(BPC_UPDATE, Format('Update job %d', [FEditJob + 1]), '');
   if btnCancel.Enabled then
     Add(BPC_CANCEL, 'Cancel', PadShort(FStatusText));
+  // owner, 2026-11-22: the benchmarks, a list of their own - faded (and
+  // saying why when chosen) when none can run
+  if miBench[0] <> nil then
+  begin
+    Add(BPC_BENCH, 'Benchmark', '');
+    if (Length(Items) > 0) and (FPadCmds[High(FPadCmds)] = BPC_BENCH) then
+      Items[High(Items)].Dim := not (miBench[1].Enabled or miBench[2].Enabled or miBench[3].Enabled or
+        miBench[4].Enabled);
+  end;
   Add(BPC_CONTROLS, 'Controls', '');
   // owner, 2026-11-22: Settings directly above Exit
   Add(BPC_SETTINGS, 'Settings...', '');
@@ -6407,6 +6896,7 @@ begin
     FPadMenu.Show('Settings', Items, Sel, PadFoot)
   else
     FPadMenu.Show('EpubBuilder', Items, Sel, PadFoot);
+  RefreshFoot;
 end;
 
 procedure TfrmBuilder.PadColors;
@@ -6577,6 +7067,37 @@ begin
       Fill.Kind := TBrushKind.None;
   end;
   Walk(Self);
+end;
+
+procedure TfrmBuilder.DarkBeforeShow;
+
+  { The styles of the memos and lists of AParent and of the layouts in it
+    (what ApplyDarkWindow walks). }
+  procedure Styles(AParent: TFmxObject);
+  var
+    I: Integer;
+    C: TFmxObject;
+  begin
+    for I := 0 to AParent.ChildrenCount - 1 do
+    begin
+      C := AParent.Children[I];
+      if (C is TMemo) or (C is TListBox) then
+        TStyledControl(C).ApplyStyleLookup
+      else if C is TLayout then
+        Styles(C);
+    end;
+  end;
+
+begin
+  if not FPadDark then
+    Exit;
+  try
+    Styles(Self);
+    ApplyDarkWindow;
+  except
+    on E: Exception do
+      DebugLog('dark before show: ' + E.ClassName + ': ' + E.Message);
+  end;
 end;
 
 procedure TfrmBuilder.tmDarkTimer(Sender: TObject);
@@ -6759,6 +7280,12 @@ begin
             FPadMenu.Hide;
             miDiagnosticsAllClick(nil);
           end;
+        BPC_BENCH:
+          if not (miBench[1].Enabled or miBench[2].Enabled or miBench[3].Enabled or miBench[4].Enabled) then
+            // a faded row says why (StartBenchmark's checks)
+            StartBenchmark(1)
+          else
+            PadBenchmarks;
         BPC_EXIT:
           if FBuild <> nil then
             Ask('A build is running (' + PadShort(FStatusText) + '). Closing stops it, and its work so far ' +
@@ -6813,6 +7340,19 @@ begin
     BPM_CONTROLS:
       if Cmd = PADROW_BACK then
         PadHome(BPC_CONTROLS);
+    BPM_BENCH:
+      if (Cmd >= 0) and (Cmd <= High(miBench)) then
+      begin
+        FPadMenu.Hide;
+        FPadMode := BPM_HOME;
+        // a faded row says why (StartBenchmark's checks)
+        StartBenchmark(Cmd);
+        // nothing started and nothing asked: the list again
+        if (FPadMode <> BPM_ASK) and (FBuild = nil) then
+          PadBenchmarks;
+      end
+      else if Cmd = PADROW_BACK then
+        PadHome(BPC_BENCH);
     BPM_QUEUES:
       if (Cmd >= 0) and (Cmd <= High(FPadBooks)) then
       begin
@@ -7235,6 +7775,7 @@ begin
   FPadMode := BPM_QUEUE;
   FPadFootTick := 0;
   FPadMenu.Show('Queue', Items, Sel, PadFoot);
+  RefreshFoot;
 end;
 
 procedure TfrmBuilder.PadSaveQueue;
@@ -7407,6 +7948,9 @@ begin
   if FShown then
     Exit;
   FShown := True;
+  // dark again now the window's controls exist on the screen's side, still
+  // before its first frame
+  DarkBeforeShow;
   // the pad (and in Big Picture its menu) before the calibration's question,
   // which is asked through it there
   StartPad;
@@ -7813,7 +8357,7 @@ end;
 procedure TfrmBuilder.OfferCalibration;
 var
   Done, DontAsk: Boolean;
-  Key, Made, Model, Mark: string;
+  Key, Made: string;
 begin
   if (FModelPath = '') or (FWhisperNote <> '') or (Length(FDevices) = 0) then
     Exit;
@@ -7821,38 +8365,45 @@ begin
     Exit;
   if CalibrationSummary(SettingsFile, FModelPath) <> '' then
     Exit;
-  Model := ExtractFileName(FModelPath);
-  Mark := #9 + LowerCase(Model) + #9;
-  // declined in this run: not asked again each time the model is chosen
-  if Pos(Mark, FCalibDeclined) > 0 then
+  CalibrationState(SettingsFile, Done, DontAsk, Key, Made);
+  if DontAsk then
+    Exit;
+  // owner, 2026-11-22: a model added later is calibrated as it comes (was
+  // a question, zip 201)
+  LogLine(ExtractFileName(FModelPath) + ' is not calibrated on this machine yet: calibrating it now (Cancel stops ' +
+    'it; Re-calibrate (this model) does it again later).');
+  StartCalibration(False, False);
+end;
+
+procedure TfrmBuilder.CalibrateNewModels;
+begin
+  FCalOnlyNew := True;
+  try
+    StartCalibration(True, False);
+  finally
+    FCalOnlyNew := False;
+  end;
+end;
+
+function TfrmBuilder.CalibrationDueAtStart: Boolean;
+var
+  Done, DontAsk: Boolean;
+  Key, Made: string;
+begin
+  Result := False;
+  if (FWhisperNote <> '') or (Length(FDevices) = 0) then
     Exit;
   CalibrationState(SettingsFile, Done, DontAsk, Key, Made);
   if DontAsk then
     Exit;
-  Ask(Format('%s is not calibrated on this machine yet.' + sLineBreak + sLineBreak +
-    'Calibrate it now? It is timed on each device here - seconds for a small model on a graphics card, a ' +
-    'minute or two each for a large one - and then builds on the fastest.', [Model]),
-    TMsgDlgType.mtConfirmation, [TMsgDlgBtn.mbYes, TMsgDlgBtn.mbNo], TMsgDlgBtn.mbYes,
-    procedure(const AResult: TModalResult)
-    begin
-      if AResult = mrYes then
-        StartCalibration(False, False)
-      else
-      begin
-        // Big Picture: back on Model, for the next one
-        FPadToModel := True;
-        FCalibDeclined := FCalibDeclined + Mark;
-        LogLine(Model + ' is not calibrated: "Default" lets whisper.cpp choose. Re-calibrate (this model) ' +
-          'does it later.');
-      end;
-    end);
+  Result := not Done or (CalibrationMethod(SettingsFile) < CALIBRATION_METHOD) or
+    not SameText(Key, CalibrationDevicesKey(FDevices));
 end;
 
 procedure TfrmBuilder.CheckCalibrationAtStart;
 var
-  Done, DontAsk, DontShow: Boolean;
-  Key, Made, Note, Why, Model, Names, Text: string;
-  I: Integer;
+  Done, DontAsk, Old: Boolean;
+  Key, Made, Note, Why, Pick: string;
 begin
   if (FWhisperNote <> '') or (Length(FDevices) = 0) then
     Exit;
@@ -7861,81 +8412,69 @@ begin
   if Note <> '' then
     LogLine(Note);
   CalibrationState(SettingsFile, Done, DontAsk, Key, Made);
-  if Done and SameText(Key, CalibrationDevicesKey(FDevices)) then
+  // a calibration of an older method (three runs of 30 s, before zip 242)
+  // is out of date: made again, for every model
+  Old := Done and (CalibrationMethod(SettingsFile) < CALIBRATION_METHOD);
+  if Done and not Old and SameText(Key, CalibrationDevicesKey(FDevices)) then
   begin
-    LogLine(Format('Calibrated %s (Settings > Calibration results; Settings > Calibrate after a new graphics card ' +
+    LogLine(Format('Calibrated %s (Settings > Calibration results; Settings > Re-calibrate after a new graphics card ' +
       'or driver).', [Made]));
     if (FModelPath <> '') and (CalibrationSummary(SettingsFile, FModelPath) <> '') then
       LogLine(ExtractFileName(FModelPath) + ': ' + CalibrationSummary(SettingsFile, FModelPath))
     else if FModelPath <> '' then
-      LogLine(ExtractFileName(FModelPath) + ' is not calibrated yet: Settings > Calibrate times it.');
+      LogLine(ExtractFileName(FModelPath) + ' is not calibrated yet: Settings > Re-calibrate times it.');
     Exit;
   end;
   Why := '';
-  if Done then
+  if Old then
+    Why := Format('The calibration has changed since yours of %s: it now times two minutes of speech in one ' +
+      'run, which comes much closer to a whole book. Every model here is calibrated again.', [Made]) + sLineBreak +
+      sLineBreak
+  else if Done then
     Why := Format('The devices have changed since the calibration of %s.', [Made]) + sLineBreak + sLineBreak;
   if DontAsk then
   begin
     LogLine(Why + 'Not calibrated for this machine (you asked not to be reminded): "Default" lets whisper.cpp ' +
-      'choose, and it takes the first GPU in its list, not the fastest. Settings > Calibrate.');
+      'choose, and it takes the first GPU in its list, not the fastest. Settings > Re-calibrate.');
     Exit;
   end;
   if FModelPath = '' then
   begin
-    // nothing to time yet (a new machine: no model downloaded) - asked when
-    // one is here (owner, Steam Deck 2026-11-20: the question came with an
-    // empty Model list)
+    // the models a Steam depot installed (base and turbo, owner
+    // 2026-11-22): turbo, else base, becomes the window's model
+    Pick := TPath.Combine(FModelsFolder, BENCH_DETAILED_MODEL);
+    if not FileExists(Pick) then
+      Pick := TPath.Combine(FModelsFolder, BENCH_QUICK_MODEL);
+    if FileExists(Pick) then
+    begin
+      FModelPath := Pick;
+      FillModels;
+      SaveSettings;
+      UpdateControls;
+      LogLine('Model: ' + ModelLabel(ModelShortName(Pick)) + ' (installed with EpubBuilder)');
+    end;
+  end;
+  if FModelPath = '' then
+  begin
+    // nothing to time yet (a new machine: no model downloaded) - started
+    // when one is here (owner, Steam Deck 2026-11-20: the question came
+    // with an empty Model list)
     FCalibPending := True;
     LogLine('Not calibrated for this machine yet, and there is no model to calibrate: choose one in Model ' +
-      '(turbo is a good first choice; it is downloaded when chosen) - the calibration is offered then.');
+      '(turbo is a good first choice; it is downloaded when chosen) - the calibration starts then.');
     Exit;
   end;
-  Model := ExtractFileName(FModelPath);
-  Names := '';
-  for I := 0 to High(FDevices) do
-    Names := Names + IfThen(Names <> '', ', ', '') + FDevices[I].Name;
-  Text := Why + 'EpubBuilder should be calibrated to this machine.' + sLineBreak + sLineBreak +
-    'Which device transcribes fastest - the processor, or the graphics card through CUDA, Vulkan or ROCm - ' +
-    'depends on a large number of factors: the card and its memory, its driver, the model, the processor. ' +
-    'Left to itself whisper.cpp takes the first GPU in its list, and that is often not the fastest (on one ' +
-    'machine CUDA took 39 minutes for a book Vulkan did in 29), and a large model may not fit a small card at ' +
-    'all.' + sLineBreak + sLineBreak +
-    Format('The calibration times %s on every device here (%s): 30 seconds of speech, three times each, with ' +
-    'the settings of a build, and makes the fastest the device for that model. It takes a minute or two per ' +
-    'device - longer on the processor with a large model.', [Model, Names]) + sLineBreak + sLineBreak +
-    'Settings > Calibrate does it again later (a new graphics card or driver, another model).';
-  if FBigPicture then
-  begin
-    // no dialog to reach with the pad: the question in the pad's menu -
-    // short, for a TV (the desktop's explanation is a screenful there)
-    Text := Why + 'EpubBuilder is not calibrated for this machine yet.' + sLineBreak + sLineBreak +
-      Format('Calibrate now? It times %s on each device here (%s), a minute or two each, and then ' +
-      'builds on the fastest.', [Model, Names]) + sLineBreak + sLineBreak +
-      'Later: Calibrate (this model) in this menu.';
-    Ask(Text, TMsgDlgType.mtConfirmation, [TMsgDlgBtn.mbYes, TMsgDlgBtn.mbNo], TMsgDlgBtn.mbYes,
-      procedure(const AResult: TModalResult)
-      begin
-        if AResult = mrYes then
-          StartCalibration(False, False)
-        else
-          LogLine('Not calibrated: "Default" lets whisper.cpp choose. Calibrate (this model) in the pad''s ' +
-            'menu does it later.');
-      end);
-    Exit;
-  end;
-  if AskCalibration(Self, Text, DontShow) then
-  begin
-    if DontShow then
-      CalibrationSetDontAsk(SettingsFile, True);
-    StartCalibration(False, False);
-  end
-  else
-  begin
-    if DontShow then
-      CalibrationSetDontAsk(SettingsFile, True);
-    LogLine('Not calibrated: "Default" lets whisper.cpp choose (the first GPU in its list, not always the ' +
-      'fastest). Settings > Calibrate does it later.');
-  end;
+  // owner, 2026-11-22: "Big Picture should directly calibrate the models"
+  // and the desktop "should be the same as Big Picture" - no question, no
+  // dialog: every model here is calibrated now (a line in the log says
+  // why; Cancel stops it)
+  if Why = '' then
+    Why := 'Not calibrated for this machine yet. ';
+  LogLine(Why.Replace(sLineBreak, ' ').Trim + ' Calibrating every model here now: which device is fastest for ' +
+    'each (a minute or two per device; Cancel stops it, Settings > Re-calibrate does it again later).');
+  StartCalibration(True, False);
+  // owner, 2026-11-22: after it, the main menu (CalibrationDone)
+  FCalAtStart := FCalib <> nil;
 end;
 
 procedure TfrmBuilder.miCalibrateClick(Sender: TObject);
@@ -7995,6 +8534,677 @@ end;
 procedure TfrmBuilder.miDiagnosticsAllClick(Sender: TObject);
 begin
   StartDiagnostics(True);
+end;
+
+const
+  { The folder beside the settings that a benchmark's book and log go to
+    (the book until the user keeps it), with BENCH_RESULTS_FILE. }
+  BENCH_FOLDER = 'Benchmarks';
+  { Every benchmark's score, a line per run (for the leaderboard to come;
+    not mentioned to the user). }
+  BENCH_RESULTS_FILE = 'benchmarks.csv';
+  { The Benchmark menu's options (owner, 2026-11-22; "Short Text, Fast
+    Model" since zip 239, was "Short + Fast"). }
+  BENCH_NAMES: array[0..4] of string = ('Run all 4 benchmarks', 'Short Text, Fast Model',
+    'Short Text, Detailed Model', 'Long Text, Fast Model', 'Long Text, Detailed Model');
+  { Each option's reference text: Short = BENCHMARK_LITE_REFERENCE, Long
+    = BENCHMARK_FULL_REFERENCE. }
+  BENCH_REFS: array[1..4] of Integer = (BENCHMARK_LITE_REFERENCE, BENCHMARK_LITE_REFERENCE,
+    BENCHMARK_FULL_REFERENCE, BENCHMARK_FULL_REFERENCE);
+  { Each option's model: Detailed = BENCH_DETAILED_MODEL (turbo), Fast =
+    BENCH_QUICK_MODEL (base). }
+  BENCH_DETAILED: array[1..4] of Boolean = (False, True, False, True);
+
+{ A benchmark's score: ASeconds as H:MM:SS.mmm. }
+function BenchScore(ASeconds: Double): string;
+var
+  Ms: Int64;
+begin
+  Ms := Round(ASeconds * 1000);
+  Result := Format('%d:%.2d:%.2d.%.3d', [Ms div 3600000, (Ms div 60000) mod 60, (Ms div 1000) mod 60,
+    Ms mod 1000]);
+end;
+
+function TfrmBuilder.BenchmarkModel(AOption: Integer): string;
+begin
+  if AOption = 0 then
+  begin
+    // Run all 4: both models
+    Result := '';
+    if (BenchmarkModel(1) <> '') and (BenchmarkModel(2) <> '') then
+      Result := BenchmarkModel(1);
+    Exit;
+  end;
+  if BENCH_DETAILED[AOption] then
+    Result := TPath.Combine(FModelsFolder, BENCH_DETAILED_MODEL)
+  else
+    Result := TPath.Combine(FModelsFolder, BENCH_QUICK_MODEL);
+  if (FModelsFolder = '') or not FileExists(Result) then
+    Result := '';
+end;
+
+function TfrmBuilder.BenchmarkDevice(const AModel: string): string;
+var
+  Best: string;
+  Own: TWhisperDevice;
+  Speed: Double;
+begin
+  Result := '';
+  if (cbDevice.ItemIndex > 0) and (cbDevice.ItemIndex - 1 <= High(FDevices)) then
+    Result := FDevices[cbDevice.ItemIndex - 1].Name;
+  if Result = '' then
+    Result := GDefaultDevice;
+  if CalibrationBest(SettingsFile, AModel, Best, Speed) and BuilderFindDevice(Best, Own) then
+    Result := Own.Name;
+end;
+
+procedure TfrmBuilder.RefreshBenchmarks;
+var
+  Busy, Changed: Boolean;
+  Key, Model, Dev, DevKey, Source, Audio: string;
+  I, R: Integer;
+  Hist: TBuildHistory;
+  D: TWhisperDevice;
+  Speed, After, Prior, Len: Double;
+  FF: TFFmpegLibrary;
+  Files: TStringList;
+  AudioSet: TWhisperAudioSet;
+begin
+  if miBench[0] = nil then
+    Exit;
+  Busy := (FBuild <> nil) or FQueueRunning or (FCalib <> nil) or (FDownload <> nil);
+  Changed := False;
+  // what the estimates come from: the models, their calibrations, the
+  // build history, the window's device
+  Key := BenchmarkModel(1) + '|' + BenchmarkModel(2) + '|' + CalibrationSummary(SettingsFile, BENCH_QUICK_MODEL) +
+    '|' + CalibrationSummary(SettingsFile, BENCH_DETAILED_MODEL) + '|' + IntToStr(cbDevice.ItemIndex);
+  if FileExists(HistoryFile) then
+    Key := Key + '|' + FloatToStr(TFile.GetLastWriteTime(HistoryFile));
+  // not while something runs (the recordings are read, the history too)
+  if (Key <> FBenchKey) and not Busy and (FWhisperNote = '') then
+  begin
+    FBenchKey := Key;
+    Changed := True;
+    try
+      // the recordings' lengths, once
+      if (FBenchAudio[0] = 0) or (FBenchAudio[1] = 0) then
+      begin
+        FF := nil;
+        Files := TStringList.Create;
+        try
+          FF := OpenBuilderFFmpeg;
+          for R := 0 to High(FBenchAudio) do
+            if FBenchAudio[R] = 0 then
+            begin
+              Audio := FindReferenceFile(REFERENCE_TEXTS[R].Audio);
+              if Audio = '' then
+                Continue;
+              Files.Clear;
+              Files.Add(Audio);
+              AudioSet := TWhisperAudioSet.Create(FF, Files, False);
+              try
+                if Length(AudioSet.Parts) > 0 then
+                  FBenchAudio[R] := AudioSet.Parts[0].Duration;
+              finally
+                AudioSet.Free;
+              end;
+            end;
+        finally
+          FF.Free;
+          Files.Free;
+        end;
+      end;
+      // each option as a build of the model is expected to take
+      // (PrepareEstimate's sources, without touching the running build's)
+      Hist := HistoryLoad(HistoryFile);
+      for I := 1 to 4 do
+      begin
+        FBenchEta[I] := 0;
+        Model := BenchmarkModel(I);
+        Len := FBenchAudio[BENCH_REFS[I]];
+        if (Model = '') or (Len <= 0) then
+          Continue;
+        Dev := BenchmarkDevice(Model);
+        if BuilderFindDevice(Dev, D) then
+          Dev := D.Name;
+        DevKey := Dev;
+        if UsesCoreML(Model) then
+          DevKey := Dev + '+CoreML';
+        if HistoryExpect(Hist, HistoryMachine(MachineText), ExtractFileName(Model), DevKey,
+          CalibrationSpeed(SettingsFile, Model, Dev), CalibrationSeconds(SettingsFile, Model), Speed, After, Prior,
+          Source) and (Speed > 0) then
+          FBenchEta[I] := Len / Speed + After * Len;
+      end;
+      FBenchEta[0] := 0;
+      if (FBenchEta[1] > 0) and (FBenchEta[2] > 0) and (FBenchEta[3] > 0) and (FBenchEta[4] > 0) then
+        FBenchEta[0] := FBenchEta[1] + FBenchEta[2] + FBenchEta[3] + FBenchEta[4];
+    except
+      on E: Exception do
+        DebugLog('benchmark estimates: ' + E.Message);
+    end;
+  end;
+  for I := 0 to High(miBench) do
+  begin
+    miBench[I].Enabled := not Busy and (FWhisperNote = '') and (BenchmarkModel(I) <> '');
+    if Changed then
+      miBench[I].Text := BenchmarkText(I);
+  end;
+  // new text reaches Windows' / macOS' own menu bar when it is made again
+  if Changed and (mnuMain <> nil) and (mnuMain.Parent <> nil) then
+    mnuMain.RecreateOSMenu;
+end;
+
+function TfrmBuilder.BenchmarkText(AOption: Integer): string;
+begin
+  Result := BENCH_NAMES[AOption];
+  if FBenchEta[AOption] > 0 then
+    Result := Result + ' - about ' + HmsText(FBenchEta[AOption]);
+end;
+
+procedure TfrmBuilder.miBenchmarkClick(Sender: TObject);
+begin
+  if Sender is TMenuItem then
+    StartBenchmark(TMenuItem(Sender).Tag);
+end;
+
+procedure TfrmBuilder.StartBenchmark(AOption: Integer);
+var
+  I: Integer;
+  Titles: TArray<string>;
+begin
+  if (AOption < 0) or (AOption > High(BENCH_NAMES)) then
+    Exit;
+  if (FBuild <> nil) or (FCalib <> nil) or (FDownload <> nil) or FQueueRunning then
+  begin
+    Tell('A build, a calibration or a download is running: run the benchmark when it has ended.');
+    Exit;
+  end;
+  if (FWhisperNote <> '') or (Length(FDevices) = 0) then
+  begin
+    Tell('whisper.cpp is not available: there is nothing to benchmark.');
+    Exit;
+  end;
+  if BenchmarkModel(AOption) = '' then
+  begin
+    if AOption = 0 then
+      Tell('Running all 4 benchmarks needs the models base and large-v3-turbo: choose each in the Model list ' +
+        'to download it.')
+    else
+      Tell(Format('%s needs the model %s: choose it in the Model list to download it.', [BENCH_NAMES[AOption],
+        IfThen(BENCH_DETAILED[AOption], 'large-v3-turbo', 'base')]));
+    Exit;
+  end;
+  FBenchAll := AOption = 0;
+  if FBenchAll then
+    FBenchQueue := [1, 2, 3, 4]
+  else
+    FBenchQueue := [AOption];
+  for I := 1 to 4 do
+  begin
+    FBenchScores[I] := 0;
+    FBenchBooks[I] := '';
+    FBenchEnded[I] := False;
+    FBenchClock[I] := 0;
+    FBenchPct[I] := 0;
+  end;
+  FBenchList := Copy(FBenchQueue);
+  // owner, 2026-11-22: a bar per benchmark over the window - its name,
+  // its text and the device it runs on above it
+  Titles := nil;
+  for I := 0 to High(FBenchList) do
+    Titles := Titles + [BenchTitle(FBenchList[I])];
+  FreeAndNil(FBenchView);
+  FBenchView := TBenchProgress.Create(Self, Titles, FPadDark, not FBigPicture);
+  FBenchView.OnTick := BenchTick;
+  FBenchView.OnButton := BenchCancel;
+  BenchTick(nil);
+  mmLog.Lines.Clear;
+  RunNextBenchmark;
+end;
+
+procedure TfrmBuilder.RunNextBenchmark;
+var
+  Option: Integer;
+begin
+  if Length(FBenchQueue) = 0 then
+    Exit;
+  Option := FBenchQueue[0];
+  Delete(FBenchQueue, 0, 1);
+  RunBenchmark(Option);
+  if FBuild = nil then
+  begin
+    // not started (said why): the rest not either
+    FBenchQueue := nil;
+    BenchmarkFinished;
+  end;
+end;
+
+procedure TfrmBuilder.RunBenchmark(AOption: Integer);
+var
+  Job: TBuildJob;
+  Ref: Integer;
+  Audio, Book, Model: string;
+begin
+  if (FBuild <> nil) or (FCalib <> nil) or (FDownload <> nil) or FQueueRunning then
+    Exit;
+  Ref := BENCH_REFS[AOption];
+  Model := BenchmarkModel(AOption);
+  Audio := FindReferenceFile(REFERENCE_TEXTS[Ref].Audio);
+  Book := FindReferenceFile(REFERENCE_TEXTS[Ref].Book);
+  if (Model = '') or (Audio = '') or (Book = '') then
+  begin
+    Tell(Format('%s cannot start: its files are missing (%s/%s, %s/%s).', [BENCH_NAMES[AOption],
+      REFERENCE_FOLDER, REFERENCE_TEXTS[Ref].Audio, REFERENCE_FOLDER, REFERENCE_TEXTS[Ref].Book]));
+    Exit;
+  end;
+  Job := Default(TBuildJob);
+  Job.Book := Book;
+  Job.Title := REFERENCE_TEXTS[Ref].Title;
+  Job.Audio := [Audio];
+  Job.Model := Model;
+  Job.Device := BenchmarkDevice(Model);
+  // beside the settings until the user keeps it
+  Job.Output := TPath.Combine(TPath.Combine(ExtractFileDir(SettingsFile), BENCH_FOLDER),
+    Format('%s (%s).epub', [REFERENCE_TEXTS[Ref].Title, BENCH_NAMES[AOption]]));
+  // a LibriVox book's sections are its file's chapters: parts
+  Job.Chapters := True;
+  Job.Reuse := False;
+  Job.Language := 'en';
+  Job.State := jsWaiting;
+  FBenchOption := AOption;
+  LogLine('');
+  if FBenchAll then
+    LogLine(Format('=== Benchmark %d of 4: %s (%s) ===', [5 - Length(FBenchQueue) - 1, BENCH_NAMES[AOption],
+      FormatDateTime('yyyy-mm-dd hh:nn', Now)]))
+  else
+    LogLine(Format('=== Benchmark: %s (%s) ===', [BENCH_NAMES[AOption], FormatDateTime('yyyy-mm-dd hh:nn',
+      Now)]));
+  StartJob(Job, -1, True);
+  if FBuild = nil then
+    FBenchOption := -1;
+end;
+
+procedure TfrmBuilder.BenchmarkDone(const ASummary: TBuildSummary; AOk: Boolean);
+var
+  Option: Integer;
+  OutFile: string;
+  W: TStreamWriter;
+  NewCsv: Boolean;
+begin
+  Option := FBenchOption;
+  FBenchOption := -1;
+  OutFile := FRunOut;
+  if (Option < 1) or (Option > 4) then
+    Exit;
+  FBenchEnded[Option] := True;
+  if AOk and (ASummary.BenchSeconds > 0) then
+  begin
+    FBenchScores[Option] := ASummary.BenchSeconds;
+    FBenchBooks[Option] := OutFile;
+    LogLine(Format('Score - %s: %s', [BENCH_NAMES[Option], BenchScore(ASummary.BenchSeconds)]));
+    // every run, for the leaderboard to come (not mentioned to the user)
+    try
+      NewCsv := not FileExists(TPath.Combine(ExtractFileDir(OutFile), BENCH_RESULTS_FILE));
+      // appended to: the encoding's preamble only in a new file
+      W := TStreamWriter.Create(TPath.Combine(ExtractFileDir(OutFile), BENCH_RESULTS_FILE), True, TEncoding.UTF8);
+      try
+        if NewCsv then
+          W.WriteLine('Date,Benchmark,Score,Transcription s,Chapter material s,Words,Words matched,Model,Device,' +
+            'Device text,Build');
+        W.WriteLine(string.Join(',', [CsvText(FormatDateTime('yyyy-mm-dd hh:nn', Now)),
+          CsvText(BENCH_NAMES[Option]), CsvText(BenchScore(ASummary.BenchSeconds)),
+          FormatFloat('0.000', ASummary.BenchSeconds, TFormatSettings.Invariant),
+          FormatFloat('0.0', ASummary.BenchAudioSeconds, TFormatSettings.Invariant),
+          IntToStr(ASummary.BenchWords), IntToStr(ASummary.BenchMatched), CsvText(ASummary.Model),
+          CsvText(ASummary.Device), CsvText(ASummary.DeviceText), CsvText(BuildStamp)]));
+      finally
+        W.Free;
+      end;
+    except
+      on E: Exception do
+        DebugLog('benchmark score not kept: ' + E.Message);
+    end;
+  end
+  else
+  begin
+    // the rest of Run all 4 is not run
+    FBenchQueue := nil;
+    if FCancelled then
+      LogLine('Benchmark cancelled.')
+    else
+      LogLine('The benchmark did not finish, so it has no score (the log above says why).');
+    try
+      if FileExists(OutFile) then
+        TFile.Delete(OutFile);
+    except
+      // left beside the settings; the next run of it replaces it
+    end;
+  end;
+  // the next of Run all 4 once this build has finished, else the scores
+  if Length(FBenchQueue) > 0 then
+    TThread.ForceQueue(nil, RunNextBenchmark)
+  else
+    BenchmarkFinished;
+end;
+
+procedure TfrmBuilder.BenchmarkFinished;
+var
+  I, N: Integer;
+begin
+  N := 0;
+  FBenchKeep := nil;
+  FBenchCandidates := nil;
+  FBenchFastOffered := False;
+  for I := 1 to 4 do
+    if FBenchScores[I] > 0 then
+    begin
+      Inc(N);
+      if FBenchBooks[I] <> '' then
+      begin
+        FBenchKeep := FBenchKeep + [FBenchBooks[I]];
+        // Run all 4: the Detailed books, the better ones of each text
+        if not FBenchAll or BENCH_DETAILED[I] then
+        begin
+          FBenchCandidates := FBenchCandidates + [FBenchBooks[I]];
+          FBenchFastOffered := FBenchFastOffered or not BENCH_DETAILED[I];
+        end;
+      end;
+    end;
+  FBenchAll := False;
+  // the bars as they ended, behind the results
+  BenchTick(nil);
+  if N = 0 then
+  begin
+    FreeAndNil(FBenchView);
+    if not FCancelled then
+      Tell('The benchmark did not finish, so there is no score.');
+    Exit;
+  end;
+  FBenchResults := True;
+  FBenchHidden := False;
+  if FBenchView <> nil then
+    FBenchView.SetButtonText('Hide results');
+  BenchShowResults;
+end;
+
+procedure TfrmBuilder.BenchShowResults;
+var
+  Items: TArray<TPadMenuItem>;
+  Row: TPadMenuItem;
+  I: Integer;
+begin
+  if FPadMenu = nil then
+    Exit;
+  Items := nil;
+  FPadCmds := nil;
+  FAskResults := nil;
+  // the table: a benchmark on the left, its score on the right
+  for I := 1 to 4 do
+    if FBenchScores[I] > 0 then
+    begin
+      Row := TPadMenu.Item(BENCH_NAMES[I], BenchScore(FBenchScores[I]));
+      Row.Info := True;
+      Items := Items + [Row];
+      FPadCmds := FPadCmds + [PADROW_NONE];
+      FAskResults := FAskResults + [mrNone];
+    end;
+  if Length(FBenchCandidates) > 0 then
+  begin
+    Items := Items + [TPadMenu.Item('')];
+    FPadCmds := FPadCmds + [PADROW_NONE];
+    FAskResults := FAskResults + [mrNone];
+    Items[High(Items)].Info := True;
+    if Length(FBenchCandidates) = 1 then
+      Row := TPadMenu.Item('Keep the book to read in EpubReader?')
+    else
+      Row := TPadMenu.Item('Keep the books to read in EpubReader?');
+    Row.Info := True;
+    Items := Items + [Row];
+    FPadCmds := FPadCmds + [PADROW_NONE];
+    FAskResults := FAskResults + [mrNone];
+    // owner, 2026-11-22: Detailed gives the better book
+    if FBenchFastOffered then
+    begin
+      Row := TPadMenu.Item('Detailed makes the better book.');
+      Row.Info := True;
+      Row.Dim := True;
+      Items := Items + [Row];
+      FPadCmds := FPadCmds + [PADROW_NONE];
+      FAskResults := FAskResults + [mrNone];
+    end;
+    Items := Items + [TPadMenu.Item('Yes'), TPadMenu.Item('No')];
+    FPadCmds := FPadCmds + [PADROW_NONE, PADROW_NONE];
+    FAskResults := FAskResults + [mrYes, mrNo];
+  end
+  else
+  begin
+    Items := Items + [TPadMenu.Item('OK')];
+    FPadCmds := FPadCmds + [PADROW_NONE];
+    FAskResults := FAskResults + [mrOk];
+  end;
+  FAskCancel := mrNo;
+  FPairPad := False;
+  FAskThenClose := not FBigPicture;
+  FAskProc :=
+    procedure(const AResult: TModalResult)
+    var
+      K: Integer;
+    begin
+      for K := 0 to High(FBenchKeep) do
+        try
+          if (AResult = mrYes) and (IndexStr(FBenchKeep[K], FBenchCandidates) >= 0) then
+          begin
+            ForceDirectories(FOutFolder);
+            TFile.Copy(FBenchKeep[K], TPath.Combine(FOutFolder, ExtractFileName(FBenchKeep[K])), True);
+            LogLine('Kept for EpubReader: ' + ChangeFileExt(ExtractFileName(FBenchKeep[K]), ''));
+          end;
+          if FileExists(FBenchKeep[K]) then
+            TFile.Delete(FBenchKeep[K]);
+        except
+          on E: Exception do
+            LogLine('A benchmark''s book was not kept: ' + E.Message);
+        end;
+      FBenchKeep := nil;
+      FBenchCandidates := nil;
+      FBenchResults := False;
+      FBenchHidden := False;
+      // the bars go once the results are answered
+      FreeAndNil(FBenchView);
+    end;
+  FPadMode := BPM_ASK;
+  FPadMenu.NextTitleCentered := True;
+  // owner, 2026-11-22: No by default (the last row)
+  FPadMenu.Show('Results', Items, High(Items), PadFootOf([BP_CHOOSE, BP_BACK, BP_TOGGLE], ['answer', 'no',
+    'hide']));
+  RefreshFoot;
+end;
+
+procedure TfrmBuilder.BenchToggleResults;
+begin
+  if not FBenchResults or (FPadMenu = nil) then
+    Exit;
+  if FBenchHidden then
+  begin
+    FBenchHidden := False;
+    BenchShowResults;
+    if FBenchView <> nil then
+      FBenchView.SetButtonText('Hide results');
+  end
+  else
+  begin
+    // the question stays open (FAskProc, FPadMode): only the box goes
+    FBenchHidden := True;
+    FPadMenu.Hide;
+    if FBenchView <> nil then
+      FBenchView.SetButtonText('Show results');
+  end;
+end;
+
+procedure TfrmBuilder.PadBenchmarks;
+var
+  Items: TArray<TPadMenuItem>;
+  Row: TPadMenuItem;
+  I: Integer;
+begin
+  if FPadMenu = nil then
+    Exit;
+  RefreshBenchmarks;
+  Items := nil;
+  FPadCmds := nil;
+  for I := 0 to High(miBench) do
+  begin
+    if FBenchEta[I] > 0 then
+      Row := TPadMenu.Item(BENCH_NAMES[I], 'about ' + HmsText(FBenchEta[I]))
+    else
+      Row := TPadMenu.Item(BENCH_NAMES[I]);
+    // faded: its model is not there (chosen, it says so)
+    Row.Dim := not miBench[I].Enabled;
+    Items := Items + [Row];
+    FPadCmds := FPadCmds + [I];
+  end;
+  Items := Items + [TPadMenu.Item('Back')];
+  FPadCmds := FPadCmds + [PADROW_BACK];
+  FPadMode := BPM_BENCH;
+  FPadMenu.Show('Benchmark', Items, 0, 'The score is the time the transcription takes.');
+end;
+
+function TfrmBuilder.BenchTitle(AOption: Integer): string;
+var
+  D: TWhisperDevice;
+  Dev: string;
+begin
+  Result := BENCH_NAMES[AOption] + ' - ' + REFERENCE_TEXTS[BENCH_REFS[AOption]].Title;
+  // the device as the log's "Device:" line has it, without its name
+  // (owner, 2026-11-22): 'NVIDIA GeForce RTX 5090 Laptop GPU (GPU, Vulkan,
+  // 22.7 of 23.6 GB free)'
+  if BuilderFindDevice(BenchmarkDevice(BenchmarkModel(AOption)), D) then
+  begin
+    Dev := WhisperDeviceText(D);
+    if StartsText(D.Name + ' - ', Dev) then
+      Dev := Copy(Dev, Length(D.Name) + 4, MaxInt);
+    Result := Result + ' : ' + Dev;
+  end;
+end;
+
+{ A benchmark's clock, ASeconds, as HH:MM:SS.mmm. }
+function BenchClock(ASeconds: Double): string;
+var
+  Ms: Int64;
+begin
+  Ms := Max(Int64(0), Round(ASeconds * 1000));
+  Result := Format('%.2d:%.2d:%.2d.%.3d', [Ms div 3600000, (Ms div 60000) mod 60, (Ms div 1000) mod 60,
+    Ms mod 1000]);
+end;
+
+procedure TfrmBuilder.BenchTick(Sender: TObject);
+var
+  R, Option: Integer;
+  Pct: Double;
+  Phase: string;
+begin
+  if FBenchView = nil then
+    Exit;
+  for R := 0 to High(FBenchList) do
+  begin
+    Option := FBenchList[R];
+    if (Option = FBenchOption) and (FBuild <> nil) then
+    begin
+      // owner, 2026-11-22: the clock is the score's - it stands at zero
+      // while the benchmark is prepared, runs with the transcription (of
+      // the chapter material) and stops when it ends. The build's
+      // progress: 0 - 5 % the book, the audio, the model; 5 - 90 % the
+      // transcription; then aligning and writing.
+      Pct := EnsureRange((FPercent - 5) / 85 * 100, 0.0, 100.0);
+      if FPercent >= 90 then
+      begin
+        Phase := 'Finalizing';
+        Pct := 100;
+      end
+      else if (FPercent > 5) or StartsText('Part ', FStatusText) then
+        Phase := 'Transcribing'
+      else
+        Phase := 'Preparing Benchmark';
+      FBenchPct[Option] := Pct;
+      FBenchClock[Option] := FBuild.BenchElapsed;
+      FBenchView.SetRow(R, BenchClock(FBenchClock[Option]), Phase, Pct);
+    end
+    else if FBenchEnded[Option] then
+    begin
+      // the score itself when there is one
+      if FBenchScores[Option] > 0 then
+        FBenchView.SetRow(R, BenchClock(FBenchScores[Option]), 'Done', 100)
+      else
+        FBenchView.SetRow(R, BenchClock(FBenchClock[Option]), 'Stopped', FBenchPct[Option]);
+    end
+    else
+      FBenchView.SetRow(R, BenchClock(0), 'Waiting', 0);
+  end;
+end;
+
+procedure TfrmBuilder.BenchCancel(Sender: TObject);
+begin
+  // the run over: the button shows or hides the results
+  if FBenchResults then
+    BenchToggleResults
+  else
+    btnCancelClick(nil);
+end;
+
+procedure TfrmBuilder.CalTick(Sender: TObject);
+var
+  R, Total, Current: Integer;
+  Pct: Double;
+begin
+  if FCalView = nil then
+    Exit;
+  Total := Max(1, Length(FDevices));
+  // the model being timed: the first not done (more than four models: the
+  // view scrolls to it - owner, 2026-11-22, "Calibrate All" of every model)
+  Current := -1;
+  for R := 0 to High(FCalRows) do
+    if FCalRows[R].Ended = 0 then
+    begin
+      Current := R;
+      Break;
+    end;
+  if Current >= 0 then
+  begin
+    FCalView.SetCurrent(Current);
+    FCalView.SetHeader(Format('Model %d of %d', [Current + 1, Length(FCalRows)]));
+  end
+  else
+  begin
+    FCalView.SetCurrent(High(FCalRows));
+    FCalView.SetHeader(Format('All %d models calibrated', [Length(FCalRows)]));
+  end;
+  for R := 0 to High(FCalRows) do
+  begin
+    // the devices done and how far the one being timed is (owner,
+    // 2026-11-22: 0, 33, 66, 100 looked stuck on a slow machine)
+    Pct := (FCalRows[R].Done + FCalRows[R].Step / 100) * 100 / Total;
+    if FCalRows[R].Ended <> 0 then
+    begin
+      if FCalRows[R].Best <> '' then
+        FCalView.SetRow(R, BenchClock((FCalRows[R].Ended - FCalRows[R].Started) * SecsPerDay),
+          Format('Done - fastest: %s (%.1fx)', [FCalRows[R].Best, FCalRows[R].BestSpeed]), 100)
+      else
+        FCalView.SetRow(R, BenchClock((FCalRows[R].Ended - FCalRows[R].Started) * SecsPerDay),
+          'Done - no device could run it', 100);
+    end
+    else if FCalRows[R].Started <> 0 then
+    begin
+      if (FCalRows[R].Device <> '') and (FCalRows[R].Phase <> '') then
+        FCalView.SetRow(R, BenchClock((Now - FCalRows[R].Started) * SecsPerDay), FCalRows[R].Phase + ' ' +
+          FCalRows[R].Device, Pct)
+      else if FCalRows[R].Device <> '' then
+        FCalView.SetRow(R, BenchClock((Now - FCalRows[R].Started) * SecsPerDay), 'Timing on ' +
+          FCalRows[R].Device, Pct)
+      else
+        FCalView.SetRow(R, BenchClock((Now - FCalRows[R].Started) * SecsPerDay), 'Calibrating', Pct);
+    end
+    else
+      FCalView.SetRow(R, BenchClock(0), 'Waiting', 0);
+  end;
 end;
 
 procedure TfrmBuilder.StartDiagnostics(AAllModels: Boolean);
@@ -8120,10 +9330,12 @@ end;
 procedure TfrmBuilder.StartCalibration(AAllModels, ARetry: Boolean);
 var
   Models, Skip: TStringList;
-  Audio, Saved: string;
+  Audio, Saved, Names: string;
   Ini: TMemIniFile;
   D: TOpenDialog;
   I: Integer;
+  Row: TCalibrationRow;
+  Titles: TArray<string>;
 begin
   if (FBuild <> nil) or (FCalib <> nil) or FQueueRunning then
   begin
@@ -8181,6 +9393,18 @@ begin
     Models := ModelFilesOf(ExtractFileDir(FModelPath));
     if not FExpert then
       KeepStandardModels(Models, FModelPath);
+    // CalibrateNewModels: the ones not calibrated yet only
+    if FCalOnlyNew then
+    begin
+      for I := Models.Count - 1 downto 0 do
+        if CalibrationSummary(SettingsFile, Models[I]) <> '' then
+          Models.Delete(I);
+      if Models.Count = 0 then
+      begin
+        Models.Free;
+        Exit;
+      end;
+    end;
   end
   else
   begin
@@ -8210,14 +9434,23 @@ begin
     LogLine('Devices:');
     for I := 0 to High(FDevices) do
       LogLine('  ' + WhisperDeviceText(FDevices[I]));
-    LogLine(Format('Each model on each device: loaded, a short warm-up, then %d timed runs of 30 s of speech ' +
-      '(the median counts; the stretch is chosen away from both ends of the recording), with the settings of ' +
-      'a build: word times by DTW, the book prompt, each window on its own.', [CALIBRATION_RUNS]));
+    LogLine(Format('Each model on each device: loaded, a short warm-up, then %d s of speech timed in one run ' +
+      '(the clearest %d s of the recording, 30 s away from both ends of every section), with the settings of a ' +
+      'build: word times by DTW, the book prompt, the temperature fallback, each window on its own.',
+      [CALIBRATION_STRETCH_SECONDS, CALIBRATION_STRETCH_SECONDS]));
     if Models.Count > 1 then
     begin
       LogLine(Format('%d models, smallest first:', [Models.Count]));
       for I := 0 to Models.Count - 1 do
         LogLine('  ' + ExtractFileName(Models[I]));
+    end;
+    // the progress view's blocks: a model each, in the calibration's order
+    FCalRows := nil;
+    for I := 0 to Models.Count - 1 do
+    begin
+      Row := Default(TCalibrationRow);
+      Row.Model := Models[I];
+      FCalRows := FCalRows + [Row];
     end;
     // English: the calibration recording is English speech (the language
     // makes no difference to the speed)
@@ -8248,8 +9481,67 @@ begin
   FStarted := Now;
   FPercent := 0;
   FRatePercent := -1;
+  FCalib.OnPair :=
+    procedure(AModel, ADevice: Integer; ASpeed: Double)
+    begin
+      if (AModel < 0) or (AModel > High(FCalRows)) or (ADevice < 0) or (ADevice > High(FDevices)) then
+        Exit;
+      if ASpeed < 0 then
+      begin
+        if FCalRows[AModel].Started = 0 then
+          FCalRows[AModel].Started := Now;
+        FCalRows[AModel].Device := FDevices[ADevice].Name;
+        FCalRows[AModel].Phase := '';
+        FCalRows[AModel].Step := 0;
+      end
+      else
+      begin
+        Inc(FCalRows[AModel].Done);
+        FCalRows[AModel].Device := '';
+        FCalRows[AModel].Phase := '';
+        FCalRows[AModel].Step := 0;
+        if ASpeed > FCalRows[AModel].BestSpeed then
+        begin
+          FCalRows[AModel].Best := FDevices[ADevice].Name;
+          FCalRows[AModel].BestSpeed := ASpeed;
+        end;
+        if FCalRows[AModel].Done >= Length(FDevices) then
+          FCalRows[AModel].Ended := Now;
+      end;
+    end;
+  // within a pair: its phase and how far it is
+  FCalib.OnStep :=
+    procedure(AModel, ADevice: Integer; const APhase: string; APercent: Integer)
+    begin
+      if (AModel < 0) or (AModel > High(FCalRows)) or (ADevice < 0) or (ADevice > High(FDevices)) then
+        Exit;
+      // a step queued after its pair ended: left out
+      if FCalRows[AModel].Device <> FDevices[ADevice].Name then
+        Exit;
+      FCalRows[AModel].Phase := APhase;
+      FCalRows[AModel].Step := APercent;
+    end;
   FStatusText := 'Calibrating ...';
   tmStatus.Enabled := True;
+  // owner, 2026-11-22: the calibration is the first thing seen - a bar per
+  // model over the window (the pad's menu out of the way), the menu after
+  // it (CalibrationDone)
+  if (FPadMenu <> nil) and FPadMenu.Showing then
+  begin
+    FPadMenu.Hide;
+    FPadMode := BPM_HOME;
+  end;
+  Titles := nil;
+  Names := '';
+  for I := 0 to High(FDevices) do
+    Names := Names + IfThen(Names <> '', ', ', '') + FDevices[I].Name;
+  for I := 0 to High(FCalRows) do
+    Titles := Titles + [Format('Calibrating %s : %s', [ModelLabel(ModelShortName(FCalRows[I].Model)), Names])];
+  FreeAndNil(FCalView);
+  FCalView := TBenchProgress.Create(Self, Titles, FPadDark, not FBigPicture);
+  FCalView.OnTick := CalTick;
+  FCalView.OnButton := BenchCancel;
+  CalTick(nil);
   FCalib.OnTerminate := CalibrationDone;
   FCalib.FreeOnTerminate := True;
   UpdateControls;
@@ -8312,7 +9604,7 @@ begin
     end;
   end
   else
-    LogLine('The calibration did not finish: nothing was changed (Settings > Calibrate runs it again).');
+    LogLine('The calibration did not finish: nothing was changed (Settings > Re-calibrate runs it again).');
   LogLine(Format('Calibration took %s', [WhisperTimeToStr(MilliSecondsBetween(Now, FStarted) div 10)]));
   FLogging := False;
   LogFile := ChangeFileExt(SettingsFile, CALIBRATION_LOG_SUFFIX);
@@ -8328,7 +9620,11 @@ begin
   tmStatus.Enabled := False;
   ShowStatus;
   UpdateControls;
-  PadBackToMenu(True);
+  // the calibration's bars go: the menu next - the main menu after the
+  // one at start-up (owner, 2026-11-22), else on Model for the next one
+  FreeAndNil(FCalView);
+  PadBackToMenu(not FCalAtStart);
+  FCalAtStart := False;
 end;
 
 procedure TfrmBuilder.ApplyCalibration(ALog: Boolean);
@@ -8351,11 +9647,11 @@ begin
         Exit;
       end;
     if ALog then
-      LogLine(Format('The calibration chose %s for %s, and whisper.cpp lists no %s now: Settings > Calibrate.',
+      LogLine(Format('The calibration chose %s for %s, and whisper.cpp lists no %s now: Settings > Re-calibrate.',
         [Dev, ExtractFileName(FModelPath), Dev]));
   end
   else if ALog then
-    LogLine(Format('%s is not calibrated on this machine: the device stays "%s". Settings > Calibrate times it ' +
+    LogLine(Format('%s is not calibrated on this machine: the device stays "%s". Settings > Re-calibrate times it ' +
       'on every device.', [ExtractFileName(FModelPath), cbDevice.Items[Max(0, cbDevice.ItemIndex)]]));
 end;
 
@@ -8559,12 +9855,12 @@ begin
   LogLine('');
   if not Done then
   begin
-    LogLine('Not calibrated on this machine yet: Settings > Calibrate.');
+    LogLine('Not calibrated on this machine yet: Settings > Re-calibrate.');
     Exit;
   end;
   LogLine(Format('Calibration of %s:', [Made]));
   if not SameText(Key, CalibrationDevicesKey(FDevices)) then
-    LogLine('  THE DEVICES HAVE CHANGED SINCE: Settings > Calibrate.');
+    LogLine('  THE DEVICES HAVE CHANGED SINCE: Settings > Re-calibrate.');
   Ini := TMemIniFile.Create(SettingsFile, TEncoding.UTF8);
   Sections := TStringList.Create;
   try
@@ -8586,7 +9882,7 @@ begin
     for I := 0 to Crashes.Count - 1 do
     begin
       P := Pos(#9, Crashes[I]);
-      LogLine(Format('  %s on %s ended the program: left out until Settings > Calibrate', [Copy(Crashes[I], 1,
+      LogLine(Format('  %s on %s ended the program: left out until Settings > Re-calibrate', [Copy(Crashes[I], 1,
         P - 1), Copy(Crashes[I], P + 1, MaxInt)]));
     end;
   finally
@@ -8627,7 +9923,8 @@ begin
   if UsesCoreML(AModel) then
     FExpDevice := Dev + '+CoreML';
   HistoryExpect(HistoryLoad(HistoryFile), HistoryMachine(MachineText), ExtractFileName(AModel), FExpDevice,
-    CalibrationSpeed(SettingsFile, AModel, Dev), FExpSpeed, FExpAfter, FExpPrior, FExpSource);
+    CalibrationSpeed(SettingsFile, AModel, Dev), CalibrationSeconds(SettingsFile, AModel), FExpSpeed, FExpAfter,
+    FExpPrior, FExpSource);
 end;
 
 function TfrmBuilder.AudioDoneAt(APercent: Double): Double;
@@ -8656,6 +9953,10 @@ begin
   if FAfterFrom <> 0 then
     R.AfterSeconds := MilliSecondsBetween(Now, FAfterFrom) / 1000;
   R.CalibrationSpeed := CalibrationSpeed(SettingsFile, ASummary.Model, ASummary.Device);
+  // which kind of calibration that speed is of (zip 242: like with like)
+  R.CalibrationSeconds := 0;
+  if R.CalibrationSpeed > 0 then
+    R.CalibrationSeconds := CalibrationSeconds(SettingsFile, ASummary.Model);
   // exact of the words between the first and the last word read: front
   // and back matter left out, so an EPUB with extras (Hitchhiker's Guide:
   // 28253 words around the reading) does not look like a poor build
@@ -8720,7 +10021,7 @@ begin
         CalibrationSummary(SettingsFile, AModel)]));
   end
   else
-    LogLine(Format('  %s is not calibrated on this machine (Settings > Calibrate)', [ExtractFileName(AModel)]));
+    LogLine(Format('  %s is not calibrated on this machine (Settings > Re-calibrate)', [ExtractFileName(AModel)]));
 end;
 
 initialization

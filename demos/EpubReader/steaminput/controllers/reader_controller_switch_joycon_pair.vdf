@@ -2,11 +2,11 @@
 {
 	"version"		"3"
 	"revision"		"1"
-	"title"		"EpubReader - Joy-Con pair (r3)"
-	"description"		"Default layout for the Joy-Con pair (reader_controller_switch_joycon_pair.vdf, revision 3) - EpubReader: reading, listening and its menu."
+	"title"		"EpubReader - Joy-Con pair (r4)"
+	"description"		"Default layout for the Joy-Con pair (reader_controller_switch_joycon_pair.vdf, revision 4) - EpubReader: reading, listening and its menu."
 	"controller_type"		"controller_switch_joycon_pair"
-	"major_revision"		"1"
-	"minor_revision"		"3"
+	"major_revision"		"2"
+	"minor_revision"		"4"
 	"Timestamp"		"0"
 	"actions"
 	{
@@ -44,8 +44,8 @@
 	{
 		"english"
 		{
-			"title"		"EpubReader - Joy-Con pair (r3)"
-			"description"		"Default layout for the Joy-Con pair (reader_controller_switch_joycon_pair.vdf, revision 3) - EpubReader: reading, listening and its menu."
+			"title"		"EpubReader - Joy-Con pair (r4)"
+			"description"		"Default layout for the Joy-Con pair (reader_controller_switch_joycon_pair.vdf, revision 4) - EpubReader: reading, listening and its menu."
 			"Set_Reader"		"Reading"
 			"Action_Scroll"		"Scroll the page"
 			"Action_Up"		"Up (menu, library) / scroll up"

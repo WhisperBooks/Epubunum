@@ -301,6 +301,11 @@ type
     tmPad: TTimer;
     { The last poll (ms), for the stick's scrolling. }
     FPadTick: UInt64;
+    { The keyboard was used last on the menu, not a pad: its foot names
+      keys, not the pad's buttons (SetPadKeys). }
+    FPadKeys: Boolean;
+    { The menu's foot has left / right's "change" (PadMenuFoot). }
+    FFootChange: Boolean;
     { The pad's menu (uPadMenu). }
     FPadMenu: TPadMenu;
     { What FPadMenu shows: MODE_MAIN, MODE_CONTENTS, MODE_CONTROLS or
@@ -355,6 +360,19 @@ type
       @param(AChange  with left / right's "change")
       @returns(the line) }
     function PadMenuFoot(AChange: Boolean): string;
+    { The foot's hints for the pad in hand - Steam's pictures of its
+      controls (their names without pictures) - or for the keys (AKeys;
+      uReaderInput's table): choose, back, and with FFootChange left /
+      right's change (owner's standing rule, 2026-11-22: a PlayStation pad
+      has no A or B).
+      @returns(the hints) }
+    function PadFootHints(AKeys: Boolean): TArray<TPadHint>;
+    { The foot of the menu shown drawn as hints (after each Show, and when
+      the other way of control is used). }
+    procedure RefreshPadFoot;
+    { The pad (False) or the keyboard (True) was used on the menu: its foot
+      goes over to that one's buttons or keys. }
+    procedure SetPadKeys(AKeys: Boolean);
     { The colours of the pad's menu for the theme. }
     procedure PadMenuColors;
     { A menu row chosen (pad or click).
@@ -2448,6 +2466,8 @@ begin
       begin
         // the first press for a minute: the screen may be black
         FRedraw.UserInput;
+        // the menu's foot names the pad's buttons again
+        SetPadKeys(False);
         PadPress(I);
       end;
     // the right stick scrolls the page (up is positive)
@@ -2580,20 +2600,49 @@ begin
 end;
 
 function TfrmMain.PadMenuFoot(AChange: Boolean): string;
-var
-  Choose, Back: string;
 begin
-  // the pad's own names (Steam's language), else the keys
-  Choose := FPad.Origin(PAD_PLAY, FDark).Name;
-  Back := FPad.Origin(PAD_BACK, FDark).Name;
-  if (Choose = '') or (Back = '') then
+  // the words size the box; RefreshPadFoot draws the hints after Show
+  FFootChange := AChange;
+  Result := TPadMenu.HintsText(PadFootHints(FPadKeys));
+end;
+
+function TfrmMain.PadFootHints(AKeys: Boolean): TArray<TPadHint>;
+
+  { The hint of button AButton (PAD_*), doing AText. }
+  function One(AButton: Integer; const AText: string): TPadHint;
+  var
+    Origin: TSteamPadOrigin;
   begin
-    Choose := 'Enter';
-    Back := 'Esc';
+    Origin.Glyph := '';
+    Origin.Name := '';
+    if not AKeys and (FPad <> nil) then
+      Origin := FPad.Origin(AButton, FDark);
+    // the keys (or no pad Steam knows): the key's name from the table
+    if (Origin.Glyph = '') and (Origin.Name = '') then
+      Origin.Name := ReaderMenuFirstKey(PAD_ACTIONS[AButton]);
+    Result := TPadMenu.Hint(Origin.Glyph, Origin.Name, AText);
   end;
-  Result := Choose + ' choose      ' + Back + ' back';
-  if AChange then
-    Result := Result + '      Left / Right change';
+
+begin
+  Result := [One(PAD_PLAY, 'choose'), One(PAD_BACK, 'back')];
+  if FFootChange then
+    Result := Result + [One(PAD_LEFT, ''), One(PAD_RIGHT, 'change')];
+end;
+
+procedure TfrmMain.RefreshPadFoot;
+begin
+  if (FPadMenu <> nil) and FPadMenu.Showing then
+    FPadMenu.SetHints(PadFootHints(FPadKeys));
+end;
+
+procedure TfrmMain.SetPadKeys(AKeys: Boolean);
+begin
+  if AKeys = FPadKeys then
+    Exit;
+  FPadKeys := AKeys;
+  // only a foot of hints changes over (a folder's line stays)
+  if (FPadMenu <> nil) and FPadMenu.Showing and FPadMenu.HasHints then
+    RefreshPadFoot;
 end;
 
 procedure TfrmMain.PadMenuColors;
@@ -2620,6 +2669,7 @@ begin
     Items[I] := TPadMenu.Item(TEXTS[I], PadMenuValue(I));
   PadMenuColors;
   FPadMenu.Show('EpubReader', Items, MENU_RESUME, PadMenuFoot(True));
+  RefreshPadFoot;
 end;
 
 procedure TfrmMain.ShowContentsMenu;
@@ -2635,6 +2685,7 @@ begin
     Items[I] := TPadMenu.Item(lbToc.Items[I]);
   PadMenuColors;
   FPadMenu.Show('Contents', Items, lbToc.ItemIndex, PadMenuFoot(False));
+  RefreshPadFoot;
 end;
 
 procedure TfrmMain.ShowControlsMenu;
@@ -2708,6 +2759,7 @@ begin
     Title := 'Controls - ' + FPad.PadName;
   PadMenuColors;
   FPadMenu.Show(Title, Items, 0, PadMenuFoot(False));
+  RefreshPadFoot;
 end;
 
 { EpubBuilder's output folder: the one in its settings ([Folders] Output),
@@ -3097,6 +3149,8 @@ begin
   // the pad's menu with the keyboard too: arrows, Enter, Esc
   if (FPadMenu <> nil) and FPadMenu.Showing then
   begin
+    // the menu's foot names the keys now
+    SetPadKeys(True);
     case Key of
       vkUp: PadPress(PAD_UP);
       vkDown: PadPress(PAD_DOWN);

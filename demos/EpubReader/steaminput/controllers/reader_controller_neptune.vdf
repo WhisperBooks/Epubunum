@@ -2,11 +2,11 @@
 {
 	"version"		"3"
 	"revision"		"1"
-	"title"		"EpubReader - Steam Deck (r3)"
-	"description"		"Default layout for the Steam Deck (reader_controller_neptune.vdf, revision 3) - EpubReader: reading, listening and its menu."
+	"title"		"EpubReader - Steam Deck (r4)"
+	"description"		"Default layout for the Steam Deck (reader_controller_neptune.vdf, revision 4) - EpubReader: reading, listening and its menu."
 	"controller_type"		"controller_neptune"
-	"major_revision"		"1"
-	"minor_revision"		"3"
+	"major_revision"		"2"
+	"minor_revision"		"4"
 	"Timestamp"		"0"
 	"actions"
 	{
@@ -44,8 +44,8 @@
 	{
 		"english"
 		{
-			"title"		"EpubReader - Steam Deck (r3)"
-			"description"		"Default layout for the Steam Deck (reader_controller_neptune.vdf, revision 3) - EpubReader: reading, listening and its menu."
+			"title"		"EpubReader - Steam Deck (r4)"
+			"description"		"Default layout for the Steam Deck (reader_controller_neptune.vdf, revision 4) - EpubReader: reading, listening and its menu."
 			"Set_Reader"		"Reading"
 			"Action_Scroll"		"Scroll the page"
 			"Action_Up"		"Up (menu, library) / scroll up"

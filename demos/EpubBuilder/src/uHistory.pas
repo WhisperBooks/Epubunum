@@ -19,9 +19,14 @@
   1. this machine, model and device built before: the median speed of its
      last HISTORY_RECENT builds;
   2. the model was calibrated on the device: the calibration's speed
-     corrected by how this machine's builds compared with their own
-     calibrations;
-  3. the calibration's speed times HISTORY_BOOK_RATIO.
+     corrected by how this machine's builds OF THE SAME MODEL compared
+     with their own calibrations (zip 241: other models' ratios - turbo's
+     3.41 against a stale calibration - promised base 480x where it ran
+     120x) - and only builds whose calibration timed a stretch of the same
+     length (zip 242: the calibration of two minutes, one run, is not the
+     one of three 30 s runs; calibration_s);
+  3. the calibration's speed times HISTORY_BOOK_RATIO (a 30 s calibration)
+     or HISTORY_BOOK_RATIO_CONTINUOUS (a longer one).
   A whole book runs FASTER than the calibration's 30 s windows (each has
   its fixed costs; a book's silences go quickly): Night Watch, turbo, 1.48
   on the M4 with Metal, 1.36 with Core ML, 1.36 on the Steam Machine with
@@ -46,6 +51,14 @@ const
   { A whole book's speed over the calibration's, when no build here says
     better (the lowest measured, so the first estimate errs long). }
   HISTORY_BOOK_RATIO = 1.35;
+  { The same for a calibration of a continuous stretch (uCalibration's
+    method 2, zip 242): it times windows as a book has them, so a book
+    runs at about its speed - to be measured on the machines (the 5090,
+    2026-11-22, against the clearest 30 s: base 0.69 - 0.85, turbo 1.11). }
+  HISTORY_BOOK_RATIO_CONTINUOUS = 1.0;
+  { A calibration's stretch at most this long (s) is of the old kind (three
+    runs of 30 s; rows without calibration_s are too). }
+  HISTORY_SHORT_CALIBRATION = 45;
   { The table's columns (HistoryCells, HistoryTable). }
   HISTORY_HEADERS: array[0..13] of string = ('When', 'Book', 'Language', 'Machine', 'Model', 'Device', 'Audio',
     'Transcription', 'Speed', 'Calibration', 'Book / calibration', 'Align + write', 'Exact %', 'Matched %');
@@ -77,6 +90,9 @@ type
     { The calibration's speed of this model on this device when it was
       built (x real time; 0 = not calibrated). }
     CalibrationSpeed: Double;
+    { The length of the stretch that calibration timed, s (0 = not given:
+      a row from before zip 242, a 30 s calibration). }
+    CalibrationSeconds: Double;
     { Words heard exactly as the book has them, % of the book's words
       between the first and the last word read (front and back matter left
       out; rows from before 2026-11-19: % of all the book's words). }
@@ -135,6 +151,8 @@ function HistorySummary(const AHistory: TBuildHistory; const AMachine: string): 
   @param(AModel  the model's file name)
   @param(ADevice  the device's name)
   @param(ACalibrationSpeed  the calibration's speed for the pair (0 = none))
+  @param(ACalibrationSeconds  the length of that calibration's stretch, s
+    (uCalibration.CalibrationSeconds; 0 = the old kind))
   @param(ASpeed  receives the expected speed, x real time)
   @param(AAfterShare  receives aligning + writing per second of audio, s
     (0 when no build here measured it))
@@ -143,7 +161,8 @@ function HistorySummary(const AHistory: TBuildHistory; const AMachine: string): 
   @param(ASource  receives where the expectation comes from, for the log)
   @returns(False when there is nothing to go on) }
 function HistoryExpect(const AHistory: TBuildHistory; const AMachine, AModel, ADevice: string;
-  ACalibrationSpeed: Double; out ASpeed, AAfterShare, APriorAudio: Double; out ASource: string): Boolean;
+  ACalibrationSpeed, ACalibrationSeconds: Double; out ASpeed, AAfterShare, APriorAudio: Double;
+  out ASource: string): Boolean;
 
 implementation
 
@@ -153,7 +172,11 @@ uses
 const
   { The header line (the columns HistoryAdd writes). }
   HEADER = 'made,machine,model,device,audio_s,transcribe_s,after_s,speed,calibration_speed,exact_pct,matched_pct,' +
-    'title,language,file';
+    'title,language,file,calibration_s';
+  { The header before the calibration's length (zip 242): a file that
+    starts with it gets HEADER on the next write. }
+  MID_HEADER = 'made,machine,model,device,audio_s,transcribe_s,after_s,speed,calibration_speed,exact_pct,' +
+    'matched_pct,title,language,file';
   { The header before the book's columns (owner, 2026-11-19: "This lacks a
     title"): a file that starts with it gets the new one on the next
     write. }
@@ -201,15 +224,17 @@ begin
   Result := FloatToStrF(AValue, ffFixed, 15, ADigits, Inv);
 end;
 
-{ AFile's first line, when it is OLD_HEADER, replaced by HEADER (the rows
-  stay: the new columns are empty in them). }
+{ AFile's first line, when it is OLD_HEADER or MID_HEADER, replaced by
+  HEADER (the rows stay: the new columns are empty in them). }
 procedure UpgradeHeader(const AFile: string);
 var
   Text: string;
 begin
   Text := TFile.ReadAllText(AFile, TEncoding.UTF8);
   if Text.StartsWith(OLD_HEADER + #13) or Text.StartsWith(OLD_HEADER + #10) then
-    TFile.WriteAllText(AFile, HEADER + Copy(Text, Length(OLD_HEADER) + 1, MaxInt), TEncoding.UTF8);
+    TFile.WriteAllText(AFile, HEADER + Copy(Text, Length(OLD_HEADER) + 1, MaxInt), TEncoding.UTF8)
+  else if Text.StartsWith(MID_HEADER + #13) or Text.StartsWith(MID_HEADER + #10) then
+    TFile.WriteAllText(AFile, HEADER + Copy(Text, Length(MID_HEADER) + 1, MaxInt), TEncoding.UTF8);
 end;
 
 function HistoryAdd(const AFile: string; const ARow: TBuildHistoryRow): string;
@@ -225,7 +250,8 @@ begin
       Quoted(ARow.Model) + ',' + Quoted(ARow.Device) + ',' + Num(ARow.AudioSeconds, 1) + ',' +
       Num(ARow.TranscribeSeconds, 1) + ',' + Num(ARow.AfterSeconds, 1) + ',' + Num(HistorySpeed(ARow), 2) + ',' +
       Num(ARow.CalibrationSpeed, 2) + ',' + Num(ARow.ExactPercent, 2) + ',' + Num(ARow.MatchedPercent, 2) + ',' +
-      Quoted(ARow.Title) + ',' + Quoted(ARow.Language) + ',' + Quoted(ARow.OutputName);
+      Quoted(ARow.Title) + ',' + Quoted(ARow.Language) + ',' + Quoted(ARow.OutputName) + ',' +
+      Num(ARow.CalibrationSeconds, 0);
     IsNew := not FileExists(AFile);
     if not IsNew then
       UpgradeHeader(AFile);
@@ -357,6 +383,9 @@ begin
         R.Language := F[12];
         R.OutputName := F[13];
       end;
+      R.CalibrationSeconds := 0;
+      if Length(F) > 14 then
+        R.CalibrationSeconds := StrToFloatDef(F[14], 0, Inv);
       Result[N] := R;
       Inc(N);
     end;
@@ -507,11 +536,20 @@ begin
 end;
 
 function HistoryExpect(const AHistory: TBuildHistory; const AMachine, AModel, ADevice: string;
-  ACalibrationSpeed: Double; out ASpeed, AAfterShare, APriorAudio: Double; out ASource: string): Boolean;
+  ACalibrationSpeed, ACalibrationSeconds: Double; out ASpeed, AAfterShare, APriorAudio: Double;
+  out ASource: string): Boolean;
 var
   I: Integer;
   Same, Ratios, After: TArray<Double>;
   Here: Boolean;
+  Ratio: Double;
+
+  { A calibration of a continuous stretch (method 2), not three of 30 s. }
+  function Long(ASeconds: Double): Boolean;
+  begin
+    Result := ASeconds > HISTORY_SHORT_CALIBRATION;
+  end;
+
 begin
   ASpeed := 0;
   AAfterShare := 0;
@@ -533,7 +571,12 @@ begin
     if SameText(AHistory[I].Model, AModel) and SameText(AHistory[I].Device, ADevice) and
       (Length(Same) < HISTORY_RECENT) then
       Push(Same, HistorySpeed(AHistory[I]));
-    if (AHistory[I].CalibrationSpeed > 0) and (Length(Ratios) < 2 * HISTORY_RECENT) then
+    // the ratio of the same model only (owner, 2026-11-22: base's
+    // benchmark expected at 480x from turbo's 3.41 - each model's
+    // fallback retries and stale calibrations differ)
+    if SameText(AHistory[I].Model, AModel) and (AHistory[I].CalibrationSpeed > 0) and
+      (Long(AHistory[I].CalibrationSeconds) = Long(ACalibrationSeconds)) and
+      (Length(Ratios) < 2 * HISTORY_RECENT) then
       Push(Ratios, HistorySpeed(AHistory[I]) / AHistory[I].CalibrationSpeed);
     if (AHistory[I].AfterSeconds > 0) and (Length(After) < 2 * HISTORY_RECENT) then
       Push(After, AHistory[I].AfterSeconds / AHistory[I].AudioSeconds);
@@ -549,15 +592,19 @@ begin
   begin
     ASpeed := ACalibrationSpeed * Median(Ratios);
     APriorAudio := PRIOR_CORRECTED;
-    ASource := Format('the calibration (%.1fx) times %.2f - how %d earlier build(s) here compared with their ' +
-      'calibration', [ACalibrationSpeed, Median(Ratios), Length(Ratios)], Inv);
+    ASource := Format('the calibration (%.1fx) times %.2f - how %d earlier build(s) of %s here compared with ' +
+      'their calibration', [ACalibrationSpeed, Median(Ratios), Length(Ratios), AModel], Inv);
   end
   else if ACalibrationSpeed > 0 then
   begin
-    ASpeed := ACalibrationSpeed * HISTORY_BOOK_RATIO;
+    if Long(ACalibrationSeconds) then
+      Ratio := HISTORY_BOOK_RATIO_CONTINUOUS
+    else
+      Ratio := HISTORY_BOOK_RATIO;
+    ASpeed := ACalibrationSpeed * Ratio;
     APriorAudio := PRIOR_CALIBRATION;
-    ASource := Format('the calibration (%.1fx) times %.2f - a whole book usually runs that much faster (no ' +
-      'finished build here yet to say better)', [ACalibrationSpeed, HISTORY_BOOK_RATIO], Inv);
+    ASource := Format('the calibration (%.1fx) times %.2f - a whole book usually runs about that fast against ' +
+      'it (no finished build here yet to say better)', [ACalibrationSpeed, Ratio], Inv);
   end;
   Result := ASpeed > 0;
 end;

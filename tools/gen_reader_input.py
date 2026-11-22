@@ -57,12 +57,16 @@ SUMMARY = "EpubReader: reading, listening and its menu."
 #   3 - 2026-11-22: Menu on F2 and Queue ("Library") on F3, no longer
 #       Space and Q (owner: they did not open the builder's menus on the
 #       desktop - "Let's change them to F2 + F3 for now")
-LAYOUT_REVISION = 3
+#   4 - 2026-11-22: H for "Again" (EpubBuilder: show / hide the benchmark
+#       results - pad X, which "Again" already was; owner: "Add a "X"
+#       button / H key binding that Hides/Shows the results")
+LAYOUT_REVISION = 4
 # RAISE WHEN AN INTERACTION IS ADDED OR TAKEN AWAY (owner, 2026-11-22: "raise
 # the major revision code as well as defining new interactions"); written
 # into every layout in place of TSteamAPI's "major_revision" "0"
 #   1 - 2026-11-22: the keyboard, the mouse and touch drive the menu
-LAYOUT_MAJOR = 1
+#   2 - 2026-11-22: EpubBuilder's results shown / hidden (Again: X, H)
+LAYOUT_MAJOR = 2
 
 # ONE set: the page, the library and the menu read the same actions; the
 # program decides what each means where it is
@@ -149,6 +153,8 @@ MENU_KEYS = [
     ("Back", "vk", 27, "Esc"),
     ("Menu", "vk", 113, "F2"),
     ("Library", "vk", 114, "F3"),
+    # EpubBuilder: show / hide the benchmark results (pad X)
+    ("Again", "char", "H", "H"),
 ]
 # THE MENU'S POINTER (mouse and finger): action, what was done - the names
 # uPadMenu reports (PADMENU_...) and Controls shows.

@@ -43,7 +43,7 @@ between them and the queue can be dragged.
 The menu bar has **File** only: **Settings...** and **Exit**. "Settings >"
 in this text is **File > Settings...**: the Settings page of the menu
 that Big Picture uses, over the window - Model (with Download every
-model), Calibrate and Diagnostics (this model, every model), Device,
+model), Re-calibrate and Diagnostics (this model, every model), Device,
 Language, Power, Chapters of a file, Dark mode, Expert mode, Output, the
 Books / Audio / Output folders, Show the log, Calibration results, Build
 history, and AMD ROCm acceleration when it applies. Arrow keys or W A S
@@ -154,7 +154,7 @@ expert mode), one after another, each checked. Calibrating or running the
 diagnostics on "every model" follows the list in the same way. The model in the window stays as it is and no calibration is
 offered between them; Cancel, or a download that fails, ends it (what
 was fetched stays, and the same command later fetches the rest). Then
-**Calibrate every model** and **Diagnostics (every model)** work through
+**Re-calibrate every model** and **Diagnostics (every model)** work through
 them all.
 
 ## Calibration (which device is fastest here)
@@ -167,22 +167,33 @@ fastest: on an RTX 5090 laptop large-v3 built Night Watch in 39 min on
 CUDA (whisper.cpp's choice) and in 29 min on Vulkan; a 4 GB GTX 1650 cannot
 hold large-v3 at all.
 
-So the builder offers a **calibration** when it starts, until one has
-been made (or **Do not show this again** is ticked). It times the model
-in the window on every device: the model is loaded, a short warm-up, then
-three timed runs of 30 s of speech (the median counts). The 30 s are
-chosen in one section of the reference text's recording where there is
-speech all through, 30 s away from both of the section's ends. The settings are a build's: word times by DTW, the book
-prompt, each window on its own. The fastest device becomes the model's
-device. A device that heard far fewer words than the others is not
-chosen, because it may not compute correctly. A device the model fails
-on (not enough memory) is recorded. Create and Add to queue ask before
-building on it (No by default).
+So the builder **calibrates** when it starts, until a calibration has
+been made - straight away, on the desktop and in Big Picture alike, with
+a line in the log saying why (no question: Cancel stops it). It times
+every model in the models folder (base and turbo; every model in expert
+mode) on every device; with no model chosen yet it chooses turbo (else
+base) when it is there - the Steam depots install both. For each: the model is loaded, a short warm-up, then
+one timed run of two minutes of speech. The two minutes are the clearest
+of the reference text's recording - the fewest quiet moments, found by
+going through every section - kept 30 s away from both ends of their
+section; the same stretch on every machine. One continuous stretch is
+timed the way a book is: several 30 s windows in a row, the temperature
+fallback's retries where a model makes them (until 2026-11-22 the
+calibration was three runs of 30 s, which ran faster than any book and
+ranked the .en models above their twins). A calibration of the older
+kind is made again at start-up, for every model, as are calibrations
+made with other devices. The settings are a
+build's: word times by DTW, the book prompt, the temperature fallback,
+each window on its own. The fastest device becomes the model's device. A
+device that heard far fewer words than the others is not chosen, because
+it may not compute correctly. A device the model fails on (not enough
+memory) is recorded. Create and Add to queue ask before building on it
+(No by default).
 
-- **Settings > Calibrate (this model)**: again, after a new graphics card
+- **Settings > Re-calibrate (this model)**: again, after a new graphics card
   or driver. The start-up question also comes back when the device list
   has changed.
-- **Settings > Calibrate every model**: every
+- **Settings > Re-calibrate every model**: every
   `ggml-*.bin` beside the model, smallest first.
 - **Settings > Calibration results**: what is kept, model by model.
 
@@ -199,19 +210,89 @@ Every build's log (and the queue report) starts with the machine
 the device in full. "Default" is shown as the device whisper.cpp takes,
 with whether the calibration found it fastest for the model.
 
-A model that has not been timed on this machine - one just downloaded, or
-one chosen from the list - brings the question "Calibrate it now?" by
-itself. Yes calibrates that model; No leaves it on "Default" and is
-remembered until the program is started again, so choosing the model again
-does not ask twice. The question is not asked while a build, the queue, a
-download or a calibration runs, nor after "Do not show this again".
+A model that is not calibrated here yet - downloaded, or chosen from the
+list - is **calibrated as it comes**, with no question (a line in the log
+says so; Cancel stops it). After **Download every model**, the models
+that came and are not calibrated yet are calibrated, one after another.
+
+While a calibration runs, a bar per model covers the window - "Calibrating
+turbo : CPU, Vulkan0, Vulkan1" above it; under it the model's time so
+far, what is being done on which device ("Loading the model onto
+Vulkan0", "Warming up on Vulkan0", "Timing on Vulkan0") or, at the end,
+the fastest ("Done - fastest: Vulkan0 (92.1x)"), and how far it is. The
+bar moves while a device is timed, not only when one ends: loading is
+the first tenth of a device's share, the warm-up the next, the timed run
+the rest (moved at each 30 s of the recording). More than four models (Re-calibrate every model in expert mode):
+four blocks at a time under a "Model 5 of 10" line, the model being timed
+at the top, the next ones under it. On the desktop a Cancel button sits
+in the corner. At start-up it is the first thing seen; the menu comes
+after it.
+
+## Benchmarks
+
+The **Benchmark** menu (Big Picture: **Benchmark** on the home list)
+has five items, each with the time it is expected to take:
+
+| Item | Audiobook | Model |
+|---|---|---|
+| Run all 4 benchmarks | the four below, one after another | |
+| Short Text, Fast Model | A Scandal in Bohemia (56 min) | base |
+| Short Text, Detailed Model | A Scandal in Bohemia | large-v3-turbo |
+| Long Text, Fast Model | A Christmas Carol (3 h 11 min) | base |
+| Long Text, Detailed Model | A Christmas Carol | large-v3-turbo |
+
+An item is greyed out (faded in Big Picture, which says why when it is
+chosen) while its model is not in the models folder; Run all 4 needs
+both. The expected time comes from this machine's earlier builds of the
+model on that device (benchmarks are builds too, and go into the build
+history), else from the model's calibration - the first run of a model
+is the least sure; "about" is left out until the model is calibrated.
+
+A benchmark is a real build of its book, on the device the model's
+calibration chose (else the window's). The **score** is the time the
+transcription took, as H:MM:SS.mmm - of chapter material only: each
+section is transcribed in three pieces (its first 30 s, the rest, its
+last 30 s) and only the middle one is timed, because every LibriVox
+section opens and closes with a spoken notice. No saved or part-way
+transcript is used or kept, and the build history is not changed.
+
+While it runs, a bar per benchmark covers the window (Run all 4: four,
+one under another, the group in the middle), each in a yellow frame with
+rounded corners: above each bar the
+benchmark, its book and the device ("Short Text, Detailed Model - A Scandal in
+Bohemia : NVIDIA GeForce RTX 5090 Laptop GPU (GPU, Vulkan, 22.7 of 23.6
+GB free)"); under it, on the left, the benchmark's clock (HH:MM:SS.mmm),
+in the middle what is going on, on the right the share of the
+transcription done. The clock is the score's own: it shows 00:00:00.000
+while the benchmark is prepared ("Preparing Benchmark" - the book, the
+audio, the model), runs while the chapter material is transcribed
+("Transcribing"; it stands still for the moments each section's spoken
+notices take), and stops when the transcription ends ("Finalizing" -
+the book aligned and written). "Done" shows the score; "Stopped" a
+cancelled or failed one; "Waiting" one not started yet. On the desktop a
+Cancel button sits in the corner; in Big Picture the pad's menu has
+Cancel.
+
+While it runs each block sits in a thick yellow frame with rounded
+corners, so four at once are told apart.
+
+At the end a box headed **Results** lists each benchmark with its score
+on the right, then asks whether to keep the book (Run all 4: the two
+Detailed books, the better ones) to read in EpubReader - **No** by
+default; Yes puts it in the output folder (Documents/EpubUnum/Transcribed
+unless changed), No deletes it. **X** on the pad or **H** on the keyboard
+(the desktop also has a button in the corner) hides the results to show
+the bars behind them, and shows them again. Each benchmark's log and a
+line per run (benchmarks.csv) are kept in a Benchmarks folder beside the
+settings.
 
 ## Build history and the time left
 
 Every build that transcribes adds a row to `EpubBuilder-history.csv`
 beside the settings: when, the computer, model, device, the audio's
 length, how long the transcription and the aligning / writing took, the
-speed (x real time), the calibration's speed at the time, the exact
+speed (x real time), the calibration's speed at the time and how long a
+stretch it timed, the exact
 share (of the words between the first and the last word read: front and
 back matter left out - rows from before 2026-11-19 count all the book's
 words) and the matched share (the verdict's), and the book: its title, the
@@ -226,9 +307,10 @@ text.
 A new build starts from what it can expect, logged as `Expected: about
 ... from ...`: the median speed of the last builds of that model on that
 device here; else the calibration's speed, corrected by how this
-machine's builds compared with their calibrations; else the calibration
-times 1.35 (a whole book usually runs that much faster than the
-calibration's 30 s windows). Builds that matched less than 90 % of the
+machine's builds of that model compared with calibrations of the same
+kind (each row keeps how long its calibration's stretch was); else the
+calibration's speed itself (a two-minute calibration; an older 30 s one
+times 1.35 - a whole book ran that much faster than those). Builds that matched less than 90 % of the
 book (the wrong recording, or a book tagged with the wrong language)
 are left out: their speed says nothing of the next book's. The time left then moves from that expectation towards the build's
 own rate as more audio is done, plus the aligning and writing earlier
@@ -246,7 +328,7 @@ Steam build with an AMD GPU and no ROCm device the log says so and
 **Settings > AMD ROCm acceleration...** appears: a DLC in the
 account is installed by Steam; one that is not opens its store page in
 the Steam overlay (add it - it is free - and Steam installs it). Start
-EpubBuilder again afterwards, then **Settings > Calibrate**: ROCm0 is
+EpubBuilder again afterwards, then **Settings > Re-calibrate**: ROCm0 is
 timed against Vulkan0. When the DLC is installed but no ROCm device
 appears, the log says so and the debug log's whisper.cpp lines say why.
 
@@ -719,7 +801,7 @@ row, returns:
   first choice);
 - **Device**, **Language**, **Power**, **Chapters of a file are parts**:
   left / right change them;
-- **Calibrate (this model)**, **Calibrate every model**, **Diagnostics
+- **Re-calibrate (this model)**, **Re-calibrate every model**, **Diagnostics
   (this model)**, **Diagnostics (every model)**;
 - **Dark mode**, **Expert mode**;
 - **Output** (says where the book is written; with no book chosen yet,
@@ -774,10 +856,10 @@ system's own look.
 The home list comes back by itself when something has ended - a download,
 a calibration, the diagnostics, a build, the queue - unless a question is
 on the screen (answer it first) or something else is still running. After
-a download, a calibration, the diagnostics or a declined "Calibrate it
-now?" it comes back on **Model**, ready for the next one; after a build
+a download, a calibration or the diagnostics it comes back on **Model**,
+ready for the next one; after a build
 or the queue on its first row. Directly under **Model** on the home list
-are what is done with a model: **Calibrate (this model)**, **Calibrate
+are what is done with a model: **Re-calibrate (this model)**, **Calibrate
 every model** (every downloaded model in one go - the desktop has the same row) and **Diagnostics (this model)**.
 
 ## Progress, and the log
