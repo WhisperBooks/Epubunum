@@ -162,10 +162,16 @@ def stage(args):
                 say("  WARNING: %s is in parts.txt but not in %s" % (n, src))
         say("  %s: %d file(s), %.0f MB" % (os.path.basename(folder), count, total / 1048576.0))
     # what the base depot still needs
-    for need in ("EpubBuilder", "EpubBuilder.sh", "libsteam_api.so", "libwhisper.so.1", "libggml.so.0",
-                 os.path.join("media", "aladdin.m4a")):
+    for need in ("EpubBuilder", "EpubBuilder.sh", "libsteam_api.so", "libwhisper.so.1", "libggml.so.0"):
         if not os.path.exists(os.path.join(linux, need)):
             say("  NOTE: %s has no %s" % (args.linux, need))
+    # the reference texts (uCalibration's REFERENCE_TEXTS): recordings and
+    # their EPUBs in media/, not named here
+    media = os.path.join(linux, "media")
+    names = os.listdir(media) if os.path.isdir(media) else []
+    for ext, what in ((".m4b", "recordings"), (".epub", "EPUBs")):
+        if not any(n.lower().endswith(ext) for n in names):
+            say("  NOTE: %s has no reference-text %s in media/" % (args.linux, what))
     left = [f for f in os.listdir(linux) if f.startswith(("libggml-hip", "libggml-cuda", "libamdhip", "librocblas",
                                                           "libhipblas", "libcudart", "libcublas"))]
     if act and left:

@@ -60,14 +60,32 @@ power, and what is not as usual (a file's chapters not parts, USING THE
 SAVED TRANSCRIPT). In Big Picture the pad's menu has all of these, and
 the window shows the log only.
 
-For the calibration (below), `media/aladdin.m4a` - a LibriVox recording
-- beside the program, or in a folder up to five levels above it (the
-repository's root, from `demos/EpubBuilder/<platform>/<config>`); on
-macOS also the bundle's `Contents/Resources/media`. On Linux and macOS
-`tools/redist.sh collect` takes it into `redistributable_bin/<platform>/media`,
-so `tools/deploy_redist.py` and `tools/redist.sh deploy` put it there.
-Without it the calibration asks for another recording of English speech,
-a few minutes long.
+For the calibration and the diagnostics (below), the **reference texts**
+in `media/` - beside the program, or in a folder up to five levels above
+it (the repository's root, from `demos/EpubBuilder/<platform>/<config>`);
+on macOS also the bundle's `Contents/Resources/media`. A reference text is
+a public-domain LibriVox recording and the EPUB of the text it reads:
+
+| Reference text | Recording | Book | Used by |
+|---|---|---|---|
+| A Scandal in Bohemia (Doyle) | `ScandalBohemia_librivox.m4b` (Phil Chenevert, 56 min, 3 sections) | `A_Scandal_in_Bohemia.epub` (Project Gutenberg 1661, its first story) | the calibration, the diagnostics, the benchmark |
+| A Christmas Carol (Dickens) | `AChristmasCarol_librivox.m4b` (Kyle M., 3 h 11 min, 5 sections) | `A_Christmas_Carol.epub` (Project Gutenberg 46) | the benchmark |
+
+The program names these files in one place (`REFERENCE_TEXTS` in
+`uCalibration.pas`), so they can be changed there. The recordings are
+git-ignored (each machine needs its own copy); the EPUBs are committed.
+Every file of `media/` goes with the program, none named by the tools:
+on Windows the post-build step copies the folder; for Linux and macOS
+Delphi's Deploy takes it from the repository's `media/` - after `media/`
+changes, run `python tools/deploy_redist.py --media-only` (on the Windows
+machine; it rewrites only those deploy entries, for Linux64 and
+OSXARM64); `tools/redist.sh deploy` copies it too. Without the calibration's recording the calibration asks for
+another recording of English speech, a few minutes long.
+
+Only chapter material is timed or scored: every section of a LibriVox
+recording opens and closes with a spoken notice, so the calibration and
+the diagnostics work in one section of the recording (a chapter of the
+file) and keep 30 s away from both of its ends.
 
 ## Models
 
@@ -153,8 +171,8 @@ So the builder offers a **calibration** when it starts, until one has
 been made (or **Do not show this again** is ticked). It times the model
 in the window on every device: the model is loaded, a short warm-up, then
 three timed runs of 30 s of speech (the median counts). The 30 s are
-chosen in the recording where there is speech all through, away from
-both ends. The settings are a build's: word times by DTW, the book
+chosen in one section of the reference text's recording where there is
+speech all through, 30 s away from both of the section's ends. The settings are a build's: word times by DTW, the book
 prompt, each window on its own. The fastest device becomes the model's
 device. A device that heard far fewer words than the others is not
 chosen, because it may not compute correctly. A device the model fails
@@ -450,8 +468,9 @@ smallest first, each on the device its calibration chose, and ends with a
 table - a line per model: its speed as a build and without the fallback,
 how many checks failed, how much of the text was heard with and without
 the fallback. A model that cannot be loaded (too large for the card) is
-noted and the next one run. Nothing has to be set up: it uses the calibration's recording
-(`media/aladdin.m4a`), ten minutes of it from 30 s in, and transcribes
+noted and the next one run. Nothing has to be set up: it uses the calibration's reference text
+(A Scandal in Bohemia), ten minutes of the first section long enough,
+from 30 s into it, and transcribes
 them four times with a build's settings:
 
 | Run | Temperature fallback | DTW word times |
@@ -467,13 +486,13 @@ fallback on, each of those is decoded again at a higher temperature), the
 encoder's, decoder's and sampling's time, and the windows' own times (the
 fastest, the middle one, the slowest, how many took more than twice the
 middle one).
-Each run is also scored against the recording's own text (the opening of
-"Aladdin and the Wonderful Lamp" from Andrew Lang's Blue Fairy Book, 1889,
-public domain, kept in the program): how far into the text the run got,
-and how much of what was read was heard exactly, or exactly or nearly. A
-run that "reached" far fewer words than the others dropped text at the
-end; a lower share heard means words were lost or wrong in between. With
-another recording chosen for the calibration there are no such figures.
+Each run is also scored against the reference text's book (its EPUB in
+`media/`, read as a build reads a book): how far into the text the run
+got, and how much of what was read was heard exactly, or exactly or
+nearly. A run that "reached" far fewer words than the others dropped
+text at the end; a lower share heard means words were lost or wrong in
+between. With another recording chosen for the calibration, or without
+the EPUB, there are no such figures.
 Then it says what the fallback costs (run 1 against run 2), what it is
 worth in words heard, and what DTW costs (run 1 against run 3). The lines are added to
 `EpubBuilder-diagnostics.log` beside the settings - one file holds every

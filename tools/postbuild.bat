@@ -19,9 +19,10 @@ rem                (CUDA and ROCm are to be free DLC; owner 2026-11-17);
 rem                Debug / Release - all of redistributable_bin\Win64,
 rem                CUDA and ROCm included (for testing every device)
 rem   Steam / SteamDebug also get steam_api64.dll
-rem   EpubBuilder also gets media\aladdin.m4a (its calibration's recording;
-rem   the builder looks in media\ beside the program first) in every
-rem   configuration - a Steam folder is complete with it
+rem   EpubBuilder also gets the repository's media\ folder - its reference
+rem   texts, recordings and their EPUBs (the builder looks in media\
+rem   beside the program first) - in every configuration, mirrored: files
+rem   no longer in the repository's media\ leave the output's too
 rem
 rem CUDA and ROCm files are told apart by the names tools\redist-package.ps1
 rem uses for its cuda and rocm parts. Copies are robocopy's: files already
@@ -116,19 +117,21 @@ echo postbuild: copying %STEP% from %SRC% to %OUT% failed (code %errorlevel%)
 exit /b 1
 
 :media
-rem EpubBuilder's calibration recording (media\aladdin.m4a of the
-rem repository: git-ignored, the owner's copy) - a warning when missing:
-rem the calibration then asks for a recording
-if not exist "%ROOT%\media\aladdin.m4a" (
-  echo postbuild: warning - no %ROOT%\media\aladdin.m4a: the calibration will ask for a recording
+rem EpubBuilder's reference texts (uCalibration's REFERENCE_TEXTS): the
+rem repository's media\ folder - the recordings git-ignored (the owner's
+rem copies), their EPUBs committed - mirrored, so no file is named here
+rem and one taken out of the repository leaves the output too. A warning
+rem when there is no recording: the calibration then asks for one
+if not exist "%ROOT%\media\*.m4b" (
+  echo postbuild: warning - no recordings in %ROOT%\media: the calibration will ask for one
   exit /b 0
 )
-robocopy "%ROOT%\media" "%OUT%\media" aladdin.m4a %RC% >nul
+robocopy "%ROOT%\media" "%OUT%\media" /mir /xf .gitignore %RC% >nul
 if errorlevel 8 (
-  echo postbuild: warning - media\aladdin.m4a not copied ^(code %errorlevel%^)
+  echo postbuild: warning - media\ not copied ^(code %errorlevel%^)
   exit /b 0
 )
-echo postbuild: media\aladdin.m4a copied to %OUT%\media
+echo postbuild: media\ ^(the reference texts^) copied to %OUT%\media
 exit /b 0
 
 :steaminput

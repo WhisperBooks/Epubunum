@@ -8000,8 +8000,7 @@ end;
 procedure TfrmBuilder.StartDiagnostics(AAllModels: Boolean);
 var
   Models: TStringList;
-  Audio, Saved, DevName, Best: string;
-  Ini: TMemIniFile;
+  Audio, DevName, Best: string;
   Dev, Own: TWhisperDevice;
   Devs: TWhisperDeviceArray;
   Speed: Double;
@@ -8034,22 +8033,14 @@ begin
     LogLine('Diagnostics not started: the device ' + IfThen(DevName = '', '"Default"', DevName) + ' was not found.');
     Exit;
   end;
-  // the calibration's recording (never asked for here: the figures are
-  // compared between machines, so it must be the same one)
-  Saved := '';
-  if FileExists(SettingsFile) then
-  begin
-    Ini := TMemIniFile.Create(SettingsFile, TEncoding.UTF8);
-    try
-      Saved := Ini.ReadString(CAL_SECTION, 'Audio', '');
-    finally
-      Ini.Free;
-    end;
-  end;
-  Audio := FindCalibrationAudio(Saved);
+  // the calibration's reference text (never another recording: the
+  // figures are compared between machines, so it must be the same one)
+  Audio := ReferenceAudio(CALIBRATION_REFERENCE);
   if Audio = '' then
   begin
-    LogLine(Format('Diagnostics not started: media/%s was not found beside the program.', [CALIBRATION_AUDIO]));
+    LogLine(Format('Diagnostics not started: %s/%s (the reference text %s) was not found beside the program.',
+      [REFERENCE_FOLDER, REFERENCE_TEXTS[CALIBRATION_REFERENCE].Audio,
+      REFERENCE_TEXTS[CALIBRATION_REFERENCE].Title]));
     Exit;
   end;
   if AAllModels then
@@ -8150,8 +8141,8 @@ begin
       'downloaded when chosen; turbo is a good first choice).');
     Exit;
   end;
-  // the recording: the one used before, else media/aladdin.m4a beside the
-  // program (or above it), else asked for
+  // the recording: the reference text's beside the program (or above
+  // it), else one chosen before, else asked for
   Saved := '';
   if FileExists(SettingsFile) then
   begin
@@ -8165,8 +8156,9 @@ begin
   Audio := FindCalibrationAudio(Saved);
   if Audio = '' then
   begin
-    LogLine(Format('media/%s was not found beside the program: choose a recording of English speech, a few ' +
-      'minutes long, for the calibration.', [CALIBRATION_AUDIO]));
+    LogLine(Format('%s/%s (the reference text %s) was not found beside the program: choose a recording of ' +
+      'English speech, a few minutes long, for the calibration.', [REFERENCE_FOLDER,
+      REFERENCE_TEXTS[CALIBRATION_REFERENCE].Audio, REFERENCE_TEXTS[CALIBRATION_REFERENCE].Title]));
     D := TOpenDialog.Create(Self);
     try
       D.Title := 'A recording for the calibration (English speech, a few minutes)';

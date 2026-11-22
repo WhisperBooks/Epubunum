@@ -8,7 +8,8 @@
   base.en, and large-v3 does not fit its 4 GB at all. So (owner,
   2026-11-17): a calibration - TWhisperBenchmark on every device, three
   timed runs of 30 s of speech each (the stretch chosen by
-  WhisperFindSpeech, away from both ends of the recording), with the
+  WhisperFindSpeech in one section of the reference text's recording,
+  30 s away from both of its ends - see TReferenceText), with the
   settings of a build (DTW word times, the book prompt, each window on its
   own) - and the fastest device made the model's device. Asked for once at
   start-up ("Do not show this again" stops that), again from Settings >
@@ -28,7 +29,9 @@ interface
 uses
   System.SysUtils, System.Classes, System.UITypes, System.IniFiles,
   FFmpeg.API,
-  Whisper.Types, Whisper.API, Whisper.Audio, Whisper.Core, Whisper.Words, Whisper.AudioSet;
+  Whisper.Types, Whisper.API, Whisper.Audio, Whisper.Core, Whisper.Words, Whisper.AudioSet,
+  // TWhisperStringArray (ReferenceWords)
+  Whisper.Align;
 
 const
   { The settings' section of the calibration as a whole. }
@@ -38,13 +41,12 @@ const
   CAL_CRASH_SECTION = 'Calibration crashes';
   { Timed runs per pair (the median counts). }
   CALIBRATION_RUNS = 3;
-  { The calibration's recording, looked for in a media folder beside the
-    program and the folders above it (a LibriVox recording: speech with
-    its own pauses and noise, as a book's). }
-  CALIBRATION_AUDIO = 'aladdin.m4a';
-  { Folders above the program's searched for media/CALIBRATION_AUDIO (the
+  { The folder of the reference texts' files (REFERENCE_TEXTS), looked for
+    beside the program and in the folders above it. }
+  REFERENCE_FOLDER = 'media';
+  { Folders above the program's searched for REFERENCE_FOLDER (the
     repository's root from demos/EpubBuilder/<platform>/<config>). }
-  CALIBRATION_AUDIO_LEVELS = 5;
+  REFERENCE_LEVELS = 5;
   { Seconds of the recording that each run of the diagnostics transcribes
     (TCalibrationThread.Diagnostics), from DIAGNOSTIC_EDGE_SECONDS in:
     about twenty 30 s windows - enough to tell a cost from chance, short
@@ -56,6 +58,40 @@ const
     LibriVox recording's, about 26 s), so only chapter material is timed
     and scored. }
   DIAGNOSTIC_EDGE_SECONDS = 30;
+  { Seconds a section of the recording should have for the calibration
+    (besides the 30 s at both of its ends): enough for WhisperFindSpeech
+    to find 30 s of speech in it. }
+  CALIBRATION_SECTION_SECONDS = 60;
+
+type
+  { A reference text: a public-domain recording and the EPUB of the text
+    it reads, both in REFERENCE_FOLDER. The program times Whisper on the
+    recording and scores what it heard against the book. Only chapter
+    material counts: every section of a LibriVox recording opens and
+    closes with a spoken notice, so the 30 s at both ends of a section are
+    never timed or scored. }
+  TReferenceText = record
+    { The title, for the logs and the menus. }
+    Title: string;
+    { The recording's file name. }
+    Audio: string;
+    { The book's file name (an EPUB of the text the recording reads). }
+    Book: string;
+    { Where both come from, for the logs. }
+    Source: string;
+  end;
+
+const
+  { The reference texts. Their files may change: the program names them
+    only here. }
+  REFERENCE_TEXTS: array[0..1] of TReferenceText = (
+    (Title: 'A Scandal in Bohemia'; Audio: 'ScandalBohemia_librivox.m4b'; Book: 'A_Scandal_in_Bohemia.epub';
+     Source: 'Arthur Conan Doyle; LibriVox, read by Phil Chenevert; text: Project Gutenberg 1661, its first story'),
+    (Title: 'A Christmas Carol'; Audio: 'AChristmasCarol_librivox.m4b'; Book: 'A_Christmas_Carol.epub';
+     Source: 'Charles Dickens; LibriVox, read by Kyle M.; text: Project Gutenberg 46'));
+  { The reference text the calibration and the diagnostics use (a short
+    one). The benchmark offers every one of REFERENCE_TEXTS. }
+  CALIBRATION_REFERENCE = 0;
 
 type
   { Times every model on every device on its own thread (one
@@ -257,9 +293,38 @@ procedure CalibrationClearCrashes(const AIniFile: string);
   @returns(a line for the log; '' when there was no marker) }
 function CalibrationCheckMarker(const AMarkerFile, AIniFile: string): string;
 
-{ The calibration's recording: ASaved when it exists, else (macOS) the
-  bundle's Contents/Resources/media/CALIBRATION_AUDIO, else
-  media/CALIBRATION_AUDIO beside the program or in a folder above it.
+{ A file of the reference texts: (macOS) the bundle's
+  Contents/Resources/REFERENCE_FOLDER/AName, else REFERENCE_FOLDER/AName
+  beside the program or in a folder up to REFERENCE_LEVELS above it.
+  @returns('' when there is none) }
+function FindReferenceFile(const AName: string): string;
+
+{ The recording of reference text AIndex (REFERENCE_TEXTS).
+  @returns('' when it is not there) }
+function ReferenceAudio(AIndex: Integer): string;
+
+{ The reference text whose recording AAudioFile is (by file name).
+  @returns(its index in REFERENCE_TEXTS; -1 for any other recording) }
+function ReferenceIndexOf(const AAudioFile: string): Integer;
+
+{ The words of reference text AIndex as the aligner wants them: its
+  book's words in reading order (the contents page left out), each split
+  at dashes (WhisperSplitBookWords). AError receives why there are none.
+  @returns(the words; empty when the book is not there or cannot be read) }
+function ReferenceWords(AIndex: Integer; out AError: string): TWhisperStringArray;
+
+{ The chapter material the calibration and the diagnostics time: the
+  first section (a chapter of the file) at least AMinSeconds long plus
+  the 30 s at both of its ends, else the longest section; a file without
+  chapters is one section. Read whole: the caller keeps away from its
+  ends. ANote receives which section it is, for the log.
+  @returns(the section's samples) }
+function ReadReferenceSection(AFFmpeg: TFFmpegLibrary; const AAudioFile: string; AMinSeconds: Double;
+  out ANote: string): TWhisperSamples;
+
+{ The calibration's recording: the reference text's (CALIBRATION_REFERENCE)
+  when it is there, else ASaved (one chosen by the user before) when that
+  exists.
   @returns('' when there is none) }
 function FindCalibrationAudio(const ASaved: string): string;
 
@@ -289,8 +354,8 @@ uses
   System.Types, System.Math, System.StrUtils, System.IOUtils, System.DateUtils,
   System.Rtti,
   FMX.Types, FMX.Controls, FMX.Forms, FMX.StdCtrls, FMX.Layouts, FMX.Grid, FMX.Grid.Style, FMX.Platform,
-  // the diagnostics' accuracy: the recording's text aligned with what was heard
-  Whisper.Align,
+  // the reference texts' books (the diagnostics' accuracy)
+  Epub.Book, Epub.Layout,
   uDebugLog, uHistory;
 
 type
@@ -727,25 +792,22 @@ begin
     'offered now leaves it out; Settings > Calibrate tries it again.', [Model, Device]);
 end;
 
-function FindCalibrationAudio(const ASaved: string): string;
+function FindReferenceFile(const AName: string): string;
 var
   Dir: string;
   I: Integer;
 begin
-  if (ASaved <> '') and FileExists(ASaved) then
-    Exit(ASaved);
   Dir := ExcludeTrailingPathDelimiter(ExtractFilePath(ParamStr(0)));
   {$IFDEF MACOS}
   // the bundle's Contents/Resources/media (Dir is Contents/MacOS), where
-  // Deploy and tools/redist.sh deploy put it
-  Result := TPath.Combine(TPath.Combine(TPath.Combine(ExtractFileDir(Dir), 'Resources'), 'media'),
-    CALIBRATION_AUDIO);
+  // Deploy and tools/redist.sh deploy put them
+  Result := TPath.Combine(TPath.Combine(TPath.Combine(ExtractFileDir(Dir), 'Resources'), REFERENCE_FOLDER), AName);
   if FileExists(Result) then
     Exit;
   {$ENDIF}
-  for I := 0 to CALIBRATION_AUDIO_LEVELS do
+  for I := 0 to REFERENCE_LEVELS do
   begin
-    Result := TPath.Combine(TPath.Combine(Dir, 'media'), CALIBRATION_AUDIO);
+    Result := TPath.Combine(TPath.Combine(Dir, REFERENCE_FOLDER), AName);
     if FileExists(Result) then
       Exit;
     if ExtractFileDir(Dir) = Dir then
@@ -753,6 +815,120 @@ begin
     Dir := ExtractFileDir(Dir);
   end;
   Result := '';
+end;
+
+function ReferenceAudio(AIndex: Integer): string;
+begin
+  Result := FindReferenceFile(REFERENCE_TEXTS[AIndex].Audio);
+end;
+
+function ReferenceIndexOf(const AAudioFile: string): Integer;
+var
+  I: Integer;
+begin
+  for I := 0 to High(REFERENCE_TEXTS) do
+    if SameText(ExtractFileName(AAudioFile), REFERENCE_TEXTS[I].Audio) then
+      Exit(I);
+  Result := -1;
+end;
+
+function ReferenceWords(AIndex: Integer; out AError: string): TWhisperStringArray;
+var
+  FileName: string;
+  Book: TEpubBook;
+  BookWords: TEpubWordArray;
+  Given: TWhisperStringArray;
+  Map: TWhisperIndexArray;
+  I, N: Integer;
+begin
+  Result := nil;
+  AError := '';
+  FileName := FindReferenceFile(REFERENCE_TEXTS[AIndex].Book);
+  if FileName = '' then
+  begin
+    AError := Format('%s/%s was not found beside the program', [REFERENCE_FOLDER, REFERENCE_TEXTS[AIndex].Book]);
+    Exit;
+  end;
+  try
+    Book := TEpubBook.Create(FileName);
+    try
+      // as a build reads a book: every word but the contents page's (the
+      // front and back matter - Project Gutenberg's notices - stay, and
+      // are never reached: the figures count from the first word matched
+      // to the last)
+      BookWords := Book.Words;
+      SetLength(Given, Length(BookWords));
+      N := 0;
+      for I := 0 to High(BookWords) do
+        if BookWords[I].Role <> ewrNav then
+        begin
+          Given[N] := BookWords[I].Text;
+          Inc(N);
+        end;
+      SetLength(Given, N);
+    finally
+      Book.Free;
+    end;
+    Result := WhisperSplitBookWords(Given, Map);
+    if Length(Result) = 0 then
+      AError := FileName + ' has no words';
+  except
+    on E: Exception do
+    begin
+      Result := nil;
+      AError := FileName + ' cannot be read: ' + E.Message;
+    end;
+  end;
+end;
+
+function ReadReferenceSection(AFFmpeg: TFFmpegLibrary; const AAudioFile: string; AMinSeconds: Double;
+  out ANote: string): TWhisperSamples;
+var
+  Files: TStringList;
+  Audio: TWhisperAudioSet;
+  I, Pick: Integer;
+begin
+  Files := TStringList.Create;
+  Audio := nil;
+  try
+    Files.Add(AAudioFile);
+    // a LibriVox book's sections are the file's chapters
+    Audio := TWhisperAudioSet.Create(AFFmpeg, Files, True);
+    Pick := -1;
+    for I := 0 to High(Audio.Parts) do
+      if Audio.Parts[I].Duration >= AMinSeconds + 2 * DIAGNOSTIC_EDGE_SECONDS then
+      begin
+        Pick := I;
+        Break;
+      end;
+    if Pick < 0 then
+    begin
+      // none long enough: the longest
+      Pick := 0;
+      for I := 1 to High(Audio.Parts) do
+        if Audio.Parts[I].Duration > Audio.Parts[Pick].Duration then
+          Pick := I;
+    end;
+    Result := Audio.Read(Pick);
+    if Length(Audio.Parts) > 1 then
+      ANote := Format('section %d of %d, "%s" (%s - %s of the file)', [Pick + 1, Length(Audio.Parts),
+        Audio.Parts[Pick].Title, Hms(Audio.Parts[Pick].Start), Hms(Audio.Parts[Pick].Start +
+        WhisperSamplesSeconds(Result))])
+    else
+      ANote := 'one section (the file has no chapters)';
+  finally
+    Audio.Free;
+    Files.Free;
+  end;
+end;
+
+function FindCalibrationAudio(const ASaved: string): string;
+begin
+  // the reference text first: a recording chosen before (when the
+  // program had none, or an older one) is used only without it
+  Result := ReferenceAudio(CALIBRATION_REFERENCE);
+  if (Result = '') and (ASaved <> '') and FileExists(ASaved) then
+    Result := ASaved;
 end;
 
 function AskCalibration(AOwner: TComponent; const AText: string; out ADontAsk: Boolean): Boolean;
@@ -991,141 +1167,6 @@ begin
       end);
 end;
 
-const
-  { The start of the calibration recording's text, for the diagnostics'
-    accuracy figures: "Aladdin and the Wonderful Lamp" as Andrew Lang's Blue
-    Fairy Book has it (1889, in the public domain; Project Gutenberg's
-    text 503), its first 2000 words - more than the DIAGNOSTIC_SECONDS
-    read. One string per line of the source, joined with spaces. }
-  DIAG_REFERENCE: array[0..113] of string = (
-    'There once lived a poor tailor, who had a son called Aladdin, a careless, idle boy who would do',
-    'nothing but play ball all day long in the streets with little idle boys like himself. This so',
-    'grieved the father that he died; yet, in spite of his mother''s tears and prayers, Aladdin did',
-    'not mend his ways. One day, when he was playing in the streets as usual, a stranger asked him',
-    'his age, and if he was not the son of Mustapha the tailor. "I am, sir," replied Aladdin; "but he',
-    'died a long while ago." On this the stranger, who was a famous African magician, fell on his',
-    'neck and kissed him, saying, "I am your uncle, and knew you from your likeness to my brother. Go',
-    'to your mother and tell her I am coming." Aladdin ran home and told his mother of his newly',
-    'found uncle. "Indeed, child," she said, "your father had a brother, but I always thought he was',
-    'dead." However, she prepared supper, and bade Aladdin seek his uncle, who came laden with wine',
-    'and fruit. He presently fell down and kissed the place where Mustapha used to sit, bidding',
-    'Aladdin''s mother not to be surprised at not having seen him before, as he had been forty years',
-    'out of the country. He then turned to Aladdin, and asked him his trade, at which the boy hung',
-    'his head, while his mother burst into tears. On learning that Aladdin was idle and would learn',
-    'no trade, he offered to take a shop for him and stock it with merchandise. Next day he bought',
-    'Aladdin a fine suit of clothes and took him all over the city, showing him the sights, and',
-    'brought him home at nightfall to his mother, who was overjoyed to see her son so fine. The next',
-    'day the magician led Aladdin into some beautiful gardens a long way outside the city gates. They',
-    'sat down by a fountain and the magician pulled a cake from his girdle, which he divided between',
-    'them. They then journeyed onward till they almost reached the mountains. Aladdin was so tired',
-    'that he begged to go back, but the magician beguiled him with pleasant stories, and led him on',
-    'in spite of himself. At last they came to two mountains divided by a narrow valley. "We will go',
-    'no farther," said the false uncle. "I will show you something wonderful; only do you gather up',
-    'sticks while I kindle a fire." When it was lit the magician threw on it a powder he had about',
-    'him, at the same time saying some magical words. The earth trembled a little and opened in front',
-    'of them, disclosing a square flat stone with a brass ring in the middle to raise it by. Aladdin',
-    'tried to run away, but the magician caught him and gave him a blow that knocked him down. "What',
-    'have I done, uncle?" he said piteously; whereupon the magician said more kindly: "Fear nothing,',
-    'but obey me. Beneath this stone lies a treasure which is to be yours, and no one else may touch',
-    'it, so you must do exactly as I tell you." At the word treasure Aladdin forgot his fears, and',
-    'grasped the ring as he was told, saying the names of his father and grandfather. The stone came',
-    'up quite easily, and some steps appeared. "Go down," said the magician; "at the foot of those',
-    'steps you will find an open door leading into three large halls. Tuck up your gown and go',
-    'through them without touching anything, or you will die instantly. These halls lead into a',
-    'garden of fine fruit trees. Walk on until you come to a niche in a terrace where stands a',
-    'lighted lamp. Pour out the oil it contains, and bring it to me." He drew a ring from his finger',
-    'and gave it to Aladdin, bidding him prosper. Aladdin found everything as the magician had said,',
-    'gathered some fruit off the trees, and, having got the lamp, arrived at the mouth of the cave.',
-    'The magician cried out in a great hurry: "Make haste and give me the lamp." This Aladdin refused',
-    'to do until he was out of the cave. The magician flew into a terrible passion, and throwing some',
-    'more powder on to the fire, he said something, and the stone rolled back into its place. The',
-    'magician left Persia for ever, which plainly showed that he was no uncle of Aladdin''s, but a',
-    'cunning magician, who had read in his magic books of a wonderful lamp, which would make him the',
-    'most powerful man in the world. Though he alone knew where to find it, he could only receive it',
-    'from the hand of another. He had picked out the foolish Aladdin for this purpose, intending to',
-    'get the lamp and kill him afterward. For two days Aladdin remained in the dark, crying and',
-    'lamenting. At last he clasped his hands in prayer, and in so doing rubbed the ring, which the',
-    'magician had forgotten to take from him. Immediately an enormous and frightful genie rose out of',
-    'the earth, saying: "What wouldst thou with me? I am the Slave of the Ring, and will obey thee in',
-    'all things." Aladdin fearlessly replied: "Deliver me from this place!" whereupon the earth',
-    'opened, and he found himself outside. As soon as his eyes could bear the light he went home, but',
-    'fainted on the threshold. When he came to himself he told his mother what had passed, and showed',
-    'her the lamp and the fruits he had gathered in the garden, which were, in reality, precious',
-    'stones. He then asked for some food. "Alas! child," she said, "I have nothing in the house, but',
-    'I have spun a little cotton and will go and sell it." Aladdin bade her keep her cotton, for he',
-    'would sell the lamp instead. As it was very dirty she began to rub it, that it might fetch a',
-    'higher price. Instantly a hideous genie appeared, and asked what she would have. She fainted',
-    'away, but Aladdin, snatching the lamp, said boldly: "Fetch me something to eat!" The genie',
-    'returned with a silver bowl, twelve silver plates containing rich meats, two silver cups, and',
-    'two bottles of wine. Aladdin''s mother, when she came to herself, said: "Whence comes this',
-    'splendid feast?" "Ask not, but eat," replied Aladdin. So they sat at breakfast till it was',
-    'dinner-time, and Aladdin told his mother about the lamp. She begged him to sell it, and have',
-    'nothing to do with devils. "No," said Aladdin, "since chance hath made us aware of its virtues,',
-    'we will use it, and the ring likewise, which I shall always wear on my finger." When they had',
-    'eaten all the genie had brought, Aladdin sold one of the silver plates, and so on until none',
-    'were left. He then had recourse to the genie, who gave him another set of plates, and thus they',
-    'lived for many years. One day Aladdin heard an order from the Sultan proclaimed that everyone',
-    'was to stay at home and close his shutters while the Princess, his daughter, went to and from',
-    'the bath. Aladdin was seized by a desire to see her face, which was very difficult, as she',
-    'always went veiled. He hid himself behind the door of the bath, and peeped through a chink. The',
-    'Princess lifted her veil as she went in, and looked so beautiful that Aladdin fell in love with',
-    'her at first sight. He went home so changed that his mother was frightened. He told her he loved',
-    'the Princess so deeply that he could not live without her, and meant to ask her in marriage of',
-    'her father. His mother, on hearing this, burst out laughing, but Aladdin at last prevailed upon',
-    'her to go before the Sultan and carry his request. She fetched a napkin and laid in it the magic',
-    'fruits from the enchanted garden, which sparkled and shone like the most beautiful jewels. She',
-    'took these with her to please the Sultan, and set out, trusting in the lamp. The Grand Vizier',
-    'and the lords of council had just gone in as she entered the hall and placed herself in front of',
-    'the Sultan. He, however, took no notice of her. She went every day for a week, and stood in the',
-    'same place. When the council broke up on the sixth day the Sultan said to his Vizier: "I see a',
-    'certain woman in the audience-chamber every day carrying something in a napkin. Call her next',
-    'time, that I may find out what she wants." Next day, at a sign from the Vizier, she went up to',
-    'the foot of the throne and remained kneeling till the Sultan said to her: "Rise, good woman, and',
-    'tell me what you want." She hesitated, so the Sultan sent away all but the Vizier, and bade her',
-    'speak frankly, promising to forgive her beforehand for anything she might say. She then told him',
-    'of her son''s violent love for the Princess. "I prayed him to forget her," she said, "but in',
-    'vain; he threatened to do some desperate deed if I refused to go and ask your Majesty for the',
-    'hand of the Princess. Now I pray you to forgive not me alone, but my son Aladdin." The Sultan',
-    'asked her kindly what she had in the napkin, whereupon she unfolded the jewels and presented',
-    'them. He was thunderstruck, and turning to the Vizier said: "What sayest thou? Ought I not to',
-    'bestow the Princess on one who values her at such a price?" The Vizier, who wanted her for his',
-    'own son, begged the Sultan to withhold her for three months, in the course of which he hoped his',
-    'son would contrive to make him a richer present. The Sultan granted this, and told Aladdin''s',
-    'mother that, though he consented to the marriage, she must not appear before him again for three',
-    'months. Aladdin waited patiently for nearly three months, but after two had elapsed his mother,',
-    'going into the city to buy oil, found every one rejoicing, and asked what was going on. "Do you',
-    'not know," was the answer, "that the son of the Grand Vizier is to marry the Sultan''s daughter',
-    'to-night?" Breathless, she ran and told Aladdin, who was overwhelmed at first, but presently',
-    'bethought him of the lamp. He rubbed it, and the genie appeared, saying, "What is thy will?"',
-    'Aladdin replied: "The Sultan, as thou knowest, has broken his promise to me, and the Vizier''s',
-    'son is to have the Princess. My command is that to-night you bring hither the bride and',
-    'bridegroom." "Master, I obey," said the genie. Aladdin then went to his chamber, where, sure',
-    'enough, at midnight the genie transported the bed containing the Vizier''s son and the Princess.',
-    '"Take this new-married man," he said, "and put him outside in the cold, and return at daybreak."',
-    'Whereupon the genie took the Vizier''s son out of bed, leaving Aladdin with the Princess. "Fear',
-    'nothing," Aladdin said to her; "you are my wife, promised to me by your unjust father, and no',
-    'harm shall come to you." The Princess was too frightened to speak, and passed the most miserable',
-    'night of her life, while Aladdin lay down beside her and slept soundly. At the appointed hour',
-    'the genie fetched in the shivering bridegroom, laid him in his place, and transported the bed',
-    'back to the palace. Presently the Sultan came to wish his daughter good-morning. The unhappy',
-    'Vizier''s son jumped up and hid himself, while the Princess would not say a word, and was very',
-    'sorrowful. The Sultan sent her mother to her, who said: "How comes it, child, that you will not',
-    'speak to your father? What has happened?" The Princess sighed deeply, and at last told her',
-    'mother how, during the night, the bed had been carried into');
-
-{ The words of DIAG_REFERENCE as the aligner wants them.
-  @returns(the words, in reading order) }
-function DiagReferenceWords: TWhisperStringArray;
-var
-  I: Integer;
-  Text: string;
-begin
-  Text := '';
-  for I := 0 to Length(DIAG_REFERENCE) - 1 do
-    Text := Text + DIAG_REFERENCE[I] + ' ';
-  Result := WhisperSplitText(Text);
-end;
-
 { The number that follows AKey in ALine, read with a decimal point
   (whisper.cpp's timing lines: 'encode time =  1234.56 ms /    70 runs').
   @param(ALine   the line)
@@ -1212,8 +1253,7 @@ const
     'no fallback (DTW on)', 'no DTW (fallback on)', 'no fallback, no DTW');
 var
   FF: TFFmpegLibrary;
-  Audio: TWhisperAudioSet;
-  Files, Table: TStringList;
+  Table: TStringList;
   Samples: TWhisperSamples;
   Seconds, Taken, Median, Slowest, Fastest: Double;
   Lib: TWhisperLib;
@@ -1233,6 +1273,8 @@ var
   Stats: TWhisperAlignStats;
   FirstRead, LastRead, NGood, NSame, NRead: Integer;
   Score: array[0..RUN_COUNT - 1] of Double;
+  RefIndex: Integer;
+  RefError, Section: string;
   Dev: TWhisperDevice;
   Line: string;
 
@@ -1466,8 +1508,6 @@ var
 
 begin
   FF := nil;
-  Audio := nil;
-  Files := nil;
   Table := nil;
   Model := nil;
   Params := nil;
@@ -1481,38 +1521,45 @@ begin
     try
       Status('Diagnostics: reading the recording ...');
       FF := OpenBuilderFFmpeg;
-      Files := TStringList.Create;
-      Files.Add(FAudioFile);
       Table := TStringList.Create;
-      Audio := TWhisperAudioSet.Create(FF, Files, False);
-      Samples := Audio.Read(0);
+      // one section of the recording (a LibriVox book's sections each
+      // open and close with a spoken notice)
+      Samples := ReadReferenceSection(FF, FAudioFile, DIAGNOSTIC_SECONDS, Section);
       if Length(Samples) = 0 then
         raise EWhisperError.Create('The recording has no sound: ' + FAudioFile);
-      // only chapter material: not the recording's first or last
+      // only chapter material: not the section's first or last
       // DIAGNOSTIC_EDGE_SECONDS (a spoken introduction, a closing notice)
       Edge := DIAGNOSTIC_EDGE_SECONDS * WHISPER_SAMPLE_RATE;
       if Length(Samples) >= 2 * Edge + 2 * WHISPER_CHUNK_SIZE * WHISPER_SAMPLE_RATE then
       begin
         Samples := Copy(Samples, Edge, Min(Length(Samples) - 2 * Edge, DIAGNOSTIC_SECONDS * WHISPER_SAMPLE_RATE));
         Seconds := WhisperSamplesSeconds(Samples);
-        Log(Format('Recording: %s, %s of it from %s (its first and last %d s are left out: Whisper may skip a ' +
-          'spoken introduction or closing notice)', [FAudioFile, Hms(Seconds), Hms(DIAGNOSTIC_EDGE_SECONDS),
-          DIAGNOSTIC_EDGE_SECONDS]));
+        Log(Format('Recording: %s, %s; %s of it from %s into the section (the first and last %d s of every ' +
+          'section are left out: Whisper may skip a spoken introduction or closing notice)', [FAudioFile, Section,
+          Hms(Seconds), Hms(DIAGNOSTIC_EDGE_SECONDS), DIAGNOSTIC_EDGE_SECONDS]));
       end
       else
       begin
         Seconds := WhisperSamplesSeconds(Samples);
-        Log(Format('Recording: %s, all %s of it (too short to leave out its first and last %d s, which Whisper ' +
-          'may skip: the figures are less sure)', [FAudioFile, Hms(Seconds), DIAGNOSTIC_EDGE_SECONDS]));
+        Log(Format('Recording: %s, %s; all %s of it (too short to leave out its first and last %d s, which ' +
+          'Whisper may skip: the figures are less sure)', [FAudioFile, Section, Hms(Seconds),
+          DIAGNOSTIC_EDGE_SECONDS]));
       end;
       Log(Format('%d runs of the same audio per model with a build''s settings (the book prompt, each 30 s window ' +
         'on its own, word times); the first pass only, not the second pass over gaps.', [RUN_COUNT]));
-      // the text read is known only for the program's own recording
-      if SameText(ExtractFileName(FAudioFile), CALIBRATION_AUDIO) then
-        Reference := DiagReferenceWords
+      // the text read is known only for a reference text's recording
+      RefIndex := ReferenceIndexOf(FAudioFile);
+      if RefIndex < 0 then
+        Log('(No accuracy figures: the recording is not one of the reference texts.)')
       else
-        Log(Format('(No accuracy figures: the recording is not %s, whose text the program has.)',
-          [CALIBRATION_AUDIO]));
+      begin
+        Reference := ReferenceWords(RefIndex, RefError);
+        if Length(Reference) > 0 then
+          Log(Format('Reference text: %s (%s) - %d words to score against', [REFERENCE_TEXTS[RefIndex].Title,
+            REFERENCE_TEXTS[RefIndex].Source, Length(Reference)]))
+        else
+          Log(Format('(No accuracy figures: the book of %s - %s.)', [REFERENCE_TEXTS[RefIndex].Title, RefError]));
+      end;
       for M := 0 to FModels.Count - 1 do
       begin
         if Terminated then
@@ -1565,8 +1612,6 @@ begin
     Lib.RemoveLogListener(DiagLogLine);
     Model.Free;
     Table.Free;
-    Audio.Free;
-    Files.Free;
     FF.Free;
   end;
 end;
@@ -1574,8 +1619,6 @@ end;
 procedure TCalibrationThread.Execute;
 var
   FF: TFFmpegLibrary;
-  Audio: TWhisperAudioSet;
-  Files: TStringList;
   Samples: TWhisperSamples;
   Seconds: Double;
   CP: TWhisperContextParams;
@@ -1583,7 +1626,7 @@ var
   Bench: TWhisperBenchmark;
   R: TWhisperBenchmarkResult;
   M, D, N, Total, B, I: Integer;
-  Key, Line: string;
+  Key, Line, Section: string;
 begin
   if FDiagnostics then
   begin
@@ -1591,25 +1634,25 @@ begin
     Exit;
   end;
   FF := nil;
-  Audio := nil;
-  Files := nil;
   Params := nil;
   Bench := nil;
   try
     try
-      // the recording, whole (its chapters are not parts here)
+      // one section of the recording (a LibriVox book's sections each
+      // open and close with a spoken notice): the 30 s timed are chosen
+      // in it, 30 s clear of both of its ends (WhisperFindSpeech)
       Status('Calibrating: reading the recording ...');
       FF := OpenBuilderFFmpeg;
-      Files := TStringList.Create;
-      Files.Add(FAudioFile);
-      Audio := TWhisperAudioSet.Create(FF, Files, False);
-      Samples := Audio.Read(0);
+      Samples := ReadReferenceSection(FF, FAudioFile, CALIBRATION_SECTION_SECONDS, Section);
       Seconds := WhisperSamplesSeconds(Samples);
       if Length(Samples) = 0 then
         raise EWhisperError.Create('The recording has no sound: ' + FAudioFile);
-      Log(Format('Recording: %s (%s)', [FAudioFile, Hms(Seconds)]));
-      if Seconds < 120 then
-        Log('A short recording: the 30 s timed cannot keep 30 s away from both ends (the middle is timed)');
+      Log(Format('Recording: %s, %s (%s)', [FAudioFile, Section, Hms(Seconds)]));
+      if ReferenceIndexOf(FAudioFile) >= 0 then
+        Log(Format('Reference text: %s (%s)', [REFERENCE_TEXTS[ReferenceIndexOf(FAudioFile)].Title,
+          REFERENCE_TEXTS[ReferenceIndexOf(FAudioFile)].Source]));
+      if Seconds < CALIBRATION_SECTION_SECONDS + 2 * DIAGNOSTIC_EDGE_SECONDS then
+        Log('A short section: the 30 s timed cannot keep 30 s away from both of its ends (the middle is timed)');
       if Terminated then
         Exit;
 
@@ -1738,8 +1781,6 @@ begin
     end;
     Bench.Free;
     Params.Free;
-    Audio.Free;
-    Files.Free;
     FF.Free;
   end;
 end;

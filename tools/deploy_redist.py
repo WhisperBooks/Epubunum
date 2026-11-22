@@ -4,6 +4,7 @@ programs that need it, so Deploy (PAServer) copies the libraries where the
 program loads them from - after a Clean as well.
 
     python tools/deploy_redist.py [--platform P] [--skip-rocm] [--skip-cuda] [--skip REGEX]...
+    python tools/deploy_redist.py --media-only [--platform P]
 
 --platform: Linux64 (default; next to the program), OSXARM64 or OSX64
 (into the .app's Contents/Frameworks, the licence texts into
@@ -22,6 +23,11 @@ REGEX, e.g. --skip "^(rocblas|hipblaslt)/" or --skip "^libcublasLt"
 (for testing what a deploy can take; the entries written before are
 replaced either way).
 
+--media-only replaces only EpubBuilder's media entries (the repository's
+media/ folder: the reference texts) - for Linux64 and OSXARM64, or the
+one --platform names - and leaves every library entry as it is; no
+redistributable_bin needed. Run it on Windows whenever media/ changes.
+
 Run it after tools/redist.sh collect (on Linux) or after copying
 redistributable_bin/Linux64 to the Windows machine (sftp turns the
 symbolic links into copies - that is fine), and again whenever the folder
@@ -32,8 +38,10 @@ What each program gets:
                the CUDA / ROCm runtimes, ROCm's kernel folders, FFmpeg,
                the licences. macOS: whisper.cpp with the CPU and Metal
                backends (no Vulkan, CUDA or HIP - to be free DLC; owner
-               2026-11-17), FFmpeg, the licences. Both: media/aladdin.m4a
-               (the calibration's recording; macOS Contents/Resources/media)
+               2026-11-17), FFmpeg, the licences. Both: the repository's
+               media/ - the reference texts, recordings and their EPUBs,
+               every file but dot files, none named here (Linux media/
+               beside the program, macOS Contents/Resources/media)
   EpubReader   FFmpeg and its licence texts (it plays sound, it does not
                transcribe); on Linux also FreeType + brotli (Skia crashes
                with Steam Linux Runtime 3's FreeType 2.10.4), and its
@@ -47,8 +55,10 @@ What each program gets:
   EpubConsole  nothing (no libraries)
 
 The entries it writes are the DeployFile entries whose LocalName starts
-with ..\\..\\redistributable_bin\\Linux64\\ ; it replaces all of those
-and touches nothing else (platforms, other deploy entries, classes).
+with ..\\..\\redistributable_bin\\<platform>\\, and this platform's
+entries of the program's own folders (steaminput, media); it replaces
+all of those and touches nothing else (platforms, other deploy entries,
+classes).
 
 Library names: a library is deployed under the names the loaders and the
 other libraries ask for - libX.so and libX.so.N (macOS: libX.dylib and
@@ -108,6 +118,12 @@ OWN_FOLDERS = {
                                              "steaminput")],
 }
 
+# program -> its media folder (the reference texts), deployed on every
+# platform: (folder in the repository, prefix of its entries' LocalName)
+MEDIA_FOLDERS = {
+    "demos/EpubBuilder/EpubBuilder.dproj": ("media", "..\\..\\media\\"),
+}
+
 # libX.so.N.M.P / libX.N.M.P.dylib: the stem and the version
 VERSIONED = re.compile(r"^(lib.+?\.so)((?:\.[0-9]+)+)$")
 VERSIONED_DYLIB = re.compile(r"^(lib.+?)((?:\.[0-9]+)+)\.dylib$")
@@ -156,6 +172,19 @@ def entry(rel, nl, local_prefix=None, remote_base=""):
     """One DeployFile entry, indented as Delphi writes them (an own
     folder's file: local_prefix and remote_base given)."""
     d, _, name = rel.rpartition("/")
+    if local_prefix is not None and is_mac():
+        # an own folder is no code: the bundle's Resources
+        sub = remote_base + ("/" + d if d else "")
+        lines = [
+            '                <DeployFile LocalName="%s" Class="File">' % (local_prefix + rel.replace("/", "\\")),
+            '                    <Platform Name="%s">' % PLATFORM,
+            '                        <RemoteDir>Contents\\Resources\\%s\\</RemoteDir>' % sub.replace("/", "\\"),
+            '                        <RemoteName>%s</RemoteName>' % name,
+            '                        <Overwrite>true</Overwrite>',
+            '                    </Platform>',
+            '                </DeployFile>',
+        ]
+        return nl.join(lines) + nl
     if local_prefix is not None:
         sub = remote_base + ("/" + d if d else "")
         lines = [
@@ -170,8 +199,8 @@ def entry(rel, nl, local_prefix=None, remote_base=""):
         return nl.join(lines) + nl
     if is_mac():
         # libraries into the bundle's Frameworks (where the loaders look);
-        # the licence texts and the calibration recording are no code:
-        # Resources
+        # the licence texts are no code: Resources (and media/, should an
+        # older collect have put it there)
         if d.startswith("licences") or d.startswith("media"):
             remote_dir = "Contents\\Resources\\" + d.replace("/", "\\") + "\\"
         else:
@@ -191,10 +220,12 @@ def entry(rel, nl, local_prefix=None, remote_base=""):
     return nl.join(lines) + nl
 
 
-def update(dproj, files, own=()):
+def update(dproj, files, own=(), libraries=True):
     """Replaces the project's generated entries (redistributable_bin's and
     those of its own folders, for this platform); returns how many it
-    removed. own: (local prefix, remote base, [relative paths])."""
+    removed. own: (local prefix, remote base, [relative paths]).
+    libraries False: redistributable_bin's entries are left as they are
+    (files is then empty); only own's prefixes are replaced."""
     path = os.path.join(ROOT, dproj)
     raw = open(path, "rb").read()
     bom = raw.startswith(b"\xef\xbb\xbf")
@@ -202,8 +233,12 @@ def update(dproj, files, own=()):
     nl = "\r\n" if "\r\n" in text else "\n"
     old = re.compile(r'[ \t]*<DeployFile LocalName="' + re.escape(LOCAL_PREFIX)
                      + r'[^"]*"[^>]*>.*?</DeployFile>[ \t]*' + re.escape(nl), re.S)
-    text, removed = old.subn("", text)
-    for _, prefix, _ in OWN_FOLDERS.get(dproj, []):
+    removed = 0
+    if libraries:
+        text, removed = old.subn("", text)
+    # the own folders given: their entries are written again below (with
+    # --media-only only media's - steaminput's stay)
+    for prefix in [p for p, _, _ in own]:
         # this platform's entries only (another platform's stay)
         old_own = re.compile(r'[ \t]*<DeployFile LocalName="' + re.escape(prefix) + r'[^"]*"[^>]*>[ \t]*'
                              + re.escape(nl) + r'[ \t]*<Platform Name="' + re.escape(PLATFORM)
@@ -230,10 +265,37 @@ def update(dproj, files, own=()):
     return removed
 
 
+def media_files(dproj):
+    """(local prefix, remote base, [relative paths]) of the program's media
+    folder - every file in it but dot files - or None when it has none."""
+    if dproj not in MEDIA_FOLDERS:
+        return None
+    folder_rel, prefix = MEDIA_FOLDERS[dproj]
+    found = [r for r, _ in collect(os.path.join(ROOT, folder_rel))
+             if not os.path.basename(r).startswith(".")]
+    if not found:
+        print("WARNING: %s has no files - EpubBuilder gets no reference texts" % folder_rel)
+    return (prefix, folder_rel.rsplit("/", 1)[-1], found)
+
+
+def media_only(platforms):
+    """--media-only: the media entries of every program that has them, for
+    each platform; nothing else changed."""
+    global PLATFORM
+    for PLATFORM in platforms:
+        for dproj in MEDIA_FOLDERS:
+            own = [media_files(dproj)]
+            removed = update(dproj, [], own, libraries=False)
+            print("%s, %s: %d media file(s) (replacing %d earlier entries)"
+                  % (dproj, PLATFORM, len(own[0][2]), removed))
+
+
 def main():
     global PLATFORM, LOCAL_PREFIX
     skips = []
     skip_parts = []
+    only_media = False
+    chosen = None
     args = sys.argv[1:]
     while args:
         if args[0] == "--skip" and len(args) > 1:
@@ -244,15 +306,25 @@ def main():
             args = args[1:]
         elif args[0] == "--platform" and len(args) > 1 and args[1] in PLATFORMS:
             PLATFORM = args[1]
+            chosen = args[1]
             args = args[2:]
+        elif args[0] == "--media-only":
+            only_media = True
+            args = args[1:]
         else:
             sys.exit(__doc__)
+    if only_media:
+        media_only([chosen] if chosen else ["Linux64", "OSXARM64"])
+        return
     LOCAL_PREFIX = "..\\..\\redistributable_bin\\" + PLATFORM + "\\"
     folder = os.path.join(ROOT, "redistributable_bin", PLATFORM)
     if not os.path.isdir(folder):
         sys.exit("No %s: run tools/redist.sh collect on %s first and copy the folder here"
                  % (folder, "a Mac" if is_mac() else "Linux"))
-    files = [(r, s) for r, s in collect(folder) if not any(x.search(r) for x in skips)]
+    # media/ is deployed from the repository (MEDIA_FOLDERS), not from
+    # here: an older collect's copy is left out
+    files = [(r, s) for r, s in collect(folder)
+             if not r.startswith("media/") and not any(x.search(r) for x in skips)]
     if skip_parts:
         # the parts as steam_stage.py tells them (imported here: it imports
         # this module)
@@ -277,6 +349,9 @@ def main():
             for folder_rel, prefix, remote_base in OWN_FOLDERS.get(dproj, []):
                 found = collect(os.path.join(ROOT, folder_rel))
                 own.append((prefix, remote_base, [r for r, _ in found]))
+        media = media_files(dproj)
+        if media is not None:
+            own.append(media)
         removed = update(dproj, [r for r, _ in mine], own)
         # the count includes the own folders' files
         mine = mine + [(prefix + r, 0) for prefix, _, rels in own for r in rels]

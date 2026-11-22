@@ -219,7 +219,7 @@ the record-return ABI is still wrong - send `check.txt`.
    Arm64EC (Release; later Steam). The Win64 post-build step does not run
    for the new platform yet (section 10): copy by hand -
    - next to EpubReader: FFmpeg's DLLs (`av*.dll`, `sw*.dll`), `licences\`;
-   - next to EpubBuilder: all of `redistributable_bin\Win64`, `media\aladdin.m4a`;
+   - next to EpubBuilder: all of `redistributable_bin\Win64`, the repository's `media\` (the reference texts);
    - Skia: whatever Delphi deploys for the target (check the output
      folder for `sk4d.dll`).
 2. On the Arm machine:

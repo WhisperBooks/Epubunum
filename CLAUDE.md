@@ -14,9 +14,10 @@ build a leaderboard. The full version will be DLC-enabled and include
 all functionality."
 
 WHERE THINGS STAND: the owner has compiled and run everything up to zip
-221; zips 222 (Controls width, desktop dark, shared uPadMenu - Steam
-rebuild of reader and builder) and 223 (File > Settings, no View / Tools
-menus) are delivered, NOT COMPILED. Ask for their compile result first.
+221; zips 222 - 226 were pushed (cade964 "Menu tidy"), their compile
+result not reported. Zips 227 (step 1 below: Aladdin out, the reference
+texts in) and 228 (media/ deployed from the repository,
+deploy_redist.py --media-only) are delivered, NOT COMPILED.
 Last number used: see "Deliveries". Never commit or push.
 
 BEFORE BUILDING ANYTHING read, in this file: the standing rules under
@@ -29,14 +30,19 @@ in which a recorded rule was ignored: check the notes first, and ask one
 precise question where a wrong guess would cost a zip.
 
 THE TASK, in the order it has to be built:
-1. ALADDIN OUT, THE NEW RECORDINGS IN. Today the calibration and the
-   diagnostics use media/aladdin.m4a (uCalibration: CALIBRATION_AUDIO,
-   and the story's text compiled in for the accuracy figure); it is also
-   named in tools/deploy_redist.py, tools/steam_stage.py, the builder's
-   README and notes/. The two recordings chosen are LibriVox: "A Scandal
-   in Bohemia" and "A Christmas Carol" (public domain, as their texts).
-   Every LibriVox section has a spoken intro and outro: 30 s clear of
-   both ends of EVERY section, for timing and for scoring.
+1. DONE IN ZIP 227 (not compiled): ALADDIN OUT, THE REFERENCE TEXTS IN
+   (owner 10:28: "Remove all aladdin references ... These may change so
+   refer to them as reference texts"). uCalibration.REFERENCE_TEXTS is
+   the one place the files are named; the tools copy all of media/.
+   DECIDED (owner 2026-11-22): A Scandal in Bohemia (LibriVox, Phil
+   Chenevert, 56:23, 3 sections; text = Project Gutenberg 1661 cut down
+   to the first story, its PG notices kept) for the CALIBRATION; BOTH it
+   and A Christmas Carol (LibriVox, Kyle M., 3:11:08, 5 staves; text =
+   PG 46) as SEPARATE BENCHMARK OPTIONS. Files in media/:
+   ScandalBohemia_librivox.m4b, AChristmasCarol_librivox.m4b (both
+   git-ignored), A_Scandal_in_Bohemia.epub, A_Christmas_Carol.epub
+   (committed). Every LibriVox section has a spoken intro and outro: 30 s
+   clear of both ends of EVERY section, for timing and for scoring.
 2. CALIBRATION ON THE NEW RECORDINGS. The survey showed what the present
    30 s stretch gets wrong: the .en models' temperature-fallback retries
    do not happen in it, so it misranks them against a real build. The
@@ -53,11 +59,21 @@ THE TASK, in the order it has to be built:
    new STEAM_DLC_BUILDER constant).
 
 NOT DECIDED - ask the owner at the start, do not guess:
-- The recordings: which LibriVox versions / readers, which sections,
-  which text edition to score against, and whether the audio ships in
-  the depot (size) or is downloaded on first use.
-- "Book options": one of the two books chosen by the user, both run, or
-  a short one for calibration and a long one for the benchmark?
+- Whether the audio ships in the depot (113 MB for both) or is
+  downloaded on first use. (Recordings, readers and texts: decided, see
+  1.)
+- MODELS DEPOT (owner 2026-11-22 10:39): the owner made a new Steam depot
+  with ggml-base.bin and ggml-large-v3-turbo.bin, pre-loaded for Windows +
+  Linux. The builder's Steam models folder is <install folder>/models
+  (uModels.ModelsDefaultFolder: beside the program; on macOS beside the
+  .app, i.e. the same install-root models/), so the depot's files must
+  land in models/. macOS can take the SAME depot (the .bin files are the
+  same everywhere) - plus, for Core ML, ggml-base-encoder.mlmodelc and
+  ggml-large-v3-turbo-encoder.mlmodelc folders beside them (a Mac-only
+  depot; without them the builder downloads them on first use of a model
+  on a Core ML build). Under the DLC plan the depot belongs to the
+  builder DLC. Not built in code: nothing to change while the folder is
+  models/.
 - What a benchmark run is: how much audio, which models (base and turbo
   only, or the expert list too), every device or the calibrated one, and
   how long it may take on the slowest machine (the Miix: turbo 0.8x).
@@ -207,7 +223,7 @@ WHAT CHANGES (the work, in order):
    steaminput/, FreeType / ICU launcher helpers ...) go ONLY in the
    reader's base depots; the builder DLC depots hold what only the
    builder needs (EpubBuilder + .sh / .app, whisper / ggml CPU + Vulkan,
-   media/aladdin.m4a, models/ - turbo 1.5 GB: in the DLC depot or
+   media/ (the reference texts), models/ - turbo 1.5 GB: in the DLC depot or
    downloaded on first use, decide). Two depots writing the same file
    name into one folder must not happen (check for overlaps in the
    script; reader and builder must ship the SAME FFmpeg build). ROCm /
@@ -1134,7 +1150,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 226 (224 = the next-session notes at the top, CLAUDE.md only).
+Last number used: 228 (224 = the next-session notes at the top, CLAUDE.md only).
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -3721,6 +3737,111 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 228 (on top of zip 227): media/ deployed from the repository
+Owner 2026-11-22 10:39: "redist.sh collect ... is usually only done for
+Dlls. I imagine something like it needs running on Windows though so the
+Deployment gets updated - whatever set the deployment for
+media/aladdin.m4a now needs to do the same for the new media". NO
+PACKAGE REBUILD. Files: tools/deploy_redist.py, tools/redist.sh,
+demos/EpubBuilder/EpubBuilder.dproj, demos/EpubBuilder/README.md,
+notes/Building-distributions.md, CLAUDE.md. REPLACES zip 227's
+media handling in redist.sh and its hand-made .dproj entries.
+- What set it before: redist.sh collect copied media/aladdin.m4a into
+  redistributable_bin/<platform>/media, and deploy_redist.py deployed
+  that folder like the libraries. Now media/ is an OWN FOLDER of
+  EpubBuilder in deploy_redist.py (MEDIA_FOLDERS, as steaminput in
+  OWN_FOLDERS), deployed straight from the repository on Linux64 (.\media\)
+  AND macOS (Contents\Resources\media\ - entry() writes own folders the
+  Mac way now): LocalName ..\..\media\<file>, every file but dot files.
+- python tools/deploy_redist.py --media-only [--platform P]: only the
+  media entries, for Linux64 and OSXARM64 (or P); library and steaminput
+  entries untouched; no redistributable_bin needed. Run on Windows
+  whenever media/ changes. A full run writes them too, and leaves out a
+  media/ that an older collect left in redistributable_bin (no double
+  entries). update(): the own-folder entries replaced are only those of
+  the folders given (fixed in the session: --media-only first removed
+  steaminput's too).
+- redist.sh: collect no longer copies media/; deploy copies the
+  repository's media/ (Linux beside EpubBuilder, macOS into the builder's
+  .app Contents/Resources/media).
+- EpubBuilder.dproj: the two aladdin entries out, eight media entries in -
+  written by --media-only itself here (placeholder files), so the IDE's
+  copy matches what the script writes. Tested on a scratch copy: a full
+  Linux64 run gives 1 library + 12 steaminput + the media entries, a
+  stale redistributable_bin media/aladdin.m4a left out; runs repeat.
+TO TEST (owner): Deploy EpubBuilder for Linux64 and OSXARM64 - media/
+with the four files; after adding or renaming a file in media/, run
+--media-only and reopen the project.
+
+## Zip 227 (on top of cade964 = zip 226): Aladdin out, the reference texts in
+Owner 2026-11-22 10:28: "Scandal for Calibration. both available for
+Benchmark as seperate options. Remove all aladdin references now we're
+using different texts. These may change so refer to them as reference
+texts". The owner's media/ (10:23): ScandalBohemia_librivox.m4b,
+AChristmasCarol_librivox.m4b, A_Scandal_in_Bohemia.epub (made in the
+session from the owner's PG 1661 EPUB: the other eleven stories and
+their contents / nav / ncx entries removed, the PG header and licence
+kept; dc:title "A Scandal in Bohemia", identifier
+http://www.gutenberg.org/1661#a-scandal-in-bohemia), A_Christmas_Carol.epub;
+aladdin.m4a gone. NOT COMPILED (pasdoc_check, project_check: 0
+problems). NO PACKAGE REBUILD. Files: demos/EpubBuilder/src/uCalibration.pas,
+demos/EpubBuilder/src/uBuilder.pas, demos/EpubBuilder/EpubBuilder.dproj
+(the two aladdin DeployFile entries -> the four media files, by hand,
+as deploy_redist.py writes them), demos/EpubBuilder/README.md,
+tools/postbuild.bat, tools/redist.sh, tools/steam_stage.py,
+tools/deploy_redist.py (docstring), notes/Building-distributions.md,
+notes/Windows-on-Arm.md, CLAUDE.md. NEW, TO ADD TO GIT:
+media/A_Scandal_in_Bohemia.epub, media/A_Christmas_Carol.epub (the
+owner's copies; *.epub is not ignored).
+- uCalibration: TReferenceText (Title, Audio, Book, Source) and
+  REFERENCE_TEXTS[0..1] - the ONLY place the files are named;
+  CALIBRATION_REFERENCE = 0 (Scandal). REFERENCE_FOLDER 'media',
+  REFERENCE_LEVELS 5 (were CALIBRATION_AUDIO / _LEVELS). New:
+  FindReferenceFile, ReferenceAudio, ReferenceIndexOf, ReferenceWords
+  (the EPUB read as a build reads it - every word but ewrNav, then
+  WhisperSplitBookWords; Epub.Book + Epub.Layout in the implementation
+  uses, Whisper.Align moved to the interface for TWhisperStringArray),
+  ReadReferenceSection (the file opened WITH its chapters = LibriVox
+  sections; the first section long enough, else the longest; the log
+  says which). DIAG_REFERENCE (Aladdin's 2000 words) and
+  DiagReferenceWords are gone.
+- CHAPTER MATERIAL, PER SECTION (standing rule): the calibration hands
+  TWhisperBenchmark ONE section (at least CALIBRATION_SECTION_SECONDS 60
+  + 2 x 30 s), so WhisperFindSpeech's 30 s edge is the section's; the
+  diagnostics take their 10 min from 30 s into the first section of at
+  least 10 min + 2 x 30 s, never its last 30 s. Before, both read the
+  file whole (one recording, one intro - Aladdin's).
+- FindCalibrationAudio: the reference recording FIRST, the saved
+  [Calibration] Audio only without it (it was the other way round: an
+  old aladdin.m4a path in the settings would have kept being used).
+  Diagnostics: the reference recording only (the saved one is no longer
+  read - the comment always said so); uBuilder.StartDiagnostics lost its
+  Saved / Ini variables.
+- Accuracy: against the whole book (Scandal: the story plus PG's
+  notices) - the figures count from the first word matched to the last,
+  as before; "word N of it was reached" now counts from the book's first
+  word (PG's header), not from the story's.
+- Tools name no file: redist.sh collect copies every file of media/
+  (warns without a .m4b / .epub); postbuild.bat :media robocopies
+  media\ /mir /xf .gitignore (an old media\aladdin.m4a in a build
+  folder is removed by the mirror); steam_stage.py notes a staging
+  without a .m4b / .epub in media/.
+NOT COMPARABLE with any calibration or diagnostics before 227 (other
+audio). The stored calibrations stay until each machine calibrates again
+(step 2 does that anyway).
+NAMES TO LOOK AT if the compiler complains: the typed const array of
+records REFERENCE_TEXTS in the interface; ewrNav (Epub.Layout) and
+TEpubWordArray / Book.Words (Epub.Book); TWhisperIndexArray (Whisper.Align)
+for the unused Map; names Epub.Book / Epub.Layout bring into
+uCalibration's implementation; TWhisperAudioPart.Title / Start /
+Duration; Hms used in ReadReferenceSection (declared above it).
+TO TEST (owner): Calibrate - the log's "Recording: ..., section 1 of 3,
+..." and "Reference text: A Scandal in Bohemia"; Diagnostics - the
+section line and "Reference text: ... N words to score against", then
+accuracy lines as before (about 98 % for turbo if the EPUB matches the
+reading); a build folder's media\ holds the four files and no
+aladdin.m4a; redist.sh collect on Linux / Mac.
 
 ## Zip 226 (on top of zip 225): Menu on F2, Queue on F3 (layout revision 1.3)
 Owner 2026-11-22 09:39: "Space + Q Still do not bring up the bound menus

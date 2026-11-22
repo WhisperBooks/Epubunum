@@ -33,8 +33,8 @@ user name or drive.
 | | Windows (Win64) | Linux (Linux64) | macOS (OSXARM64 / OSX64) |
 |---|---|---|---|
 | **EpubReader** | FFmpeg DLLs, licences, `steaminput\` (Steam builds: `steam_api64.dll`) | FFmpeg `.so` files, FreeType 2.11.1 + brotli, licences, `steaminput/`, `EpubReader.sh` (Steam builds: `libsteam_api.so`) | FFmpeg `.dylib` files in `Contents/Frameworks`, licences in `Contents/Resources/licences` (Steam builds: `libsteam_api.dylib` in `Contents/MacOS`; the reader writes `steaminput/` beside the `.app` itself) |
-| **EpubBuilder, Steam** | whisper.cpp + ggml with the **CPU and Vulkan** backends, FFmpeg, licences, `media\aladdin.m4a`, `steaminput\` (the reader's), `steam_api64.dll` | whisper.cpp + ggml with every backend built, FFmpeg, licences, `media/aladdin.m4a`, `steaminput/` (the reader's), `EpubBuilder.sh`, `libsteam_api.so` - deployed **without ROCm and CUDA** (CPU + Vulkan); ROCm in the HIP DLC depot ([part 10](#10-steam-depots)) | whisper.cpp + ggml with the **CPU and Metal** backends, `libwhisper.coreml.dylib`, FFmpeg, licences, `media/aladdin.m4a`, `libsteam_api.dylib` |
-| **EpubBuilder, Debug / Release** | every backend built (CPU, Vulkan, CUDA, ROCm), FFmpeg, licences, `media\aladdin.m4a` | as Steam, without `libsteam_api.so` | as Steam, without `libsteam_api.dylib` |
+| **EpubBuilder, Steam** | whisper.cpp + ggml with the **CPU and Vulkan** backends, FFmpeg, licences, `media\` (the reference texts), `steaminput\` (the reader's), `steam_api64.dll` | whisper.cpp + ggml with every backend built, FFmpeg, licences, `media/` (the reference texts), `steaminput/` (the reader's), `EpubBuilder.sh`, `libsteam_api.so` - deployed **without ROCm and CUDA** (CPU + Vulkan); ROCm in the HIP DLC depot ([part 10](#10-steam-depots)) | whisper.cpp + ggml with the **CPU and Metal** backends, `libwhisper.coreml.dylib`, FFmpeg, licences, `media/` (the reference texts), `libsteam_api.dylib` |
+| **EpubBuilder, Debug / Release** | every backend built (CPU, Vulkan, CUDA, ROCm), FFmpeg, licences, `media\` (the reference texts) | as Steam, without `libsteam_api.so` | as Steam, without `libsteam_api.dylib` |
 | **EpubConsole** | nothing | nothing | nothing |
 
 Not shipped: Whisper models (`ggml-*.bin`) and Core ML encoders
@@ -48,7 +48,7 @@ Where the files come from:
 | FFmpeg 8 (LGPL) | **ffmpeg-dev** | `redistributable_bin/<platform>/` |
 | FreeType 2.11.1 + brotli (Linux) | fetched by `tools/redist.sh collect` from an Ubuntu 22.04 container | `redistributable_bin/Linux64/` |
 | Steam library | Valve's **Steamworks SDK 1.65** (partner site) | `redistributable_bin/steam/` |
-| Calibration recording | you ([part 6](#6-files-that-are-not-built)) | `media/aladdin.m4a` |
+| Reference texts (recordings) | you ([part 6](#6-files-that-are-not-built)) | `media/*.m4b` (the EPUBs beside them are committed) |
 | Steam Input files (one set per Steam app: both programs) | tracked in git (`demos/EpubReader/steaminput/`) | beside each program: Win64 by `postbuild.bat`, Linux64 by Deploy (`deploy_redist.py`), macOS by hand in the depot (part 10) |
 | Launchers `EpubReader.sh`, `EpubBuilder.sh` | tracked in git (`demos/<program>/src/`) | - |
 
@@ -280,7 +280,7 @@ sh tools/redist.sh collect ../whisper-dev ../ffmpeg-dev
 → `redistributable_bin/Linux64/`, including FreeType 2.11.1 + brotli
 (fetched from an `ubuntu:22.04` container - Docker or Podman must work
 here too; without them a warning, and EpubReader will crash in Steam's
-Linux runtime), `licences/`, `media/` and `parts.txt` (which files are the
+Linux runtime), `licences/` and `parts.txt` (which files are the
 CUDA and ROCm parts - used by `tools/steam_stage.py`).
 
 ### macOS
@@ -324,20 +324,35 @@ if the CPU or Metal backend is missing.
 Only the Windows machine needs these (Delphi's Deploy sends the Linux and
 Mac ones out).
 
-### The calibration recording
+### The reference texts
 
-EpubBuilder's device calibration times 30-second stretches of a speech
-recording. Put one at:
+EpubBuilder's calibration and diagnostics time Whisper on public-domain
+LibriVox recordings and score it against the EPUBs of their texts - the
+reference texts, named in one place (`REFERENCE_TEXTS` in
+`demos/EpubBuilder/src/uCalibration.pas`). The EPUBs are committed in
+`media/`; the recordings are git-ignored, so put them in:
 
 ```
-Epubunum/media/aladdin.m4a
+Epubunum/media/
 ```
 
-on **every** machine that collects (part 5) or builds Win64 (part 9): a
-spoken-word `.m4a` of at least a few minutes (the stretches are taken away
-from both ends), clear speech, no music. It is git-ignored, so each
-machine needs its own copy. Without it every step only warns, and the
-program asks the user for a recording when calibrating.
+on **every** machine that collects (part 5) or builds Win64 (part 9):
+`ScandalBohemia_librivox.m4b` (A Scandal in Bohemia, read by Phil
+Chenevert: archive.org item `ascandalinbohemia_2207_librivox`) and
+`AChristmasCarol_librivox.m4b` (A Christmas Carol, read by Kyle M.:
+archive.org item `christmascarol_km_librivox`, its file renamed). The
+tools take all of `media/` and name no file: the Win64 post-build step
+copies it; Linux64 / OSXARM64 deploy it from the repository's `media/`
+(not collected into `redistributable_bin`) - after `media/` changes run
+
+```
+python tools/deploy_redist.py --media-only
+```
+
+on the Windows machine (it rewrites EpubBuilder's media deploy entries
+for Linux64 and OSXARM64 and nothing else). Without the recordings every
+step only warns, and the program asks the user for a recording when
+calibrating.
 
 ### Steam Input files
 
@@ -361,7 +376,7 @@ deployment - written into the `.dproj` files by `tools/deploy_redist.py`.
    | Linux: `<repos>/Epubunum/redistributable_bin/Linux64/` | `<repos>\Epubunum\redistributable_bin\Linux64\` |
    | Mac: `<repos>/Epubunum/redistributable_bin/OSXARM64/` | `<repos>\Epubunum\redistributable_bin\OSXARM64\` |
 
-   With all subfolders (`licences/`, `media/`, `rocblas/`, `hipblaslt/`).
+   With all subfolders (`licences/`, `rocblas/`, `hipblaslt/`).
    Any way works - `scp -r`, sftp, a USB stick. Symbolic links becoming
    plain copies is fine. For example, from the Windows machine:
    ```
@@ -469,7 +484,7 @@ sh tools/redist.sh deploy Linux64 <program-folder>
 3. The `.app` is in PAServer's folder on the Mac
    (`~/PAServer/scratch-dir/<user>-<profile>/`). Deploy has put the
    libraries into `Contents/Frameworks`, the licences into
-   `Contents/Resources/licences`, the recording into
+   `Contents/Resources/licences`, the reference texts into
    `Contents/Resources/media`, and (Steam configurations) the Steam
    library into `Contents/MacOS`, before the bundle is signed.
 
@@ -553,8 +568,8 @@ part over GitHub's 2 GiB per-file limit is reported.
 | Folder | Must contain at least |
 |---|---|
 | `redistributable_bin/Win64/` | `whisper.dll`, `ggml.dll`, `ggml-base.dll`, `ggml-cpu-*.dll`, `ggml-vulkan.dll`, `avutil-60.dll`, `avcodec-62.dll`, `avformat-62.dll`, `swresample-6.dll`, `licences/` |
-| `redistributable_bin/Linux64/` | `libwhisper.so*`, `libggml*.so*`, `libggml-cpu-*.so`, `libggml-vulkan.so`, `libavutil.so.60`, `libfreetype.so.6`, `libgomp.so.1`, `licences/`, `media/aladdin.m4a`, `parts.txt` |
-| `redistributable_bin/OSXARM64/` | `libwhisper*.dylib`, `libwhisper.coreml.dylib`, `libggml*.dylib`, `libggml-cpu-*.so`, `libggml-metal.so`, `libavutil.60.dylib`, `licences/`, `media/aladdin.m4a` |
+| `redistributable_bin/Linux64/` | `libwhisper.so*`, `libggml*.so*`, `libggml-cpu-*.so`, `libggml-vulkan.so`, `libavutil.so.60`, `libfreetype.so.6`, `libgomp.so.1`, `licences/`, `parts.txt` |
+| `redistributable_bin/OSXARM64/` | `libwhisper*.dylib`, `libwhisper.coreml.dylib`, `libggml*.dylib`, `libggml-cpu-*.so`, `libggml-metal.so`, `libavutil.60.dylib`, `licences/` |
 | `redistributable_bin/steam/` | `win64/steam_api64.dll`, `linux64/libsteam_api.so`, `osx/libsteam_api.dylib` |
 
 ### The programs
@@ -590,4 +605,4 @@ backend loads and times them.
 | EpubReader crashes on its first page in Steam (Linux) | no FreeType 2.11.1 next to it, or not started through `EpubReader.sh` | part 5 (Docker / Podman for collect); launch option = the script |
 | EpubBuilder on the Mac lists no Metal device | `libggml-metal.so` missing | part 4c, then 5 and 7 |
 | A Steam build on Linux has no AMD GPU | the HIP DLC depot is not installed | part 10 |
-| The calibration asks for a recording | no `media/aladdin.m4a` when collecting / building | part 6 |
+| The calibration asks for a recording | no reference-text recordings in `media/` when building / deploying, or (Linux, Mac) `deploy_redist.py --media-only` not run since `media/` changed | part 6 |
