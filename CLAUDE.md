@@ -4,7 +4,122 @@ Read README.md first, then this file. Keep both up to date with every change.
 The rules follow TWhisper's and TFFMpegAPI's CLAUDE.md (same owner, same
 conventions); where this file is silent, theirs apply.
 
-## NEXT SESSION - THE TASK (owner, 2026-11-22 09:30) - READ THIS FIRST
+## Handover - READ THIS FIRST (latest: session 13, 2026-11-22 18:13)
+
+Written at the owner's request (18:13: "OK, this is getting better.
+Write up progress in CLAUDE.md so I can start a new session"). Session 13
+ran from 09:30 to 18:13 on 2026-11-22: zips 227 - 256 here and
+TWhisper-32. Each zip has its own section further down ("Zip 256" first,
+newest first); this is the map. Session 13's task list follows this
+handover, with its steps.
+
+### Where it stands
+- LAST NUMBER USED: 257 (Epubunum; 257 = this handover, CLAUDE.md
+  only), 32 (TWhisper). Never commit or push,
+  and never offer to; the owner applies the zips and pushes.
+- PUSH STATE: not told this session. The owner's builds said "Build:
+  2026-11-22 17:27, 65569dc" (commit 65569dc + the zips applied on top).
+  At the start of the next session ask what is pushed, then compare the
+  pushed files with the zips (a scratch clone, CRLF / BOM aside).
+- COMPILED AND RUN BY THE OWNER (Windows MONSTER - Core Ultra 9 275HX,
+  RTX 5090 Laptop on Vulkan0, Intel(R) Graphics on Vulkan1; the Miix;
+  the Ally): everything up to zip 255 (the 17:27 build showed 254 + 255's
+  calibration page, so TWhisper-32 and zip 248 compiled too). Seen
+  working: the reference texts and the calibration (method 2, 120 s),
+  the Benchmark menu and its bars and results, the glyph feet, the
+  estimates ("a lot better now" after 241), the start-up calibration
+  and its bars, the calibration page with a pad (A / B pictures) and,
+  after a key press, at full size.
+- DELIVERED, NOT YET REPORTED ON: 256 (the calibration page laid out
+  again when the window grows - the start-up page was narrow with its
+  answers out of sight; keys on the left with the keyboard); 253 (the
+  reader picks up Transcribed's books - the Ally's empty library); 249
+  (Settings > Lowest acceptable speed); 251's results table and 252's
+  "better estimates" line; 248's moving calibration bars; 247 (macOS Big
+  Picture full screen through Cocoa - Mac only).
+- PACKAGE REBUILD: TWhisper-32 changed Whisper.Core's interface
+  (TWhisperBenchmark.OnProgress): WhisperAPI, WhisperAPIFMX,
+  dclWhisperAPIFMX, then EpubBuilder / WhisperConsole. Apparently done
+  (the 17:27 build). STEAM REBUILD: 254 - 256 changed uPadMenu (the
+  reader's too) - build and deploy both programs.
+
+### The zips of session 13 (one line each; the detail in their sections)
+- 227 Aladdin out, the reference texts in (uCalibration.REFERENCE_TEXTS:
+  Scandal = calibration and the Short benchmark, Carol = Long). 228
+  media/ deployed from the repository (deploy_redist.py --media-only,
+  redist.sh, postbuild.bat). 229 the clearest 30 s (superseded by 242).
+- 230 - 236 the benchmarks: Benchmark menu of five (Run all 4, Short /
+  Long x Fast (base) / Detailed (turbo)), each with its expected time;
+  the score = the middle third of each section's transcription time,
+  H:MM:SS.mmm; a framed progress block per benchmark (uBenchProgress);
+  keeping the book: No by default; benchmarks.csv silent (for the
+  leaderboard - not to be mentioned to users).
+- 237 Results table, X / H hides it. 238 dark before the first frame.
+  239 names "Short Text, Fast Model". 240 every menu's foot as Steam's
+  glyphs or the keys (standing rule). 241 the estimates compare like
+  with like (same model, same kind of calibration).
+- 242 step 2: the calibration times the clearest 120 s in one run
+  ([Calibration] Method=2, Seconds per model; history calibration_s).
+  243 calibrated at start-up with no dialog; 244 calibration progress
+  bars, new models calibrate themselves, "Re-calibrate"; 245 the main
+  menu after it; 246 at most four blocks (scrolling, "Model k of N").
+- 247 macOS Big Picture full screen via Cocoa (uMacWindow, builder
+  only). 248 + TWhisper-32 calibration bars move within a device
+  (loading / warming up / timing). 249 Settings > Lowest acceptable speed
+  (2.0x default, 0.0 - 2.0 by 0.1; too-slow models / devices refused for
+  builds, the queue and the benchmarks). 250 blocks 95 % wide.
+- 251 Calibration results after a calibration: base / turbo speeds and
+  a dozen LibriVox books' times (lengths from LibriVox's API; War and
+  Peace = Books 01 - 17, 64:36:04), bold "A ROUGH GUIDE ONLY" line;
+  any button / key / click goes on. 252 the "better estimates once you
+  have transcribed a few books" line; the CALIBRATION PAGE before the
+  start-up calibration (why, devices found, estimated time, warning when
+  long; A "Calibrate now" / B "Come back when I have more time to spare"
+  = close the program).
+- 253 the READER's library picks up EpubBuilder's Transcribed books not
+  seen before ("seen" in EpubReader.json).
+- 254 better guesses for the estimate (GuessSpeed: CPU threads / 16 x
+  generation, RTX 30+ 40x, Intel UHD 0.7x / Iris 2x / newer 6x ...),
+  uPadMenu.NextWidthShare, A / B pictures on the page's answers. 255 the
+  page 60 % wide (owner: not 80 %); a question's text measured with
+  room to spare. 256 the page laid out again on resize (tmIntro);
+  TPadMenuItem.Key - a key's name in the picture column.
+
+### Standing rules added in session 13 (also in their zips' sections)
+- Buttons are shown as Steam's glyphs when a pad is in use and as the
+  key's name when the keyboard is - in ALL menus, pictures and key names
+  on the left; never a button's letter or name written into text (a
+  PlayStation pad has no A or B). "Press any button" is fine.
+- Only chapter material is timed or scored: 30 s clear of both ends of
+  every LibriVox section.
+- The leaderboard (step 4) is on hold and NOT mentioned to users.
+- Deliveries: EpubUnum-NN-topic.zip, files changed since the previous zip,
+  paths from the repository root, on top of the previous zip; "NO
+  PACKAGE REBUILD" or the package banner; the Steam banner only when a
+  unit another Steam program compiles changes (demos/common, uPadMenu,
+  uReaderInput, uCovers ...), Steam Input or staged files.
+
+### Next
+1. Ask what is pushed and whether 256 fixed the start-up page (and 253:
+   the Ally's library; 249's setting; the Mac's full screen, 247).
+2. Calibration estimate: compare the debug log's "calibration: guessed
+   ..." lines and "the introduction's estimate" with "Calibration took"
+   on each machine; tune GuessSpeed. HISTORY_BOOK_RATIO_CONTINUOUS (1.0,
+   the first estimate's ratio for the new calibration) is still to be
+   measured against real builds.
+3. OFFERED, NOT ASKED FOR: when the chosen model is below the lowest
+   acceptable speed and base is not (the Miix: turbo 0.6x), switch to
+   base by itself after the start-up calibration (now Create refuses
+   and says why).
+4. Step 5 of the task list: the two builders (benchmark-only, and the
+   full one behind the DLC). Step 4 (the leaderboard) waits for the
+   owner.
+5. Still open from before: the calibration log's "no graphics card here
+   could run it" when the CPU is fastest (Mac); uInhibit taking desktop
+   Big Picture for Game Mode; touch in the pad menu; zip 207's redraw
+   after display sleep (Windows).
+
+## Session 13's task list (owner, 2026-11-22 09:30) - statuses in the handover above
 
 Owner: "the next task will be to replace Aladdin with the new book
 options so we can build the benchmark functionality which will include
@@ -13,7 +128,9 @@ Builder that only includes Benchmark functionality and benchmarks will
 build a leaderboard. The full version will be DLC-enabled and include
 all functionality."
 
-WHERE THINGS STAND: the owner has compiled and run everything up to zip
+(The statuses below are as at 11:34; the handover above is current: steps
+1 - 3 are built and ran, step 4 is on hold, step 5 is next.)
+WHERE THINGS STAND (11:34): the owner has compiled and run everything up to zip
 221; zips 222 - 226 were pushed (cade964 "Menu tidy"), their compile
 result not reported. Zip 227 (step 1 below: Aladdin out, the reference
 texts in) COMPILED AND RAN (calibration, 5090, 10:49); 228 (media/
@@ -106,7 +223,7 @@ Mode; touch in the pad menu is untested; zip 207's redraw after display
 sleep (Windows) and zip 210's Mac full screen are untested; the desktop
 dark window of zip 222 was written unseen.
 
-## Handover - READ THIS FIRST (latest: session 11, 2026-11-21 05:18)
+## Handover (session 11, 2026-11-21 05:18)
 
 ### Session 11 (2026-11-20 19:35 - 2026-11-21 05:18) - where it stopped
 Written at the owner's request (05:18: "write up a session handover in
@@ -1170,7 +1287,8 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 256 (224 = the next-session notes at the top, CLAUDE.md only).
+Last number used: 257 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
+next-session notes, CLAUDE.md only).
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
