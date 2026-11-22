@@ -664,6 +664,28 @@ redistributable_bin/Linux64 Deploy reports those files missing.
   written qualified (FMX.Graphics.TBitmap).
 - Shell scripts need the executable bit in git (`git update-index
   --chmod=+x`); check after a push.
+- STEAM BUILDS: EVERY BUTTON AND KEY MAPPING IS DEFINED VIA STEAM INPUT
+  (owner 2026-11-22 07:15: "Make it a standing rule that for Steam
+  builds all button and key mapping must be defined via steam input";
+  "Remove any code that overrides using steam input from Steam builds
+  while keeping the functionality already described"). The definitions
+  are tools/gen_reader_input.py's tables (never the .vdf files or
+  uReaderInput.pas by hand); a change raises LAYOUT_REVISION. No
+  program reads a pad except through Steam Input (true since the pad
+  went in). CHECKED 2026-11-22 (Valve's Steam Input pages, TSteamAPI's
+  gen_input_mapping.py at 80804ab): Steam Input binds CONTROLLERS to
+  actions; a physical keyboard or mouse is not a Steam Input device and
+  an action manifest has no place for a key - so key bindings cannot
+  live in Steam's layout files themselves. HOW keys follow the rule
+  (asked; the owner chose it): the keys and the pointer are TABLED IN
+  THE GENERATOR beside the actions (MENU_KEYS, MENU_POINTER) and
+  generated into uReaderInput.pas; a program asks which ACTION a key or
+  a click means (ReaderMenuKeyAction, ReaderMenuPointerAction) and acts
+  on the action as for a pad - NO KEY IS NAMED IN A PROGRAM'S OWN CODE.
+  A table change raises LAYOUT_REVISION; an interaction added or taken
+  away raises LAYOUT_MAJOR too. Done for the builder's menu (zip 217).
+  STILL BREAKS IT: EpubReader.FormKeyDown (arrows, Enter, Esc in its
+  menu; P, D, L, R, [ ] on the page) - see zip 217's notes.
 - ONLY CHAPTER MATERIAL IS TRUSTED FOR TIMING (decided 2026-11-15,
   TWhisper zip 26; owner restated 2026-11-21 18:59). Whisper deliberately
   leaves a LibriVox recording's spoken intro and outro untranscribed, and
@@ -1021,7 +1043,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 214.
+Last number used: 217.
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
 From a code review by reading (owner, 2026-11-15: "code review", then "y" to
@@ -3608,6 +3630,132 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 217 (on top of zip 216): keys defined with the Steam Input actions; revision 1.2
+Owner 2026-11-22 07:15: the standing rule STEAM BUILDS: EVERY BUTTON AND
+KEY MAPPING IS DEFINED VIA STEAM INPUT ("so we need a regen now
+anyway"); "Remove any code that overrides using steam input from Steam
+builds while keeping the functionality already described". Steam Input
+cannot hold a key (checked - the rule's text); asked where the keys go:
+the owner chose the generator's tables. NOT COMPILED (pasdoc_check,
+project_check: 0 problems). NO PACKAGE REBUILD. Files:
+tools/gen_reader_input.py, demos/EpubReader/src/uReaderInput.pas
+(GENERATED), the eleven demos/EpubReader/steaminput/controllers/*.vdf
+(GENERATED, CR LF as the generator writes them),
+demos/EpubReader/src/uPadMenu.pas, demos/EpubBuilder/src/uBuilder.pas,
+demos/EpubBuilder/README.md, CLAUDE.md.
+- THE GENERATOR WAS RUN HERE with TSteamAPI at 80804ab (a clone of
+  G3DGames/tsteamapi, read only): the layouts differ from revision 1 in
+  their title, description, minor_revision 1 -> 2 and major_revision
+  0 -> 1 only (diffed); the manifest is byte for byte as before and not
+  in the zip. TSteamAPI's writer has "major_revision" "0": the reader's
+  generator replaces it with LAYOUT_MAJOR (TSteamAPI not touched).
+- gen_reader_input.py: LAYOUT_REVISION 2, LAYOUT_MAJOR 1, MENU_KEYS
+  (Up: Up, W; Down: Down, S; Left: Left, A; Right: Right, D; Play:
+  Enter; Back: Esc; Menu: Space; Library: Q), MENU_POINTER (Play: left
+  click, tap; Back: right click; Up / Down: wheel up / down); asserts
+  that each names an action of SETS and none is there twice.
+- uReaderInput (generated): TReaderInputKey, TReaderInputPointer,
+  READER_INPUT_MAJOR, READER_MENU_KEYS, READER_MENU_POINTER,
+  ReaderMenuKeyAction, ReaderMenuPointerAction, ReaderMenuKeyNames,
+  ReaderMenuFirstKey.
+- uPadMenu: OnBack (zip 215) is now OnGesture(AGesture) with
+  PADMENU_RIGHT_CLICK / PADMENU_WHEEL_UP / PADMENU_WHEEL_DOWN - the menu
+  reports, the program's table decides. No OnGesture (the reader): the
+  wheel moves the selection, the right button does nothing.
+- uBuilder: KeyDown asks ReaderMenuKeyAction and presses the action's
+  button (PadButtonOf: the action's place in BP_ACTIONS) - zip 215's
+  vk... and letters are gone; PadMenuGesture the same for the mouse;
+  PadFoot's key hints and PadControls' keys column come from the table;
+  the debug log says "layout revision 1.2". The menu closed: in Big
+  Picture only the actions Menu, Play and Library are taken (they open
+  it, as on a pad), on the desktop none.
+- A row's left click / tap is the row's own (it chooses the row under
+  the pointer); it is in MENU_POINTER so that Controls lists it.
+- THE READER IS NOT CONVERTED (its FormKeyDown, uMain 3075 on). Not
+  mechanical: the table's menu keys would clash with its page keys (D =
+  Dark mode against D = Right; L = Learn to read; P; R; [ ] the speed,
+  which has no action) and Esc opens its menu where the pad's Back does
+  not. Needs the owner: which page keys become actions (new actions =
+  LAYOUT_MAJOR 2), which stay menu-bar shortcuts (Ctrl+F, Ctrl+O, Ctrl
+  + / -, F3). The partner site's bundled configuration, if the layouts
+  were published there, wants the new .vdf files.
+- Names to look at: TReaderInputKey's typed constant (KeyChar: #0 and
+  'W' as WideChar), UpCase on a WideChar in uReaderInput,
+  TPadMenuGestureEvent, the const block between two type blocks at the
+  top of uPadMenu, PadButtonOf, Format with BP_FOOT_KEYS.
+
+## Zip 216 (on top of zip 215): the model list's order; "turbo" and "large"
+Owner 2026-11-22 07:10: "model order. Top = Installed, then downloadable
+but not installed by model size. Split so Multi-Lingual are nearer top
+and .en are at the very end. base + turbo should be first on list in
+all situations. The labels for large-v3 -> large and large-v3-turbo ->
+turbo". NOT COMPILED (pasdoc_check, project_check: 0 problems). NO
+PACKAGE REBUILD. Files: demos/EpubBuilder/src/uModels.pas,
+demos/EpubBuilder/src/uBuilder.pas, demos/EpubBuilder/README.md,
+CLAUDE.md.
+- uModels: ModelLabel ('turbo', 'large', else the name - the LISTS and
+  the questions only; files, downloads, queue files, settings and logs
+  keep whisper.cpp's names). ModelListOrder(folder): base, turbo; every
+  language installed, by size; every language to download, by size;
+  .en installed, by size; .en to download, by size.
+- HOW I READ IT: ".en at the very end" taken literally - an installed
+  .en model comes after a multilingual one still to download. The other
+  reading (installed first whatever the language) is two numbers in
+  Rank (groups 2 / 3 / 4 / 5 -> 2 / 4 / 3 / 5); said to the owner.
+- uBuilder.FillModels walks ModelListOrder and shows ModelLabel; the
+  download and Core ML questions say the label; the pad's model foot,
+  the expert-mode log lines and the two first-run hints say "turbo".
+  Download every model still fetches smallest first.
+- Names to look at: the nested function Rank in ModelListOrder,
+  string.EndsWith('.en', True), the locals K, Shown, Order in
+  FillModels.
+
+## Zip 215 (on top of zip 214): the builder's menu by keyboard, mouse and finger; Controls
+Owner 2026-11-22 07:05, two screenshots of the home list on the 5090
+(zips 213 / 214 compiled and ran: the wide menu, build 853c7d1). Asked:
+"all that are downloaded" -> "All installed"; "Expert mode (every
+model)" -> "Expert mode"; Output "does nothing (just prints Output: on
+screen"; the menu "Keyboard aware" (arrows / WASD, Enter = A, Esc = B,
+Space = Start); the wheel = Up / Down, right click = B; touch; "raise
+the major revision" of the Steam Input definitions if they change; a
+"Controls" row showing the bindings in use (stick glyphs for a pad,
+keys for keyboard / mouse). NOT COMPILED (pasdoc_check, project_check:
+0 problems). NO PACKAGE REBUILD. Files: demos/EpubReader/src/uPadMenu.pas
+(shared), demos/EpubBuilder/src/uBuilder.pas,
+demos/EpubBuilder/README.md, CLAUDE.md.
+- uPadMenu: OnBack (right button anywhere on the shade, box or a row,
+  queued), OnPointer (a click / tap, the right button or the wheel was
+  used), AnyMouseDown, AnyMouseWheel (the selection moves a row, at
+  most one per 60 ms; Handled, so the scroll box does not scroll by
+  itself). The READER gets the wheel too (its OnBack is not set).
+- uBuilder: KeyDown overridden (public): while the menu or the cover
+  chooser shows - arrows / W A S D, Enter, Esc, Space (Start), Q (View;
+  my addition); menu closed in Big Picture - Space / Enter open it, Q
+  the queue; closed on the desktop - nothing taken. FPadKeys (last input
+  was keys / mouse / finger; a pad press clears it), PadFoot (BP_FOOT or
+  BP_FOOT_KEYS), PadMenuBack, PadPointer, PadControls (BPM_CONTROLS = 8,
+  home row BPC_CONTROLS = 22 after Expert mode): six rows + Back; a pad:
+  FPad.Origin's glyphs, else its names, else "A", "D-pad up / down" ...;
+  keys: the keys and the mouse. The Output row: Tell says the output
+  file, or with no book the output folder (its value shows the folder's
+  name then). The two wordings changed.
+- STEAM INPUT NOT CHANGED, revision still 1: the keyboard and the mouse
+  are read by the program itself and Controls is a menu row, so no
+  action was added; a new revision would only make Steam load the
+  layouts afresh. If an action is ever added: tools/gen_reader_input.py
+  (never the .vdf or uReaderInput by hand) and the revision raised, as
+  the owner said.
+- TOUCH: nothing new beyond the above - a tap is a click (rows, beside
+  the menu), a drag is left to the scroll box's own handling. NOT TRIED
+  on a touch screen: Deck, Ally, Miix to say.
+- After the Output note's OK the home list comes back on Create (as
+  after any note), not on Output.
+- Names to look at: the KeyDown override's signature (TCommonCustomForm:
+  var Key: Word; var KeyChar: WideChar; Shift: TShiftState), vkSpace,
+  ssCommand, UpCase on a WideChar, the local type TControlRow and its
+  typed constant ROWS in PadControls, TMouseButton.mbRight,
+  OnMouseWheel on TVertScrollBox, TThread.ForceQueue.
 
 ## Zip 214 (on top of zip 213): the pad's model list says "installed"
 Owner 2026-11-22 06:44: "Change the wording on this menu from "here" to

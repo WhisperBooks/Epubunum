@@ -536,6 +536,9 @@ type
     FAskCancel: TModalResult;
     { When the foot's progress was last written (ms). }
     FPadFootTick: UInt64;
+    { The menu was last driven by the keyboard, the mouse or a finger, not
+      a pad: its foot and Controls name keys (PadFoot, PadControls). }
+    FPadKeys: Boolean;
     { Exit was confirmed with the pad: no second question on closing. }
     FForceClose: Boolean;
     { Not calibrated, and no model to calibrate at start-up: the question
@@ -908,6 +911,23 @@ type
     procedure tmPadTimer(Sender: TObject);
     { A press of pad button AButton (BP_*). }
     procedure PadPress(AButton: Integer);
+    { The hints at the menu's foot: a pad's buttons, or the keys when the
+      keyboard or the mouse was used last (FPadKeys) - the keys' names
+      from uReaderInput's table.
+      @returns(the text) }
+    function PadFoot: string;
+    { The pad button (BP_*) of action AAction of the manifest.
+      @returns(-1 when the builder has no such button) }
+    function PadButtonOf(const AAction: string): Integer;
+    { The Controls list: what drives the menu and how each is bound now -
+      Steam's pictures of the pad's controls (their names without
+      pictures), or the keys and the mouse when those were used last. }
+    procedure PadControls;
+    { The menu's OnGesture: the right mouse button, the wheel - the action
+      uReaderInput's table gives it, pressed as a pad's button. }
+    procedure PadMenuGesture(Sender: TObject; const AGesture: string);
+    { The menu's OnPointer: the mouse or a finger was used (FPadKeys). }
+    procedure PadPointer(Sender: TObject);
     { The home list: the book, its audio, the choices, the actions;
       ACommand (a BPC_*) selected. }
     procedure PadHome(ACommand: Integer);
@@ -1141,6 +1161,14 @@ type
     { Asks before building from a book that is already a read-along one;
       then CheckOutputThen. }
     procedure CheckBookThen(const ADevice: string; AQueue: Boolean);
+  public
+    { The keyboard drives the pad's menu while it shows (and opens it in
+      Big Picture), before any control has the key. Which key means which
+      action is uReaderInput's table (tools/gen_reader_input.py: every
+      button and key mapping is defined with the Steam Input actions) -
+      no key is named here. A key that means no action, and every key
+      while the menu is closed on the desktop, goes on as usual. }
+    procedure KeyDown(var Key: Word; var KeyChar: WideChar; Shift: TShiftState); override;
   end;
 
 var
@@ -3586,7 +3614,7 @@ begin
     if FCoreML and (I >= 0) and not UsesCoreML(Path) then
       Ask(Format('%s has no Core ML encoder here: its encoder runs on Metal.' +
         sLineBreak + sLineBreak + 'Download the Core ML encoder (about %s) so it runs on the Neural Engine? ' +
-        'Its first use is slow: macOS compiles it for this Mac.', [Name,
+        'Its first use is slow: macOS compiles it for this Mac.', [ModelLabel(Name),
         ModelSizeText(MODEL_CATALOGUE[I].EncoderMB)]), TMsgDlgType.mtConfirmation,
         [TMsgDlgBtn.mbYes, TMsgDlgBtn.mbNo], TMsgDlgBtn.mbNo,
         procedure(const AResult: TModalResult)
@@ -3617,7 +3645,7 @@ begin
     Amount := 'about ' + ModelSizeText(MODEL_CATALOGUE[I].SizeMB);
   Ask(Format('%s is not downloaded yet.' + sLineBreak + sLineBreak + 'Download it now? ' +
     '%s, from whisper.cpp''s model repository on Hugging Face, into' + sLineBreak + '%s',
-    [Name, Amount, FModelsFolder]), TMsgDlgType.mtConfirmation,
+    [ModelLabel(Name), Amount, FModelsFolder]), TMsgDlgType.mtConfirmation,
     [TMsgDlgBtn.mbYes, TMsgDlgBtn.mbNo], TMsgDlgBtn.mbYes,
     procedure(const AResult: TModalResult)
     begin
@@ -3654,8 +3682,9 @@ end;
 
 procedure TfrmBuilder.FillModels;
 var
-  I, Sel: Integer;
-  Path, Item: string;
+  I, K, Sel: Integer;
+  Path, Item, Shown: string;
+  Order: TArray<Integer>;
 begin
   FFillingModels := True;
   try
@@ -3664,22 +3693,27 @@ begin
       cbModel.Items.Clear;
       FModelItems.Clear;
       Sel := -1;
-      // the catalogue, smallest first: without expert mode only base and
-      // large-v3-turbo, and the model in use
-      for I := Low(MODEL_CATALOGUE) to High(MODEL_CATALOGUE) do
+      // the catalogue: without expert mode only base and large-v3-turbo,
+      // and the model in use
+      // base and turbo first, always; then every language (here, to
+      // download), the English-only ones last - ModelListOrder
+      Order := ModelListOrder(FModelsFolder);
+      for K := 0 to Length(Order) - 1 do
       begin
+        I := Order[K];
+        Shown := ModelLabel(MODEL_CATALOGUE[I].Name);
         Path := TPath.Combine(FModelsFolder, ModelFileName(MODEL_CATALOGUE[I].Name));
         if not FExpert and not ModelIsStandard(MODEL_CATALOGUE[I].Name) and not SameFileName(Path, FModelPath) then
           Continue;
         if not FileExists(Path) then
-          Item := Format('%s - %s (%s to download)', [MODEL_CATALOGUE[I].Name, MODEL_CATALOGUE[I].Note,
+          Item := Format('%s - %s (%s to download)', [Shown, MODEL_CATALOGUE[I].Note,
             ModelSizeText(MODEL_CATALOGUE[I].SizeMB)])
         else if FCoreML and UsesCoreML(Path) then
-          Item := Format('%s - %s (Core ML)', [MODEL_CATALOGUE[I].Name, MODEL_CATALOGUE[I].Note])
+          Item := Format('%s - %s (Core ML)', [Shown, MODEL_CATALOGUE[I].Note])
         else if FCoreML then
-          Item := Format('%s - %s (no Core ML encoder)', [MODEL_CATALOGUE[I].Name, MODEL_CATALOGUE[I].Note])
+          Item := Format('%s - %s (no Core ML encoder)', [Shown, MODEL_CATALOGUE[I].Note])
         else
-          Item := Format('%s - %s', [MODEL_CATALOGUE[I].Name, MODEL_CATALOGUE[I].Note]);
+          Item := Format('%s - %s', [Shown, MODEL_CATALOGUE[I].Note]);
         cbModel.Items.Add(Item);
         FModelItems.Add(Path);
         if SameFileName(Path, FModelPath) then
@@ -3766,9 +3800,9 @@ begin
   UpdateControls;
   if FExpert then
     LogLine('Expert mode: the model list offers every model. On the machines tested the English-only (.en) ' +
-      'models were slower in a build than their twins, and none was more accurate than large-v3-turbo.')
+      'models were slower in a build than their twins, and none was more accurate than turbo.')
   else
-    LogLine('Expert mode off: the model list offers base (fast) and large-v3-turbo (the most accurate), and ' +
+    LogLine('Expert mode off: the model list offers base (fast) and turbo (the most accurate), and ' +
       'the model in use.');
 end;
 
@@ -5332,6 +5366,8 @@ const
   BPM_MODELS = 6;
   { The queues folder's queues. }
   BPM_QUEUES = 7;
+  { The controls and their bindings (PadControls). }
+  BPM_CONTROLS = 8;
   { The home list's rows. }
   BPC_BOOK = 0;
   { The audio. }
@@ -5377,6 +5413,8 @@ const
   BPC_DIAGNOSE_ALL = 20;
   { Expert mode: every model in the model list. }
   BPC_EXPERT = 21;
+  { The controls and their bindings. }
+  BPC_CONTROLS = 22;
   { The pad's menu in dark colours: its box, its text, the selected row
     (EpubReader's dark menu, uMain.PadMenuColors, with its panel text). }
   PAD_DARK_BACK = $FF23262E;
@@ -5419,8 +5457,11 @@ const
   BP_SMALL_WORDS: array[0..7] of string = ('the', 'a', 'an', 'of', 'and', 'by', 'in', 'to');
   { How many matches the audio list offers first. }
   BP_AUDIO_FIRST = 8;
-  { The foot of the lists when nothing runs. }
+  { The foot of the lists when nothing runs: a pad. }
   BP_FOOT = 'A choose   B back   Left / Right change   Start close   View the queue';
+  { The same for the keyboard: the first key of the actions Play, Back,
+    Left, Right, Menu and Library (PadFoot). }
+  BP_FOOT_KEYS = '%s choose   %s back   %s / %s change   %s close   %s the queue';
 
 { AText's words, lower case, without the small ones. }
 function PadWords(const AText: string): TArray<string>;
@@ -5733,6 +5774,8 @@ begin
   FPadMenu := TPadMenu.Create(Self, Self);
   FPadMenu.OnChoose := PadChoose;
   FPadMenu.OnClose := PadClosed;
+  FPadMenu.OnGesture := PadMenuGesture;
+  FPadMenu.OnPointer := PadPointer;
   PadColors;
   if FBigPicture then
     FPadMenu.FontSize := 30
@@ -5776,7 +5819,8 @@ begin
     end;
   end;
   if Manifest <> '' then
-    DebugLog(FPad.Start(Manifest) + Format(' (the reader''s manifest, layout revision %d)', [READER_INPUT_REVISION]));
+    DebugLog(FPad.Start(Manifest) + Format(' (the reader''s manifest, layout revision %d.%d)',
+      [READER_INPUT_MAJOR, READER_INPUT_REVISION]));
   if not FPad.Started then
     Exit;
   tmPad := TTimer.Create(Self);
@@ -5825,6 +5869,7 @@ begin
       begin
         // the first press for a minute: the screen may be black
         FRedraw.UserInput;
+        FPadKeys := False;
         PadPress(I);
       end;
     // the build's progress at the menu's foot, twice a second
@@ -5835,7 +5880,7 @@ begin
       if (FBuild <> nil) or (FCalib <> nil) or (FDownload <> nil) then
         FPadMenu.SetFoot(lblStatus.Text)
       else
-        FPadMenu.SetFoot(BP_FOOT);
+        FPadMenu.SetFoot(PadFoot);
     end;
     // macOS: the window made full screen once it is there
     if PAD_FULL_AGAIN and FBigPicture and (FFullTries < PAD_FULL_TRIES) and (T - FFullTick > 1000) then
@@ -5908,6 +5953,152 @@ begin
   end;
 end;
 
+function TfrmBuilder.PadFoot: string;
+begin
+  if FPadKeys then
+    Result := Format(BP_FOOT_KEYS, [ReaderMenuFirstKey(BP_ACTIONS[BP_CHOOSE]), ReaderMenuFirstKey(BP_ACTIONS[BP_BACK]),
+      ReaderMenuFirstKey(BP_ACTIONS[BP_LEFT]), ReaderMenuFirstKey(BP_ACTIONS[BP_RIGHT]),
+      ReaderMenuFirstKey(BP_ACTIONS[BP_MENU]), ReaderMenuFirstKey(BP_ACTIONS[BP_QUEUE])])
+  else
+    Result := BP_FOOT;
+end;
+
+function TfrmBuilder.PadButtonOf(const AAction: string): Integer;
+var
+  I: Integer;
+begin
+  Result := -1;
+  if AAction = '' then
+    Exit;
+  for I := 0 to Length(BP_ACTIONS) - 1 do
+    if SameText(BP_ACTIONS[I], AAction) then
+      Exit(I);
+end;
+
+procedure TfrmBuilder.PadPointer(Sender: TObject);
+begin
+  FPadKeys := True;
+end;
+
+procedure TfrmBuilder.PadMenuGesture(Sender: TObject; const AGesture: string);
+var
+  Button: Integer;
+begin
+  FPadKeys := True;
+  Button := PadButtonOf(ReaderMenuPointerAction(AGesture));
+  if Button >= 0 then
+    PadPress(Button);
+end;
+
+procedure TfrmBuilder.KeyDown(var Key: Word; var KeyChar: WideChar; Shift: TShiftState);
+var
+  Button: Integer;
+begin
+  Button := -1;
+  if (FPadMenu <> nil) and (FPad <> nil) and (Shift * [ssCtrl, ssAlt, ssCommand] = []) then
+  begin
+    // the key's action, from the table generated with the Steam Input
+    // actions; its button here
+    Button := PadButtonOf(ReaderMenuKeyAction(Key, KeyChar));
+    if not (FPadMenu.Showing or ((FCoverPick <> nil) and FCoverPick.Showing)) then
+    begin
+      // closed: in Big Picture what opens the menu or the queue (as on a
+      // pad); the other actions' keys are left to the log. On the desktop
+      // every key is the window's
+      if not FBigPicture or ((Button <> BP_MENU) and (Button <> BP_CHOOSE) and (Button <> BP_QUEUE)) then
+        Button := -1;
+    end;
+  end;
+  if Button < 0 then
+  begin
+    inherited;
+    Exit;
+  end;
+  Key := 0;
+  KeyChar := #0;
+  FPadKeys := True;
+  if FRedraw <> nil then
+    FRedraw.UserInput;
+  PadPress(Button);
+end;
+
+procedure TfrmBuilder.PadControls;
+type
+  { One row: what it does, the pad's button(s) (BP_*), their usual names
+    when Steam gives none. The keys are uReaderInput's. }
+  TControlRow = record
+    Text: string;
+    A, B: Integer;
+    Pad: string;
+  end;
+const
+  NO_BUTTON = -1;
+  ROWS: array[0..5] of TControlRow = (
+    (Text: 'Choose'; A: BP_CHOOSE; B: NO_BUTTON; Pad: 'A'),
+    (Text: 'Back'; A: BP_BACK; B: NO_BUTTON; Pad: 'B'),
+    (Text: 'Up / down'; A: BP_UP; B: BP_DOWN; Pad: 'D-pad up / down'),
+    (Text: 'Change a value'; A: BP_LEFT; B: BP_RIGHT; Pad: 'D-pad left / right'),
+    (Text: 'Open or close the menu'; A: BP_MENU; B: NO_BUTTON; Pad: 'Start'),
+    (Text: 'The queue'; A: BP_QUEUE; B: NO_BUTTON; Pad: 'View'));
+var
+  Items: TArray<TPadMenuItem>;
+  Row: TPadMenuItem;
+  I: Integer;
+  O1, O2: TSteamPadOrigin;
+  Names, Title: string;
+begin
+  if FPadMenu = nil then
+    Exit;
+  Items := nil;
+  FPadCmds := nil;
+  for I := 0 to Length(ROWS) - 1 do
+  begin
+    Row := TPadMenu.Item(ROWS[I].Text);
+    if FPadKeys then
+    begin
+      // the keys, the mouse and the finger of the action(s), from the table
+      Names := ReaderMenuKeyNames(BP_ACTIONS[ROWS[I].A], True);
+      if ROWS[I].B <> NO_BUTTON then
+        Names := Names + '  /  ' + ReaderMenuKeyNames(BP_ACTIONS[ROWS[I].B], True);
+      Row.Value := Names;
+    end
+    else
+    begin
+      O1 := FPad.Origin(ROWS[I].A, FPadDark);
+      O2.Name := '';
+      O2.Glyph := '';
+      if ROWS[I].B <> NO_BUTTON then
+        O2 := FPad.Origin(ROWS[I].B, FPadDark);
+      // Steam's pictures; their names, or the usual ones, without
+      if O1.Glyph <> '' then
+        Row.Glyphs := Row.Glyphs + [O1.Glyph];
+      if O2.Glyph <> '' then
+        Row.Glyphs := Row.Glyphs + [O2.Glyph];
+      if Length(Row.Glyphs) = 0 then
+      begin
+        Names := O1.Name;
+        if O2.Name <> '' then
+          Names := Names + ' / ' + O2.Name;
+        if Names = '' then
+          Names := ROWS[I].Pad;
+        Row.Value := Names;
+      end;
+    end;
+    Items := Items + [Row];
+    FPadCmds := FPadCmds + [PADROW_NONE];
+  end;
+  Items := Items + [TPadMenu.Item('Back')];
+  FPadCmds := FPadCmds + [PADROW_BACK];
+  if FPadKeys then
+    Title := 'Controls - keyboard, mouse and touch'
+  else if FPad.PadName <> '' then
+    Title := 'Controls - ' + FPad.PadName
+  else
+    Title := 'Controls - controller';
+  FPadMode := BPM_CONTROLS;
+  FPadMenu.Show(Title, Items, Length(Items) - 1, PadFoot);
+end;
+
 procedure TfrmBuilder.PadClosed(Sender: TObject);
 begin
   // a click beside a question answers it as B does
@@ -5921,6 +6112,7 @@ begin
     BPM_ASK: PadAnswer(-1);
     BPM_BOOKS, BPM_AUDIO, BPM_QUEUE: PadHome(BPC_BOOK);
     BPM_MODELS: PadHome(BPC_MODEL);
+    BPM_CONTROLS: PadHome(BPC_CONTROLS);
     BPM_QUEUES: PadQueue(-1);
     BPM_JOB: PadQueue(FPadJob);
   else
@@ -5985,19 +6177,24 @@ begin
   if (miCalibrate <> nil) and miCalibrate.Enabled then
     Add(BPC_CALIBRATE, 'Calibrate (this model)', '');
   if (miCalibrateAll <> nil) and miCalibrateAll.Enabled and (FModelPath <> '') then
-    Add(BPC_CALIBRATE_ALL, 'Calibrate every model', 'all that are downloaded');
+    Add(BPC_CALIBRATE_ALL, 'Calibrate every model', 'All installed');
   if (miDiagnostics <> nil) and miDiagnostics.Enabled and (FModelPath <> '') then
     Add(BPC_DIAGNOSE, 'Diagnostics (this model)', 'four test runs');
   if (miDiagnosticsAll <> nil) and miDiagnosticsAll.Enabled and (FModelPath <> '') then
-    Add(BPC_DIAGNOSE_ALL, 'Diagnostics (every model)', 'all that are downloaded');
+    Add(BPC_DIAGNOSE_ALL, 'Diagnostics (every model)', 'All installed');
   Add(BPC_DEVICE, 'Device', Combo(cbDevice));
   if cbLanguage <> nil then
     Add(BPC_LANGUAGE, 'Language', Combo(cbLanguage));
   Add(BPC_POWER, 'Power', Combo(cbPower));
   Add(BPC_CHAPTERS, 'Chapters of a file are parts', IfThen(chkChapters.IsChecked, '< Yes >', '< No >'));
   Add(BPC_DARK, 'Dark mode', IfThen(FPadDark, '< Yes >', '< No >'));
-  Add(BPC_EXPERT, 'Expert mode (every model)', IfThen(FExpert, '< Yes >', '< No >'));
-  Add(BPC_OUTPUT, 'Output', ExtractFileName(edOut.Text));
+  Add(BPC_EXPERT, 'Expert mode', IfThen(FExpert, '< Yes >', '< No >'));
+  Add(BPC_CONTROLS, 'Controls', '');
+  // no book yet: the folder its copy will go to
+  if edOut.Text <> '' then
+    Add(BPC_OUTPUT, 'Output', ExtractFileName(edOut.Text))
+  else
+    Add(BPC_OUTPUT, 'Output', ExtractFileName(ExcludeTrailingPathDelimiter(FOutFolder)));
   if edBook.Text <> '' then
     Add(BPC_COVER, 'Cover', CoverChoiceText(FCoverChoice));
   if btnCreate.Enabled then
@@ -6009,7 +6206,7 @@ begin
   Add(BPC_EXIT, 'Exit', '');
   FPadMode := BPM_HOME;
   FPadFootTick := 0;
-  FPadMenu.Show('EpubBuilder', Items, Sel, BP_FOOT);
+  FPadMenu.Show('EpubBuilder', Items, Sel, PadFoot);
 end;
 
 procedure TfrmBuilder.PadColors;
@@ -6148,7 +6345,16 @@ begin
         BPC_AUDIO: PadAudioList(False);
         BPC_MODEL: PadModels;
         BPC_DEVICE, BPC_LANGUAGE, BPC_POWER, BPC_CHAPTERS, BPC_DARK, BPC_EXPERT: PadStep(1);
-        BPC_OUTPUT: WindowLine('Output: ' + edOut.Text);
+        BPC_OUTPUT:
+          // owner, 2026-11-22: the row "does nothing (just prints Output:
+          // on screen)" - said in the menu now, with the folder when no
+          // book is chosen yet
+          if edOut.Text <> '' then
+            Tell('The read-along book is written to:' + sLineBreak + edOut.Text)
+          else
+            Tell('No book is chosen yet. Its read-along copy will be written into:' + sLineBreak + FOutFolder +
+              sLineBreak + sLineBreak + 'Tools > Output folder (on the desktop) changes the folder.');
+        BPC_CONTROLS: PadControls;
         BPC_COVER: ShowCoverPicker;
         BPC_CREATE, BPC_ADD, BPC_UPDATE:
           begin
@@ -6247,6 +6453,9 @@ begin
           PADROW_BROWSE: PadAudioList(True);
           PADROW_KEEP, PADROW_BACK: PadHome(BPC_AUDIO);
         end;
+    BPM_CONTROLS:
+      if Cmd = PADROW_BACK then
+        PadHome(BPC_CONTROLS);
     BPM_QUEUES:
       if (Cmd >= 0) and (Cmd <= High(FPadBooks)) then
       begin
@@ -6668,7 +6877,7 @@ begin
   FPadCmds := FPadCmds + [PADROW_BACK];
   FPadMode := BPM_QUEUE;
   FPadFootTick := 0;
-  FPadMenu.Show('Queue', Items, Sel, BP_FOOT);
+  FPadMenu.Show('Queue', Items, Sel, PadFoot);
 end;
 
 procedure TfrmBuilder.PadSaveQueue;
@@ -6801,7 +7010,7 @@ begin
   Items := Items + [TPadMenu.Item('Back')];
   FPadCmds := FPadCmds + [PADROW_BACK];
   FPadMode := BPM_MODELS;
-  FPadMenu.Show('Model', Items, Sel, 'large-v3-turbo: the most accurate - base: several times faster, nearly as good');
+  FPadMenu.Show('Model', Items, Sel, 'turbo: the most accurate - base: several times faster, nearly as good');
 end;
 
 procedure TfrmBuilder.PadJob(AIndex: Integer);
@@ -7321,7 +7530,7 @@ begin
     // empty Model list)
     FCalibPending := True;
     LogLine('Not calibrated for this machine yet, and there is no model to calibrate: choose one in Model ' +
-      '(large-v3-turbo is a good first choice; it is downloaded when chosen) - the calibration is offered then.');
+      '(turbo is a good first choice; it is downloaded when chosen) - the calibration is offered then.');
     Exit;
   end;
   Model := ExtractFileName(FModelPath);
@@ -7581,7 +7790,7 @@ begin
   if FModelPath = '' then
   begin
     LogLine('Calibration not started: choose a model in the Model list first (one not downloaded yet is ' +
-      'downloaded when chosen; large-v3-turbo is a good first choice).');
+      'downloaded when chosen; turbo is a good first choice).');
     Exit;
   end;
   // the recording: the one used before, else media/aladdin.m4a beside the

@@ -180,6 +180,20 @@ function ModelCatalogueIndex(const AName: string): Integer;
   @returns(True for base and large-v3-turbo) }
 function ModelIsStandard(const AName: string): Boolean;
 
+{ What the lists call model AName (owner, 2026-11-22): 'turbo' for
+  large-v3-turbo, 'large' for large-v3, AName itself for the others. The
+  files and the downloads keep whisper.cpp's names.
+  @returns(the label) }
+function ModelLabel(const AName: string): string;
+
+{ The catalogue in the order the model list shows it (owner, 2026-11-22):
+  base and large-v3-turbo first, always; then the models of every language,
+  those in AModelsFolder before those still to download, each smallest
+  first; the English-only (.en) models at the very end in the same way.
+  @param(AModelsFolder  where the model files are)
+  @returns(places in MODEL_CATALOGUE) }
+function ModelListOrder(const AModelsFolder: string): TArray<Integer>;
+
 { About AMB megabytes for people: '142 MB', '1.5 GB'; 'a few MB' for 0 (not
   known).
   @returns(the text) }
@@ -271,6 +285,65 @@ begin
     if SameText(MODEL_STANDARD[I], AName) then
       Exit(True);
   Result := False;
+end;
+
+function ModelLabel(const AName: string): string;
+begin
+  if SameText(AName, 'large-v3-turbo') then
+    Result := 'turbo'
+  else if SameText(AName, 'large-v3') then
+    Result := 'large'
+  else
+    Result := AName;
+end;
+
+function ModelListOrder(const AModelsFolder: string): TArray<Integer>;
+
+  { Where model AIndex belongs: the standard ones first (in
+    MODEL_STANDARD's order), then every language (in the folder, to
+    download), then English only (in the folder, to download); within a
+    group by size. }
+  function Rank(AIndex: Integer): Integer;
+  var
+    K, Group: Integer;
+    ModelName: string;
+  begin
+    ModelName := MODEL_CATALOGUE[AIndex].Name;
+    for K := 0 to Length(MODEL_STANDARD) - 1 do
+      if SameText(MODEL_STANDARD[K], ModelName) then
+        Exit(K);
+    if ModelName.EndsWith('.en', True) then
+      Group := 4
+    else
+      Group := 2;
+    if not FileExists(TPath.Combine(AModelsFolder, ModelFileName(ModelName))) then
+      Inc(Group);
+    Result := Group * 100000 + MODEL_CATALOGUE[AIndex].SizeMB;
+  end;
+
+var
+  I, J, Held: Integer;
+  Ranks: TArray<Integer>;
+begin
+  SetLength(Result, Length(MODEL_CATALOGUE));
+  SetLength(Ranks, Length(MODEL_CATALOGUE));
+  for I := 0 to Length(MODEL_CATALOGUE) - 1 do
+  begin
+    Result[I] := I;
+    Ranks[I] := Rank(I);
+  end;
+  // few rows: sorted by insertion (equal ranks keep the catalogue's order)
+  for I := 1 to Length(Result) - 1 do
+  begin
+    Held := Result[I];
+    J := I - 1;
+    while (J >= 0) and (Ranks[Result[J]] > Ranks[Held]) do
+    begin
+      Result[J + 1] := Result[J];
+      Dec(J);
+    end;
+    Result[J + 1] := Held;
+  end;
 end;
 
 function ModelSizeText(AMB: Integer): string;

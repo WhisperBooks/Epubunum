@@ -64,7 +64,7 @@ The **Model** list offers two of whisper.cpp's models:
 
 | Model | For | Words not heard on a first pass |
 |---|---|---|
-| large-v3-turbo | the most accurate: the first choice | 1.2 % |
+| turbo (whisper.cpp's large-v3-turbo) | the most accurate: the first choice | 1.2 % |
 | base | several times faster, nearly as accurate: slower machines, or a quick build | 2.0 % |
 
 These two came out of timing and scoring all ten models on seven machines
@@ -76,11 +76,15 @@ within a point of it. The English-only models (the `.en` ones) decoded
 many passages again and so were slower in a build than their twins.
 
 **Tools > Unlock expert mode (every model)** - in Big Picture **Expert
-mode (every model)** - puts all ten in the list, smallest first (tiny.en,
-tiny, base.en, base, small.en, small, medium.en, medium, large-v3-turbo,
-large-v3), with the other `ggml-*.bin` files of the models folder and
-**Other model file ...**, which takes one from anywhere. It is kept until
-turned off. A model already in use stays in the list either way.
+mode** - puts all ten in the list: base and turbo first, always; then
+the models of every language (tiny, small, medium, large), those
+installed before those still to download, each smallest first; the
+English-only ones (tiny.en, base.en, small.en, medium.en) at the very
+end in the same way. The list says **turbo** for large-v3-turbo and
+**large** for large-v3; the files, the queue files and the logs keep
+whisper.cpp's names. After them come the other `ggml-*.bin` files of
+the models folder and **Other model file ...**, which takes one from
+anywhere. Expert mode is kept until turned off. A model already in use stays in the list either way.
 
 One not downloaded yet says how large it is; choosing it
 asks, then downloads it from whisper.cpp's model repository on Hugging
@@ -654,7 +658,7 @@ capitals, which transcript was used, when it was made and with which
 model. It is the same JSON as WhisperConsole `--json`, so
 `WhisperConsole --from-json` reads it too.
 
-## Big Picture (a pad)
+## Big Picture (a pad, the keyboard, the mouse, a finger)
 
 Started from Steam in Big Picture (or Game Mode on a Steam Deck / Steam
 Machine), EpubBuilder opens its pad menu over the window - no file
@@ -675,20 +679,36 @@ model list):
   show it in the window, Up, Down, Remove) - Queue is selected after Add
   to queue;
 - **Model**: a list of every model - here, or its size to download
-  (choosing one not here asks to download it; large-v3-turbo is a good
+  (choosing one not installed asks to download it; turbo is a good
   first choice);
 - **Device**, **Language**, **Power**, **Chapters of a file are parts**:
   left / right change them;
-- **Output** (shown), **Cover**, **Create**, **Update job**, **Cancel**,
-  **Calibrate (this model)**, **Exit**.
+- **Output** (says where the book is written; with no book chosen yet,
+  the folder), **Cover**, **Create**, **Update job**, **Cancel**,
+  **Calibrate (this model)**, **Expert mode**, **Controls**, **Exit**.
 
-| Pad | |
-|---|---|
-| D-pad / stick | up / down; left / right change a value |
-| A | choose |
-| B | back (a question: no) |
-| Start / Menu | the menu / close it |
-| View / Select | the queue |
+| | Pad | Keyboard | Mouse, finger |
+|---|---|---|---|
+| up / down | D-pad / stick | Up / Down, W / S | the wheel |
+| change a value | left / right | Left / Right, A / D | |
+| choose | A | Enter | left click, tap |
+| back (a question: no) | B | Esc | right click |
+| the menu / close it | Start / Menu | Space | a click beside the menu closes it |
+| the queue | View / Select | Q | |
+
+The keys drive the menu while it shows; in Big Picture Space or Enter
+opens it. **Controls** lists these as they are bound now: Steam's
+pictures of the pad's own controls (their names when Steam has none), or
+the keys and the mouse when those were used last - the hints at the
+menu's foot change in the same way.
+
+Every button and key mapping has one definition: the tables of
+`tools/gen_reader_input.py`, which writes the Steam Input action
+manifest, the pads' layouts and, beside them, the menu's keys and
+pointer (Steam Input itself binds controllers only - a keyboard or a
+mouse is not one of its devices). The programs ask which *action* a key
+or a click means and act on the action as for a pad; no key is named in
+their own code. Layout revision 1.2.
 
 In Big Picture the window behind the menu is the log alone, full screen
 in large type (24) - no menu bar, columns or settings: the pad's menu has

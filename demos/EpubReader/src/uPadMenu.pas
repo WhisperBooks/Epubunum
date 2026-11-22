@@ -27,6 +27,21 @@ type
   { A row was clicked or tapped: its index. }
   TPadMenuChooseEvent = procedure(Sender: TObject; AIndex: Integer) of object;
 
+  { The mouse was used on the menu in a way that is not a row's click:
+    AGesture is PADMENU_RIGHT_CLICK, PADMENU_WHEEL_UP or
+    PADMENU_WHEEL_DOWN. }
+  TPadMenuGestureEvent = procedure(Sender: TObject; const AGesture: string) of object;
+
+const
+  { What OnGesture reports - the names of uReaderInput's READER_MENU_POINTER
+    (tools/gen_reader_input.py's MENU_POINTER). }
+  PADMENU_RIGHT_CLICK = 'right click';
+  { The wheel turned away from the user. }
+  PADMENU_WHEEL_UP = 'wheel up';
+  { The wheel turned towards the user. }
+  PADMENU_WHEEL_DOWN = 'wheel down';
+
+type
   { One row of the menu. }
   TPadMenuItem = record
     { The text. }
@@ -76,6 +91,13 @@ type
     FOnChoose: TPadMenuChooseEvent;
     { See OnClose. }
     FOnClose: TNotifyEvent;
+    { See OnGesture. }
+    FOnGesture: TPadMenuGestureEvent;
+    { See OnPointer. }
+    FOnPointer: TNotifyEvent;
+    { When the mouse wheel last moved the selection (ms): one row per
+      notch, not per event of a smooth wheel or a touch pad. }
+    FWheelTick: UInt64;
     { The rows drawn as selected or not. }
     procedure Paint;
     { The selected row scrolled into view. }
@@ -84,6 +106,13 @@ type
     procedure RowClick(Sender: TObject);
     { The shade clicked: closed. }
     procedure ShadeClick(Sender: TObject);
+    { A mouse button pressed on the shade, the box or a row: the right
+      one is OnGesture's PADMENU_RIGHT_CLICK. }
+    procedure AnyMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
+    { The mouse wheel over the menu: OnGesture's PADMENU_WHEEL_UP or
+      PADMENU_WHEEL_DOWN; with no OnGesture the selection moves a row
+      itself (the rows' scroll box does not scroll by itself). }
+    procedure AnyMouseWheel(Sender: TObject; Shift: TShiftState; WheelDelta: Integer; var Handled: Boolean);
     { The rows freed. }
     procedure ClearRows;
     { Height of a row. }
@@ -150,6 +179,17 @@ type
     property OnChoose: TPadMenuChooseEvent read FOnChoose write FOnChoose;
     { Closed by a click beside the box. }
     property OnClose: TNotifyEvent read FOnClose write FOnClose;
+    { The right mouse button pressed anywhere on the menu or its shade, or
+      the wheel turned over it. The menu does not decide what they mean:
+      the program asks its table of controls (EpubBuilder:
+      uReaderInput.ReaderMenuPointerAction) and acts on the action. Not
+      set: the right button does nothing and the wheel moves the
+      selection. }
+    property OnGesture: TPadMenuGestureEvent read FOnGesture write FOnGesture;
+    { The mouse or a finger was used on the menu (a click or tap, the
+      right button, the wheel), before what it does: the program's hints
+      can name keys and the mouse then, not a pad's buttons. }
+    property OnPointer: TNotifyEvent read FOnPointer write FOnPointer;
   end;
 
 implementation
@@ -193,6 +233,8 @@ begin
   FShade.Stroke.Kind := TBrushKind.None;
   FShade.HitTest := True;
   FShade.OnClick := ShadeClick;
+  FShade.OnMouseDown := AnyMouseDown;
+  FShade.OnMouseWheel := AnyMouseWheel;
   FShade.Visible := False;
   FBox := TRectangle.Create(Self);
   FBox.Parent := FShade;
@@ -201,6 +243,8 @@ begin
   FBox.YRadius := 16;
   FBox.Stroke.Thickness := 1;
   FBox.HitTest := True;
+  FBox.OnMouseDown := AnyMouseDown;
+  FBox.OnMouseWheel := AnyMouseWheel;
   FBox.Padding.Rect := TRectF.Create(PAD, PAD * 0.75, PAD, PAD * 0.75);
   FTitle := TLabel.Create(Self);
   FTitle.Parent := FBox;
@@ -239,6 +283,8 @@ begin
   FScroll.Parent := FBox;
   FScroll.Align := TAlignLayout.Client;
   FScroll.ShowScrollBars := False;
+  FScroll.OnMouseDown := AnyMouseDown;
+  FScroll.OnMouseWheel := AnyMouseWheel;
 end;
 
 destructor TPadMenu.Destroy;
@@ -383,6 +429,8 @@ begin
     R.Tag := I;
     R.HitTest := True;
     R.OnClick := RowClick;
+    R.OnMouseDown := AnyMouseDown;
+    R.OnMouseWheel := AnyMouseWheel;
     R.Padding.Rect := TRectF.Create(PAD / 2, 0, PAD / 2, 0);
     if Pics > 0 then
     begin
@@ -597,6 +645,8 @@ begin
   I := (Sender as TRectangle).Tag;
   FSelected := I;
   Paint;
+  if Assigned(FOnPointer) then
+    FOnPointer(Self);
   // later: the choice may close the menu, which frees this row
   TThread.ForceQueue(nil,
     procedure
@@ -606,8 +656,55 @@ begin
     end);
 end;
 
+procedure TPadMenu.AnyMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
+begin
+  if Button <> TMouseButton.mbRight then
+    Exit;
+  if Assigned(FOnPointer) then
+    FOnPointer(Self);
+  // later: what it means may show another list, which frees the row
+  // clicked
+  TThread.ForceQueue(nil,
+    procedure
+    begin
+      if Showing and Assigned(FOnGesture) then
+        FOnGesture(Self, PADMENU_RIGHT_CLICK);
+    end);
+end;
+
+procedure TPadMenu.AnyMouseWheel(Sender: TObject; Shift: TShiftState; WheelDelta: Integer; var Handled: Boolean);
+const
+  { A row at most this often, ms. }
+  WHEEL_MS = 60;
+var
+  T: UInt64;
+begin
+  Handled := True;
+  if (WheelDelta = 0) or (Length(FRows) = 0) then
+    Exit;
+  T := TThread.GetTickCount64;
+  if T - FWheelTick < WHEEL_MS then
+    Exit;
+  FWheelTick := T;
+  if Assigned(FOnPointer) then
+    FOnPointer(Self);
+  if Assigned(FOnGesture) then
+  begin
+    if WheelDelta > 0 then
+      FOnGesture(Self, PADMENU_WHEEL_UP)
+    else
+      FOnGesture(Self, PADMENU_WHEEL_DOWN);
+  end
+  else if WheelDelta > 0 then
+    Move(-1)
+  else
+    Move(1);
+end;
+
 procedure TPadMenu.ShadeClick(Sender: TObject);
 begin
+  if Assigned(FOnPointer) then
+    FOnPointer(Self);
   // a click on the box itself is the box's (HitTest), not the shade's
   if Assigned(FOnClose) then
     FOnClose(Self)
