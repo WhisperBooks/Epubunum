@@ -42,3 +42,7 @@ __pycache__/
 # release archives made by tools/redist.sh package
 redistributable_bin/packages/
 timings.txt
+
+# The websites: settings with passwords are never committed
+web/leaderboard/config.php
+web/**/leaderboard-config.php

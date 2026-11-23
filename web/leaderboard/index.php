@@ -57,7 +57,7 @@ header('X-Content-Type-Options: nosniff');
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>EpubUnum leaderboard<?= $current ? ' - ' . lb_h($current['name']) : '' ?></title>
+<title>epubunum leaderboard<?= $current ? ' - ' . lb_h($current['name']) : '' ?></title>
 <meta name="description" content="How fast different computers turn an audiobook into a read-along book with EpubBuilder's benchmark.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2316263f'/%3E%3Crect x='6' y='9' width='20' height='4' rx='2' fill='%23c9d3e3'/%3E%3Crect x='6' y='15' width='12' height='4' rx='2' fill='%23f0c84b'/%3E%3Crect x='20' y='15' width='6' height='4' rx='2' fill='%23c9d3e3'/%3E%3Crect x='6' y='21' width='16' height='4' rx='2' fill='%23c9d3e3'/%3E%3C/svg%3E">
 <style>
@@ -128,8 +128,8 @@ header('X-Content-Type-Options: nosniff');
 <div class="field">
   <div class="wrap">
     <header class="masthead">
-      <a class="name" href="https://www.epubunum.com/">EpubUnum</a>
-      <a href="https://www.epubunum.com/">What is EpubUnum?</a>
+      <a class="name" href="https://www.epubunum.com/">epubunum</a>
+      <a href="https://www.epubunum.com/">What is epubunum?</a>
     </header>
     <h1>The benchmark leaderboard</h1>
     <p>EpubBuilder's benchmark times how long a computer takes to transcribe a whole audiobook. The score
@@ -188,9 +188,10 @@ header('X-Content-Type-Options: nosniff');
 
 <footer>
   <div class="wrap">
-    <span>EpubUnum</span>
+    <span>epubunum</span>
     <span>Speed is the narration's length divided by the time: 60x means an hour of audio in a minute.
-      Power is what an NVIDIA card drew on average, of the limit it was held to.</span>
+      Power is what the graphics card typically drew (the median) and, where known, the limit it was held to;
+      for graphics built into a processor it is the whole chip's. Not every card reports it.</span>
   </div>
 </footer>
 

@@ -1,0 +1,5 @@
+# Visitors get the page and the three endpoints; nothing else in the folder.
+<FilesMatch "^(lib\.php|config(\.sample)?\.php|schema\.sql|README\.md)$">
+  Require all denied
+</FilesMatch>
+Options -Indexes

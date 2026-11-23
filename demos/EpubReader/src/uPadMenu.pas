@@ -779,7 +779,6 @@ begin
   W := Max(Min(W, MaxW), FFontSize * 12);
   H := PAD * 1.5 + RowHeight * (1 + Min(Length(AItems), MAX_ROWS)) + PAD / 2 + 1;
   // the text's height at the box's width, measured
-  BodyH := 0;
   FBody.Visible := Body <> '';
   if Body <> '' then
   begin

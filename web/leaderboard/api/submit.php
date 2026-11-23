@@ -17,7 +17,7 @@
 //                  avg_watts, peak_watts, limit_watts
 //                                         what the card drew over the run
 //                                         and the limit it was held to, W
-//                                         (optional: NVIDIA cards only)
+//                                         (optional: where it can be read)
 // Answer (JSON):   ok true, status 'ok' | 'pending', improved, place,
 //                  count, best_ms (place is 0 while the run is pending and
 //                  the machine has no row on the board yet).

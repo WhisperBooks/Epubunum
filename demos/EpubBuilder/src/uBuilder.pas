@@ -1562,8 +1562,6 @@ type
     { tmIntro: the introduction shown, the first time or again, once the
       window's size has stood still. }
     procedure tmIntroTimer(Sender: TObject);
-    { Settings > Expert mode. }
-    procedure miExpertClick(Sender: TObject);
     { Settings > Re-calibrate (this model). }
     procedure miCalibrateClick(Sender: TObject);
     { Settings > Re-calibrate every model. }
@@ -1636,6 +1634,10 @@ var
 implementation
 
 uses
+  {$IF Defined(POSIX)}
+  // System.SysUtils.DeleteFile's inline body expands only with it (H2443)
+  Posix.Unistd,
+  {$ENDIF}
   System.Character, System.Generics.Defaults, System.SyncObjs,
   // the dark window: TBrushKind, and the style object behind the log
   FMX.Graphics, FMX.Styles.Objects,
@@ -4404,11 +4406,6 @@ begin
   else
     LogLine('Expert mode off: the model list offers base (fast) and turbo (the most accurate), and ' +
       'the model in use.');
-end;
-
-procedure TfrmBuilder.miExpertClick(Sender: TObject);
-begin
-  ToggleExpert;
 end;
 
 procedure TfrmBuilder.DownloadEveryModel;
@@ -9642,7 +9639,7 @@ begin
   else
     LogLine(Format('=== Benchmark: %s (%s) ===', [BENCH_NAMES[AOption], FormatDateTime('yyyy-mm-dd hh:nn',
       Now)]));
-  // what an NVIDIA card draws meanwhile (uGpuPower; ended in
+  // what the graphics card draws meanwhile (uGpuPower; ended in
   // BenchmarkDone)
   GpuPowerStart;
   StartJob(Job, -1, True);
@@ -9678,16 +9675,19 @@ begin
     FBoardMs[Option] := Round(ASummary.BenchSeconds * 1000);
     FBoardDetails[Option] := BoardDetails(ASummary);
     FWebScores[Option] := WebScore(Option, ASummary);
-    // the card it ran on, when it is NVIDIA's and tells its power: over
-    // the whole run (the model's loading and the book's writing too)
-    Card := GpuPowerFind(Cards, FWebScores[Option].Device);
+    // the card it ran on, when its power can be read (uGpuPower): the
+    // median of the whole run's readings. Not a run on the processor -
+    // its name would pass for an AMD card's
+    Card := -1;
+    if FWebScores[Option].Kind <> 'cpu' then
+      Card := GpuPowerFind(Cards, FWebScores[Option].Device);
     if Card >= 0 then
     begin
-      FWebScores[Option].AverageWatts := Cards[Card].AverageW;
+      FWebScores[Option].MedianWatts := Cards[Card].MedianW;
       FWebScores[Option].PeakWatts := Cards[Card].PeakW;
       FWebScores[Option].LimitWatts := Cards[Card].LimitW;
-      LogLine(Format('GPU power - %s: average %d W, highest %d W%s (%d readings).', [Cards[Card].Name,
-        Cards[Card].AverageW, Cards[Card].PeakW, IfThen(Cards[Card].LimitW > 0, Format(', held to %d W',
+      LogLine(Format('GPU power - %s: median %d W, highest %d W%s (%d readings).', [FWebScores[Option].Device,
+        Cards[Card].MedianW, Cards[Card].PeakW, IfThen(Cards[Card].LimitW > 0, Format(', held to %d W',
         [Cards[Card].LimitW]), ''), Cards[Card].Readings]));
     end;
     // every run, kept here too

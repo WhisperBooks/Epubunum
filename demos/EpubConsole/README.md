@@ -1,6 +1,6 @@
 # EpubConsole
 
-Console demo and smoke test of EpubUnum: `TEpubBook` directly, no component.
+Console demo and smoke test of epubunum: `TEpubBook` directly, no component.
 
 Build the packages first (`EpubUnum.groupproj` builds them in order): the
 demo takes the library's DCUs from the runtime package EpubUnum.

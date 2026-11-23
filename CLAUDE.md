@@ -149,6 +149,19 @@ handover, with its steps.
   during a benchmark (uGpuPower), logged, sent, shown on the site.
   WAITS FOR: the ALTER TABLE, the upload, a low and a high run on the
   5090 laptop - does "GPU power" appear and does the limit differ?
+- Zip 275: EpubBuilder.dproj back on Win64 (zips 273 / 274 had reset
+  it to Linux64 - PULL BEFORE TOUCHING A .dproj, its Platform line is
+  the owner's) and four compiler hints.
+- Zip 276: the power sent is the median of the readings (the field is
+  still avg_watts). ZIP 274 WORKS. Still open: does the limit (175 W)
+  move with the laptop's low profile?
+- Zip 277: THE NAME IS WRITTEN "epubunum" WHEREVER A USER READS IT
+  (sites, messages, READMEs' prose); folders and identifiers are not
+  renamed.
+- Zip 278: AMD cards' power on Linux (the kernel's hwmon files). THE
+  5090's PROFILES ARE THE CARD'S LIMIT: ~92 / 120 / 175 W. WAITS FOR:
+  the 1650 under Steam on Linux; a "GPU power" line on the Steam
+  Machine, the Deck or the Ally.
 - ZIP 270 COMPILED AND RAN (owner 13:27, four screenshots, the desktop
   window on the 5090): all four boards
   hold the seven machines, one Steam account each; no device cut short;
@@ -176,8 +189,8 @@ handover, with its steps.
   uInhibit).
 
 ### Where it stands
-- LAST NUMBER USED: 274 (Epubunum; 257 = this handover, CLAUDE.md
-  only; 258 - 274 = session 14), 32 (TWhisper). Never commit or push,
+- LAST NUMBER USED: 278 (Epubunum; 257 = this handover, CLAUDE.md
+  only; 258 - 278 = session 14), 32 (TWhisper). Never commit or push,
   and never offer to; the owner applies the zips and pushes.
 - PUSH STATE: not told this session. The owner's builds said "Build:
   2026-11-22 17:27, 65569dc" (commit 65569dc + the zips applied on top).
@@ -1450,7 +1463,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 274 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
+Last number used: 278 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
 next-session notes, CLAUDE.md only).
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
@@ -4038,6 +4051,112 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 278 (on top of zip 277): AMD cards' power on Linux
+Session 14, owner 2026-11-23 19:30: "AMD have 18.72% market - possibly
+worth trying?" (his figure). NOT COMPILED - and the AMD part cannot be
+tried here at all. Files: demos/common/uGpuPower.pas (rewritten),
+uWebBoard.pas (comments), demos/EpubBuilder/src/uBuilder.pas,
+README.md; web/leaderboard/index.php (the footer), api/submit.php,
+schema.sql, README.md (words); CLAUDE.md. No .dproj, no ALTER TABLE.
+- WHY LINUX ONLY: there it is a file - /sys/class/drm/cardN/device
+  (vendor 0x1002) /hwmon/hwmonM/power1_average (a card of its own) or
+  power1_input (a processor's graphics: THE WHOLE CHIP), microwatts;
+  power1_cap the limit where there is one. On Windows it needs AMD's
+  ADL / ADLX library, and the owner's three AMD machines (Steam
+  Machine, Deck, Ally) all run SteamOS - nothing could try it.
+- uGpuPower: one reader, two kinds of card (TGpuPower.Vendor 'nvidia' |
+  'amd'); FindNvidia / FindAmd each fail alone. GpuPowerFind: NVIDIA by
+  name; AMD when the description says AMD / Radeon / RADV and the
+  machine has exactly ONE AMD card (the files carry no name). The
+  builder does not ask for a run on the processor (an AMD processor's
+  name would pass). The log's line names the benchmark's device.
+- THE LOW / MEDIUM / HIGH FINDING (5090 laptop, the site read from
+  here): the maker's profile IS the card's limit - about 92 / 120 /
+  175 W. The detailed model wants ~115 W, the fast one ~67 W: medium =
+  high within 2 %; low costs 45 - 65 % (the fast model too - the
+  processor is held back as well, unseen). The limit drifts (116 - 127
+  on medium) and the highest readings pass it (the limit is read once,
+  at the start).
+- The IdeaPad's GTX 1650 on Linux: nvidia-smi shows 1 W of 70 W,
+  libnvidia-ml.so.1 is there - a run under Steam was started at 19:10
+  (does Steam's container pass the library? NOT KNOWN YET).
+- NOT KNOWN: which of power1_average / power1_input the Deck, the Ally
+  and the Steam Machine have, and that /sys is readable inside Steam's
+  container.
+
+## Zip 277 (on top of zip 276): the name is written "epubunum"
+Session 14, owner 2026-11-23 18:43: "Can we make the name epubunum
+everywhere it's displayed to the user - no caps". NOT COMPILED. Files:
+web/www/index.html, web/leaderboard/index.php (every occurrence: the
+titles, the mastheads, the sentences, the footers),
+demos/common/uEpubUnum.pas (two messages), README.md and the four
+demos' README.md (prose only), CLAUDE.md.
+- THE RULE (STANDING): where a user reads the name it is "epubunum",
+  also at a sentence's start. The programs keep their names
+  (EpubBuilder, EpubReader, BookManager - not asked).
+- NOT CHANGED, ON PURPOSE - SAID TO THE OWNER: the folders
+  (EPUBUNUM_NAME = 'EpubUnum': Documents/EpubUnum, %APPDATA%\EpubUnum,
+  ~/.config/EpubUnum - a rename would lose every user's settings and
+  books on Linux, where case counts, unless they are moved), file,
+  unit, package and class names, PROG_ID, the environment variables,
+  the zips' names, and Steam's own name of the app (Steamworks: his).
+  CLAUDE.md's own text keeps the old spelling (not a user's reading).
+
+## Zip 276 (on top of zip 275): the power's median, not its mean
+Session 14, owner 2026-11-23 18:30 - 18:31: "how frequently do we
+sample power?" (once a second); "Shouldn't we use mean?" (it was the
+mean; said that loading and writing pull it down, offered the
+transcription's mean or the median) - "median then". NOT COMPILED.
+Files: demos/common/uGpuPower.pas, uWebBoard.pas,
+demos/EpubBuilder/src/uBuilder.pas, README.md; web/leaderboard/
+index.php (the footer's sentence), schema.sql and README.md (words
+only); CLAUDE.md. No .dproj. No ALTER TABLE.
+- uGpuPower keeps every reading (grown 900 at a time), sorts at the
+  end: TGpuPower.MedianW (was AverageW). The log: "GPU power - ...:
+  median 109 W, highest 130 W, held to 175 W (137 readings)."
+- THE SITE'S NAMES STAYED: the JSON field and the column are still
+  avg_watts and now hold the median (said in uWebBoard, schema.sql and
+  the site's README) - a rename would have cost the owner another
+  ALTER and an upload in step. Rows from zips 274 / 275 hold means
+  until a faster run replaces them.
+- ZIP 274 WORKS (owner 18:13, log + site): four "GPU power" lines'
+  worth on the 5090 laptop - 103 / 63 / 109 W on short detailed / long
+  fast / long detailed, held to 175 W. A board's row is the BEST run:
+  its power is that run's (short fast stayed without one - an earlier
+  run was 0.1 s faster).
+- dGPU-only mode (a reboot): the builder calibrated again (the device
+  list changed - right) - turbo 99.0x against 97.7x hybrid, base 122.7x
+  against 136.8x (noise); benchmarks "marginally faster".
+
+## Zip 275 (on top of zip 274): the builder's project back on Win64; four hints
+Session 14, owner 2026-11-23 18:03 (four compiler hints, "For next
+zip") and 18:07: "Pull - this is why I messed up last time - you reset
+my builds to Linux64 - latest has Win64". NOT COMPILED. Files:
+demos/EpubBuilder/EpubBuilder.dproj, src/uBuilder.pas,
+demos/common/uWebBoard.pas, demos/EpubReader/src/uPadMenu.pas,
+CLAUDE.md; and AGAIN, because the repository (1310cf6) does not have
+them: .gitignore, web/leaderboard/.htaccess, config.sample.php,
+api/register.php (zip 272's). STILL TO DELETE in the repository:
+tools/leaderboard_schema.sql.
+- WHAT HAPPENED: this working copy was cloned at 6f7515b, whose .dproj
+  files say Platform Linux64. The owner had since set Win64 (22bc9b7).
+  Zips 273 and 274 carried EpubBuilder.dproj (a unit added each time)
+  made from the OLD file - unpacking them put the builder back on
+  Linux64, twice, and he built and tested the wrong program. 1310cf6
+  still has that Linux64 file for the builder (the other five projects
+  are Win64 there).
+- THE RULE (STANDING): before a .dproj is changed, PULL and make the
+  change on the repository's file; the line
+  <Platform Condition="'$(Platform)'==''"> is the OWNER'S and goes back
+  exactly as it came. Say in the delivery that a .dproj is in the zip.
+- Done here: EpubBuilder.dproj = 22bc9b7's (Win64, its ProjectName
+  line) + the two units; the other five .dproj taken from 1310cf6.
+- The hints: System.NetConsts in uWebBoard's uses (H2443); uPadMenu's
+  unused BodyH := 0 gone (H2077; the unit is the reader's too);
+  Posix.Unistd in uBuilder's implementation uses under POSIX (H2443);
+  miExpertClick gone, declaration and body (H2219 - its menu item went
+  with zip 260; ToggleExpert is what the Settings page calls).
 
 ## Zip 274 (on top of zip 273): an NVIDIA card's power with a score
 Session 14, owner 2026-11-23 17:12 - 17:55: the laptop's OWN power

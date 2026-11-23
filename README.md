@@ -1,4 +1,4 @@
-# EpubUnum - EPUB books for Delphi (FMX)
+# epubunum - EPUB books for Delphi (FMX)
 
 Reads EPUB 2 and EPUB 3 books - metadata, reading order, contents, cover,
 the text word by word, and **media overlays** (EPUB 3 synced audio) - and
@@ -32,7 +32,7 @@ overlays the same way and would draw the layout model with its own view.
     protected books are refused, never decrypted.
   - `Epub.Components` - `TCustomEpub`, the base of the component.
 - `fmx/` - `TEpubUnum` (the book), `TEpubView` (Skia page view) and their
-  design-time registration (palette page "EpubUnum").
+  design-time registration (palette page "epubunum").
 - `demos/EpubReader` - the reader (FMX, Skia): contents, pages, play with
   highlighting; its sound is TFFMpegAPI's player (FFmpeg streamed to
   WASAPI / PulseAudio), so the reader also needs TFFMpegAPI installed.
@@ -124,7 +124,7 @@ untouched, and no half written one.
   building from one).
 - **Audio chapter marks** (`AddAudioChapter(Title, Audio, Start)`): an
   audiobook's chapters, written to `epubunum-audio-chapters.xml` (manifest
-  id `eu-audio-chapters`, EpubUnum's own format - other readers ignore
+  id `eu-audio-chapters`, epubunum's own format - other readers ignore
   it). They mark places in the audio, not the text, so they survive any
   re-alignment.
 - **EPUB 2 books become EPUB 3** (overlays are EPUB 3 only): version 3.0,
@@ -221,7 +221,7 @@ the program carries on without it and says so in its log; neither program
 uses a Steam feature yet. A Steam build needs:
 
 - TSteamAPI's runtime packages `Steamworks` and `SteamworksFMX`, built for
-  the platform (their units come from Delphi's Dcp folder, as EpubUnum's
+  the platform (their units come from Delphi's Dcp folder, as epubunum's
   do). See TSteamAPI's `docs/Install-Delphi.md`.
 - The Steam library in `redistributable_bin/steam/` (see
   `redistributable_bin/README.md`). The Win64 build copies it next to the

@@ -18,8 +18,8 @@
   What is sent: at registration the operating system, the processor's
   name and the memory in GB; with a score the benchmark, the time, the
   recording's length, the words and the words matched, the model's file
-  name, the device's description, the build and the moment, and - an
-  NVIDIA card's only - the power it drew (uGpuPower). No name and
+  name, the device's description, the build and the moment, and - where
+  it can be read - the power the card drew (uGpuPower). No name and
   no Steam id for now.
 
   WebBoardSubmit works in a thread of its own (one at a time) and answers
@@ -65,9 +65,12 @@ type
     Channel: string;
     { When it ran, UTC. }
     RanAt: TDateTime;
-    { What the card drew over the run, W: the average (0 = not known -
-      uGpuPower reads NVIDIA's cards only). }
-    AverageWatts: Integer;
+    { What the card drew over the run, W: the median of the readings
+      (0 = not known - uGpuPower reads NVIDIA's cards, and AMD's on
+      Linux). Sent as
+      'avg_watts', the name the site's column got when it was the mean
+      (zip 274; the median from zip 276). }
+    MedianWatts: Integer;
     { The highest reading, W (0 = not known). }
     PeakWatts: Integer;
     { The limit the card was held to, W (0 = not known). }
@@ -116,6 +119,8 @@ implementation
 
 uses
   System.Classes, System.JSON, System.SyncObjs, System.Net.HttpClient, System.Net.URLClient,
+  // THTTPClient.SetContentType's inline body expands only with it (H2443)
+  System.NetConsts,
   uMachine;
 
 const
@@ -283,8 +288,8 @@ begin
   Body.AddPair('build', AScore.Build);
   Body.AddPair('channel', AScore.Channel);
   Body.AddPair('ran_at', FormatDateTime('yyyy"-"mm"-"dd hh":"nn":"ss', AScore.RanAt));
-  if AScore.AverageWatts > 0 then
-    Body.AddPair('avg_watts', TJSONNumber.Create(AScore.AverageWatts));
+  if AScore.MedianWatts > 0 then
+    Body.AddPair('avg_watts', TJSONNumber.Create(AScore.MedianWatts));
   if AScore.PeakWatts > 0 then
     Body.AddPair('peak_watts', TJSONNumber.Create(AScore.PeakWatts));
   if AScore.LimitWatts > 0 then

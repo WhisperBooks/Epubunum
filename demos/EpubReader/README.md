@@ -9,7 +9,7 @@ on the left.
 
 **TFFMpegAPI** (github.com/G3DGames/TFFMpegAPI) plays the sound: build its
 `FFmpegAPI.groupproj` first (the reader uses the runtime package FFmpegAPI's
-DCUs). Then build EpubUnum's packages (`EpubUnum.groupproj` builds them before
+DCUs). Then build epubunum's packages (`EpubUnum.groupproj` builds them before
 the demos) and install `dclEpubUnumFMX` to open the form in the designer.
 Skia is enabled for this project (Project > Enable Skia), so the IDE
 deploys Skia's library (`sk4d.dll`, `libsk4d.so`, ...) next to the program.
@@ -166,7 +166,7 @@ top-level Books and Transcribed folders ("<card>: <book>"). The books folder, ma
 - builds without Steam: Documents/EpubUnum/Books (shared with EpubBuilder;
   the books of Documents/EpubReader/Books are moved there, once, at the
   first start after the change - EpubReader's settings too, into the
-  EpubUnum settings folder).
+  epubunum settings folder).
 
 Copy books there (on a Steam Deck in Desktop Mode). Another folder can
 be named in the settings file, `"booksFolder": "..."`. Uninstalling the
@@ -264,7 +264,7 @@ the program), and the six FFmpeg 8 libraries listed under Sound (an LGPL
 build such as ffmpeg-dev's will do). Books made by EpubConsole
 `--overlay` carry their audio inside, so the .epub is all the reader needs.
 The program's icon is `EpubReader_Icon.ico` (Project > Options >
-Application > Icons, Win64), one of the EpubUnum set drawn by
+Application > Icons, Win64), one of the epubunum set drawn by
 `tools/make_icons.py` (Pillow): an open book with a highlighted word and
 a play badge - EpubBuilder's has a sound wave and a gear, BookManager's
 books on a shelf and arrows.

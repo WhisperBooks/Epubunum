@@ -8,13 +8,13 @@ highlighted, or in any reading system that plays media overlays.
 It does in one program what the file pipeline does in three steps
 (`EpubConsole --words`, `WhisperConsole --align-words --timings`,
 `EpubConsole --overlay`): TWhisper transcribes the audio with word times
-(DTW), aligns those words with the book's own words, and EpubUnum's
+(DTW), aligns those words with the book's own words, and epubunum's
 writer puts the times into the book.
 
 ## Before the first build
 
 Build, in order: TFFMpegAPI's `FFmpegAPI.groupproj`, TWhisper's packages
-(`WhisperAPI` first), then EpubUnum's group (`EpubUnum.groupproj` builds
+(`WhisperAPI` first), then epubunum's group (`EpubUnum.groupproj` builds
 the packages before the demos). EpubBuilder takes all their DCUs from
 Delphi's Dcp folder.
 
@@ -374,13 +374,20 @@ and how many were matched, the model, the device's description, the
 build and when it ran. No computer name, no user name and no Steam id:
 every row is "Anonymous" for now.
 
-With an NVIDIA card, the power it drew during the benchmark is read
-about once a second (through the driver's own library; nothing is
-installed) and logged - "GPU power - NVIDIA GeForce RTX 5090 Laptop GPU:
-average 142 W, highest 171 W, held to 175 W (212 readings)." - and sent
-with the score; the website shows it beside the device. A laptop's own
-power profile, which the program cannot ask about, shows there as a
-lower limit and a lower draw. Other cards, and cards that do not report
+With an NVIDIA card (Windows and Linux), or an AMD one on Linux, the
+power it drew during the benchmark is read about once a second (NVIDIA:
+through the driver's own library; AMD: from the files the Linux driver
+keeps; nothing is installed) and logged - "GPU power - NVIDIA GeForce RTX 5090 Laptop GPU:
+median 142 W, highest 171 W, held to 175 W (212 readings)." - and sent
+with the score; the website shows it beside the device.
+The median is used, not the mean: the card idles while the model loads
+and the book is written, and the median is what it drew while it worked.
+A laptop's own power profile, which the program cannot ask about, shows
+there as a lower limit and a lower draw (one laptop's three profiles
+hold its card to about 92, 120 and 175 W). For graphics built into a
+processor (the Steam Deck, a handheld) the figure is the whole chip's,
+processor included, and there is usually no limit to show. Other cards
+(Intel's, Apple's, AMD's on Windows), and cards that do not report
 their power, have no such line and an empty Power column.
 
 The log says what the site answered ("Website leaderboard - Long Text,
@@ -460,7 +467,7 @@ folder into a HIP folder and completes that from
 
 ## Icon
 
-`EpubBuilder_Icon.ico` (Win64; set in the project), one of the EpubUnum
+`EpubBuilder_Icon.ico` (Win64; set in the project), one of the epubunum
 set drawn by `tools/make_icons.py` (Pillow): an open book, text on one
 page and a sound wave on the other, with a gear badge - EpubReader's has a
 highlighted word and play, BookManager's books on a shelf and arrows.
@@ -509,7 +516,7 @@ folder for the next books (a folder that does not exist is not taken) -
 all kept between runs.
 
 The folders are shared with EpubReader: Documents/EpubUnum (Books,
-Audio, Transcribed, Covers, Queues) and one settings folder, EpubUnum
+Audio, Transcribed, Covers, Queues) and one settings folder, epubunum
 (EpubBuilder.ini and EpubReader.json side by side). At the first start
 after the change, what was in Documents/EpubBuilder and EpubBuilder's
 settings folder is moved in (Documents/EpubBuilder is renamed; settings,

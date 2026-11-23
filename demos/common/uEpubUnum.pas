@@ -237,7 +237,7 @@ begin
             end;
         end;
       end;
-      Log.Insert(0, Format('%s, %s: the shared EpubUnum folders (Documents: %s; settings: %s)', [AApp,
+      Log.Insert(0, Format('%s, %s: the shared epubunum folders (Documents: %s; settings: %s)', [AApp,
         FormatDateTime('yyyy-mm-dd hh:nn', Now), Docs, Config]));
       if Log.Count = 1 then
         Log.Add('Nothing to move.');
@@ -248,7 +248,7 @@ begin
         Result := Log.Text;
     except
       on Ex: Exception do
-        Result := 'The move to the shared EpubUnum folders stopped: ' + Ex.Message + sLineBreak + Log.Text;
+        Result := 'The move to the shared epubunum folders stopped: ' + Ex.Message + sLineBreak + Log.Text;
     end;
   finally
     Log.Free;

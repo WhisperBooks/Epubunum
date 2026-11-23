@@ -10,7 +10,7 @@ then:
   Transcribed folder at first, so the reader lists them);
 - shows its **progress** and its **log** as it works.
 
-Not a Steam program. It needs none of EpubUnum's packages, TWhisper or
+Not a Steam program. It needs none of epubunum's packages, TWhisper or
 FFmpeg: the link (`demos/common/uLink.pas`) is Indy, which comes with
 Delphi. Nothing to put beside the program.
 
@@ -125,7 +125,7 @@ BookManager connects).
 
 ## Remembered between runs
 
-`BookManager.ini` in the shared EpubUnum settings folder (Windows
+`BookManager.ini` in the shared epubunum settings folder (Windows
 `%APPDATA%\EpubUnum`, macOS `~/Library/Application Support/EpubUnum`,
 Linux `~/.config/EpubUnum`): the pairings ([Paired], one line per
 EpubBuilder), the EpubBuilder chosen last, the fetch folder and the
@@ -134,7 +134,7 @@ folder Add files... opens.
 ## Icon
 
 `BookManager_Icon.ico` (Windows; set in the project), one of the
-EpubUnum set (EpubReader, EpubBuilder, BookManager: the same navy tile,
+epubunum set (EpubReader, EpubBuilder, BookManager: the same navy tile,
 cream books and amber badge): books on a shelf, the badge's arrows up
 (sent) and down (fetched). Drawn by `tools/make_icons.py` (Pillow), with
 the other two - run it again to change them.

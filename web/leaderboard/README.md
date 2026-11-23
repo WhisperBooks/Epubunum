@@ -97,8 +97,9 @@ person's), `label` (what the owner calls the machine), `os`, `cpu`,
 `words_matched`, `model`, `device`, `device_kind` (`cpu`, `integrated`,
 `gpu`), `backend`, `build`, `channel` (`steam`, `direct`), `ran_at`
 (`YYYY-MM-DD HH:MM:SS`, UTC), optionally `name`, and `avg_watts`,
-`peak_watts`, `limit_watts` (what the card drew over the run and the
-limit it was held to; NVIDIA cards only; a value outside 1 - 2000 is not
+`peak_watts`, `limit_watts` (what the card drew over the run - `avg_watts`
+is the MEDIAN of the readings since EpubBuilder's zip 276, the mean in the
+few runs before; the name stayed - and the limit it was held to; NVIDIA cards, and AMD's on Linux; a value outside 1 - 2000 is not
 kept and the score still is). Answer: `status` (`ok`,
 `pending`), `improved`, `place`, `best_ms`, `count`.
 

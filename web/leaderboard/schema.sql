@@ -100,8 +100,8 @@ CREATE TABLE runs (
   audio_ms       INT UNSIGNED NOT NULL,        -- as the client measured it
   words          INT UNSIGNED NOT NULL,        -- of the chapter material
   words_matched  INT UNSIGNED NOT NULL,        -- heard as the book has them
-  avg_watts      SMALLINT UNSIGNED NULL,       -- the card's draw over the run
-  peak_watts     SMALLINT UNSIGNED NULL,       -- (NVIDIA cards only; NULL when
+  avg_watts      SMALLINT UNSIGNED NULL,       -- the card's draw: the MEDIAN
+  peak_watts     SMALLINT UNSIGNED NULL,       -- (where it can be read; NULL when
   limit_watts    SMALLINT UNSIGNED NULL,       -- not known) and its limit
   build          VARCHAR(40) NOT NULL,         -- '2026-11-23 02:34, 2ccbf89'
   channel        VARCHAR(8) NOT NULL,          -- 'steam' or 'direct'
