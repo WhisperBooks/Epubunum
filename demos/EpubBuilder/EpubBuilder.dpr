@@ -39,6 +39,10 @@ uses
   // Steam: only in the Steam / SteamDebug configurations (STEAMBUILD)
   uSteam in '..\common\uSteam.pas',
   uSteamBoard in '..\common\uSteamBoard.pas',
+  // the website's leaderboard (every build)
+  uWebBoard in '..\common\uWebBoard.pas',
+  // an NVIDIA card's power during a benchmark
+  uGpuPower in '..\common\uGpuPower.pas',
   // the pad in Big Picture: Steam Input with the reader's manifest (one per
   // Steam app) and the reader's pad menu
   uSteamPad in '..\common\uSteamPad.pas',

@@ -359,6 +359,35 @@ The four leaderboards are named `benchmark_short_fast`,
 `benchmark_long_detailed` in Steamworks; the first score sent to one
 makes it (lowest first, shown as a time in milliseconds).
 
+### The website's leaderboard
+
+While **Settings > Leaderboard** is Yes, every build - Steam or not -
+also sends each benchmark's score to <https://leaderboard.epubunum.com>,
+which ranks machines: each computer's best run is a row. Nothing is asked
+and nothing is needed: with no network the score simply stays here.
+
+What is sent: the first time, a random id made for this installation
+with the operating system, the processor's name and the memory (the site
+answers with a key; both are kept in the settings under `[Leaderboard]`);
+with a score, the benchmark, the time, the recording's length, the words
+and how many were matched, the model, the device's description, the
+build and when it ran. No computer name, no user name and no Steam id:
+every row is "Anonymous" for now.
+
+With an NVIDIA card, the power it drew during the benchmark is read
+about once a second (through the driver's own library; nothing is
+installed) and logged - "GPU power - NVIDIA GeForce RTX 5090 Laptop GPU:
+average 142 W, highest 171 W, held to 175 W (212 readings)." - and sent
+with the score; the website shows it beside the device. A laptop's own
+power profile, which the program cannot ask about, shows there as a
+lower limit and a lower draw. Other cards, and cards that do not report
+their power, have no such line and an empty Power column.
+
+The log says what the site answered ("Website leaderboard - Long Text,
+Fast Model: 3rd of 12."). The Results box shows the site's place when
+Steam is not running (with Steam it shows Steam's). The boards are read
+on the website; **Leaderboards** in the program shows Steam's.
+
 ## Build history and the time left
 
 Every build that transcribes adds a row to `EpubBuilder-history.csv`

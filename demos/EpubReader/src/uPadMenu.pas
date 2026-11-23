@@ -285,7 +285,8 @@ type
       leaderboards, owner 2026-11-23: "95% wide with 3 columns
       40/10/50%"), and makes the box as wide as NextWidthShare allows.
       The value column is never narrower than its widest value (the
-      third column gives way). A row's Key, when rows have one, is a
+      third column gives way, and its text is made smaller - down to two
+      thirds - when its widest entry would not fit). A row's Key, when rows have one, is a
       column of its own before the text, inside the text's share - a
       place on a leaderboard: right-aligned, in the text's size and
       colour, with room for seven digits whatever the rows hold (owner,
@@ -584,7 +585,7 @@ var
   Img: TImage;
   B: TBitmap;
   Icons: TLayout;
-  W, H, MaxW, MaxH, Icon, BodyH, ValW, Need, LeftW, Inner, ColText, ColValue: Single;
+  W, H, MaxW, MaxH, Icon, BodyH, ValW, Need, LeftW, Inner, ColText, ColValue, ThirdW, ThirdRoom, ThirdSize: Single;
   Body: string;
   TL: TTextLayout;
   Table: Boolean;
@@ -817,10 +818,28 @@ begin
     // shorter
     Inner := Max(W - PAD * 3, FFontSize * 12);
     ColText := Max(Inner * Cols[0] - LeftW, FFontSize * 6);
-    ColValue := Max(Inner * Cols[1], ValW);
+    // the value column: its share, or its widest value when that is
+    // wider - measured here (ValW is a menu's: eight font sizes at least,
+    // which on the Deck took the third column's room: owner's screenshot,
+    // 2026-11-23, the devices cut short)
+    ColValue := 0;
+    ThirdW := 0;
+    for I := 0 to High(AItems) do
+    begin
+      ColValue := Max(ColValue, TextW(AItems[I].Value, FFontSize * 0.9) + 8);
+      ThirdW := Max(ThirdW, TextW(AItems[I].Value2, FFontSize * 0.9) + 8);
+    end;
+    ColValue := Max(Inner * Cols[1], ColValue);
+    // the third column has the rest; its text smaller when the widest
+    // does not fit (not under two thirds of the menu's size)
+    ThirdSize := FFontSize * 0.9;
+    ThirdRoom := Inner - LeftW - ColText - ColValue - PAD;
+    if (ThirdW > ThirdRoom) and (ThirdRoom > 0) then
+      ThirdSize := Max(FFontSize * 0.66, ThirdSize * ThirdRoom / ThirdW);
     for I := 0 to High(Seconds) do
       if Seconds[I] <> nil then
       begin
+        Seconds[I].TextSettings.Font.Size := ThirdSize;
         Texts[I].Align := TAlignLayout.Left;
         Texts[I].Width := ColText;
         Texts[I].Position.X := LeftW;

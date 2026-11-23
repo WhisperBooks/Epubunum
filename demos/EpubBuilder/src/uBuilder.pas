@@ -19,7 +19,7 @@ uses
   Epub.Zip, Epub.Book, Epub.Layout, Epub.Writer, Epub.Mobi,
   FFmpeg.API, FFmpeg.Media,
   Whisper.Types, Whisper.API, Whisper.Audio, Whisper.Core, Whisper.Words, Whisper.Align, Whisper.AudioSet,
-  uDebugLog, uMachine, uCalibration, uHistory, uModels, uSteam, uSteamBoard, uInhibit, uQuitSignal, uSteamPad,
+  uDebugLog, uMachine, uCalibration, uHistory, uModels, uSteam, uSteamBoard, uWebBoard, uGpuPower, uInhibit, uQuitSignal, uSteamPad,
   uPadMenu, uCards,
   uRedraw, uLink, uCovers, uCoverPick, uEpubUnum, uBenchProgress, uMacWindow;
 
@@ -827,8 +827,9 @@ type
     FBenchHidden: Boolean;
     { The results shown again keep this row selected (-1: the last). }
     FBenchSel: Integer;
-    { The scores go to Steam's leaderboards ([Benchmark] Leaderboard in
-      the settings, Settings > Leaderboard; yes at first and not asked -
+    { The scores go to the leaderboards - Steam's when Steam runs, and
+      the website's (owner, 2026-11-23 16:42: "yes send to both") -
+      ([Benchmark] Leaderboard in the settings, Settings > Leaderboard; yes at first and not asked -
       owner, 2026-11-23: "just do it if leaderboard is checked in
       settings", "Default value ... is yes"). }
     FBoardUpload: Boolean;
@@ -845,6 +846,24 @@ type
     FBoardCount: array[1..4] of Integer;
     { The user's score on each leaderboard, ms (their best). }
     FBoardBest: array[1..4] of Integer;
+    { This installation on the website's leaderboard (uWebBoard): its
+      random id ([Leaderboard] Install in the settings; '' until the
+      first score is sent). }
+    FWebInstall: string;
+    { The key the site gave it ([Leaderboard] Key). }
+    FWebKey: string;
+    { This run's scores for the website's leaderboard. }
+    FWebScores: array[1..4] of TWebBoardScore;
+    { Each score's way to the website: 0 not sent, 1 being sent, 2 there
+      (FWebPlace, FWebCount, FWebBest), 3 not taken, 4 taken but not
+      shown until a person has looked. }
+    FWebState: array[1..4] of Integer;
+    { This machine's place on each of the website's boards. }
+    FWebPlace: array[1..4] of Integer;
+    { Each of the website's boards' rows. }
+    FWebCount: array[1..4] of Integer;
+    { This machine's best on each of the website's boards, ms. }
+    FWebBest: array[1..4] of Integer;
     { The leaderboard the menu shows or waits for (PadBoard). }
     FBoardShown: Integer;
     { Its page is the one around the user, not the top (left / right). }
@@ -1419,9 +1438,22 @@ type
       characters a number (no machine or user name: the privacy rule).
       @returns(the numbers) }
     function BoardDetails(const ASummary: TBuildSummary): TArray<Integer>;
-    { This run's scores to their leaderboards (Steam running, Settings >
-      Leaderboard on): each answers through BoardSent. }
+    { A device's description alone, from its text ('Vulkan0 - NVIDIA
+      GeForce RTX 5090 Laptop GPU (GPU, Vulkan, 22.7 of 23.6 GB free)').
+      @returns(the description: 'NVIDIA GeForce RTX 5090 Laptop GPU') }
+    function BoardDevice(const ADeviceText: string): string;
+    { A benchmark's score for the website's leaderboard: no machine or
+      user name (the privacy rule).
+      @returns(the score) }
+    function WebScore(AOption: Integer; const ASummary: TBuildSummary): TWebBoardScore;
+    { This run's scores to the leaderboards (Settings > Leaderboard on):
+      to Steam's when Steam runs, each answering through BoardSent, and
+      to the website's, each answering through WebSent. }
     procedure BoardSend;
+    { A score reached the website's leaderboard, or did not: the
+      installation's id and key kept, the log's line and the results
+      table again. }
+    procedure WebSent(const AResult: TWebBoardResult);
     { A score reached its leaderboard, or did not: the log's line (place
       and rows - no names) and the results table again. }
     procedure BoardSent(const AResult: TSteamBoardResult);
@@ -3457,6 +3489,8 @@ begin
       FPadDark := Ini.ReadBool('View', 'Dark', True);
       FExpert := Ini.ReadBool('Models', 'Expert', False);
       FBoardUpload := Ini.ReadBool('Benchmark', 'Leaderboard', True);
+      FWebInstall := Ini.ReadString('Leaderboard', 'Install', '');
+      FWebKey := Ini.ReadString('Leaderboard', 'Key', '');
       FLowestSpeed := EnsureRange(Round(StrToFloatDef(Ini.ReadString('Build', 'LowestSpeed', ''),
         LOWEST_SPEED_TOP / 10, TFormatSettings.Invariant) * 10), 0, LOWEST_SPEED_TOP);
       // not a change of the user's (which saves the settings half read)
@@ -3516,6 +3550,8 @@ begin
       Ini.WriteBool('View', 'Dark', FPadDark);
       Ini.WriteBool('Models', 'Expert', FExpert);
       Ini.WriteBool('Benchmark', 'Leaderboard', FBoardUpload);
+      Ini.WriteString('Leaderboard', 'Install', FWebInstall);
+      Ini.WriteString('Leaderboard', 'Key', FWebKey);
       Ini.WriteString('Build', 'LowestSpeed', FormatFloat('0.0', FLowestSpeed / 10, TFormatSettings.Invariant));
       // no longer kept (off at every start)
       Ini.DeleteKey('Build', 'UseSavedTranscript');
@@ -3625,6 +3661,7 @@ begin
   SaveSettings;
   // a leaderboard still asked for answers nobody
   SteamBoardsForget;
+  WebBoardForget;
   FreeAndNil(FLink);
   if FCalib <> nil then
   begin
@@ -9518,6 +9555,7 @@ begin
     FBoardMs[I] := 0;
     FBoardDetails[I] := nil;
     FBoardState[I] := 0;
+    FWebState[I] := 0;
     FBenchClock[I] := 0;
     FBenchPct[I] := 0;
   end;
@@ -9604,9 +9642,15 @@ begin
   else
     LogLine(Format('=== Benchmark: %s (%s) ===', [BENCH_NAMES[AOption], FormatDateTime('yyyy-mm-dd hh:nn',
       Now)]));
+  // what an NVIDIA card draws meanwhile (uGpuPower; ended in
+  // BenchmarkDone)
+  GpuPowerStart;
   StartJob(Job, -1, True);
   if FBuild = nil then
+  begin
     FBenchOption := -1;
+    GpuPowerStop;
+  end;
 end;
 
 procedure TfrmBuilder.BenchmarkDone(const ASummary: TBuildSummary; AOk: Boolean);
@@ -9615,7 +9659,10 @@ var
   OutFile: string;
   W: TStreamWriter;
   NewCsv: Boolean;
+  Cards: TArray<TGpuPower>;
+  Card: Integer;
 begin
+  Cards := GpuPowerStop;
   Option := FBenchOption;
   FBenchOption := -1;
   OutFile := FRunOut;
@@ -9630,6 +9677,19 @@ begin
     // for its leaderboard (BoardSend, once the run has ended)
     FBoardMs[Option] := Round(ASummary.BenchSeconds * 1000);
     FBoardDetails[Option] := BoardDetails(ASummary);
+    FWebScores[Option] := WebScore(Option, ASummary);
+    // the card it ran on, when it is NVIDIA's and tells its power: over
+    // the whole run (the model's loading and the book's writing too)
+    Card := GpuPowerFind(Cards, FWebScores[Option].Device);
+    if Card >= 0 then
+    begin
+      FWebScores[Option].AverageWatts := Cards[Card].AverageW;
+      FWebScores[Option].PeakWatts := Cards[Card].PeakW;
+      FWebScores[Option].LimitWatts := Cards[Card].LimitW;
+      LogLine(Format('GPU power - %s: average %d W, highest %d W%s (%d readings).', [Cards[Card].Name,
+        Cards[Card].AverageW, Cards[Card].PeakW, IfThen(Cards[Card].LimitW > 0, Format(', held to %d W',
+        [Cards[Card].LimitW]), ''), Cards[Card].Readings]));
+    end;
     // every run, kept here too
     try
       NewCsv := not FileExists(TPath.Combine(ExtractFileDir(OutFile), BENCH_RESULTS_FILE));
@@ -9726,22 +9786,83 @@ begin
   BenchShowResults;
 end;
 
+function TfrmBuilder.BoardDevice(const ADeviceText: string): string;
+var
+  P: Integer;
+begin
+  Result := ADeviceText;
+  P := Pos(' - ', Result);
+  if P > 0 then
+    Result := Copy(Result, P + 3, MaxInt);
+  P := Result.LastIndexOf(' (');
+  if P > 0 then
+    Result := Copy(Result, 1, P);
+  Result := Trim(Result);
+end;
+
+function TfrmBuilder.WebScore(AOption: Integer; const ASummary: TBuildSummary): TWebBoardScore;
+var
+  Text: string;
+  Parts: TArray<string>;
+  P: Integer;
+begin
+  Result := Default(TWebBoardScore);
+  Result.Board := BOARD_NAMES[AOption];
+  Result.ScoreMs := Round(ASummary.BenchSeconds * 1000);
+  Result.AudioMs := Round(ASummary.BenchAudioSeconds * 1000);
+  Result.Words := ASummary.BenchWords;
+  Result.Matched := ASummary.BenchMatched;
+  Result.Model := ExtractFileName(ASummary.Model);
+  Result.Build := BuildStamp;
+  if Result.Build = '' then
+    Result.Build := 'unknown';
+  Result.Channel := IfThen(SteamBuild, 'steam', 'direct');
+  Result.RanAt := TTimeZone.Local.ToUniversalTime(Now);
+  Result.Device := BoardDevice(ASummary.DeviceText);
+  if SameText(ASummary.Device, 'CPU') then
+  begin
+    Result.Kind := 'cpu';
+    Result.Backend := 'CPU';
+    // the processor's name says more than 'CPU'
+    if (Result.Device = '') or SameText(Result.Device, 'CPU') then
+      Result.Device := MachineCpu;
+  end
+  else
+  begin
+    Result.Kind := 'gpu';
+    // '... (GPU, Vulkan, 22.7 of 23.6 GB free)': the backend is second
+    Text := ASummary.DeviceText;
+    P := Text.LastIndexOf(' (');
+    if P > 0 then
+    begin
+      Parts := Copy(Text, P + 3, MaxInt).Split([', ']);
+      if Length(Parts) >= 2 then
+        Result.Backend := Trim(Parts[1]);
+    end;
+    if SameText(Result.Backend, 'MTL') then
+      Result.Backend := 'Metal';
+    // else the device's name without its number ('Vulkan0')
+    if Result.Backend = '' then
+    begin
+      Result.Backend := ASummary.Device;
+      while (Result.Backend <> '') and CharInSet(Result.Backend[Length(Result.Backend)], ['0'..'9']) do
+        SetLength(Result.Backend, Length(Result.Backend) - 1);
+    end;
+  end;
+  if Result.Device = '' then
+    Result.Device := ASummary.Device;
+  if Result.Device = '' then
+    Result.Device := 'unknown';
+  if Result.Backend = '' then
+    Result.Backend := 'unknown';
+end;
+
 function TfrmBuilder.BoardDetails(const ASummary: TBuildSummary): TArray<Integer>;
 var
   Dev: string;
-  P: Integer;
   Packed4: TArray<Integer>;
 begin
-  // 'Vulkan0 - NVIDIA GeForce RTX 5090 Laptop GPU (GPU, Vulkan, 22.7 of
-  // 23.6 GB free)': the description alone
-  Dev := ASummary.DeviceText;
-  P := Pos(' - ', Dev);
-  if P > 0 then
-    Dev := Copy(Dev, P + 3, MaxInt);
-  P := Dev.LastIndexOf(' (');
-  if P > 0 then
-    Dev := Copy(Dev, 1, P);
-  Dev := Trim(Dev);
+  Dev := BoardDevice(ASummary.DeviceText);
   SetLength(Result, BOARD_DEVICE_AT);
   Result[0] := BOARD_FORMAT;
   Result[1] := 0;
@@ -9756,16 +9877,78 @@ end;
 procedure TfrmBuilder.BoardSend;
 var
   I: Integer;
+  Web: TArray<TWebBoardScore>;
 begin
-  if not FBoardUpload or not SteamRunning then
+  if not FBoardUpload then
     Exit;
+  if SteamRunning then
+    for I := 1 to 4 do
+      if (FBenchScores[I] > 0) and (FBoardMs[I] > 0) and (FBoardState[I] = 0) then
+      begin
+        FBoardState[I] := 1;
+        // the place and the rows are all that is wanted here
+        SteamBoardSubmit(BOARD_NAMES[I], FBoardMs[I], FBoardDetails[I], 0, BoardSent);
+      end;
+  // the website's, Steam or not
+  Web := nil;
   for I := 1 to 4 do
-    if (FBenchScores[I] > 0) and (FBoardMs[I] > 0) and (FBoardState[I] = 0) then
+    if (FBenchScores[I] > 0) and (FBoardMs[I] > 0) and (FWebState[I] = 0) then
     begin
-      FBoardState[I] := 1;
-      // the place and the rows are all that is wanted here
-      SteamBoardSubmit(BOARD_NAMES[I], FBoardMs[I], FBoardDetails[I], 0, BoardSent);
+      FWebState[I] := 1;
+      Web := Web + [FWebScores[I]];
     end;
+  WebBoardSubmit(FWebInstall, FWebKey, Web, WebSent);
+end;
+
+procedure TfrmBuilder.WebSent(const AResult: TWebBoardResult);
+var
+  I, Option: Integer;
+begin
+  // the installation's id and key, made or changed: kept at once
+  if (AResult.InstallId <> '') and ((AResult.InstallId <> FWebInstall) or (AResult.Key <> FWebKey)) then
+  begin
+    FWebInstall := AResult.InstallId;
+    FWebKey := AResult.Key;
+    SaveSettings;
+  end;
+  Option := 0;
+  for I := 1 to 4 do
+    if SameText(BOARD_NAMES[I], AResult.Board) then
+      Option := I;
+  if (Option = 0) or (FWebState[Option] <> 1) then
+    Exit;
+  if AResult.Ok and AResult.Pending then
+  begin
+    FWebState[Option] := 4;
+    LogLine(Format('Website leaderboard - %s: the score was taken; it is shown once it has been looked at.',
+      [BENCH_NAMES[Option]]));
+  end
+  else if AResult.Ok and (AResult.Place > 0) then
+  begin
+    FWebState[Option] := 2;
+    FWebPlace[Option] := AResult.Place;
+    FWebCount[Option] := AResult.Count;
+    FWebBest[Option] := AResult.BestMs;
+    if AResult.Improved then
+      LogLine(Format('Website leaderboard - %s: %s of %d.', [BENCH_NAMES[Option], PlaceText(AResult.Place),
+        AResult.Count]))
+    else
+      LogLine(Format('Website leaderboard - %s: this machine''s best there is %s, %s of %d.',
+        [BENCH_NAMES[Option], BenchScore(AResult.BestMs / 1000), PlaceText(AResult.Place), AResult.Count]));
+  end
+  else
+  begin
+    FWebState[Option] := 3;
+    LogLine(Format('Website leaderboard - %s: the score was not added (%s).', [BENCH_NAMES[Option],
+      IfThen(AResult.Error <> '', AResult.Error, 'the site gave no place')]));
+  end;
+  // the table says it too, the row chosen kept
+  if FBenchResults and not FBenchHidden and (FPadMenu <> nil) and (FPadMode = BPM_ASK) and FPadMenu.Showing then
+  begin
+    FBenchSel := FPadMenu.Selected;
+    BenchShowResults;
+    FBenchSel := -1;
+  end;
 end;
 
 procedure TfrmBuilder.BoardSent(const AResult: TSteamBoardResult);
@@ -9785,16 +9968,16 @@ begin
     FBoardCount[Option] := AResult.Count;
     FBoardBest[Option] := AResult.Best;
     if AResult.Improved then
-      LogLine(Format('Leaderboard - %s: %s of %d.', [BENCH_NAMES[Option], PlaceText(AResult.Rank),
+      LogLine(Format('Steam leaderboard - %s: %s of %d.', [BENCH_NAMES[Option], PlaceText(AResult.Rank),
         AResult.Count]))
     else
-      LogLine(Format('Leaderboard - %s: your best there is %s, %s of %d.', [BENCH_NAMES[Option],
+      LogLine(Format('Steam leaderboard - %s: your best there is %s, %s of %d.', [BENCH_NAMES[Option],
         BenchScore(AResult.Best / 1000), PlaceText(AResult.Rank), AResult.Count]));
   end
   else
   begin
     FBoardState[Option] := 3;
-    LogLine(Format('Leaderboard - %s: the score was not added (%s).', [BENCH_NAMES[Option],
+    LogLine(Format('Steam leaderboard - %s: the score was not added (%s).', [BENCH_NAMES[Option],
       IfThen(AResult.Error <> '', AResult.Error, 'Steam gave no place')]));
   end;
   // the table says it too, the row chosen kept
@@ -9818,7 +10001,21 @@ begin
         Result := Format('   %s of %d', [PlaceText(FBoardRank[AOption]), FBoardCount[AOption]]);
     3: Result := '   not added to the leaderboard';
   else
-    Result := '';
+    // Steam's board has nothing to say (Steam is not running): the
+    // website's
+    case FWebState[AOption] of
+      1: Result := '   sending to the leaderboard ...';
+      2:
+        if FWebBest[AOption] < FBoardMs[AOption] then
+          Result := Format('   this machine''s best %s is %s of %d', [BenchScore(FWebBest[AOption] / 1000),
+            PlaceText(FWebPlace[AOption]), FWebCount[AOption]])
+        else
+          Result := Format('   %s of %d', [PlaceText(FWebPlace[AOption]), FWebCount[AOption]]);
+      3: Result := '   not added to the leaderboard';
+      4: Result := '   sent to the leaderboard';
+    else
+      Result := '';
+    end;
   end;
 end;
 

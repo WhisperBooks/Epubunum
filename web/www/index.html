@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EpubUnum - read along with the narrator</title>
+<meta name="description" content="EpubUnum joins a book to its audiobook so that each word lights up as it is read. It runs on your own computer: Windows, macOS, Linux and the Steam Deck.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2316263f'/%3E%3Crect x='6' y='9' width='20' height='4' rx='2' fill='%23c9d3e3'/%3E%3Crect x='6' y='15' width='12' height='4' rx='2' fill='%23f0c84b'/%3E%3Crect x='20' y='15' width='6' height='4' rx='2' fill='%23c9d3e3'/%3E%3Crect x='6' y='21' width='16' height='4' rx='2' fill='%23c9d3e3'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --ink: #16263f;        /* the deep blue of the field and of the text */
+    --ink-soft: #46566f;   /* secondary text on paper */
+    --paper: #f3f5f1;      /* the page's ground: a cool, faintly green white */
+    --sheet: #fdfdfb;      /* the book page in the hero */
+    --marker: #f0c84b;     /* the highlight: the yellow the programs use */
+    --mist: #c9d3e3;       /* text on the blue field */
+    --rule: #d5dad2;       /* hairlines on paper */
+    --book: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--ui);
+    font-size: 1.0625rem;
+    line-height: 1.6;
+  }
+  a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 0.2em; }
+  a:focus-visible, button:focus-visible { outline: 3px solid var(--marker); outline-offset: 3px; }
+  .wrap { max-width: 68rem; margin: 0 auto; padding: 0 1.5rem; }
+
+  /* ---- the field: name, what it is, and the thing itself ---- */
+  .field { background: var(--ink); color: var(--mist); }
+  .masthead { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; padding: 1.5rem 0; }
+  .name { font-family: var(--book); font-size: 1.5rem; color: #fff; letter-spacing: 0.01em; text-decoration: none; }
+  .masthead nav a { margin-left: 1.5rem; font-size: 0.95rem; white-space: nowrap; }
+  .hero { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 3.5rem; align-items: center;
+          padding: 3rem 0 5rem; }
+  .hero h1 {
+    font-family: var(--book); font-weight: 400; color: #fff;
+    font-size: clamp(2.6rem, 5.4vw, 4.4rem); line-height: 1.04; letter-spacing: -0.015em;
+    margin: 0 0 1.5rem;
+  }
+  .hero p { max-width: 34rem; margin: 0 0 1rem; }
+  .hero .status { color: #fff; }
+
+  /* the book page: the words light one after another, as in the reader */
+  .sheet {
+    background: var(--sheet); color: var(--ink);
+    border-radius: 4px; padding: 2.5rem 2.75rem 1.5rem;
+    box-shadow: 0 1.5rem 3rem rgba(4, 12, 28, 0.45);
+  }
+  .sheet h2 { font-family: var(--book); font-weight: 400; font-style: italic; font-size: 1.1rem; margin: 0 0 1.25rem;
+              color: var(--ink-soft); }
+  .passage { font-family: var(--book); font-size: clamp(1.15rem, 1.7vw, 1.4rem); line-height: 1.75; margin: 0; }
+  .passage span { border-radius: 3px; padding: 0.08em 0.12em; margin: 0 -0.12em; }
+  .passage span.now { background: var(--marker); }
+  .player { display: flex; align-items: center; gap: 1rem; margin-top: 1.5rem; padding-top: 1rem;
+            border-top: 1px solid var(--rule); font-size: 0.9rem; color: var(--ink-soft); }
+  .player button {
+    font: inherit; color: var(--ink); background: none; cursor: pointer;
+    border: 1px solid var(--ink); border-radius: 999px; padding: 0.3rem 1rem; min-width: 5.5rem;
+  }
+  .player button:hover { background: var(--ink); color: #fff; }
+
+  /* ---- paper: the rest ---- */
+  section { padding: 4.5rem 0; }
+  section + section { border-top: 1px solid var(--rule); }
+  h2.head { font-family: var(--book); font-weight: 400; font-size: clamp(1.8rem, 3vw, 2.4rem); line-height: 1.15;
+            margin: 0 0 2rem; letter-spacing: -0.01em; }
+  .lede { max-width: 40rem; color: var(--ink-soft); margin: -1rem 0 2.5rem; }
+
+  .steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+           gap: 2.5rem; counter-reset: step; }
+  .steps li { counter-increment: step; }
+  .steps li::before { content: counter(step); display: block; font-family: var(--book); font-size: 3rem; line-height: 1;
+                      color: var(--ink); margin-bottom: 0.75rem; }
+  .steps h3, .programs h3 { font-size: 1.1rem; margin: 0 0 0.4rem; }
+  .steps p, .programs p { margin: 0; color: var(--ink-soft); }
+
+  .programs { display: grid; grid-template-columns: 14rem minmax(0, 1fr); column-gap: 2.5rem; row-gap: 0; margin: 0; }
+  .programs dt, .programs dd { padding: 1.25rem 0; border-top: 1px solid var(--rule); margin: 0; }
+  .programs dt { font-family: var(--book); font-size: 1.35rem; }
+  .programs dd { color: var(--ink-soft); max-width: 40rem; }
+
+  table { border-collapse: collapse; width: 100%; max-width: 44rem; font-variant-numeric: tabular-nums; }
+  caption { text-align: left; color: var(--ink-soft); padding-bottom: 1rem; max-width: 40rem; }
+  th, td { text-align: left; padding: 0.7rem 0; border-top: 1px solid var(--rule); font-weight: 400; }
+  thead th { border-top: 0; color: var(--ink-soft); font-size: 0.95rem; }
+  td.time, th.time { text-align: right; white-space: nowrap; }
+  tbody tr:first-child td { font-weight: 600; }
+  .after { max-width: 40rem; color: var(--ink-soft); margin-top: 1.5rem; }
+
+  .promises { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2rem 3.5rem; margin: 0; padding: 0;
+              list-style: none; max-width: 56rem; }
+  .promises strong { display: block; margin-bottom: 0.25rem; }
+  .promises li { color: var(--ink-soft); }
+  .promises li strong { color: var(--ink); }
+
+  footer { background: var(--ink); color: var(--mist); padding: 2.5rem 0; font-size: 0.95rem; }
+  footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1rem 2rem; }
+  footer a { margin-right: 1.5rem; }
+
+  @media (max-width: 52rem) {
+    .hero { grid-template-columns: 1fr; gap: 2.5rem; padding: 1.5rem 0 3.5rem; }
+    .steps { grid-template-columns: 1fr; gap: 2rem; }
+    .programs { grid-template-columns: 1fr; }
+    .programs dd { border-top: 0; padding-top: 0; }
+    .promises { grid-template-columns: 1fr; }
+    .sheet { padding: 1.75rem 1.5rem 1.25rem; }
+    section { padding: 3.25rem 0; }
+    .masthead nav { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="field">
+  <div class="wrap">
+    <header class="masthead">
+      <a class="name" href="/">EpubUnum</a>
+      <nav aria-label="Site">
+        <a href="#how">How it works</a>
+        <a href="#programs">The programs</a>
+        <a href="#speed">Speed</a>
+      </nav>
+    </header>
+
+    <div class="hero">
+      <div>
+        <h1>Read along with the narrator.</h1>
+        <p>EpubUnum joins a book to its audiobook. Each word lights up as it is spoken, so you can follow the
+          text, find your place again, or learn how a language sounds while you read it.</p>
+        <p>It runs on your own computer: Windows, macOS, Linux and the Steam Deck.</p>
+        <p class="status">EpubUnum is in testing on Steam.</p>
+      </div>
+
+      <div class="sheet" aria-label="An example of a book being read aloud">
+        <h2>A Christmas Carol, Stave One</h2>
+        <p class="passage" id="passage">Marley was dead: to begin with. There is no doubt whatever about that.
+          The register of his burial was signed by the clergyman, the clerk, the undertaker, and the chief
+          mourner. Scrooge signed it: and Scrooge&rsquo;s name was good upon &rsquo;Change, for anything he
+          chose to put his hand to. Old Marley was as dead as a door-nail.</p>
+        <div class="player">
+          <button type="button" id="toggle" aria-pressed="false">Play</button>
+          <span>This is what a book looks like in the reader. There is no sound on this page.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<main>
+  <section id="how">
+    <div class="wrap">
+      <h2 class="head">From a book and a recording to one that reads along</h2>
+      <ol class="steps">
+        <li>
+          <h3>Choose the book and its audio</h3>
+          <p>An EPUB you own and the audiobook files of the same text. A book that is copy-protected is
+            turned away; nothing is ever unlocked.</p>
+        </li>
+        <li>
+          <h3>EpubBuilder listens</h3>
+          <p>Speech recognition on your own machine hears the narration and matches it to the book, word
+            by word. Nothing is sent anywhere.</p>
+        </li>
+        <li>
+          <h3>Open it in EpubReader</h3>
+          <p>Press play. The page turns by itself and the word being read is marked. The result is saved
+            as an EPUB 3 with its audio inside.</p>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="programs">
+    <div class="wrap">
+      <h2 class="head">Three programs</h2>
+      <dl class="programs">
+        <dt>EpubReader</dt>
+        <dd>Reads and plays your books, at a desk with keys and a mouse or from the sofa with a controller
+          on a television.</dd>
+        <dt>EpubBuilder</dt>
+        <dd>Makes the read-along book. It measures how fast your computer is first, tells you how long a
+          book will take, and can work through a queue of books while you do something else.</dd>
+        <dt>BookManager</dt>
+        <dd>Sends books and audio from one computer in your home to the one that does the work, and brings
+          the finished books back.</dd>
+      </dl>
+    </div>
+  </section>
+
+  <section id="speed">
+    <div class="wrap">
+      <h2 class="head">How long a book takes</h2>
+      <table>
+        <caption>EpubBuilder has a built-in benchmark. These are our own machines on its long test: A
+          Christmas Carol, a little over three hours of narration, with the more accurate of its two
+          models.</caption>
+        <thead>
+          <tr><th scope="col">Graphics</th><th scope="col" class="time">Time to transcribe</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>NVIDIA GeForce RTX 5090 Laptop</td><td class="time">2 min 5 s</td></tr>
+          <tr><td>AMD Steam Machine</td><td class="time">5 min 23 s</td></tr>
+          <tr><td>Apple M4</td><td class="time">7 min 8 s</td></tr>
+          <tr><td>NVIDIA GeForce GTX 1650</td><td class="time">13 min 17 s</td></tr>
+          <tr><td>Steam Deck</td><td class="time">26 min 3 s</td></tr>
+        </tbody>
+      </table>
+      <p class="after">On each of them, 99 words in 100 were matched to the book. A public leaderboard for
+        the benchmark is being set up at <a href="https://leaderboard.epubunum.com">leaderboard.epubunum.com</a>.</p>
+    </div>
+  </section>
+
+  <section id="yours">
+    <div class="wrap">
+      <h2 class="head">Your books stay yours</h2>
+      <ul class="promises">
+        <li><strong>Everything happens on your computer.</strong> The listening and the matching are done
+          by your own processor or graphics card. Your books and recordings are not uploaded.</li>
+        <li><strong>Copy protection is respected.</strong> A protected book is refused with a message. The
+          programs do not remove protection from anything.</li>
+        <li><strong>A standard file comes out.</strong> The finished book is an EPUB 3 with synced audio,
+          not a format of our own.</li>
+        <li><strong>The book library is open.</strong> The part that reads and writes EPUB files is
+          published on <a href="https://github.com/WhisperBooks/Epubunum">GitHub</a>.</li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>EpubUnum</span>
+    <span>
+      <a href="https://leaderboard.epubunum.com">Leaderboard</a>
+      <a href="https://github.com/WhisperBooks/Epubunum">GitHub</a>
+    </span>
+  </div>
+</footer>
+
+<script>
+  // The passage is read "aloud" without sound: each word is marked in
+  // turn, as EpubReader marks the word being spoken. It starts by itself
+  // unless the visitor has asked their system for less motion.
+  (function () {
+    var passage = document.getElementById('passage');
+    var button = document.getElementById('toggle');
+    if (!passage || !button) { return; }
+
+    var words = passage.textContent.trim().split(/\s+/);
+    passage.textContent = '';
+    var spans = words.map(function (word, i) {
+      var span = document.createElement('span');
+      span.textContent = word;
+      passage.appendChild(span);
+      if (i < words.length - 1) { passage.appendChild(document.createTextNode(' ')); }
+      return span;
+    });
+
+    var at = -1;
+    var timer = null;
+
+    function mark(index) {
+      if (at >= 0) { spans[at].classList.remove('now'); }
+      at = index;
+      if (at >= 0) { spans[at].classList.add('now'); }
+    }
+
+    // a word's time: longer words and the pause after punctuation
+    function pause(word) {
+      var ms = 170 + word.length * 38;
+      if (/[.:]$/.test(word)) { ms += 420; } else if (/[,;]$/.test(word)) { ms += 200; }
+      return ms;
+    }
+
+    function step() {
+      var next = at + 1;
+      if (next >= spans.length) {
+        mark(-1);
+        at = -1;
+        timer = setTimeout(step, 1600);
+        return;
+      }
+      mark(next);
+      timer = setTimeout(step, pause(words[next]));
+    }
+
+    function play() {
+      if (timer !== null) { return; }
+      button.textContent = 'Pause';
+      button.setAttribute('aria-pressed', 'true');
+      step();
+    }
+
+    function stop() {
+      clearTimeout(timer);
+      timer = null;
+      button.textContent = 'Play';
+      button.setAttribute('aria-pressed', 'false');
+    }
+
+    button.addEventListener('click', function () {
+      if (timer === null) { play(); } else { stop(); }
+    });
+
+    var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (calm) {
+      // still: a few words in, so the page shows what it is about
+      mark(3);
+    } else {
+      play();
+    }
+  })();
+</script>
+</body>
+</html>

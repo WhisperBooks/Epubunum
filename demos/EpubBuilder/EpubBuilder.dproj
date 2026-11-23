@@ -7,9 +7,8 @@
         <MainSource>EpubBuilder.dpr</MainSource>
         <Base>True</Base>
         <Config Condition="'$(Config)'==''">Steam</Config>
-        <Platform Condition="'$(Platform)'==''">Win64</Platform>
+        <Platform Condition="'$(Platform)'==''">Linux64</Platform>
         <TargetedPlatforms>135298</TargetedPlatforms>
-        <ProjectName Condition="'$(ProjectName)'==''">EpubBuilder</ProjectName>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Base' or '$(Base)'!=''">
         <Base>true</Base>
@@ -317,6 +316,8 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <DCCReference Include="..\common\uQuitSignal.pas"/>
         <DCCReference Include="..\common\uSteam.pas"/>
         <DCCReference Include="..\common\uSteamBoard.pas"/>
+        <DCCReference Include="..\common\uWebBoard.pas"/>
+        <DCCReference Include="..\common\uGpuPower.pas"/>
         <DCCReference Include="..\common\uSteamPad.pas"/>
         <DCCReference Include="..\EpubReader\src\uPadMenu.pas"/>
         <DCCReference Include="..\EpubReader\src\uReaderInput.pas"/>

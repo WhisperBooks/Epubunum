@@ -84,7 +84,15 @@ handover, with its steps.
   (non-Steam), the Apple TV. Design it once, in a shared unit (beside
   uLink); the on-screen code remains for the rest. TBD with the site. HTTPS from Delphi: System.Net.HttpClient (the
   system's TLS, no OpenSSL to ship) - not Indy.
-- ALL OF THE WEBSITE LEADERBOARD IS TBD (owner 03:51: "Mark everything
+- THE SITES ARE UP (owner 2026-11-23 16:13): https://link.epubunum.com, https://leaderboard.epubunum.com,
+  https://www.epubunum.com (= epubunum.com) - "all are https enabled and
+  currently have a default holding page. The deployed language is PHP
+  and MySQL can be provided". Looked at 16:14: each answers with Plesk's
+  "Domain Default page". So the hosting is Plesk; PHP + MySQL. The "do
+  not build until the site is up" below is lifted, but WHAT to build
+  first and the validation are still the owner's to say - asked.
+- (SUPERSEDED by zip 272 - kept for its reasoning:) ALL OF THE WEBSITE
+  LEADERBOARD IS TBD (owner 03:51: "Mark everything
   as TBD - it'll take a while for the website to come up"): the site,
   the PHP endpoint, the validation, and the draft MySQL schema written
   at 03:47 (asked: "Can we design a MySQL database schema"). The draft
@@ -125,6 +133,33 @@ handover, with its steps.
   and shows the rows that fit; left / right: top or around you.
 - Zip 269: zip 266 left menu rows unseen (TPadMenuItem.Color not set
   by TPadMenu.Item) - put right; no pad or keys while a benchmark runs.
+- Zip 270: the leaderboard's devices no longer cut short on the Deck
+  (268 and 269 compiled and ran: the Deck's screenshot, 06:46).
+- Zip 271: the landing page of www.epubunum.com (web/www/index.html).
+- Zip 272: the leaderboard site's server side (web/leaderboard: PHP +
+  MySQL; tested here against SQLite, not on the server). NEXT ON THE
+  SITES: the owner puts 271 and 272 up and says how the import went;
+  then EpubBuilder's side of the leaderboard; then link.epubunum.com.
+- BOTH SITES ARE UP (owner 16:42; the board's API read from here).
+- Zip 273: EpubBuilder sends each score to the website too (uWebBoard;
+  every build; anonymous). WAITS FOR: a benchmark on any machine and the
+  row on the site. Then: link.epubunum.com, or the boards read from the
+  site inside the program, or names - the owner's word.
+- ZIP 273 WORKS (owner 17:34). Zip 274: an NVIDIA card's power read
+  during a benchmark (uGpuPower), logged, sent, shown on the site.
+  WAITS FOR: the ALTER TABLE, the upload, a low and a high run on the
+  5090 laptop - does "GPU power" appear and does the limit differ?
+- ZIP 270 COMPILED AND RAN (owner 13:27, four screenshots, the desktop
+  window on the 5090): all four boards
+  hold the seven machines, one Steam account each; no device cut short;
+  the foot reads "Left Right around you / Esc back". The boards (s):
+  Short Fast 27.0 / 38.6 / 47.2 / 57.3 / 75.5 / 128.0 / 400.9; Short
+  Detailed 35.4 / 88.9 / 116.3 / 209.4 / 215.2 / 428.9 / 3933.3; Long
+  Fast 119.4 / 155.1 / 180.0 / 252.0 / 304.9 / 539.6 / 1693.6; Long
+  Detailed 125.4 / 323.2 / 428.4 / 774.8 / 797.4 / 1563.3 / 15832.3
+  (5090, then by place: M4 / Steam Machine / GTX 1650 / Ally / Deck /
+  Miix on Fast; Steam Machine / M4 / Ally / GTX 1650 / Deck / Miix on
+  Detailed). The Ally's runs are 5 - 11 % slower than the day before's.
 - THE MIIX'S BENCHMARKS (owner 02:51, build 65569dc, UHD 620 Vulkan,
   lowest speed set to 0.4): Short Fast
   7:53.060 (6.8x), Short Detailed 1:10:18.215 (0.76x), Long Fast
@@ -135,14 +170,14 @@ handover, with its steps.
   machines, both texts together, turbo / base: monster 91.0 / 102.5x,
   steam machine 35.2 / 62.7, mac 25.8 / 73.5, ally 15.4 / 42.1, ideapad
   14.2 / 46.4, deck 7.2 / 21.5, Miix 0.71 / 6.6.
-- NEXT: the owner's word on 258 - 260, 262, 266 - 269 and the Miix's results; then step
+- NEXT: the owner's word on 258 - 260, 262, 270 and the Miix's results; then step
   5 (the two builders - ask which form the limited one takes) and what
   is left of "Next" 5 below (the Mac's "no graphics card" line,
   uInhibit).
 
 ### Where it stands
-- LAST NUMBER USED: 269 (Epubunum; 257 = this handover, CLAUDE.md
-  only; 258 - 269 = session 14), 32 (TWhisper). Never commit or push,
+- LAST NUMBER USED: 274 (Epubunum; 257 = this handover, CLAUDE.md
+  only; 258 - 274 = session 14), 32 (TWhisper). Never commit or push,
   and never offer to; the owner applies the zips and pushes.
 - PUSH STATE: not told this session. The owner's builds said "Build:
   2026-11-22 17:27, 65569dc" (commit 65569dc + the zips applied on top).
@@ -1415,7 +1450,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 269 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
+Last number used: 274 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
 next-session notes, CLAUDE.md only).
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
@@ -4003,6 +4038,156 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 274 (on top of zip 273): an NVIDIA card's power with a score
+Session 14, owner 2026-11-23 17:12 - 17:55: the laptop's OWN power
+profile (maker's, not Windows', not the program's Power setting - asked,
+"(3)") made the benchmarks ~50 % slower on low; medium = high within
+1 - 4 %. "It would be nice if there was an easy, consistant way to read
+GPU power" (none across makers - said); "Most consumer PCs use nvidia
+... Steam Hardware survey puts it at 72.92%" (his figure, not checked);
+log only or the website too? "website too". NOT COMPILED. THE OWNER
+RUNS THE ALTER TABLE (web/leaderboard/README.md) BEFORE uploading the
+PHP. Files: demos/common/uGpuPower.pas (NEW), uWebBoard.pas,
+demos/EpubBuilder/src/uBuilder.pas, EpubBuilder.dpr / .dproj,
+README.md; web/leaderboard/schema.sql, lib.php, index.php, README.md,
+api/submit.php, api/board.php; tools/test_leaderboard.py; CLAUDE.md.
+- ZIP 273 COMPILED (Windows 64 and Linux 64) AND WORKS (owner 17:34,
+  log + the site read from here): registration and four scores answered
+  in 0.2 s, "1st of 1"; the medium run replaced the four rows. Two
+  earlier "nothing arrives" were builds without it (the zip not
+  unpacked; then Linux64 built instead of Win64 - the third time this
+  session: the debug log's "Build:" line tells).
+- uGpuPower: NVML loaded at run time (nvml.dll / libnvidia-ml.so.1;
+  Windows and Linux; a stub elsewhere), a thread reading every card's
+  nvmlDeviceGetPowerUsage each second from GpuPowerStart (before
+  StartJob of a benchmark) to GpuPowerStop (first thing in
+  BenchmarkDone); the limit from nvmlDeviceGetEnforcedPowerLimit.
+  GpuPowerFind matches the benchmark's device by name. The average is
+  over the WHOLE run (loading and writing too). Log: "GPU power - ...".
+- The site: runs.avg_watts / peak_watts / limit_watts (NULL when not
+  sent; a value outside 1 - 2000 dropped, the run kept); board.php
+  gives them; index.php has a Power column ("142 W of 175"). The test
+  has 36 checks now.
+- The Steam board's log lines begin "Steam leaderboard - " (the owner
+  took them for the website's).
+- NOT KNOWN: that the owner's laptop reports its power ("fairly sure it
+  does"); that NVML is reachable inside Steam's Linux runtime; whether
+  the limit moves with the maker's profile (the reason it is recorded).
+- The owner emptied `benchmarks` by mistake at 17:29 (put back with the
+  INSERT given): it is the list of boards - README says so now.
+
+## Zip 273 (on top of zip 272): EpubBuilder sends its scores to the website
+Session 14, owner 2026-11-23 16:42 (asked three things with zip 272):
+"All up, yes send to both, for now anonymous is fine". The site was
+read from here at 16:45: /api/board.php answers ok with 0 rows - the
+schema loaded into the owner's MySQL. NOT COMPILED. Files:
+demos/common/uWebBoard.pas (NEW), demos/EpubBuilder/src/uBuilder.pas,
+EpubBuilder.dpr, EpubBuilder.dproj (the new unit), README.md; CLAUDE.md.
+- uWebBoard: WebBoardSubmit(install id, key, scores, event) - a thread
+  (one at a time, GBusy) with THTTPClient (15 s timeouts): registers
+  when there is no key (a random UUID; os, cpu, memory_gb - NO name, NO
+  steam_id: "anonymous"), POSTs each score, and on a 401 registers as a
+  new installation and sends once more. One answer for each score on
+  the main thread, carrying the id and key to keep. WebBoardForget at
+  FormClose.
+- uBuilder: FWebInstall / FWebKey ([Leaderboard] Install, Key; saved the
+  moment they change), FWebScores / FWebState / FWebPlace / FWebCount /
+  FWebBest [1..4]; WebScore (from the summary: model's file name,
+  device's description - BoardDevice, now shared with BoardDetails -,
+  kind 'cpu' | 'gpu', backend from the device's text, MTL -> Metal,
+  channel 'steam' when SteamBuild else 'direct', ran_at UTC); BoardSend
+  sends to Steam when it runs AND to the site always (Settings >
+  Leaderboard still the one switch); WebSent logs "Website leaderboard
+  - ..."; BoardNote shows the site's place only when Steam's has none.
+- NOT DONE, SAID: the program's Leaderboards page still shows Steam's
+  boards only (non-Steam builds read the site in a browser); the site's
+  'integrated' kind is never sent (the device's text does not tell);
+  names and Steam ids wait for the owner (and a Steam ticket check).
+- CANNOT BE KNOWN HERE: that THTTPClient reaches the site from each of
+  the builds (it does reach Hugging Face for the models).
+
+## Zip 272 (on top of zip 271): the leaderboard site (server side)
+Session 14, owner 2026-11-23 16:21, asked what follows the landing page:
+"2) leaderboard". NOTHING TO COMPILE (no Delphi file). Files (all NEW
+but the last three): web/leaderboard/index.php, lib.php, schema.sql,
+config.sample.php, .htaccess, README.md, api/register.php,
+api/submit.php, api/board.php; tools/test_leaderboard.py; .gitignore
+(the filled-in settings are never committed); CLAUDE.md. DELETE
+tools/leaderboard_schema.sql (zip 269's draft: schema.sql replaces it).
+- TESTED HERE: PHP 8.3 lints every file; tools/test_leaderboard.py
+  runs the site on PHP's own server against SQLite - 35 checks pass
+  (registration, the 409 / 400 / 401 / 405 / 422 / 429 refusals, the
+  pending run, places, around-a-machine pages, the page's HTML, a name
+  shown as text, a hidden machine, every run kept). The page was looked
+  at in Chrome at 1280 and 390 wide. NOT TESTED: schema.sql in MySQL,
+  the site on Plesk, HTTPS, .htaccess (Apache).
+- THE CHOICES MADE (the owner said only "leaderboard"; said to him):
+  the machine is what is ranked; version 1's validation is the minimum
+  offered at 16:14 (a per-install key, rate limits, plausibility, a
+  'pending' state above 400x; README lists it; lib.php's constants);
+  PHP 7.4-compatible; SQL that MySQL and SQLite both take (no ON
+  DUPLICATE KEY, no window functions, ids and hashes as text) so that
+  it could be tested; a person = a Steam id when one is sent (NOT
+  checked yet - runs.verified waits for a Steam ticket check), else a
+  person per machine; the name shown is the one sent, "Anonymous" when
+  none; the same look as the landing page.
+- NOT IN THIS ZIP - THE NEXT ONE: EpubBuilder's side (register once,
+  keep the key in the settings, POST each score after a benchmark over
+  HTTPS with System.Net.HttpClient, Steam and non-Steam builds; what a
+  non-Steam user is called; a Settings row). The endpoints' fields are
+  in web/leaderboard/README.md. Ask the owner first: after the site is
+  up and the import worked; whether the Steam builds send to BOTH
+  boards; the non-Steam name.
+- OPEN from the schema's draft: how a non-Steam user claims several
+  machines as one person (link.epubunum.com's accounts will answer it).
+
+## Zip 271 (on top of zip 270): the website's landing page
+Session 14, owner 2026-11-23 16:13 (the three sites exist, https, PHP,
+MySQL on request - Plesk's default page on each) and 16:15, asked which
+site first: "1st - landing page". NOTHING TO COMPILE. Files:
+web/www/index.html (NEW - the first file of a new web/ folder: one
+folder a site, web/www for https://www.epubunum.com), CLAUDE.md.
+- One self-contained file: no script or font from elsewhere, no cookie,
+  no tracking; system fonts (a book serif for the name, the headline
+  and the passage; the system's sans for the rest). Deep blue field,
+  cool paper, the programs' yellow as the only accent.
+- The top shows the thing itself: the opening of A Christmas Carol
+  (public domain) on a book page, its words marked one after another as
+  EpubReader marks them - no sound; Play / Pause; still (one word
+  marked) for visitors who ask their system for less motion. Then: the
+  three steps, the three programs, "How long a book takes" (the long
+  Detailed benchmark of five of the owner's machines, from the Steam
+  boards of 2026-11-23), "Your books stay yours", the two links
+  (leaderboard.epubunum.com, the GitHub repository).
+- Looked at here in Chrome at 1280 and 390 wide (playwright).
+- CLAIMS THE OWNER SHOULD CHECK before it goes up: "EpubUnum is in
+  testing on Steam" (no date, no store link - none is known here);
+  Windows, macOS, Linux and the Steam Deck; "99 words in 100 were
+  matched"; the GitHub link (the repository is public). No price, no
+  download, no contact address, no privacy page - none was given.
+- TO PUT IT UP (Plesk): the file goes into the www domain's document
+  root (usually httpdocs) as index.html, in place of the default page.
+
+## Zip 270 (on top of zip 269): the leaderboard's score column no wider than it needs
+Session 14, owner 2026-11-23 06:46, a screenshot from the Steam Deck
+(zips 268 and 269 COMPILED AND RAN: "Long Text, Detailed Model - top (6
+on the board)", six rows with place, name, score and device, the Deck's
+own row in yellow, Back, the foot's left / right "around you" and B
+"back"): the devices were cut short ("NVIDIA GeForce RTX 5090 La...")
+with room to spare left of the scores. NOT COMPILED (pasdoc_check,
+project_check: 0 problems). NO PACKAGE REBUILD. STEAM REBUILD NEEDED
+(uPadMenu). Files: demos/EpubReader/src/uPadMenu.pas (shared),
+CLAUDE.md.
+- Cause: the table took Needed's value width, which is eight font sizes
+  at least (a menu's rule) - about a quarter of the Deck's page for an
+  11-character score. Now the table measures its own values: the score
+  column is its share (10 %) or its widest score; the device column has
+  the rest and, when its widest entry still does not fit, a smaller text
+  (not under two thirds of the menu's size) rather than "...".
+- Not asked for in words: the owner sent the screenshot as a report
+  ("one from Steam Machine to follow"); the cut-off devices were put
+  right as a fault of zip 265's layout.
 
 ## Zip 269 (on top of zip 268): menu rows unseen (zip 266's fault); no pad or keys during a benchmark
 Session 14, owner 2026-11-23 05:18, a screenshot (Windows, Big Picture,
