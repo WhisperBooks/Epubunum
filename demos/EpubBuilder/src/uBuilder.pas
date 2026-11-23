@@ -451,9 +451,17 @@ type
     FCalIntroWhy: string;
     { Its estimate has been written to the debug log (once). }
     FCalIntroLogged: Boolean;
-    { Shows the introduction again once the window has stopped changing
-      size (FormResized). }
+    { Shows the introduction once the window has stopped changing size:
+      the first time (FIntroWait) and again after a later change
+      (FormResized). }
     tmIntro: TTimer;
+    { The introduction is still to be shown for the first time
+      (IntroWhenSettled): never before the window has its size. }
+    FIntroWait: Boolean;
+    { The window's client size when tmIntro last looked. }
+    FIntroW, FIntroH: Integer;
+    { When that size was first seen (GetTickCount64). }
+    FIntroTick: UInt64;
     { The computer is kept awake (a build, queue, calibration or download
       runs) - see uInhibit. }
     FAwake: Boolean;
@@ -783,16 +791,19 @@ type
     { Settings > AMD ROCm acceleration: Linux Steam builds, an
       AMD GPU without a ROCm device (CheckRocmDlc). }
     miRocm: TMenuItem;
-    { The Benchmark menu: [0] Run all 4 benchmarks, [1 .. 4] one each
-      (BENCH_NAMES), with the time each takes; greyed when its model is
-      not there. }
+    { The Benchmark menu: [0] Run all N benchmarks (BenchName: N = those
+      that can run here), [1 .. 4] one each (BENCH_NAMES), with the time
+      each takes; greyed when its model is not there or too slow. }
     miBench: array[0..4] of TMenuItem;
+    { Each benchmark can run here: its model is in the models folder and
+      not below Settings > Lowest acceptable speed (BenchAvailability). }
+    FBenchCan: array[1..4] of Boolean;
     { The benchmark being built (1 .. 4, BENCH_NAMES; -1 = none: the build
       running is a book's). }
     FBenchOption: Integer;
-    { The benchmarks still to run after it (Run all 4). }
+    { The benchmarks still to run after it (Run all). }
     FBenchQueue: TArray<Integer>;
-    { The run is Run all 4. }
+    { The run is Run all (every benchmark that can run here). }
     FBenchAll: Boolean;
     { Each benchmark's score in this run, s (0 = not run). }
     FBenchScores: array[1..4] of Double;
@@ -1297,9 +1308,20 @@ type
     procedure miDiagnosticsAllClick(Sender: TObject);
     { Benchmark option AOption's model file (1 .. 4: base for Fast,
       large-v3-turbo for Detailed) when it is in the models folder; for 0
-      (Run all 4) base's when both are there.
+      (Run all) the model of the first benchmark that has one.
       @returns('' when it is not there) }
     function BenchmarkModel(AOption: Integer): string;
+    { Fills FBenchCan: which benchmarks can run here now. }
+    procedure BenchAvailability;
+    { How many benchmarks can run here (FBenchCan): 0, 2 or 4 - a model's
+      two texts go together.
+      @returns(the number) }
+    function BenchCount: Integer;
+    { Option AOption's name: BENCH_NAMES, but 0 with the number that can
+      run here - "Run all 2 benchmarks" where one model is missing or too
+      slow (owner, 2026-11-22, the Miix: "The label say 4").
+      @returns(the name) }
+    function BenchName(AOption: Integer): string;
     { The device a benchmark of AModel uses: its calibration's choice,
       else the window's ("Default" as the device it stands for).
       @returns(the device's name) }
@@ -1314,8 +1336,10 @@ type
     function BenchmarkText(AOption: Integer): string;
     { The Benchmark menu's items (Tag: the option). }
     procedure miBenchmarkClick(Sender: TObject);
-    { Starts benchmark option AOption (owner, 2026-11-22): 0 runs all
-      four one after another, 1 .. 4 one (BENCH_NAMES). }
+    { Starts benchmark option AOption (owner, 2026-11-22): 0 runs every
+      benchmark that can run here one after another (those whose model is
+      missing or too slow are left out, and the log says which), 1 .. 4
+      one (BENCH_NAMES). }
     procedure StartBenchmark(AOption: Integer);
     { Runs the next benchmark of FBenchQueue (from ForceQueue: the build
       before it has finished). }
@@ -1325,12 +1349,12 @@ type
       BenchmarkDevice. }
     procedure RunBenchmark(AOption: Integer);
     { A benchmark's build has ended (from BuildDone): its score kept, the
-      next one of Run all 4 started, or the scores shown.
+      next one of Run all started, or the scores shown.
       @param(ASummary  the build's figures)
       @param(AOk  the build succeeded) }
     procedure BenchmarkDone(const ASummary: TBuildSummary; AOk: Boolean);
     { The run has ended: the scores (transcription times) shown, then
-      the question whether to keep the book (Run all 4: the Detailed
+      the question whether to keep the book (Run all: the Detailed
       books) to read in EpubReader - No by default. }
     procedure BenchmarkFinished;
     { Big Picture: the Benchmark list - its five options with their time
@@ -1390,7 +1414,7 @@ type
       @param(AWhy  why, and what to do, for the user)
       @returns(the answer) }
     function TooSlow(const AModel, ADevice: string; out AWhy: string): Boolean;
-    { TooSlow for benchmark AOption (Run all 4: either model).
+    { TooSlow for benchmark AOption (0, Run all: any model that is here).
       @param(AWhy  why, for the user)
       @returns(the answer) }
     function BenchTooSlow(AOption: Integer; out AWhy: string): Boolean;
@@ -1423,12 +1447,22 @@ type
       spare" (closes EpubBuilder); B is the second. AWhy: a re-calibration's
       reason ('' = the first). }
     procedure ShowCalibrationIntro(const AWhy: string);
-    { The window changed size: the calibration's introduction is laid out
-      again for it (tmIntro) - at start-up it can be shown before the
-      window has its full size (owner, 2026-11-22: narrow, its answers
-      out of sight, until a key was pressed). }
+    { ShowCalibrationIntro(AWhy) once the window has its size (start-up:
+      the page is asked for before Big Picture's full screen has come;
+      owner, 2026-11-22: the page of the small window "should not appear
+      under any circumstances" - on Linux it stayed in sight under the
+      right one). tmIntro shows it when the client size has not changed
+      for INTRO_SETTLE_MS and, on macOS in Big Picture, the full screen
+      asked for through Cocoa is there or given up. }
+    procedure IntroWhenSettled(const AWhy: string);
+    { Makes tmIntro when it is not there, and starts it. }
+    procedure StartIntroTimer;
+    { The window changed size: the calibration's introduction waits for
+      it to stop (FIntroWait) or, when it shows, is laid out again
+      (tmIntro). }
     procedure FormResized(Sender: TObject);
-    { tmIntro: the introduction shown again. }
+    { tmIntro: the introduction shown, the first time or again, once the
+      window's size has stood still. }
     procedure tmIntroTimer(Sender: TObject);
     { Settings > Expert mode. }
     procedure miExpertClick(Sender: TObject);
@@ -5649,7 +5683,7 @@ begin
     BenchmarkDone((Sender as TBuildThread).Summary, Ok);
   // a build on its own, or a queue stopped: the menu again (a queue that
   // goes on shows it when it has finished - RunNextJob); not over a
-  // question (PadBackToMenu), nor between two benchmarks of Run all 4
+  // question (PadBackToMenu), nor between two benchmarks of Run all
   if Length(FBenchQueue) = 0 then
     PadBackToMenu(False);
 end;
@@ -6484,7 +6518,6 @@ begin
   end;
 end;
 
-procedure TfrmBuilder.tmPadTimer(Sender: TObject);
 const
   { macOS: full screen asked for while the window is being made does not
     take (the Mac, 2026-11-21: Big Picture's view in an ordinary window;
@@ -6495,6 +6528,11 @@ const
     the first times, the window over the whole screen the last time; then
     left alone (the user may have left full screen on purpose). }
   PAD_FULL_TRIES = 4;
+  { The calibration's introduction shows when the window's size has not
+    changed for this long, ms (IntroWhenSettled). }
+  INTRO_SETTLE_MS = 600;
+
+procedure TfrmBuilder.tmPadTimer(Sender: TObject);
 var
   Presses: TSteamPadPresses;
   Y: Single;
@@ -8678,8 +8716,9 @@ begin
   // why; Cancel stops it)
   LogLine(IfThen(Why = '', 'Not calibrated for this machine yet.', Why.Replace(sLineBreak, ' ').Trim));
   // owner, 2026-11-22: an introduction first - why, what was found here,
-  // how long it may take; then calibrate now, or close and come back
-  ShowCalibrationIntro(Why);
+  // how long it may take; then calibrate now, or close and come back -
+  // shown once the window has its size, never before
+  IntroWhenSettled(Why);
 end;
 
 procedure TfrmBuilder.miCalibrateClick(Sender: TObject);
@@ -8785,7 +8824,15 @@ end;
   graphics (Arc, "Intel(R) Graphics") 6x; AMD's integrated graphics 8x (a
   Steam Deck 7.9x, the Ally 16.7x). A smaller model is faster: by the
   square root of the size ratio on graphics, by the whole ratio on the
-  processor (base: 8.6x / 6.7x on the Miix). }
+  processor (base: 8.6x / 6.7x on the Miix).
+  Tuned on the six machines' logs of 2026-11-22 (guess -> timed, turbo):
+  Apple's processor is as fast as its graphics (M4: 1.9x -> 23.9x; base
+  81.6x), so 15x and the square root for smaller models; a Core i of the
+  10th or 11th generation is no 2017 one (i5-11320H, 8 threads: 0.5x ->
+  1.3x), so twice a sixteenth of its threads; Iris 3x (Iris Xe: 2x ->
+  4.0x). Left as they were, the calibration being short on them anyway:
+  an RTX card (the 5090: 98.9x), another card (Steam Machine 36.8x, GTX
+  1650 14.0x), AMD's integrated graphics (Ally 16.2x, Deck 7.3x). }
 function GuessSpeed(const ADevice: TWhisperDevice; ASizeMB: Double): Double;
 const
   { large-v3-turbo's file, MB: the sizes are compared with it. }
@@ -8798,16 +8845,20 @@ begin
   D := ' ' + LowerCase(ADevice.Description + ' ' + ADevice.Name) + ' ';
   if ADevice.DeviceType = wdtCPU then
   begin
+    // Apple silicon: its processor keeps up with its graphics
+    if Pos('apple', D) > 0 then
+      Exit(15 * Sqrt(TURBO_MB / ASizeMB));
     Gen := 2;
-    if (Pos('ultra', D) > 0) or (Pos('apple', D) > 0) then
+    if Pos('ultra', D) > 0 then
       Gen := 3
     else
     begin
       N := DigitsAfter(D, 'i3-') + DigitsAfter(D, 'i5-') + DigitsAfter(D, 'i7-') + DigitsAfter(D, 'i9-');
-      // Core i: the generation is the first digit, or two of five
+      // Core i: the generation is the first digit, or two of five (10th
+      // and 11th: 2, as the processors not known)
       if (Length(N) >= 5) and (StrToIntDef(Copy(N, 1, 2), 0) >= 12) then
         Gen := 3
-      else if Length(N) >= 4 then
+      else if Length(N) = 4 then
         Gen := 1;
       N := DigitsAfter(D, 'ryzen ');
       if Length(N) = 4 then
@@ -8835,7 +8886,7 @@ begin
     if (Pos('uhd', D) > 0) or (Pos(' hd graphics', D) > 0) then
       Turbo := 0.7
     else if Pos('iris', D) > 0 then
-      Turbo := 2
+      Turbo := 3
     else
       Turbo := 6;
   end
@@ -8846,13 +8897,15 @@ end;
 
 function TfrmBuilder.CalibrationGuess(out ACard: Boolean; ALog: Boolean): Double;
 const
-  { Reading the recording and choosing its stretch, seconds. }
-  START_SECONDS = 20;
+  { Reading the recording and choosing its stretch, seconds (the logs of
+    2026-11-22: 2 s or less on every machine; was 20). }
+  START_SECONDS = 5;
   { The warm-up, as seconds of speech (a whole 30 s window is encoded
     even for its 5 s: the Miix's turbo warm-up took 47 s at 0.5x). }
   WARMUP_SECONDS = 25;
-  { Loading a model, MB a second. }
-  LOAD_MB_S = 400;
+  { Loading a model, MB a second (the logs of 2026-11-22: turbo's 1549 MB
+    in 0.2 - 1.2 s; was 400). }
+  LOAD_MB_S = 1000;
 var
   Models: TStringList;
   I, K: Integer;
@@ -8893,26 +8946,75 @@ begin
   end;
 end;
 
-procedure TfrmBuilder.FormResized(Sender: TObject);
+procedure TfrmBuilder.StartIntroTimer;
 begin
-  if not FCalIntro or (FPadMode <> BPM_ASK) then
-    Exit;
   if tmIntro = nil then
   begin
     tmIntro := TTimer.Create(Self);
-    tmIntro.Interval := 250;
+    tmIntro.Interval := 100;
     tmIntro.OnTimer := tmIntroTimer;
   end;
-  // once it has stopped changing
-  tmIntro.Enabled := False;
   tmIntro.Enabled := True;
 end;
 
-procedure TfrmBuilder.tmIntroTimer(Sender: TObject);
+procedure TfrmBuilder.IntroWhenSettled(const AWhy: string);
 begin
+  if FPadMenu = nil then
+  begin
+    // no menu to ask with: ShowCalibrationIntro calibrates straight away
+    ShowCalibrationIntro(AWhy);
+    Exit;
+  end;
+  FCalIntroWhy := AWhy;
+  FIntroWait := True;
+  FIntroW := ClientWidth;
+  FIntroH := ClientHeight;
+  FIntroTick := TThread.GetTickCount64;
+  StartIntroTimer;
+end;
+
+procedure TfrmBuilder.FormResized(Sender: TObject);
+begin
+  if not FIntroWait and not (FCalIntro and (FPadMode = BPM_ASK)) then
+    Exit;
+  // counted from now: shown once it has stopped changing
+  FIntroW := ClientWidth;
+  FIntroH := ClientHeight;
+  FIntroTick := TThread.GetTickCount64;
+  StartIntroTimer;
+end;
+
+procedure TfrmBuilder.tmIntroTimer(Sender: TObject);
+var
+  First: Boolean;
+begin
+  if not FIntroWait and not (FCalIntro and (FPadMode = BPM_ASK)) then
+  begin
+    tmIntro.Enabled := False;
+    Exit;
+  end;
+  // a size no resize event told of: waited for as well
+  if (ClientWidth <> FIntroW) or (ClientHeight <> FIntroH) then
+  begin
+    FIntroW := ClientWidth;
+    FIntroH := ClientHeight;
+    FIntroTick := TThread.GetTickCount64;
+    Exit;
+  end;
+  if TThread.GetTickCount64 - FIntroTick < INTRO_SETTLE_MS then
+    Exit;
+  // macOS, Big Picture: the full screen comes through Cocoa a few seconds
+  // after the start (tmPadTimer) - not before that is there or given up
+  if FIntroWait and PAD_FULL_AGAIN and FBigPicture and (FFullTries < PAD_FULL_TRIES) then
+    Exit;
   tmIntro.Enabled := False;
-  if FCalIntro and (FPadMode = BPM_ASK) then
-    ShowCalibrationIntro(FCalIntroWhy);
+  First := FIntroWait;
+  FIntroWait := False;
+  if First then
+    DebugLog(Format('calibration: the introduction shown, the window %d x %d', [ClientWidth, ClientHeight]));
+  ShowCalibrationIntro(FCalIntroWhy);
+  // the whole window drawn (Linux: what a changed page left behind)
+  Invalidate;
 end;
 
 procedure TfrmBuilder.ShowCalibrationIntro(const AWhy: string);
@@ -9069,10 +9171,10 @@ function TfrmBuilder.BenchmarkModel(AOption: Integer): string;
 begin
   if AOption = 0 then
   begin
-    // Run all 4: both models
-    Result := '';
-    if (BenchmarkModel(1) <> '') and (BenchmarkModel(2) <> '') then
-      Result := BenchmarkModel(1);
+    // Run all: a model that is here (base first)
+    Result := BenchmarkModel(1);
+    if Result = '' then
+      Result := BenchmarkModel(2);
     Exit;
   end;
   if BENCH_DETAILED[AOption] then
@@ -9112,8 +9214,8 @@ begin
       if (Model <> '') and TooSlow(Model, BenchmarkDevice(Model), AWhy) then
       begin
         if AOption = 0 then
-          AWhy := 'Running all 4 benchmarks needs both models fast enough on this machine.' + sLineBreak +
-            sLineBreak + AWhy
+          AWhy := 'No benchmark can run here: no model in the models folder is fast enough on this machine.' +
+            sLineBreak + sLineBreak + AWhy
         else
           AWhy := BENCH_NAMES[I] + ' cannot run here.' + sLineBreak + sLineBreak + AWhy;
         Exit(True);
@@ -9121,10 +9223,45 @@ begin
     end;
 end;
 
+procedure TfrmBuilder.BenchAvailability;
+var
+  I: Integer;
+  Why: string;
+  Fast, Detailed: Boolean;
+begin
+  // the two models' calibrations, once each (the ini file is read for
+  // each)
+  Fast := (BenchmarkModel(1) <> '') and not BenchTooSlow(1, Why);
+  Detailed := (BenchmarkModel(2) <> '') and not BenchTooSlow(2, Why);
+  for I := 1 to 4 do
+    if BENCH_DETAILED[I] then
+      FBenchCan[I] := Detailed
+    else
+      FBenchCan[I] := Fast;
+end;
+
+function TfrmBuilder.BenchCount: Integer;
+var
+  I: Integer;
+begin
+  Result := 0;
+  for I := 1 to 4 do
+    if FBenchCan[I] then
+      Inc(Result);
+end;
+
+function TfrmBuilder.BenchName(AOption: Integer): string;
+begin
+  Result := BENCH_NAMES[AOption];
+  // none can run: the full name, faded
+  if (AOption = 0) and (BenchCount > 0) then
+    Result := Format('Run all %d benchmarks', [BenchCount]);
+end;
+
 procedure TfrmBuilder.RefreshBenchmarks;
 var
-  Busy, Changed, SlowFast, SlowDetailed, Slow: Boolean;
-  Key, Model, Dev, DevKey, Source, Audio, Why: string;
+  Busy, Changed: Boolean;
+  Key, Model, Dev, DevKey, Source, Audio: string;
   I, R: Integer;
   Hist: TBuildHistory;
   D: TWhisperDevice;
@@ -9137,10 +9274,13 @@ begin
     Exit;
   Busy := (FBuild <> nil) or FQueueRunning or (FCalib <> nil) or (FDownload <> nil);
   Changed := False;
-  // what the estimates come from: the models, their calibrations, the
-  // build history, the window's device
+  // which can run here: model there, not below the lowest acceptable speed
+  BenchAvailability;
+  // what the estimates and the names come from: the models, their
+  // calibrations, the build history, the window's device, how many can run
   Key := BenchmarkModel(1) + '|' + BenchmarkModel(2) + '|' + CalibrationSummary(SettingsFile, BENCH_QUICK_MODEL) +
-    '|' + CalibrationSummary(SettingsFile, BENCH_DETAILED_MODEL) + '|' + IntToStr(cbDevice.ItemIndex);
+    '|' + CalibrationSummary(SettingsFile, BENCH_DETAILED_MODEL) + '|' + IntToStr(cbDevice.ItemIndex) + '|' +
+    IntToStr(BenchCount);
   if FileExists(HistoryFile) then
     Key := Key + '|' + FloatToStr(TFile.GetLastWriteTime(HistoryFile));
   // not while something runs (the recordings are read, the history too)
@@ -9198,27 +9338,31 @@ begin
           Source) and (Speed > 0) then
           FBenchEta[I] := Len / Speed + After * Len;
       end;
+      // Run all: those that can run here, when each has a time
       FBenchEta[0] := 0;
-      if (FBenchEta[1] > 0) and (FBenchEta[2] > 0) and (FBenchEta[3] > 0) and (FBenchEta[4] > 0) then
-        FBenchEta[0] := FBenchEta[1] + FBenchEta[2] + FBenchEta[3] + FBenchEta[4];
+      for I := 1 to 4 do
+        if FBenchCan[I] then
+        begin
+          if FBenchEta[I] <= 0 then
+          begin
+            FBenchEta[0] := 0;
+            Break;
+          end;
+          FBenchEta[0] := FBenchEta[0] + FBenchEta[I];
+        end;
     except
       on E: Exception do
         DebugLog('benchmark estimates: ' + E.Message);
     end;
   end;
-  // the two models' calibrations, once (the ini file is read for each)
-  SlowFast := BenchTooSlow(1, Why);
-  SlowDetailed := BenchTooSlow(2, Why);
   for I := 0 to High(miBench) do
   begin
-    // below Settings > Lowest acceptable speed: faded, says why when chosen
+    // no model, or below Settings > Lowest acceptable speed: faded, says
+    // why when chosen; Run all: as long as one can run
     if I = 0 then
-      Slow := SlowFast or SlowDetailed
-    else if BENCH_DETAILED[I] then
-      Slow := SlowDetailed
+      miBench[I].Enabled := not Busy and (FWhisperNote = '') and (BenchCount > 0)
     else
-      Slow := SlowFast;
-    miBench[I].Enabled := not Busy and (FWhisperNote = '') and (BenchmarkModel(I) <> '') and not Slow;
+      miBench[I].Enabled := not Busy and (FWhisperNote = '') and FBenchCan[I];
     if Changed then
       miBench[I].Text := BenchmarkText(I);
   end;
@@ -9229,7 +9373,7 @@ end;
 
 function TfrmBuilder.BenchmarkText(AOption: Integer): string;
 begin
-  Result := BENCH_NAMES[AOption];
+  Result := BenchName(AOption);
   if FBenchEta[AOption] > 0 then
     Result := Result + ' - about ' + HmsText(FBenchEta[AOption]);
 end;
@@ -9261,23 +9405,33 @@ begin
   if BenchmarkModel(AOption) = '' then
   begin
     if AOption = 0 then
-      Tell('Running all 4 benchmarks needs the models base and large-v3-turbo: choose each in the Model list ' +
-        'to download it.')
+      Tell('The benchmarks need the models base and large-v3-turbo: choose each in the Model list to download ' +
+        'it.')
     else
       Tell(Format('%s needs the model %s: choose it in the Model list to download it.', [BENCH_NAMES[AOption],
         IfThen(BENCH_DETAILED[AOption], 'large-v3-turbo', 'base')]));
     Exit;
   end;
-  if BenchTooSlow(AOption, Why) then
+  // Run all: those that can run here; none - why not
+  BenchAvailability;
+  if ((AOption = 0) and (BenchCount = 0) and BenchTooSlow(0, Why)) or ((AOption > 0) and BenchTooSlow(AOption,
+    Why)) then
   begin
     Tell(Why);
     Exit;
   end;
   FBenchAll := AOption = 0;
+  FBenchQueue := nil;
   if FBenchAll then
-    FBenchQueue := [1, 2, 3, 4]
+  begin
+    for I := 1 to 4 do
+      if FBenchCan[I] then
+        FBenchQueue := FBenchQueue + [I];
+  end
   else
     FBenchQueue := [AOption];
+  if Length(FBenchQueue) = 0 then
+    Exit;
   for I := 1 to 4 do
   begin
     FBenchScores[I] := 0;
@@ -9298,6 +9452,16 @@ begin
   FBenchView.OnButton := BenchCancel;
   BenchTick(nil);
   mmLog.Lines.Clear;
+  // Run all with fewer than four: which are left out, and why
+  if FBenchAll then
+    for I := 1 to 4 do
+      if not FBenchCan[I] then
+        if BenchmarkModel(I) = '' then
+          LogLine(Format('Not run here: %s - the model %s is not in the models folder.', [BENCH_NAMES[I],
+            IfThen(BENCH_DETAILED[I], 'large-v3-turbo', 'base')]))
+        else
+          LogLine(Format('Not run here: %s - its model is below Settings > Lowest acceptable speed (%.1fx).',
+            [BENCH_NAMES[I], FLowestSpeed / 10]));
   RunNextBenchmark;
 end;
 
@@ -9353,7 +9517,8 @@ begin
   FBenchOption := AOption;
   LogLine('');
   if FBenchAll then
-    LogLine(Format('=== Benchmark %d of 4: %s (%s) ===', [5 - Length(FBenchQueue) - 1, BENCH_NAMES[AOption],
+    LogLine(Format('=== Benchmark %d of %d: %s (%s) ===', [Length(FBenchList) - Length(FBenchQueue),
+      Length(FBenchList), BENCH_NAMES[AOption],
       FormatDateTime('yyyy-mm-dd hh:nn', Now)]))
   else
     LogLine(Format('=== Benchmark: %s (%s) ===', [BENCH_NAMES[AOption], FormatDateTime('yyyy-mm-dd hh:nn',
@@ -9406,7 +9571,7 @@ begin
   end
   else
   begin
-    // the rest of Run all 4 is not run
+    // the rest of Run all is not run
     FBenchQueue := nil;
     if FCancelled then
       LogLine('Benchmark cancelled.')
@@ -9419,7 +9584,7 @@ begin
       // left beside the settings; the next run of it replaces it
     end;
   end;
-  // the next of Run all 4 once this build has finished, else the scores
+  // the next of Run all once this build has finished, else the scores
   if Length(FBenchQueue) > 0 then
     TThread.ForceQueue(nil, RunNextBenchmark)
   else
@@ -9429,11 +9594,18 @@ end;
 procedure TfrmBuilder.BenchmarkFinished;
 var
   I, N: Integer;
+  AnyDetailed: Boolean;
 begin
   N := 0;
   FBenchKeep := nil;
   FBenchCandidates := nil;
   FBenchFastOffered := False;
+  // Run all without the Detailed model (missing, too slow): the Fast books
+  // are the ones to keep
+  AnyDetailed := False;
+  for I := 1 to 4 do
+    if BENCH_DETAILED[I] and (FBenchScores[I] > 0) and (FBenchBooks[I] <> '') then
+      AnyDetailed := True;
   for I := 1 to 4 do
     if FBenchScores[I] > 0 then
     begin
@@ -9441,8 +9613,8 @@ begin
       if FBenchBooks[I] <> '' then
       begin
         FBenchKeep := FBenchKeep + [FBenchBooks[I]];
-        // Run all 4: the Detailed books, the better ones of each text
-        if not FBenchAll or BENCH_DETAILED[I] then
+        // Run all: the Detailed books, the better ones of each text
+        if not FBenchAll or BENCH_DETAILED[I] or not AnyDetailed then
         begin
           FBenchCandidates := FBenchCandidates + [FBenchBooks[I]];
           FBenchFastOffered := FBenchFastOffered or not BENCH_DETAILED[I];
@@ -9593,10 +9765,10 @@ begin
   for I := 0 to High(miBench) do
   begin
     if FBenchEta[I] > 0 then
-      Row := TPadMenu.Item(BENCH_NAMES[I], 'about ' + HmsText(FBenchEta[I]))
+      Row := TPadMenu.Item(BenchName(I), 'about ' + HmsText(FBenchEta[I]))
     else
-      Row := TPadMenu.Item(BENCH_NAMES[I]);
-    // faded: its model is not there (chosen, it says so)
+      Row := TPadMenu.Item(BenchName(I));
+    // faded: its model is not there or too slow (chosen, it says so)
     Row.Dim := not miBench[I].Enabled;
     Items := Items + [Row];
     FPadCmds := FPadCmds + [I];

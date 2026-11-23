@@ -13,9 +13,21 @@ TWhisper-32. Each zip has its own section further down ("Zip 256" first,
 newest first); this is the map. Session 13's task list follows this
 handover, with its steps.
 
+### Session 14 (2026-11-22 18:30 -) - after this handover
+- PUSHED: 6f7515b "Handover" (all zips to 257 applied, owner 19:57).
+- Zip 258 (see its section): Run all N benchmarks, the introduction
+  only once the window has its size, the estimate tuned on six
+  machines' logs. NOT COMPILED.
+- Reported working by the owner: 256, 249, 247, 207, BookManager from
+  the Mac. Not reported: 253 (the reader's library).
+- Zip 259: BookManager's Dark mode (a check box; written unseen). NOT
+  COMPILED.
+- NEXT: the owner's word on 258 and 259; then the list under "Next"
+  below (3 - 5).
+
 ### Where it stands
-- LAST NUMBER USED: 257 (Epubunum; 257 = this handover, CLAUDE.md
-  only), 32 (TWhisper). Never commit or push,
+- LAST NUMBER USED: 259 (Epubunum; 257 = this handover, CLAUDE.md
+  only; 258, 259 = session 14), 32 (TWhisper). Never commit or push,
   and never offer to; the owner applies the zips and pushes.
 - PUSH STATE: not told this session. The owner's builds said "Build:
   2026-11-22 17:27, 65569dc" (commit 65569dc + the zips applied on top).
@@ -1287,7 +1299,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 257 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
+Last number used: 259 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
 next-session notes, CLAUDE.md only).
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
@@ -3875,6 +3887,96 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 259 (on top of zip 258): BookManager's Dark mode
+Session 14, owner 2026-11-22 19:57 "BookManager should have a DarkMode
+option (new job)", 2026-11-23 00:27 "BookManager Dark mode". NOT
+COMPILED (pasdoc_check, project_check: 0 problems). NO PACKAGE REBUILD.
+BookManager only (not a Steam program). Files:
+demos/BookManager/src/uManager.pas, demos/BookManager/README.md,
+CLAUDE.md.
+- chkDark ("Dark mode", the builder row's far right); FDark, [View] Dark
+  in BookManager.ini, True at first as EpubBuilder's; chkDarkChange
+  saves. BookManager has no menu bar, hence a check box.
+- ApplyDark (EpubBuilder's ApplyDarkWindow, zip 222, copied - its
+  DarkMemo / DarkLabel / DarkList, plus DarkCheck): the form's Fill
+  DARK_WINDOW; every TLabel, TCheckBox, TListBox, TMemo of
+  Self.Components (all are made with the form as owner; the tabs'
+  controls are not the tab items' Children). DarkBeforeShow at the end
+  of FormCreate's set-up; tmDark (500 ms) while dark; also called after
+  the lists are filled (FillBooks, the three lbTransfers.EndUpdate).
+- THE TABS: the style's tab strip is light and differs by platform, so
+  dark hides it (tcMain.TabPosition None; PlatformDefault when light)
+  and shows layTabs: four TRectangles with a TLabel (FTabBoxes,
+  FTabLabels; the one that shows filled DARK_ROW), TabBoxClick,
+  tcMain.OnChange = TabChanged, UpdateTabStrip (names follow the tab
+  items' Text: "Books made (12, 3 new)", "Progress (45 %)"). FTabBacks: a
+  dark TRectangle (Align Contents, made first) behind each tab's
+  controls, whatever the style draws there. btnPairClick puts layPair
+  under layTop (Position.Y) so the code row opens above layTabs.
+- Light mode is untouched: the style's tabs, no sheets, no layTabs.
+- A GUESS, NOT SEEN (as 222). Likely rough edges: light buttons, combo,
+  code box and bars on the dark window; the check boxes of Books made;
+  the selected row's colour; a frame the tab control may still draw; the
+  order of the rows under the builder row after pairing.
+
+## Zip 258 (on top of zip 256 / 6f7515b): Run all N benchmarks; the introduction only at the window's size; the estimate tuned
+Session 14, owner 2026-11-22 19:57, with the logs of six machines
+(bench.zip: ally, ideapad, mac, monster, steamdeck, steammachine; the
+Miix still running): "It's Run all N benchmarks should let it run the 2
+available benchmarks. The label say 4 benchmarks - this is probably a
+literal"; "The old bad calibration intro screen is visible via RustDeck
+in Linux ... still showing but just covered up by the good calibration
+screen. The old bad one should not appear under any circumstances."
+NOT COMPILED (pasdoc_check, project_check: 0 problems). NO PACKAGE
+REBUILD. One program only (the builder): no Steam banner. Files:
+demos/EpubBuilder/src/uBuilder.pas, demos/EpubBuilder/README.md,
+CLAUDE.md.
+- RUN ALL N: FBenchCan[1..4] (BenchAvailability: the model is there and
+  not TooSlow), BenchCount (0, 2 or 4), BenchName(0) = "Run all N
+  benchmarks" (N > 0; the menu bar and the pad list). Run all is enabled
+  when one can run, queues those that can, logs "Not run here: ..." for
+  the others, "Benchmark k of N"; its time is the sum of those. None:
+  the models' message, or "No benchmark can run here ..." + TooSlow's
+  why. FBenchKey has BenchCount (the name follows the Lowest acceptable
+  speed). BenchmarkFinished: without a Detailed book the Fast ones are
+  the candidates to keep. BenchmarkModel(0) = a model that is here.
+- THE INTRODUCTION: CheckCalibrationAtStart calls IntroWhenSettled, not
+  ShowCalibrationIntro: FIntroWait, tmIntro (100 ms) shows the page when
+  the client size has stood still for INTRO_SETTLE_MS (600) and, macOS
+  in Big Picture, the Cocoa full screen is there or given up (FFullTries
+  = PAD_FULL_TRIES; the two PAD_FULL constants are unit-level now). So
+  the page of the small window is never made. A later resize while it
+  shows: as zip 256, then Invalidate. Debug log: "calibration: the
+  introduction shown, the window W x H". CAUSE NOT FOUND in the code
+  (TPadMenu has one box; the ideapad's log shows the page asked for 3 ms
+  after the full screen was, before any resize): if the old page still
+  shows on Linux after this, it is not a second page but the first
+  frame left on the screen - say so and look at FMX Linux's redraw.
+- THE ESTIMATE (handover's Next 2), guess -> timed, turbo: Mac CPU 1.9x
+  -> 23.9x; ideapad CPU 0.5x -> 1.3x, Iris Xe 2.0x -> 4.0x; estimate /
+  took: ideapad 456 / 188 s, mac 122 / 37, ally 131 / 87, steam machine
+  180 / 101. GuessSpeed: Apple's CPU 15x with the square root; Core i
+  10th / 11th generation Gen 2 (only four digits = Gen 1); Iris 3x.
+  CalibrationGuess: START_SECONDS 5 (was 20), LOAD_MB_S 1000 (was 400).
+  By hand with the new figures / took: ideapad 244 / 188, mac 30 / 37,
+  ally 111 / 87, steam machine 127 / 101, deck 190 / 252, monster 81 /
+  73, Miix 595 / 593.
+- THE SIX MACHINES' SCORES (benchmarks.csv; Short Fast / Short Detailed /
+  Long Fast / Long Detailed, s; a survey - builds 7c08bf5 and 65569dc):
+  monster (RTX 5090 Laptop, Vulkan) 26.5 / 34.2 / 113.7 / 123.7; mac (M4,
+  Metal) 38.6 / 116.5 / 156.9 / 439.8; steam machine (NAVI33) 47.6 /
+  88.1 / 181.6 / 320.7; ideapad (GTX 1650) 58.3 / 215.3 / 251.7 / 798.3;
+  ally (Z1 Extreme) 67.7 / 195.4 / 273.7 / 739.0; deck 127.9 / 430.1 /
+  541.7 / 1567.9. Words matched: base about 98 %, turbo over 99 %.
+- OWNER'S REPORT (19:57): all zips applied; 256 fixed the introduction;
+  the Miix no longer black after the screen blanks (207); the Miix
+  refuses too-slow benchmarks and builds (249), below 0.6 all four run
+  (about 6 h); the Mac gets full screen "after a short spell in windowed
+  mode - it'll do" (247); the Mac connects to BookManager and books were
+  fetched from it; the Ubuntu run was fine but for the old page.
+- NEW JOB (owner): BookManager should have a Dark mode option - zip
+  259.
 
 ## Zip 256 (on top of zip 255): calibration page - laid out again when the window grows; keys on the left
 Owner 2026-11-22 17:32, three screenshots (build 17:27 = zips 254 + 255,

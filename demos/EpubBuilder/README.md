@@ -176,7 +176,9 @@ time when the hardware is slow (no separate graphics card, Intel's
 integrated graphics). Then **Calibrate now** (the pad's first button,
 or Enter), or **Come back when I have more time to spare** (the second
 button, or Escape), which closes EpubBuilder - it asks again at the
-next start. Cancel stops a calibration that runs. It times
+next start. The page is shown once the window has its size (Big
+Picture's full screen comes a moment after the start), never before.
+Cancel stops a calibration that runs. It times
 every model in the models folder (base and turbo; every model in expert
 mode) on every device; with no model chosen yet it chooses turbo (else
 base) when it is there - the Steam depots install both. For each: the model is loaded, a short warm-up, then
@@ -266,15 +268,18 @@ has five items, each with the time it is expected to take:
 
 | Item | Audiobook | Model |
 |---|---|---|
-| Run all 4 benchmarks | the four below, one after another | |
+| Run all 4 benchmarks | those below that can run here, one after another | |
 | Short Text, Fast Model | A Scandal in Bohemia (56 min) | base |
 | Short Text, Detailed Model | A Scandal in Bohemia | large-v3-turbo |
 | Long Text, Fast Model | A Christmas Carol (3 h 11 min) | base |
 | Long Text, Detailed Model | A Christmas Carol | large-v3-turbo |
 
 An item is greyed out (faded in Big Picture, which says why when it is
-chosen) while its model is not in the models folder; Run all 4 needs
-both. The expected time comes from this machine's earlier builds of the
+chosen) while its model is not in the models folder or is below
+Settings > Lowest acceptable speed. The first item counts and runs the
+ones that can run: where one model is missing or too slow it reads "Run
+all 2 benchmarks", runs those two, and the log names the ones left out.
+The expected time comes from this machine's earlier builds of the
 model on that device (benchmarks are builds too, and go into the build
 history), else from the model's calibration - the first run of a model
 is the least sure; "about" is left out until the model is calibrated.

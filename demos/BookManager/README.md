@@ -54,6 +54,16 @@ Debugger > Embarcadero Debuggers > Language Exceptions can ignore
 EIdSocketError, EIdConnectTimeout, EIdClosedSocket,
 EIdConnClosedGracefully and ELinkError.
 
+## Dark mode
+
+**Dark mode**, the check box at the top right, is on at first (as in
+EpubBuilder) and kept in the settings (`BookManager.ini`, `[View]
+Dark`). Dark: the window, the tabs' pages, the lists and the log are
+dark with light text, and the tabs' names are drawn as a row of boxes
+under the builder row (the one that shows is filled). Buttons, the list
+of builders, the code box and the progress bars keep the system's
+colours. Unticked, the window is as the system's style draws it.
+
 ## Send to EpubBuilder
 
 Drop on the dashed box (or on the list below it):

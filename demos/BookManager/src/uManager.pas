@@ -22,7 +22,7 @@ uses
   FMX.StdCtrls, FMX.Layouts, FMX.ListBox, FMX.Edit, FMX.Memo, FMX.Memo.Types, FMX.ScrollBox,
   // FMX.Objects has a TPath (a shape) that hides System.IOUtils.TPath:
   // that one is written in full here
-  FMX.Controls.Presentation, FMX.TabControl, FMX.Objects,
+  FMX.Controls.Presentation, FMX.TabControl, FMX.Objects, FMX.Styles.Objects,
   uDebugLog, uMachine, uEpubUnum, uLink, uRoute, uTransfers;
 
 type
@@ -144,6 +144,28 @@ type
     lblStatus: TLabel;
     { Drops builders not heard any more from the list (every 2 s). }
     tmPeers: TTimer;
+    { Dark mode, in the builder row (owner, 2026-11-22: "BookManager
+      should have a DarkMode option"). }
+    chkDark: TCheckBox;
+    { Dark: the tabs' names, drawn here (the style's tab strip is hidden:
+      its colours are the style's, light). }
+    layTabs: TLayout;
+    { Dark: a box per tab in layTabs. }
+    FTabBoxes: array[0..3] of TRectangle;
+    { Dark: each box's name. }
+    FTabLabels: array[0..3] of TLabel;
+    { Dark: a dark sheet behind each tab's controls. }
+    FTabBacks: array[0..3] of TRectangle;
+    { Dark: looked at again twice a second (a style applied again, a
+      list's new rows). }
+    tmDark: TTimer;
+    { Dark mode is on ([View] Dark in the settings; on at first, as
+      EpubBuilder's). }
+    FDark: Boolean;
+    { What the window was last given. }
+    FWindowDark: Boolean;
+    { The log's style could not be darkened: said once in the debug log. }
+    FDarkNoted: Boolean;
     { This program's name, sent when pairing: 'BookManager on <machine>'. }
     FClientName: string;
     { The builders' places and tokens (shared with the threads). }
@@ -207,6 +229,30 @@ type
     procedure SaveSettings;
     { Makes the window's controls. }
     procedure BuildWindow;
+    { Tab AIndex of the four (0 = Send ... 3 = Log). }
+    function TabOf(AIndex: Integer): TTabItem;
+    { Gives the window its colours, dark or light (FDark), as
+      EpubBuilder's desktop window: the form's fill, the labels and the
+      check box light, the lists without a background and their rows
+      light, the log's style background no longer drawn; the tabs' names
+      in layTabs and a dark sheet behind each tab. Buttons, the list of
+      builders, the code box and the bars keep the style's colours. Light:
+      all of it put back. }
+    procedure ApplyDark;
+    { ApplyDark before the window is first drawn: the log's and the
+      lists' styles are applied first (their backgrounds are in them). }
+    procedure DarkBeforeShow;
+    { Dark: the boxes of layTabs from the tabs - their names, and which
+      one shows. }
+    procedure UpdateTabStrip;
+    { A box of layTabs clicked: its tab shows. }
+    procedure TabBoxClick(Sender: TObject);
+    { tcMain: another tab shows. }
+    procedure TabChanged(Sender: TObject);
+    { chkDark: dark mode on or off, kept in the settings. }
+    procedure chkDarkChange(Sender: TObject);
+    { tmDark: ApplyDark while dark. }
+    procedure tmDarkTimer(Sender: TObject);
     { A row (Top-aligned layout) under AParent, after those there. }
     function AddRow(AParent: TFmxObject): TLayout;
     { A button in ARow, after those there. }
@@ -327,6 +373,16 @@ const
   ROW_HEIGHT = 32;
   { Log lines kept in the Log tab. }
   LOG_KEEP = 5000;
+  { Dark mode's colours, EpubBuilder's (its PAD_DARK_...): the window. }
+  DARK_WINDOW = $FF1A1C22;
+  { Dark mode: text. }
+  DARK_TEXT = $FFE0E0E0;
+  { Dark mode: the box of the tab that shows. }
+  DARK_ROW = $FF34405A;
+  { Dark mode: the frame of the other tabs' boxes. }
+  DARK_FRAME = $FF4A4F5C;
+  { The tabs' names in layTabs: the tab items' texts. }
+  TAB_NAMES: array[0..3] of string = ('Send to EpubBuilder', 'Books made', 'Progress', 'Log');
   { Room left free on this computer's drive when books are fetched
     (1 GiB). }
   FETCH_RESERVE = Int64(1024) * 1024 * 1024;
@@ -376,6 +432,7 @@ var
 begin
   FFetchFolder := EpubUnumFolder(EU_TRANSCRIBED);
   FAddFolder := System.IOUtils.TPath.GetDocumentsPath;
+  FDark := True;
   try
     Ini := TMemIniFile.Create(SettingsFile, TEncoding.UTF8);
     try
@@ -383,6 +440,7 @@ begin
       FLastId := Ini.ReadString('Builder', 'Id', '');
       FFetchFolder := Ini.ReadString('Folders', 'Fetch', FFetchFolder);
       FAddFolder := Ini.ReadString('Folders', 'Add', FAddFolder);
+      FDark := Ini.ReadBool('View', 'Dark', True);
     finally
       Ini.Free;
     end;
@@ -410,6 +468,7 @@ begin
         Ini.WriteString('Builder', 'Id', FBuilderId);
       Ini.WriteString('Folders', 'Fetch', FFetchFolder);
       Ini.WriteString('Folders', 'Add', FAddFolder);
+      Ini.WriteBool('View', 'Dark', FDark);
       Ini.UpdateFile;
     finally
       Ini.Free;
@@ -459,11 +518,37 @@ begin
   Result.Trimming := TTextTrimming.Character;
 end;
 
+function TfrmManager.TabOf(AIndex: Integer): TTabItem;
+begin
+  case AIndex of
+    0: Result := tabSend;
+    1: Result := tabBooks;
+    2: Result := tabProgress;
+  else
+    Result := tabLog;
+  end;
+end;
+
 procedure TfrmManager.BuildWindow;
 var
   Row: TLayout;
   L: TLabel;
   B: TButton;
+  I: Integer;
+
+  { The dark sheet of tab AIndex: made before the tab's controls, so
+    behind them; shown while dark. }
+  procedure AddBack(AIndex: Integer; ATab: TTabItem);
+  begin
+    FTabBacks[AIndex] := TRectangle.Create(Self);
+    FTabBacks[AIndex].Parent := ATab;
+    FTabBacks[AIndex].Align := TAlignLayout.Contents;
+    FTabBacks[AIndex].Fill.Color := DARK_WINDOW;
+    FTabBacks[AIndex].Stroke.Kind := TBrushKind.None;
+    FTabBacks[AIndex].HitTest := False;
+    FTabBacks[AIndex].Visible := False;
+  end;
+
 begin
   // the status line, at the bottom
   lblStatus := TLabel.Create(Self);
@@ -485,6 +570,14 @@ begin
   L.Align := TAlignLayout.Left;
   L.Width := 90;
   L.Text := 'EpubBuilder';
+  // at the far right
+  chkDark := TCheckBox.Create(Self);
+  chkDark.Parent := layTop;
+  chkDark.Align := TAlignLayout.Right;
+  chkDark.Position.X := 100000;
+  chkDark.Width := 110;
+  chkDark.Margins.Left := GAP * 2;
+  chkDark.Text := 'Dark mode';
   btnPair := TButton.Create(Self);
   btnPair.Parent := layTop;
   btnPair.Align := TAlignLayout.Right;
@@ -528,6 +621,42 @@ begin
   AddButton(layPair, 'Cancel', btnPairCancelClick, 90);
   layPair.Visible := False;
 
+  // dark: the tabs' names, in this program's colours
+  layTabs := TLayout.Create(Self);
+  layTabs.Parent := Self;
+  layTabs.Align := TAlignLayout.Top;
+  layTabs.Position.Y := 200;
+  layTabs.Height := ROW_HEIGHT + GAP;
+  layTabs.Padding.Rect := RectF(GAP, GAP, GAP, 0);
+  for I := 0 to High(FTabBoxes) do
+  begin
+    FTabBoxes[I] := TRectangle.Create(Self);
+    FTabBoxes[I].Parent := layTabs;
+    FTabBoxes[I].Align := TAlignLayout.Left;
+    FTabBoxes[I].Position.X := 100000;
+    FTabBoxes[I].Width := 200;
+    FTabBoxes[I].Margins.Right := GAP div 2;
+    FTabBoxes[I].XRadius := 6;
+    FTabBoxes[I].YRadius := 6;
+    FTabBoxes[I].Stroke.Color := DARK_FRAME;
+    FTabBoxes[I].Fill.Kind := TBrushKind.None;
+    FTabBoxes[I].HitTest := True;
+    FTabBoxes[I].Tag := I;
+    FTabBoxes[I].OnClick := TabBoxClick;
+    FTabLabels[I] := TLabel.Create(Self);
+    FTabLabels[I].Parent := FTabBoxes[I];
+    FTabLabels[I].Align := TAlignLayout.Client;
+    FTabLabels[I].HitTest := False;
+    // its colour is this program's: ApplyDark leaves it alone
+    FTabLabels[I].StyledSettings := FTabLabels[I].StyledSettings - [TStyledSetting.FontColor,
+      TStyledSetting.Other];
+    FTabLabels[I].TextSettings.FontColor := DARK_TEXT;
+    FTabLabels[I].TextSettings.HorzAlign := TTextAlign.Center;
+    FTabLabels[I].WordWrap := False;
+    FTabLabels[I].Text := TAB_NAMES[I];
+  end;
+  layTabs.Visible := False;
+
   tcMain := TTabControl.Create(Self);
   tcMain.Parent := Self;
   tcMain.Align := TAlignLayout.Client;
@@ -536,7 +665,8 @@ begin
   // --- Send to EpubBuilder
   tabSend := TTabItem.Create(tcMain);
   tabSend.Parent := tcMain;
-  tabSend.Text := 'Send to EpubBuilder';
+  tabSend.Text := TAB_NAMES[0];
+  AddBack(0, tabSend);
   rcDrop := TRectangle.Create(Self);
   rcDrop.Parent := tabSend;
   rcDrop.Align := TAlignLayout.Top;
@@ -613,7 +743,8 @@ begin
   // --- Books made
   tabBooks := TTabItem.Create(tcMain);
   tabBooks.Parent := tcMain;
-  tabBooks.Text := 'Books made';
+  tabBooks.Text := TAB_NAMES[1];
+  AddBack(1, tabBooks);
   Row := AddRow(tabBooks);
   Row.Margins.Top := GAP;
   AddButton(Row, 'Refresh', btnRefreshClick, 90);
@@ -635,7 +766,8 @@ begin
   // --- Progress (as EpubBuilder's progress panel)
   tabProgress := TTabItem.Create(tcMain);
   tabProgress.Parent := tcMain;
-  tabProgress.Text := 'Progress';
+  tabProgress.Text := TAB_NAMES[2];
+  AddBack(2, tabProgress);
   lblPTitle := AddLabel(tabProgress, 26, 0);
   lblPTitle.StyledSettings := lblPTitle.StyledSettings - [TStyledSetting.Style];
   lblPTitle.TextSettings.Font.Style := [TFontStyle.fsBold];
@@ -655,7 +787,8 @@ begin
   // --- Log (EpubBuilder's)
   tabLog := TTabItem.Create(tcMain);
   tabLog.Parent := tcMain;
-  tabLog.Text := 'Log';
+  tabLog.Text := TAB_NAMES[3];
+  AddBack(3, tabLog);
   mmLog := TMemo.Create(Self);
   mmLog.Parent := tabLog;
   mmLog.Align := TAlignLayout.Client;
@@ -664,10 +797,276 @@ begin
   mmLog.WordWrap := True;
 
   tcMain.ActiveTab := tabSend;
+  tcMain.OnChange := TabChanged;
 
   tmPeers := TTimer.Create(Self);
   tmPeers.Interval := 2000;
   tmPeers.OnTimer := tmPeersTimer;
+  tmDark := TTimer.Create(Self);
+  tmDark.Interval := 500;
+  tmDark.OnTimer := tmDarkTimer;
+end;
+
+procedure TfrmManager.UpdateTabStrip;
+var
+  I: Integer;
+begin
+  if not FWindowDark then
+    Exit;
+  for I := 0 to High(FTabBoxes) do
+  begin
+    // a tab's name changes ("Books made (12, 3 new)", "Progress (45 %)")
+    if FTabLabels[I].Text <> TabOf(I).Text then
+      FTabLabels[I].Text := TabOf(I).Text;
+    if tcMain.ActiveTab = TabOf(I) then
+    begin
+      FTabBoxes[I].Fill.Kind := TBrushKind.Solid;
+      FTabBoxes[I].Fill.Color := DARK_ROW;
+      FTabLabels[I].TextSettings.FontColor := TAlphaColors.White;
+    end
+    else
+    begin
+      FTabBoxes[I].Fill.Kind := TBrushKind.None;
+      FTabLabels[I].TextSettings.FontColor := DARK_TEXT;
+    end;
+  end;
+end;
+
+procedure TfrmManager.TabBoxClick(Sender: TObject);
+begin
+  if Sender is TRectangle then
+    tcMain.ActiveTab := TabOf(TRectangle(Sender).Tag);
+  UpdateTabStrip;
+end;
+
+procedure TfrmManager.TabChanged(Sender: TObject);
+begin
+  UpdateTabStrip;
+end;
+
+procedure TfrmManager.ApplyDark;
+const
+  { FMX's own list style with no background: the dark sheet shows through
+    (EpubBuilder's lists, the reader's contents). }
+  DARK_LIST_STYLE = 'transparentlistboxstyle';
+  { Marks a control whose colour this changed: only those are put back. }
+  DARK_MARK = 'dark';
+
+  { The log: its style's background picture no longer drawn, then its
+    text light; the style's own again when dark is off. }
+  procedure DarkMemo(AMemo: TMemo);
+  var
+    Obj: TFmxObject;
+  begin
+    if not FDark then
+    begin
+      if not (TStyledSetting.FontColor in AMemo.StyledSettings) then
+      begin
+        AMemo.StyledSettings := AMemo.StyledSettings + [TStyledSetting.FontColor];
+        // the style's own background again
+        AMemo.NeedStyleLookup;
+        AMemo.ApplyStyleLookup;
+        AMemo.Repaint;
+      end;
+      Exit;
+    end;
+    // the background is a picture taken from the style: with no picture
+    // to look up it draws nothing, and its children (the text) still do
+    Obj := AMemo.FindStyleResource('background');
+    if not (Obj is TCustomStyleObject) then
+    begin
+      if not FDarkNoted then
+      begin
+        FDarkNoted := True;
+        if Obj = nil then
+          DebugLog('dark: the log''s style has no "background" yet - looked for again')
+        else
+          DebugLog('dark: the log keeps the style''s colours - its background is a ' + Obj.ClassName +
+            ', not a style picture');
+      end;
+      Exit;
+    end;
+    if TCustomStyleObject(Obj).SourceLookup <> '' then
+    begin
+      TCustomStyleObject(Obj).SourceLookup := '';
+      TCustomStyleObject(Obj).Source := nil;
+      DebugLog('dark: the background of the log (' + Obj.ClassName + ') is no longer drawn');
+      AMemo.Repaint;
+    end;
+    // light text only once the background is known to be gone
+    if TStyledSetting.FontColor in AMemo.StyledSettings then
+    begin
+      AMemo.StyledSettings := AMemo.StyledSettings - [TStyledSetting.FontColor];
+      AMemo.TextSettings.FontColor := DARK_TEXT;
+      AMemo.Repaint;
+    end;
+  end;
+
+  { A label that had the style's colour: light, and marked; a marked one
+    gets the style's colour back. }
+  procedure DarkLabel(ALabel: TLabel);
+  begin
+    if FDark then
+    begin
+      if TStyledSetting.FontColor in ALabel.StyledSettings then
+      begin
+        ALabel.StyledSettings := ALabel.StyledSettings - [TStyledSetting.FontColor];
+        ALabel.TextSettings.FontColor := DARK_TEXT;
+        ALabel.TagString := DARK_MARK;
+      end;
+    end
+    else if ALabel.TagString = DARK_MARK then
+    begin
+      ALabel.TagString := '';
+      ALabel.StyledSettings := ALabel.StyledSettings + [TStyledSetting.FontColor];
+    end;
+  end;
+
+  { The check box's text, as a label's. }
+  procedure DarkCheck(ACheck: TCheckBox);
+  begin
+    if FDark then
+    begin
+      if TStyledSetting.FontColor in ACheck.StyledSettings then
+      begin
+        ACheck.StyledSettings := ACheck.StyledSettings - [TStyledSetting.FontColor];
+        ACheck.TextSettings.FontColor := DARK_TEXT;
+        ACheck.TagString := DARK_MARK;
+      end;
+    end
+    else if ACheck.TagString = DARK_MARK then
+    begin
+      ACheck.TagString := '';
+      ACheck.StyledSettings := ACheck.StyledSettings + [TStyledSetting.FontColor];
+    end;
+  end;
+
+  { A list: no background of its own, its rows' text light (new rows come
+    with the style's colour: looked at again by tmDark and after a list
+    is filled). }
+  procedure DarkList(AList: TListBox);
+  var
+    I: Integer;
+    Row: TListBoxItem;
+  begin
+    if FDark then
+    begin
+      if AList.StyleLookup <> DARK_LIST_STYLE then
+      begin
+        AList.StyleLookup := DARK_LIST_STYLE;
+        AList.NeedStyleLookup;
+        AList.ApplyStyleLookup;
+      end;
+    end
+    else if AList.StyleLookup = DARK_LIST_STYLE then
+    begin
+      AList.StyleLookup := '';
+      AList.NeedStyleLookup;
+      AList.ApplyStyleLookup;
+    end;
+    for I := 0 to AList.Count - 1 do
+    begin
+      Row := AList.ListItems[I];
+      if FDark then
+      begin
+        if TStyledSetting.FontColor in Row.StyledSettings then
+        begin
+          Row.StyledSettings := Row.StyledSettings - [TStyledSetting.FontColor];
+          Row.TextSettings.FontColor := DARK_TEXT;
+          Row.TagString := DARK_MARK;
+        end;
+      end
+      else if Row.TagString = DARK_MARK then
+      begin
+        Row.TagString := '';
+        Row.StyledSettings := Row.StyledSettings + [TStyledSetting.FontColor];
+      end;
+    end;
+  end;
+
+var
+  I: Integer;
+  C: TComponent;
+begin
+  if (mmLog = nil) or (tmDark = nil) then
+    Exit;
+  if FDark <> FWindowDark then
+  begin
+    FWindowDark := FDark;
+    if FDark then
+    begin
+      Fill.Kind := TBrushKind.Solid;
+      Fill.Color := DARK_WINDOW;
+      // the style's tab strip (light) gives way to layTabs, under the
+      // builder row and the code row
+      tcMain.TabPosition := TTabPosition.None;
+      layTabs.Position.Y := 10000;
+    end
+    else
+    begin
+      Fill.Kind := TBrushKind.None;
+      tcMain.TabPosition := TTabPosition.PlatformDefault;
+    end;
+    layTabs.Visible := FDark;
+    for I := 0 to High(FTabBacks) do
+      FTabBacks[I].Visible := FDark;
+    DebugLog('dark: ' + IfThen(FDark, 'on', 'off'));
+  end;
+  // every control was made with the form as its owner
+  for I := 0 to ComponentCount - 1 do
+  begin
+    C := Components[I];
+    if C is TLabel then
+      DarkLabel(TLabel(C))
+    else if C is TCheckBox then
+      DarkCheck(TCheckBox(C))
+    else if C is TListBox then
+      DarkList(TListBox(C))
+    else if C is TMemo then
+      DarkMemo(TMemo(C));
+  end;
+  UpdateTabStrip;
+  tmDark.Enabled := FDark and not FClosing;
+end;
+
+procedure TfrmManager.DarkBeforeShow;
+begin
+  if not FDark then
+    Exit;
+  try
+    mmLog.ApplyStyleLookup;
+    lbTransfers.ApplyStyleLookup;
+    lbBooks.ApplyStyleLookup;
+    ApplyDark;
+  except
+    on E: Exception do
+      DebugLog('dark before show: ' + E.ClassName + ': ' + E.Message);
+  end;
+end;
+
+procedure TfrmManager.chkDarkChange(Sender: TObject);
+begin
+  if FClosing or (chkDark.IsChecked = FDark) then
+    Exit;
+  FDark := chkDark.IsChecked;
+  try
+    ApplyDark;
+  except
+    on E: Exception do
+      DebugLog('dark: ' + E.ClassName + ': ' + E.Message);
+  end;
+  SaveSettings;
+end;
+
+procedure TfrmManager.tmDarkTimer(Sender: TObject);
+begin
+  try
+    if FDark and not FClosing then
+      ApplyDark;
+  except
+    on E: Exception do
+      DebugLog('dark: ' + E.ClassName + ': ' + E.Message);
+  end;
 end;
 
 procedure TfrmManager.FormCreate(Sender: TObject);
@@ -687,6 +1086,10 @@ begin
   FTargets := TLinkTargets.Create(FClientName);
   BuildWindow;
   LoadSettings;
+  // dark unless turned off, before the first frame
+  chkDark.IsChecked := FDark;
+  chkDark.OnChange := chkDarkChange;
+  DarkBeforeShow;
   lblFetchFolder.Text := 'Fetched to: ' + FFetchFolder;
   ClearProgress('Not connected');
 
@@ -725,6 +1128,7 @@ procedure TfrmManager.FormClose(Sender: TObject; var Action: TCloseAction);
 begin
   FClosing := True;
   tmPeers.Enabled := False;
+  tmDark.Enabled := False;
   // each stops its call (closing the connection) and waits; the events it
   // queued and that have not run are dropped
   FreeAndNil(FPoller);
@@ -972,6 +1376,8 @@ begin
       Exit;
     end;
   end;
+  // under the builder row, above the dark tabs' names
+  layPair.Position.Y := layTop.Position.Y + 1;
   layPair.Visible := True;
   edCode.Text := '';
   edCode.SetFocus;
@@ -1184,6 +1590,9 @@ begin
   finally
     lbTransfers.EndUpdate;
   end;
+  // dark: the list's new rows light at once
+  if FDark then
+    ApplyDark;
   tcMain.ActiveTab := tabSend;
   UpdateTransferBar;
   SetStatus(Format('%d file(s) to send to EpubBuilder on %s (%s).%s', [Length(Items), FBuilder.Name,
@@ -1363,6 +1772,9 @@ begin
   finally
     lbTransfers.EndUpdate;
   end;
+  // dark: the list's new rows light at once
+  if FDark then
+    ApplyDark;
   UpdateTransferBar;
 end;
 
@@ -1552,6 +1964,9 @@ begin
     tabBooks.Text := 'Books made'
   else
     tabBooks.Text := Format('Books made (%d, %d new)', [Length(FBooks), New]);
+  // dark: the new rows light at once, the tab's name in layTabs
+  if FDark then
+    ApplyDark;
 end;
 
 procedure TfrmManager.btnFetchCheckedClick(Sender: TObject);
@@ -1705,6 +2120,9 @@ begin
   finally
     lbTransfers.EndUpdate;
   end;
+  // dark: the list's new rows light at once
+  if FDark then
+    ApplyDark;
   UpdateTransferBar;
   SetStatus(Format('%d book(s) to fetch (%s) into %s.', [N, SizeText(Total), FFetchFolder]));
 end;
@@ -1759,6 +2177,7 @@ begin
   lblPSpeed.Text := '';
   pbBuild.Value := 0;
   tabProgress.Text := 'Progress';
+  UpdateTabStrip;
 end;
 
 procedure TfrmManager.ShowProgress(const AJson: string);
@@ -1824,6 +2243,7 @@ begin
   else
     lblPSpeed.Text := '';
   tabProgress.Text := Format('Progress (%.0f %%)', [Percent]);
+  UpdateTabStrip;
 end;
 
 procedure TfrmManager.AddLogLines(const ALines: TArray<string>);
