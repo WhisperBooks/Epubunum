@@ -19,7 +19,8 @@ uses
   Epub.Zip, Epub.Book, Epub.Layout, Epub.Writer, Epub.Mobi,
   FFmpeg.API, FFmpeg.Media,
   Whisper.Types, Whisper.API, Whisper.Audio, Whisper.Core, Whisper.Words, Whisper.Align, Whisper.AudioSet,
-  uDebugLog, uMachine, uCalibration, uHistory, uModels, uSteam, uInhibit, uQuitSignal, uSteamPad, uPadMenu, uCards,
+  uDebugLog, uMachine, uCalibration, uHistory, uModels, uSteam, uSteamBoard, uInhibit, uQuitSignal, uSteamPad,
+  uPadMenu, uCards,
   uRedraw, uLink, uCovers, uCoverPick, uEpubUnum, uBenchProgress, uMacWindow;
 
 type
@@ -395,13 +396,13 @@ type
     layBottom: TLayout;
     { The book and the audio side by side, at the top (the queue below). }
     layTop: TLayout;
-    { The settings' page over the window: model, device, language, power,
-      Windows' GPU, chapters, a saved transcript; Done closes it. }
-    pnlSettings: TPanel;
+    { Holds the settings' controls (cbModel, cbDevice, cbLanguage,
+      cbPower, cbGpu, chkChapters, chkReuse): the code reads and sets
+      them, the menu's Settings page shows and changes them. Never shown
+      (owner, 2026-11-23: the window's own settings page is gone). }
+    laySettings: TLayout;
     { The settings in one line, on the window. }
     lblSettings: TLabel;
-    { Opens the settings' page. }
-    btnSettings: TButton;
     { The EPUB chosen. }
     edBook: TEdit;
     { What the book holds. }
@@ -412,9 +413,6 @@ type
       is chosen), other models in the models folder, the model chosen
       elsewhere, and "Other model file ...". }
     cbModel: TComboBox;
-    { Model > Folder...: where the models are kept (not in Steam builds:
-      there they are in the program's folder). }
-    btnModelFolder: TButton;
     { The model file chosen ('' = none). }
     FModelPath: string;
     { The models folder (uModels.ModelsDefaultFolder, or the user's). }
@@ -444,6 +442,9 @@ type
     { The calibration's results show (ShowCalibrationResults): any button,
       key or click goes on (CalResultsButton). }
     FCalResults: Boolean;
+    { The results page was opened from Settings > Calibration results:
+      closed, the Settings page comes back. }
+    FCalFromSettings: Boolean;
     { The calibration's introduction shows (ShowCalibrationIntro): shown
       again when the pad and the keys change places (its buttons). }
     FCalIntro: Boolean;
@@ -606,8 +607,6 @@ type
     FWindowDark: Boolean;
     { ApplyDarkWindow has said in the debug log why the log stays light. }
     FDarkNoted: Boolean;
-    { Settings > Dark mode: checked while it is on. }
-    miDarkMode: TMenuItem;
     { macOS, Big Picture: when tmPadTimer last looked whether the window is
       full screen. }
     FFullTick: UInt64;
@@ -715,8 +714,6 @@ type
     lblPTime: TLabel;
     { The speed so far. }
     lblPSpeed: TLabel;
-    { Settings > Show the log. }
-    miLog: TMenuItem;
     { The title of the book being built. }
     FBuildTitle: string;
     { Taken / left, as ShowStatus last worked it out. }
@@ -776,21 +773,12 @@ type
       Declared on Linux only (H2219 elsewhere). }
     mnuBar: TMenuBar;
     {$ENDIF}
-    { Settings > Re-calibrate (this model). }
-    miCalibrate: TMenuItem;
-    { Settings > Re-calibrate every model. }
-    miCalibrateAll: TMenuItem;
-    { Settings > Diagnostics (this model). }
-    miDiagnostics: TMenuItem;
-    { Settings > Diagnostics (every model). }
-    miDiagnosticsAll: TMenuItem;
-    { Settings > Model > Download every model. }
-    miDownloadAll: TMenuItem;
-    { Settings > Expert mode: checked while it is on. }
-    miExpert: TMenuItem;
-    { Settings > AMD ROCm acceleration: Linux Steam builds, an
+    { Settings' calibration and diagnostics rows can be used: nothing
+      runs and whisper.cpp is there (UpdateControls). }
+    FToolsReady: Boolean;
+    { Settings > AMD ROCm acceleration is offered: Linux Steam builds, an
       AMD GPU without a ROCm device (CheckRocmDlc). }
-    miRocm: TMenuItem;
+    FRocmOffer: Boolean;
     { The Benchmark menu: [0] Run all N benchmarks (BenchName: N = those
       that can run here), [1 .. 4] one each (BENCH_NAMES), with the time
       each takes; greyed when its model is not there or too slow. }
@@ -837,6 +825,37 @@ type
     FBenchResults: Boolean;
     { The results are hidden (X / H): the bars show. }
     FBenchHidden: Boolean;
+    { The results shown again keep this row selected (-1: the last). }
+    FBenchSel: Integer;
+    { The scores go to Steam's leaderboards ([Benchmark] Leaderboard in
+      the settings, Settings > Leaderboard; yes at first and not asked -
+      owner, 2026-11-23: "just do it if leaderboard is checked in
+      settings", "Default value ... is yes"). }
+    FBoardUpload: Boolean;
+    { This run's scores for the leaderboards, ms (0 = none). }
+    FBoardMs: array[1..4] of Integer;
+    { The numbers sent beside each (BoardDetails). }
+    FBoardDetails: array[1..4] of TArray<Integer>;
+    { Each score's way to its leaderboard: 0 not sent, 1 being sent, 2
+      there (FBoardRank, FBoardCount, FBoardBest), 3 not taken. }
+    FBoardState: array[1..4] of Integer;
+    { The user's place on each leaderboard. }
+    FBoardRank: array[1..4] of Integer;
+    { Each leaderboard's rows. }
+    FBoardCount: array[1..4] of Integer;
+    { The user's score on each leaderboard, ms (their best). }
+    FBoardBest: array[1..4] of Integer;
+    { The leaderboard the menu shows or waits for (PadBoard). }
+    FBoardShown: Integer;
+    { Its page is the one around the user, not the top (left / right). }
+    FBoardAround: Boolean;
+    { The user has a row on it (known once it has been read): the page
+      around them can be asked for. }
+    FBoardHasRank: Boolean;
+    { The board's rows its page has room for (the window's height). }
+    FBoardRows: Integer;
+    { Benchmark > Leaderboards... (Steam running). }
+    miBoards: TMenuItem;
     { The run's books (deleted when the results are answered). }
     FBenchKeep: TArray<string>;
     { Of them, the ones offered to keep. }
@@ -917,8 +936,10 @@ type
     { cbModel: a downloaded model is chosen; one not downloaded yet is
       downloaded first (asked); "Other model file ..." = btnModelClick. }
     procedure cbModelChange(Sender: TObject);
-    { Model > Folder...: another models folder (kept in the settings). }
-    procedure btnModelFolderClick(Sender: TObject);
+    { Settings > Models folder: another models folder (kept in the
+      settings; not in Steam builds - there the models are in the
+      program's folder). }
+    procedure ChooseModelsFolder;
     { Fills cbModel from the catalogue and the models folder, FModelPath
       selected. }
     procedure FillModels;
@@ -1159,10 +1180,9 @@ type
     procedure tmDarkTimer(Sender: TObject);
     { Dark mode on or off: the menu's and the window's colours, saved. }
     procedure ToggleDark;
-    { Dark mode's old menu item (on no menu bar now). }
-    procedure miDarkModeClick(Sender: TObject);
-    { File > Settings...: the menu's Settings page over the window (Esc, a
-      right click or its Back row closes it). }
+    { File > Settings... and the window's Settings... button: the menu's
+      Settings page over the window (Esc, a right click or its Back row
+      closes it). }
     procedure miSettingsClick(Sender: TObject);
     { The folder dialog for the books (0), the audio (1) or the output (2)
       folder; kept in the settings. }
@@ -1389,6 +1409,43 @@ type
     { X / H, or the corner's button: the results hidden (the bars show)
       or shown again. }
     procedure BenchToggleResults;
+    { The numbers sent beside a score: [0] their layout (BOARD_FORMAT),
+      [1] the words matched, hundredths of a per cent, [2] 0 processor /
+      1 graphics, [3] unused, [4 ..] the device's description, four
+      characters a number (no machine or user name: the privacy rule).
+      @returns(the numbers) }
+    function BoardDetails(const ASummary: TBuildSummary): TArray<Integer>;
+    { This run's scores to their leaderboards (Steam running, Settings >
+      Leaderboard on): each answers through BoardSent. }
+    procedure BoardSend;
+    { A score reached its leaderboard, or did not: the log's line (place
+      and rows - no names) and the results table again. }
+    procedure BoardSent(const AResult: TSteamBoardResult);
+    { What the results table says after a score: its place, "sending",
+      or nothing.
+      @returns(the text, with its separator) }
+    function BoardNote(AOption: Integer): string;
+    { The Leaderboards list: the four benchmarks (owner, 2026-11-23). }
+    procedure PadBoards;
+    { Leaderboard AOption, from its top: a page 95 % of the window wide
+      and high that says "Asking Steam ...", then BoardAsk. }
+    procedure PadBoard(AOption: Integer);
+    { Asks Steam for the page of FBoardShown that FBoardAround names, as
+      many rows as the page has room for (BoardRead shows them; the page
+      on the screen stays until then). }
+    procedure BoardAsk;
+    { Left / right on a leaderboard: its top, or the rows around the
+      user (owner, 2026-11-23: "two versions of the same board and
+      switch between them with the left/right arrow keys") - when the
+      user has a row. }
+    procedure BoardSwitch;
+    { The leaderboard's rows came: place, name, score, device - a full
+      page when the board has that many rows. The user's own row is in
+      yellow; on the top page, when it is further down, it takes the
+      last line and one row fewer of the top is shown. }
+    procedure BoardRead(const AResult: TSteamBoardResult);
+    { Benchmark > Leaderboards... }
+    procedure miBoardsClick(Sender: TObject);
     { Settings > Model > Download every model (the top row of Big Picture's model
       list): asks, then fetches every model of the catalogue that is not
       in the models folder, one after another (FDownloadQueue). The model
@@ -1397,8 +1454,6 @@ type
     procedure DownloadEveryModel;
     { Starts the first model of FDownloadQueue and takes it off the queue. }
     procedure StartNextDownload;
-    { Settings > Model > Download every model. }
-    procedure miDownloadAllClick(Sender: TObject);
     { Turns expert mode on or off (FExpert): kept in the settings, the
       model list filled again, a line in the log. }
     procedure ToggleExpert;
@@ -1433,8 +1488,15 @@ type
       (CalResultsClosed). }
     procedure CalResultsButton(Sender: TObject);
     { The calibration view freed, the menu next (what CalibrationDone did
-      before the results). }
+      before the results; after Settings > Calibration results, the
+      Settings page on that row). }
     procedure CalResultsClosed;
+    { Settings > Calibration results (owner, 2026-11-23: "should show the
+      new Calibration Results page not just the log"): the log's lines as
+      before, and the page the calibration ends with
+      (ShowCalibrationResults) over the window. Not calibrated yet: says
+      so. }
+    procedure ShowCalibrationPage;
     { How long calibrating every model here (StartCalibration(True, ...))
       may take: an earlier calibration's speeds, else GuessSpeed's.
       @param(ACard  True when a graphics card (or Apple's Metal) is here)
@@ -1483,15 +1545,12 @@ type
     { The language chosen in cbLanguage ('' = the book's).
       @returns(the code) }
     function ChosenLanguage: string;
-    { Settings > Books folder / Audio folder / Output folder: the
-      three folders (Tag 0, 1, 2 of the item). }
-    procedure miFolderClick(Sender: TObject);
-    { Settings... (the window's button): the settings' page over the
-      window. }
-    procedure btnSettingsClick(Sender: TObject);
-    { The settings' page's Done: closed, saved, the line on the window
-      updated. }
-    procedure btnSettingsDoneClick(Sender: TObject);
+    { After the start-up calibration: the window's model is below the
+      lowest acceptable speed on every device and base is not - base
+      becomes the window's model, and the log says so (owner, 2026-11-23:
+      "switch to base automatically ... if turbo too slow"; the Miix:
+      turbo 0.6x). }
+    procedure UseBaseWhenTooSlow;
     { lblSettings from the settings: the model, the device, the language,
       the power, and what is not as usual (chapters, a saved transcript). }
     procedure UpdateSettingsLine;
@@ -2902,7 +2961,6 @@ procedure TfrmBuilder.BuildWindow;
 var
   Row, Buttons: TLayout;
   L: TLabel;
-  B: TButton;
 begin
   // as wide as the window wants, but never wider than the screen (a
   // Steam Deck's 1280 x 800 cut the audio's buttons off, 2026-11-20)
@@ -2923,7 +2981,7 @@ begin
   // Book and Audio providing more space"): book and audio at the top, the
   // queue below them across the window, then the output, a line of the
   // settings with Settings..., Create / Cancel, progress and log. The
-  // settings themselves are on a page of their own (pnlSettings).
+  // settings themselves are the menu's Settings page (miSettingsClick).
 
   // below: output, settings line, Create / Cancel, progress, log
   layBottom := TLayout.Create(Self);
@@ -2938,7 +2996,7 @@ begin
   AddButton(Row, 'Choose...', btnOutClick, TAlignLayout.Right);
 
   Row := AddRow(layBottom, 'Settings');
-  btnSettings := AddButton(Row, 'Settings...', btnSettingsClick, TAlignLayout.Right);
+  AddButton(Row, 'Settings...', miSettingsClick, TAlignLayout.Right);
   lblSettings := TLabel.Create(Self);
   lblSettings.Parent := Row;
   lblSettings.Align := TAlignLayout.Client;
@@ -3091,41 +3149,23 @@ begin
   tmQueue.Interval := 50;
   tmQueue.OnTimer := tmQueueTimer;
 
-  // the settings: a page of their own over the window (Settings... /
-  // the Settings... button), closed with Done. The controls are the ones the
-  // rest of the code reads (cbModel, cbDevice, ...), only placed here.
-  pnlSettings := TPanel.Create(Self);
-  pnlSettings.Parent := Self;
-  pnlSettings.Align := TAlignLayout.Contents;
-  pnlSettings.Padding.Rect := RectF(GAP * 2, GAP * 2, GAP * 2, GAP * 2);
-  pnlSettings.Visible := False;
-  AddCaption(pnlSettings, 'Settings');
-
-  Row := AddRow(pnlSettings, 'Model');
+  // the settings' controls: the ones the rest of the code reads and sets
+  // (cbModel, cbDevice, ...). They are on no page of the window - the
+  // menu's Settings page shows and changes them - so their holder is
+  // never shown.
+  laySettings := TLayout.Create(Self);
+  laySettings.Parent := Self;
+  laySettings.Visible := False;
   cbModel := TComboBox.Create(Self);
-  cbModel.Parent := Row;
-  cbModel.Align := TAlignLayout.Client;
+  cbModel.Parent := laySettings;
   cbModel.OnChange := cbModelChange;
-  btnModelFolder := AddButton(Row, 'Folder...', btnModelFolderClick, TAlignLayout.Right);
-  // Steam: the models are in the program's folder
-  btnModelFolder.Visible := not SteamBuild;
-
-  Row := AddRow(pnlSettings, 'Device');
   cbDevice := TComboBox.Create(Self);
-  cbDevice.Parent := Row;
-  cbDevice.Align := TAlignLayout.Client;
-
-  Row := AddRow(pnlSettings, 'Language');
+  cbDevice.Parent := laySettings;
   cbLanguage := TComboBox.Create(Self);
-  cbLanguage.Parent := Row;
-  cbLanguage.Align := TAlignLayout.Left;
-  cbLanguage.Width := 320;
+  cbLanguage.Parent := laySettings;
   FillLanguages('');
-
-  Row := AddRow(pnlSettings, 'Power');
   cbPower := TComboBox.Create(Self);
-  cbPower.Parent := Row;
-  cbPower.Align := TAlignLayout.Client;
+  cbPower.Parent := laySettings;
   cbPower.Items.Add('Automatic - fastest on mains power, saving power on battery');
   cbPower.Items.Add('Fastest - kept awake, at full speed');
   cbPower.Items.Add('Save power - kept awake, the system may slow it down');
@@ -3133,56 +3173,24 @@ begin
   cbPower.ItemIndex := 0;
   cbPower.OnChange := cbPowerChange;
   {$IFDEF MSWINDOWS}
-  Row := AddRow(pnlSettings, 'Window GPU');
   cbGpu := TComboBox.Create(Self);
-  cbGpu.Parent := Row;
-  cbGpu.Align := TAlignLayout.Left;
-  cbGpu.Width := 320;
+  cbGpu.Parent := laySettings;
   cbGpu.Items.Add('Windows decides');
   cbGpu.Items.Add('Power saving GPU (next start)');
   cbGpu.Items.Add('High performance GPU (next start)');
   cbGpu.ItemIndex := Ord(GpuPreference);
   cbGpu.OnChange := cbGpuChange;
   {$ENDIF}
-
-  Row := AddRow(pnlSettings, '');
   chkChapters := TCheckBox.Create(Self);
-  chkChapters.Parent := Row;
-  chkChapters.Align := TAlignLayout.Client;
-  chkChapters.Text := 'Chapters of a file are parts (m4b)';
+  chkChapters.Parent := laySettings;
   chkChapters.IsChecked := True;
-  Row := AddRow(pnlSettings, '');
   chkReuse := TCheckBox.Create(Self);
-  chkReuse.Parent := Row;
-  chkReuse.Align := TAlignLayout.Client;
-  chkReuse.Text := 'Use a saved transcript (re-align in seconds, no new transcription) - this build only';
+  chkReuse.Parent := laySettings;
   // off at every start: reusing old words is a choice made for one build
   // (owner: "if re-transcribing there is obviously a reason"); not kept in
   // the settings
   chkReuse.IsChecked := False;
   chkReuse.OnChange := chkReuseChange;
-
-  Row := AddRow(pnlSettings, '');
-  Row.Position.Y := 200000;
-  Row.Margins.Top := GAP * 3;
-  B := AddButton(Row, 'Done', btnSettingsDoneClick, TAlignLayout.Left, 120);
-  B.Default := True;
-end;
-
-procedure TfrmBuilder.btnSettingsClick(Sender: TObject);
-begin
-  pnlSettings.Visible := True;
-  pnlSettings.BringToFront;
-  if cbModel.Enabled then
-    cbModel.SetFocus;
-end;
-
-procedure TfrmBuilder.btnSettingsDoneClick(Sender: TObject);
-begin
-  pnlSettings.Visible := False;
-  SaveSettings;
-  UpdateSettingsLine;
-  UpdateControls;
 end;
 
 procedure TfrmBuilder.UpdateSettingsLine;
@@ -3343,6 +3351,8 @@ begin
   FPadDark := True;
   // the same for the lowest acceptable speed: 2.0x at first
   FLowestSpeed := LOWEST_SPEED_TOP;
+  FBoardUpload := True;
+  FBenchSel := -1;
   LoadSettings;
   // the three folders there from the start (the dialogs open in them)
   try
@@ -3442,6 +3452,7 @@ begin
       // and the window are made)
       FPadDark := Ini.ReadBool('View', 'Dark', True);
       FExpert := Ini.ReadBool('Models', 'Expert', False);
+      FBoardUpload := Ini.ReadBool('Benchmark', 'Leaderboard', True);
       FLowestSpeed := EnsureRange(Round(StrToFloatDef(Ini.ReadString('Build', 'LowestSpeed', ''),
         LOWEST_SPEED_TOP / 10, TFormatSettings.Invariant) * 10), 0, LOWEST_SPEED_TOP);
       // not a change of the user's (which saves the settings half read)
@@ -3500,6 +3511,7 @@ begin
       Ini.WriteBool('Build', 'Chapters', chkChapters.IsChecked);
       Ini.WriteBool('View', 'Dark', FPadDark);
       Ini.WriteBool('Models', 'Expert', FExpert);
+      Ini.WriteBool('Benchmark', 'Leaderboard', FBoardUpload);
       Ini.WriteString('Build', 'LowestSpeed', FormatFloat('0.0', FLowestSpeed / 10, TFormatSettings.Invariant));
       // no longer kept (off at every start)
       Ini.DeleteKey('Build', 'UseSavedTranscript');
@@ -3607,6 +3619,8 @@ end;
 procedure TfrmBuilder.FormClose(Sender: TObject; var Action: TCloseAction);
 begin
   SaveSettings;
+  // a leaderboard still asked for answers nobody
+  SteamBoardsForget;
   FreeAndNil(FLink);
   if FCalib <> nil then
   begin
@@ -3834,26 +3848,11 @@ begin
   btnCancel.Enabled := (FBuild <> nil) or (FCalib <> nil) or (FDownload <> nil);
   // one download at a time; the model stays while it runs
   cbModel.Enabled := FDownload = nil;
-  btnModelFolder.Enabled := FDownload = nil;
-  if miCalibrate <> nil then
-  begin
-    miCalibrate.Enabled := not Busy and (FWhisperNote = '');
-    // an item's Enabled reaches the system's menu by itself (only new
-    // items need RecreateOSMenu); StartCalibration checks again anyway
-    miCalibrateAll.Enabled := miCalibrate.Enabled;
-    if miDiagnostics <> nil then
-      miDiagnostics.Enabled := miCalibrate.Enabled;
-    if miDiagnosticsAll <> nil then
-      miDiagnosticsAll.Enabled := miCalibrate.Enabled;
-    if miDownloadAll <> nil then
-      miDownloadAll.Enabled := miCalibrate.Enabled;
-    // the benchmarks: greyed without their model, with the time each takes
-    RefreshBenchmarks;
-    if miExpert <> nil then
-      miExpert.IsChecked := FExpert;
-    if miDarkMode <> nil then
-      miDarkMode.IsChecked := FPadDark;
-  end;
+  // the Settings page's calibration and diagnostics rows
+  // (StartCalibration checks again anyway)
+  FToolsReady := not Busy and (FWhisperNote = '');
+  // the benchmarks: greyed without their model, with the time each takes
+  RefreshBenchmarks;
   Waiting := False;
   for I := 0 to High(FJobs) do
     if FJobs[I].State <> jsDone then
@@ -4159,7 +4158,7 @@ begin
     end);
 end;
 
-procedure TfrmBuilder.btnModelFolderClick(Sender: TObject);
+procedure TfrmBuilder.ChooseModelsFolder;
 var
   Folder, Same: string;
 begin
@@ -4288,11 +4287,6 @@ begin
   lblStatus.Text := Format('Downloading %s ...', [AName]);
   UpdateControls;
   FDownload.Start;
-end;
-
-procedure TfrmBuilder.miDownloadAllClick(Sender: TObject);
-begin
-  DownloadEveryModel;
 end;
 
 procedure TfrmBuilder.StepLowestSpeed(ADelta: Integer);
@@ -5808,8 +5802,6 @@ procedure TfrmBuilder.SetLogVisible(AOn: Boolean);
 begin
   mmLog.Visible := AOn;
   layProgress.Visible := not AOn;
-  if miLog <> nil then
-    miLog.IsChecked := AOn;
   if AOn then
     mmLog.GoToTextEnd;
 end;
@@ -5873,9 +5865,9 @@ begin
   Bar := mnuBar;
   {$ELSE}
   mnuMain := TMainMenu.Create(Self);
-  // Big Picture: no menu bar - the menu is not put on the form (its items
-  // are still made: code uses them); the pad's menu has the commands (as
-  // EpubReader)
+  // Big Picture: no menu bar - the menu is not put on the form (the
+  // Benchmark items are still made: RefreshBenchmarks keeps their state);
+  // the pad's menu has the commands (as EpubReader)
   if not SteamBigPicture then
     mnuMain.Parent := Self;
   Bar := mnuMain;
@@ -5889,6 +5881,12 @@ begin
   // owner, 2026-11-22: a menu of its own, five items with the time each
   // takes (RefreshBenchmarks writes their text)
   M := Item(Bar, '&Benchmark', nil);
+  // Steam's leaderboards of the four, at the top (owner, 2026-11-23)
+  if SteamRunning then
+  begin
+    miBoards := Item(M, '&Leaderboards...', miBoardsClick);
+    Item(M, '-', nil);
+  end;
   for I := 0 to High(miBench) do
   begin
     miBench[I] := Item(M, BenchmarkText(I), miBenchmarkClick);
@@ -5896,34 +5894,6 @@ begin
     if I = 0 then
       Item(M, '-', nil);
   end;
-  // their items are still made (code enables, ticks and shows them, and
-  // the Settings page asks them what is allowed), under items that are on
-  // no menu bar
-  M := Item(nil, '&View', nil);
-  miLog := Item(M, 'Show the &log', miLogClick);
-  miDarkMode := Item(M, '&Dark mode', miDarkModeClick);
-  miDarkMode.IsChecked := FPadDark;
-  miLog.IsChecked := (mmLog <> nil) and mmLog.Visible;
-  M := Item(nil, '&Tools', nil);
-  Item(M, '&Settings...', btnSettingsClick);
-  Item(M, '-', nil);
-  miCalibrate := Item(M, '&Re-calibrate (this model)...', miCalibrateClick);
-  miCalibrateAll := Item(M, 'Re-calibrate &every model in its folder...', miCalibrateAllClick);
-  miDiagnostics := Item(M, 'Run &diagnostics (this model)...', miDiagnosticsClick);
-  miDiagnosticsAll := Item(M, 'Run diagnostics on every &model...', miDiagnosticsAllClick);
-  miDownloadAll := Item(M, 'Do&wnload every model...', miDownloadAllClick);
-  miExpert := Item(M, 'Unlock e&xpert mode (every model)', miExpertClick);
-  miExpert.IsChecked := FExpert;
-  Item(M, '-', nil);
-  Item(M, '&Calibration results', miCalibrationClick);
-  Item(M, 'Build &history...', miHistoryClick);
-  Item(M, '-', nil);
-  Item(M, '&Books folder...', miFolderClick).Tag := 0;
-  Item(M, '&Audio folder...', miFolderClick).Tag := 1;
-  Item(M, '&Output folder...', miFolderClick).Tag := 2;
-  // shown by CheckRocmDlc when it applies
-  miRocm := Item(M, 'Get AMD &ROCm acceleration (free DLC)...', miRocmClick);
-  miRocm.Visible := False;
   // a menu made in code reaches the window (Windows' / macOS' own menu
   // bar) only when it is recreated (EpubReader: without it, no menu)
   if (mnuMain <> nil) and (mnuMain.Parent <> nil) then
@@ -5992,6 +5962,10 @@ const
   BPM_CONTROLS = 8;
   { The Benchmark list (PadBenchmarks). }
   BPM_BENCH = 9;
+  { The Leaderboards list (PadBoards). }
+  BPM_BOARDS = 10;
+  { One leaderboard (PadBoard). }
+  BPM_BOARD = 11;
   { The home list's rows. }
   BPC_BOOK = 0;
   { The audio. }
@@ -6061,15 +6035,24 @@ const
   BPC_BENCH = 32;
   { Settings: the lowest acceptable speed (left / right). }
   BPC_LOWEST = 33;
+  { Settings, the desktop: use a saved transcript, this build only. }
+  BPC_REUSE = 34;
+  { Settings, the desktop, Windows: the window's graphics preference. }
+  BPC_GPU = 35;
+  { Settings, the desktop, not Steam: the models folder. }
+  BPC_FOLDER_MODELS = 36;
+  { Settings, Steam running: benchmark scores go to the leaderboards. }
+  BPC_BOARD = 37;
   { The rows of the home list's Settings page (owner, 2026-11-22); the
     others are its first page. PadHome shows the page of the row asked
     for. }
   BP_SETTINGS_ROWS = [BPC_MODEL, BPC_CALIBRATE, BPC_CALIBRATE_ALL, BPC_DIAGNOSE, BPC_DIAGNOSE_ALL, BPC_DEVICE,
     BPC_LANGUAGE, BPC_POWER, BPC_CHAPTERS, BPC_DARK, BPC_EXPERT, BPC_OUTPUT, BPC_SETTINGS_BACK, BPC_LOG,
-    BPC_FOLDER_BOOKS, BPC_FOLDER_AUDIO, BPC_FOLDER_OUTPUT, BPC_RESULTS, BPC_HISTORY, BPC_ROCM, BPC_LOWEST];
+    BPC_FOLDER_BOOKS, BPC_FOLDER_AUDIO, BPC_FOLDER_OUTPUT, BPC_RESULTS, BPC_HISTORY, BPC_ROCM, BPC_LOWEST,
+    BPC_REUSE, BPC_GPU, BPC_FOLDER_MODELS, BPC_BOARD];
   { The highest BPC_* in BP_SETTINGS_ROWS (a set holds 0 .. 255: the
     command is checked against this before "in"). }
-  BPC_SETTINGS_TOP = BPC_LOWEST;
+  BPC_SETTINGS_TOP = BPC_BOARD;
   { The pad's menu in dark colours: its box, its text, the selected row
     (EpubReader's dark menu, uMain.PadMenuColors, with its panel text). }
   PAD_DARK_BACK = $FF23262E;
@@ -6104,6 +6087,8 @@ const
   PADROW_SAVEQ = -10;
   { Load a queue. }
   PADROW_LOADQ = -11;
+  { The Benchmark list: Leaderboards. }
+  PADROW_BOARDS = -12;
   { The model list's first row: Download every model. }
   PADROW_DOWNLOAD_ALL = -12;
   { Audio files the folder lists (as Add files...). }
@@ -6411,7 +6396,6 @@ begin
   layBook.Visible := False;
   splSides.Visible := False;
   layAudio.Visible := False;
-  pnlSettings.Visible := False;
   // the bottom part fills the window; of it only the log
   layBottom.Align := TAlignLayout.Client;
   for I := 0 to layBottom.ControlsCount - 1 do
@@ -6837,8 +6821,8 @@ begin
     begin
       // closed: in Big Picture what opens the menu or the queue (as on a
       // pad); the other actions' keys are left to the log. On the desktop
-      // (owner, 2026-11-22: the Menu and Queue keys must open them; F2
-      // and F3 since zip 226) those two only - Enter is the window's - and
+      // (owner, 2026-11-22: the Menu and Queue keys must open them; F5
+      // and F6 since zip 260) those two only - Enter is the window's - and
       // not a character that is a control's own
       if FCalResults then
         // the calibration's results: any of the menu's keys goes on
@@ -6994,6 +6978,8 @@ begin
     BPM_MODELS: PadHome(BPC_MODEL);
     BPM_CONTROLS: PadHome(BPC_CONTROLS);
     BPM_BENCH: PadHome(BPC_BENCH);
+    BPM_BOARDS: PadBenchmarks;
+    BPM_BOARD: PadBoards;
     BPM_QUEUES: PadQueue(-1);
     BPM_JOB: PadQueue(FPadJob);
   else
@@ -7062,14 +7048,18 @@ begin
     Add(BPC_MODEL, 'Model', 'choose ...');
   // what is done with a model, right under it (owner, 2026-11-21: "Move
   // calibrate and diagnostics under model")
-  if (miCalibrate <> nil) and miCalibrate.Enabled then
+  if FToolsReady then
     Add(BPC_CALIBRATE, 'Re-calibrate (this model)', '');
-  if (miCalibrateAll <> nil) and miCalibrateAll.Enabled and (FModelPath <> '') then
+  if FToolsReady and (FModelPath <> '') then
+  begin
     Add(BPC_CALIBRATE_ALL, 'Re-calibrate every model', 'All installed');
-  if (miDiagnostics <> nil) and miDiagnostics.Enabled and (FModelPath <> '') then
     Add(BPC_DIAGNOSE, 'Diagnostics (this model)', 'four test runs');
-  if (miDiagnosticsAll <> nil) and miDiagnosticsAll.Enabled and (FModelPath <> '') then
     Add(BPC_DIAGNOSE_ALL, 'Diagnostics (every model)', 'All installed');
+  end;
+  // the desktop's own, not in Steam builds (there the models are in the
+  // program's folder)
+  if not FBigPicture and not SteamBuild and (FDownload = nil) then
+    Add(BPC_FOLDER_MODELS, 'Models folder', ExtractFileName(ExcludeTrailingPathDelimiter(FModelsFolder)));
   Add(BPC_DEVICE, 'Device', Combo(cbDevice));
   if cbLanguage <> nil then
     Add(BPC_LANGUAGE, 'Language', Combo(cbLanguage));
@@ -7077,16 +7067,27 @@ begin
   // owner, 2026-11-22: a model or device slower than this is not used
   Add(BPC_LOWEST, 'Lowest acceptable speed', LowestSpeedText);
   Add(BPC_CHAPTERS, 'Chapters of a file are parts', IfThen(chkChapters.IsChecked, '< Yes >', '< No >'));
+  if not FBigPicture then
+  begin
+    // re-align in seconds, no new transcription; off again at the next
+    // start
+    Add(BPC_REUSE, 'Use a saved transcript (this build only)', IfThen(chkReuse.IsChecked, '< Yes >', '< No >'));
+    {$IFDEF MSWINDOWS}
+    Add(BPC_GPU, 'Window GPU', Combo(cbGpu));
+    {$ENDIF}
+  end;
   Add(BPC_DARK, 'Dark mode', IfThen(FPadDark, '< Yes >', '< No >'));
+  // benchmark scores to Steam's leaderboards
+  if SteamRunning then
+    Add(BPC_BOARD, 'Leaderboard', IfThen(FBoardUpload, '< Yes >', '< No >'));
   Add(BPC_EXPERT, 'Expert mode', IfThen(FExpert, '< Yes >', '< No >'));
   // no book yet: the folder its copy will go to
   if edOut.Text <> '' then
     Add(BPC_OUTPUT, 'Output', ExtractFileName(edOut.Text))
   else
     Add(BPC_OUTPUT, 'Output', ExtractFileName(ExcludeTrailingPathDelimiter(FOutFolder)));
-  // what the View and Tools menus had besides (owner, 2026-11-22: they are
-  // gone); the folder dialogs, the log's switch and the history's window
-  // are the desktop's
+  // the folder dialogs, the log's switch and the history's window are
+  // the desktop's
   if not FBigPicture then
   begin
     Add(BPC_FOLDER_BOOKS, 'Books folder', ExtractFileName(ExcludeTrailingPathDelimiter(FBookFolder)));
@@ -7097,7 +7098,7 @@ begin
   Add(BPC_RESULTS, 'Calibration results', '');
   if not FBigPicture then
     Add(BPC_HISTORY, 'Build history', '');
-  if (miRocm <> nil) and miRocm.Visible then
+  if FRocmOffer then
     Add(BPC_ROCM, 'AMD ROCm acceleration', 'free DLC');
   if edBook.Text <> '' then
     Add(BPC_COVER, 'Cover', CoverChoiceText(FCoverChoice));
@@ -7262,8 +7263,9 @@ const
   end;
 
   { The labels, lists and memos of AParent and of the layouts in it. Only
-    layouts are gone into: a panel (the settings, a program asking to
-    connect), the pad's menu and the cover chooser keep their own colours. }
+    layouts are gone into: a panel (a program asking to connect), the
+    pad's menu and the cover chooser keep their own colours; laySettings
+    holds no label, list or memo. }
   procedure Walk(AParent: TFmxObject);
   var
     I: Integer;
@@ -7353,11 +7355,6 @@ begin
   UpdateControls;
 end;
 
-procedure TfrmBuilder.miDarkModeClick(Sender: TObject);
-begin
-  ToggleDark;
-end;
-
 procedure TfrmBuilder.PadBackToMenu(AModel: Boolean);
 begin
   if not FBigPicture or (FPadMenu = nil) or (FPadMode = BPM_ASK) then
@@ -7384,6 +7381,12 @@ var
   end;
 
 begin
+  // a leaderboard: its other page
+  if FPadMode = BPM_BOARD then
+  begin
+    BoardSwitch;
+    Exit;
+  end;
   if (FPadMode <> BPM_HOME) or (FPadMenu.Selected < 0) or (FPadMenu.Selected > High(FPadCmds)) then
     Exit;
   Cmd := FPadCmds[FPadMenu.Selected];
@@ -7392,6 +7395,15 @@ begin
     BPC_LANGUAGE: Turn(cbLanguage);
     BPC_POWER: Turn(cbPower);
     BPC_CHAPTERS: chkChapters.IsChecked := not chkChapters.IsChecked;
+    BPC_REUSE: chkReuse.IsChecked := not chkReuse.IsChecked;
+    BPC_BOARD:
+      begin
+        FBoardUpload := not FBoardUpload;
+        SaveSettings;
+      end;
+    {$IFDEF MSWINDOWS}
+    BPC_GPU: Turn(cbGpu);
+    {$ENDIF}
     // the list is shown again below: in its new colours
     BPC_DARK: ToggleDark;
     BPC_EXPERT: ToggleExpert;
@@ -7424,7 +7436,9 @@ begin
         BPC_BOOK: PadBooks;
         BPC_AUDIO: PadAudioList(False);
         BPC_MODEL: PadModels;
-        BPC_DEVICE, BPC_LANGUAGE, BPC_POWER, BPC_CHAPTERS, BPC_DARK, BPC_EXPERT, BPC_LOG: PadStep(1);
+        BPC_DEVICE, BPC_LANGUAGE, BPC_POWER, BPC_CHAPTERS, BPC_DARK, BPC_EXPERT, BPC_LOG, BPC_REUSE, BPC_GPU,
+        BPC_BOARD:
+          PadStep(1);
         // chosen: a step down (owner, 2026-11-22: "from 2.0 down to 0.0")
         BPC_LOWEST: PadStep(-1);
         BPC_OUTPUT:
@@ -7449,13 +7463,16 @@ begin
             ChooseFolder(Cmd - BPC_FOLDER_BOOKS);
             PadHome(Cmd);
           end;
+        BPC_FOLDER_MODELS:
+          begin
+            ChooseModelsFolder;
+            PadHome(Cmd);
+          end;
         BPC_RESULTS:
           begin
-            // into the log: the menu out of its way
+            // the results' page over the window: the menu out of its way
             FPadMenu.Hide;
-            if not mmLog.Visible then
-              SetLogVisible(True);
-            miCalibrationClick(nil);
+            ShowCalibrationPage;
           end;
         BPC_HISTORY:
           begin
@@ -7585,8 +7602,18 @@ begin
         if (FPadMode <> BPM_ASK) and (FBuild = nil) then
           PadBenchmarks;
       end
+      else if Cmd = PADROW_BOARDS then
+        PadBoards
       else if Cmd = PADROW_BACK then
         PadHome(BPC_BENCH);
+    BPM_BOARDS:
+      if (Cmd >= 1) and (Cmd <= 4) then
+        PadBoard(Cmd)
+      else if Cmd = PADROW_BACK then
+        PadBenchmarks;
+    BPM_BOARD:
+      if Cmd = PADROW_BACK then
+        PadBoards;
     BPM_QUEUES:
       if (Cmd >= 0) and (Cmd <= High(FPadBooks)) then
       begin
@@ -9157,6 +9184,42 @@ const
     BENCH_QUICK_MODEL (base). }
   BENCH_DETAILED: array[1..4] of Boolean = (False, True, False, True);
 
+  { The benchmarks' leaderboards in Steamworks (uSteamBoard makes each
+    with the first score sent to it; their names for people are set on
+    the partner site). }
+  BOARD_NAMES: array[1..4] of string = ('benchmark_short_fast', 'benchmark_short_detailed',
+    'benchmark_long_fast', 'benchmark_long_detailed');
+  { A leaderboard's page: this share of the window's width and of its
+    height (owner, 2026-11-23); it shows as many rows as fit. }
+  BOARD_WIDTH_SHARE = 0.95;
+  { Its frame, dark and light: the benchmarks' yellow (uBenchProgress's
+    FRAME_DARK and FRAME_LIGHT). }
+  BOARD_FRAME_DARK = TAlphaColor($FFE8C547);
+  { The same on the light menu (a darker yellow). }
+  BOARD_FRAME_LIGHT = TAlphaColor($FFC99A06);
+  { The layout of the numbers sent beside a score (BoardDetails). }
+  BOARD_FORMAT = 1;
+  { Where the device's description starts in them. }
+  BOARD_DEVICE_AT = 4;
+  { The numbers the description may take (four characters each). }
+  BOARD_DEVICE_NUMBERS = 12;
+
+{ APlace as "1st", "2nd", "3rd", "4th", "11th", "22nd". }
+function PlaceText(APlace: Integer): string;
+begin
+  if (APlace mod 100 >= 11) and (APlace mod 100 <= 13) then
+    Result := 'th'
+  else
+    case APlace mod 10 of
+      1: Result := 'st';
+      2: Result := 'nd';
+      3: Result := 'rd';
+    else
+      Result := 'th';
+    end;
+  Result := IntToStr(APlace) + Result;
+end;
+
 { A benchmark's score: ASeconds as H:MM:SS.mmm. }
 function BenchScore(ASeconds: Double): string;
 var
@@ -9437,6 +9500,9 @@ begin
     FBenchScores[I] := 0;
     FBenchBooks[I] := '';
     FBenchEnded[I] := False;
+    FBoardMs[I] := 0;
+    FBoardDetails[I] := nil;
+    FBoardState[I] := 0;
     FBenchClock[I] := 0;
     FBenchPct[I] := 0;
   end;
@@ -9546,7 +9612,10 @@ begin
     FBenchScores[Option] := ASummary.BenchSeconds;
     FBenchBooks[Option] := OutFile;
     LogLine(Format('Score - %s: %s', [BENCH_NAMES[Option], BenchScore(ASummary.BenchSeconds)]));
-    // every run, for the leaderboard to come (not mentioned to the user)
+    // for its leaderboard (BoardSend, once the run has ended)
+    FBoardMs[Option] := Round(ASummary.BenchSeconds * 1000);
+    FBoardDetails[Option] := BoardDetails(ASummary);
+    // every run, kept here too
     try
       NewCsv := not FileExists(TPath.Combine(ExtractFileDir(OutFile), BENCH_RESULTS_FILE));
       // appended to: the encoding's preamble only in a new file
@@ -9633,9 +9702,294 @@ begin
   end;
   FBenchResults := True;
   FBenchHidden := False;
+  FBenchSel := -1;
   if FBenchView <> nil then
     FBenchView.SetButtonText('Hide results');
+  // the scores to their leaderboards (Settings > Leaderboard), then the
+  // table
+  BoardSend;
   BenchShowResults;
+end;
+
+function TfrmBuilder.BoardDetails(const ASummary: TBuildSummary): TArray<Integer>;
+var
+  Dev: string;
+  P: Integer;
+  Packed4: TArray<Integer>;
+begin
+  // 'Vulkan0 - NVIDIA GeForce RTX 5090 Laptop GPU (GPU, Vulkan, 22.7 of
+  // 23.6 GB free)': the description alone
+  Dev := ASummary.DeviceText;
+  P := Pos(' - ', Dev);
+  if P > 0 then
+    Dev := Copy(Dev, P + 3, MaxInt);
+  P := Dev.LastIndexOf(' (');
+  if P > 0 then
+    Dev := Copy(Dev, 1, P);
+  Dev := Trim(Dev);
+  SetLength(Result, BOARD_DEVICE_AT);
+  Result[0] := BOARD_FORMAT;
+  Result[1] := 0;
+  if ASummary.BenchWords > 0 then
+    Result[1] := Round(ASummary.BenchMatched * 10000.0 / ASummary.BenchWords);
+  Result[2] := Ord(not SameText(ASummary.Device, 'CPU'));
+  Result[3] := 0;
+  Packed4 := SteamBoardPackText(Dev, BOARD_DEVICE_NUMBERS);
+  Result := Result + Packed4;
+end;
+
+procedure TfrmBuilder.BoardSend;
+var
+  I: Integer;
+begin
+  if not FBoardUpload or not SteamRunning then
+    Exit;
+  for I := 1 to 4 do
+    if (FBenchScores[I] > 0) and (FBoardMs[I] > 0) and (FBoardState[I] = 0) then
+    begin
+      FBoardState[I] := 1;
+      // the place and the rows are all that is wanted here
+      SteamBoardSubmit(BOARD_NAMES[I], FBoardMs[I], FBoardDetails[I], 0, BoardSent);
+    end;
+end;
+
+procedure TfrmBuilder.BoardSent(const AResult: TSteamBoardResult);
+var
+  I, Option: Integer;
+begin
+  Option := 0;
+  for I := 1 to 4 do
+    if SameText(BOARD_NAMES[I], AResult.Board) then
+      Option := I;
+  if (Option = 0) or (FBoardState[Option] <> 1) then
+    Exit;
+  if AResult.Ok and (AResult.Rank > 0) then
+  begin
+    FBoardState[Option] := 2;
+    FBoardRank[Option] := AResult.Rank;
+    FBoardCount[Option] := AResult.Count;
+    FBoardBest[Option] := AResult.Best;
+    if AResult.Improved then
+      LogLine(Format('Leaderboard - %s: %s of %d.', [BENCH_NAMES[Option], PlaceText(AResult.Rank),
+        AResult.Count]))
+    else
+      LogLine(Format('Leaderboard - %s: your best there is %s, %s of %d.', [BENCH_NAMES[Option],
+        BenchScore(AResult.Best / 1000), PlaceText(AResult.Rank), AResult.Count]));
+  end
+  else
+  begin
+    FBoardState[Option] := 3;
+    LogLine(Format('Leaderboard - %s: the score was not added (%s).', [BENCH_NAMES[Option],
+      IfThen(AResult.Error <> '', AResult.Error, 'Steam gave no place')]));
+  end;
+  // the table says it too, the row chosen kept
+  if FBenchResults and not FBenchHidden and (FPadMenu <> nil) and (FPadMode = BPM_ASK) and FPadMenu.Showing then
+  begin
+    FBenchSel := FPadMenu.Selected;
+    BenchShowResults;
+    FBenchSel := -1;
+  end;
+end;
+
+function TfrmBuilder.BoardNote(AOption: Integer): string;
+begin
+  case FBoardState[AOption] of
+    1: Result := '   sending to the leaderboard ...';
+    2:
+      if FBoardBest[AOption] < FBoardMs[AOption] then
+        Result := Format('   your best %s is %s of %d', [BenchScore(FBoardBest[AOption] / 1000),
+          PlaceText(FBoardRank[AOption]), FBoardCount[AOption]])
+      else
+        Result := Format('   %s of %d', [PlaceText(FBoardRank[AOption]), FBoardCount[AOption]]);
+    3: Result := '   not added to the leaderboard';
+  else
+    Result := '';
+  end;
+end;
+
+procedure TfrmBuilder.miBoardsClick(Sender: TObject);
+begin
+  PadBoards;
+end;
+
+procedure TfrmBuilder.PadBoards;
+var
+  Items: TArray<TPadMenuItem>;
+  I: Integer;
+begin
+  if FPadMenu = nil then
+    Exit;
+  Items := nil;
+  FPadCmds := nil;
+  for I := 1 to 4 do
+  begin
+    Items := Items + [TPadMenu.Item(BENCH_NAMES[I])];
+    FPadCmds := FPadCmds + [I];
+  end;
+  Items := Items + [TPadMenu.Item('Back')];
+  FPadCmds := FPadCmds + [PADROW_BACK];
+  FPadMode := BPM_BOARDS;
+  FPadMenu.Show('Leaderboards', Items, EnsureRange(FBoardShown - 1, 0, 3),
+    'The fastest transcriptions on Steam: each player''s best.');
+end;
+
+procedure TfrmBuilder.PadBoard(AOption: Integer);
+var
+  Row: TPadMenuItem;
+begin
+  if (FPadMenu = nil) or (AOption < 1) or (AOption > 4) then
+    Exit;
+  FBoardShown := AOption;
+  FBoardAround := False;
+  FBoardHasRank := False;
+  Row := TPadMenu.Item('Asking Steam ...');
+  Row.Info := True;
+  FPadCmds := [PADROW_NONE, PADROW_BACK];
+  FPadMode := BPM_BOARD;
+  // the size, the frame and the title of the page that follows
+  // (BoardRead)
+  FPadMenu.NextWidthShare := BOARD_WIDTH_SHARE;
+  FPadMenu.NextHeightShare := BOARD_WIDTH_SHARE;
+  if FPadDark then
+    FPadMenu.NextFrameColor := BOARD_FRAME_DARK
+  else
+    FPadMenu.NextFrameColor := BOARD_FRAME_LIGHT;
+  FPadMenu.NextTitleCentered := True;
+  FPadMenu.MinWidth := 100000;
+  FPadMenu.Show(BENCH_NAMES[AOption], [Row, TPadMenu.Item('Back')], 1, PadFootOf([BP_BACK], ['back']));
+  FPadMenu.MinWidth := 0;
+  RefreshFoot;
+  BoardAsk;
+end;
+
+procedure TfrmBuilder.BoardAsk;
+begin
+  if (FPadMenu = nil) or (FBoardShown < 1) or (FBoardShown > 4) then
+    Exit;
+  // the rows the page holds, less its Back row
+  FBoardRows := Max(3, FPadMenu.RowsThatFit(BOARD_WIDTH_SHARE, True) - 1);
+  SteamBoardRead(BOARD_NAMES[FBoardShown], FBoardRows, FBoardAround, BoardRead);
+end;
+
+procedure TfrmBuilder.BoardSwitch;
+begin
+  // nothing to switch to while the user has no row there
+  if not FBoardHasRank then
+    Exit;
+  FBoardAround := not FBoardAround;
+  BoardAsk;
+end;
+
+procedure TfrmBuilder.BoardRead(const AResult: TSteamBoardResult);
+var
+  Items: TArray<TPadMenuItem>;
+  Row: TPadMenuItem;
+  I, Shown: Integer;
+  Name, Title: string;
+  Listed, Last: Boolean;
+  Mine: TAlphaColor;
+
+  { A line of the page: APlace in the first column ('' = a line that is
+    not a row of the board), then the name, the score, the device; AMine:
+    the user's own row, in the frame's yellow (owner, 2026-11-23). }
+  procedure Info(const APlace, AText, AValue, ADevice: string; ADim: Boolean; AMine: Boolean = False);
+  begin
+    Row := TPadMenu.Item(AText, AValue);
+    Row.Key := APlace;
+    Row.Value2 := ADevice;
+    Row.Info := True;
+    Row.Dim := ADim;
+    if AMine then
+      Row.Color := Mine;
+    Items := Items + [Row];
+    FPadCmds := FPadCmds + [PADROW_NONE];
+  end;
+
+  { The device a row's numbers name, when the row is one of this
+    program's. }
+  function DeviceOf(const ADetails: TArray<Integer>): string;
+  begin
+    Result := '';
+    if (Length(ADetails) > BOARD_DEVICE_AT) and (ADetails[0] = BOARD_FORMAT) then
+      Result := SteamBoardUnpackText(ADetails, BOARD_DEVICE_AT);
+  end;
+
+begin
+  // only while its page shows, and for the page asked for last (left and
+  // right pressed in a hurry: an earlier answer is not shown)
+  if (FPadMenu = nil) or (FPadMode <> BPM_BOARD) or not FPadMenu.Showing or (FBoardShown < 1) or
+    (FBoardShown > 4) or not SameText(AResult.Board, BOARD_NAMES[FBoardShown]) or
+    (AResult.AskedAround <> FBoardAround) then
+    Exit;
+  Items := nil;
+  FPadCmds := nil;
+  if FPadDark then
+    Mine := BOARD_FRAME_DARK
+  else
+    Mine := BOARD_FRAME_LIGHT;
+  FBoardHasRank := AResult.Ok and (AResult.Rank > 0);
+  // asked for the rows around a user who has none: the top came
+  FBoardAround := AResult.Ok and AResult.Around;
+  Title := BENCH_NAMES[FBoardShown];
+  if not AResult.Ok then
+  begin
+    if AResult.Error = 'the leaderboard is not there yet' then
+      Info('', 'No scores yet: run this benchmark to be the first.', '', '', False)
+    else
+      Info('', 'The leaderboard could not be read: ' + AResult.Error + '.', '', '', False);
+  end
+  else
+  begin
+    Listed := False;
+    for I := 0 to High(AResult.Rows) do
+      Listed := Listed or AResult.Rows[I].Me;
+    // the top page and the user further down: their row is the last
+    // line, one row fewer of the top (owner, 2026-11-23)
+    Last := (AResult.Rank > 0) and not Listed;
+    Shown := Min(Length(AResult.Rows), FBoardRows);
+    if Last and (Shown >= FBoardRows) then
+      Shown := FBoardRows - 1;
+    for I := 0 to Shown - 1 do
+    begin
+      Name := AResult.Rows[I].Name;
+      if Name = '' then
+        Name := 'A Steam player';
+      if AResult.Rows[I].Me then
+        Name := Name + ' (you)';
+      Info(Format('%d.', [AResult.Rows[I].Rank]), Name, BenchScore(AResult.Rows[I].Score / 1000),
+        DeviceOf(AResult.Rows[I].Details), not AResult.Rows[I].Me, AResult.Rows[I].Me);
+    end;
+    if Length(AResult.Rows) = 0 then
+      Info('', 'No scores yet: run this benchmark to be the first.', '', '', False);
+    if Last then
+      Info(Format('%d.', [AResult.Rank]), 'You', BenchScore(AResult.Best / 1000), DeviceOf(AResult.BestDetails),
+        False, True);
+    // which page, and how many are on the board
+    if AResult.Count > 0 then
+      Title := Format('%s - %s (%d on the board)', [Title, IfThen(FBoardAround, 'around you', 'top'),
+        AResult.Count]);
+  end;
+  Items := Items + [TPadMenu.Item('Back')];
+  FPadCmds := FPadCmds + [PADROW_BACK];
+  // owner, 2026-11-23: 95 % of the window wide and high; place and name
+  // 40 % (the place a column of its own in it, room for seven digits),
+  // score 10 %, device 50 %; the benchmarks' yellow frame; the title
+  // centred
+  FPadMenu.NextWidthShare := BOARD_WIDTH_SHARE;
+  FPadMenu.NextHeightShare := BOARD_WIDTH_SHARE;
+  FPadMenu.NextColumns := [0.4, 0.1, 0.5];
+  if FPadDark then
+    FPadMenu.NextFrameColor := BOARD_FRAME_DARK
+  else
+    FPadMenu.NextFrameColor := BOARD_FRAME_LIGHT;
+  FPadMenu.NextTitleCentered := True;
+  // left / right: the other page, when the user has a row
+  if FBoardHasRank then
+    FPadMenu.Show(Title, Items, High(Items), PadFootOf([BP_LEFT, BP_RIGHT, BP_BACK], ['', IfThen(FBoardAround,
+      'top', 'around you'), 'back']))
+  else
+    FPadMenu.Show(Title, Items, High(Items), PadFootOf([BP_BACK], ['back']));
+  RefreshFoot;
 end;
 
 procedure TfrmBuilder.BenchShowResults;
@@ -9653,7 +10007,7 @@ begin
   for I := 1 to 4 do
     if FBenchScores[I] > 0 then
     begin
-      Row := TPadMenu.Item(BENCH_NAMES[I], BenchScore(FBenchScores[I]));
+      Row := TPadMenu.Item(BENCH_NAMES[I], BenchScore(FBenchScores[I]) + BoardNote(I));
       Row.Info := True;
       Items := Items + [Row];
       FPadCmds := FPadCmds + [PADROW_NONE];
@@ -9724,8 +10078,12 @@ begin
     end;
   FPadMode := BPM_ASK;
   FPadMenu.NextTitleCentered := True;
-  // owner, 2026-11-22: No by default (the last row)
-  FPadMenu.Show('Results', Items, High(Items), PadFootOf([BP_CHOOSE, BP_BACK, BP_TOGGLE], ['answer', 'no',
+  // owner, 2026-11-22: No by default (the last row); shown again for a
+  // leaderboard's answer, the row chosen stays
+  I := High(Items);
+  if (FBenchSel >= 0) and (FBenchSel <= High(Items)) and (FAskResults[FBenchSel] <> mrNone) then
+    I := FBenchSel;
+  FPadMenu.Show('Results', Items, I, PadFootOf([BP_CHOOSE, BP_BACK, BP_TOGGLE], ['answer', 'no',
     'hide']));
   RefreshFoot;
 end;
@@ -9762,6 +10120,12 @@ begin
   RefreshBenchmarks;
   Items := nil;
   FPadCmds := nil;
+  // Steam's leaderboards of the four, the top row (owner, 2026-11-23)
+  if SteamRunning then
+  begin
+    Items := Items + [TPadMenu.Item('Leaderboards')];
+    FPadCmds := FPadCmds + [PADROW_BOARDS];
+  end;
   for I := 0 to High(miBench) do
   begin
     if FBenchEta[I] > 0 then
@@ -10259,6 +10623,31 @@ begin
   FCalib.Start;
 end;
 
+procedure TfrmBuilder.UseBaseWhenTooSlow;
+var
+  Base, Dev, BaseDev, Name: string;
+  Speed, BaseSpeed, Limit: Double;
+begin
+  if (FLowestSpeed <= 0) or (FModelPath = '') then
+    Exit;
+  Limit := FLowestSpeed / 10;
+  // the window's model at its best here: fast enough, or not timed
+  if not CalibrationBest(SettingsFile, FModelPath, Dev, Speed) or (Speed <= 0) or (Speed >= Limit) then
+    Exit;
+  Base := TPath.Combine(FModelsFolder, BENCH_QUICK_MODEL);
+  if SameText(Base, FModelPath) or not FileExists(Base) then
+    Exit;
+  // base must be known to be fast enough
+  if not CalibrationBest(SettingsFile, Base, BaseDev, BaseSpeed) or (BaseSpeed < Limit) then
+    Exit;
+  Name := ModelLabel(ModelShortName(FModelPath));
+  LogLine(Format('%s is too slow on this machine: %.1fx real time at best (on %s), and the lowest acceptable ' +
+    'speed is %.1fx. base is used instead (%.1fx on %s). Settings > Model chooses another; lowering Settings > ' +
+    'Lowest acceptable speed lets %s be used.', [Name, Speed, Dev, Limit, BaseSpeed, BaseDev, Name]));
+  FModelPath := Base;
+  FillModels;
+end;
+
 procedure TfrmBuilder.CalibrationDone(Sender: TObject);
 var
   T: TCalibrationThread;
@@ -10306,6 +10695,9 @@ begin
     try
       CalibrationSave(SettingsFile, T.Results, CalibrationDevicesKey(FDevices), T.AudioFile);
       LogLine('Kept in ' + SettingsFile);
+      // at start-up: a model too slow here gives way to base
+      if FCalAtStart then
+        UseBaseWhenTooSlow;
       // the model in the window gets its fastest device, and keeps it
       ApplyCalibration(True);
       SaveSettings;
@@ -10347,8 +10739,39 @@ begin
   // the calibration's bars go: the menu next - the main menu after the
   // one at start-up (owner, 2026-11-22), else on Model for the next one
   FreeAndNil(FCalView);
+  if FCalFromSettings then
+  begin
+    // Settings > Calibration results: the Settings page again, on its row
+    FCalFromSettings := False;
+    PadHome(BPC_RESULTS);
+    Exit;
+  end;
   PadBackToMenu(not FCalAtStart);
   FCalAtStart := False;
+end;
+
+procedure TfrmBuilder.ShowCalibrationPage;
+var
+  Done, DontAsk: Boolean;
+  Key, Made: string;
+begin
+  // what the calibration keeps, into the log (as before)
+  miCalibrationClick(nil);
+  CalibrationState(SettingsFile, Done, DontAsk, Key, Made);
+  if not Done then
+  begin
+    // Big Picture: the note's OK brings the Settings page back
+    FPadToModel := FBigPicture;
+    Tell('Not calibrated on this machine yet: Settings > Re-calibrate.');
+    Exit;
+  end;
+  // a calibration running has the view (its bars)
+  if FCalib <> nil then
+    Exit;
+  FreeAndNil(FCalView);
+  FCalView := TBenchProgress.Create(Self, nil, FPadDark, not FBigPicture);
+  FCalFromSettings := True;
+  ShowCalibrationResults;
 end;
 
 procedure TfrmBuilder.CalResultsButton(Sender: TObject);
@@ -10585,9 +11008,7 @@ begin
   begin
     LogLine('This AMD GPU may transcribe faster with AMD ROCm acceleration, a free DLC: Settings > AMD ROCm ' +
       'acceleration.');
-    miRocm.Visible := True;
-    if (mnuMain <> nil) and (mnuMain.Parent <> nil) then
-      mnuMain.RecreateOSMenu;
+    FRocmOffer := True;
   end;
   {$ENDIF}
 end;
@@ -10649,11 +11070,6 @@ begin
   Result := '';
   if (cbLanguage <> nil) and (cbLanguage.ItemIndex >= 1) and (cbLanguage.ItemIndex - 1 <= High(LANGUAGES)) then
     Result := LANGUAGES[cbLanguage.ItemIndex - 1, 0];
-end;
-
-procedure TfrmBuilder.miFolderClick(Sender: TObject);
-begin
-  ChooseFolder((Sender as TMenuItem).Tag);
 end;
 
 procedure TfrmBuilder.miSettingsClick(Sender: TObject);

@@ -22,12 +22,54 @@ handover, with its steps.
   the Mac. Not reported: 253 (the reader's library).
 - Zip 259: BookManager's Dark mode (a check box; written unseen). NOT
   COMPILED.
-- NEXT: the owner's word on 258 and 259; then the list under "Next"
-  below (3 - 5).
+- Zip 260: base by itself when the chosen model is too slow (Next 3
+  below: DONE); Menu F5, Queue F6 (layout revision 2.5, STEAM REBUILD);
+  installed models before the others; the window's old settings page
+  and zip 223's hidden menus removed. NOT COMPILED.
+- Settled by the owner (01:08): touch in the pad menu works; the
+  benchmark audio is in the depot; 960 is resolved; Q for the queue.
+- Zip 261: the benchmarks' Steam leaderboards (step 4; owner 01:18
+  "leaderboards before benchmark mode"; new unit uSteamBoard). Three of
+  its four choices were ASSUMED (best score kept, asked once, place +
+  top ten) - "asked once" was changed in zip 263. NOT COMPILED.
+- Zip 262: Settings > Calibration results opens the results page.
+- Zip 263: the leaderboard is not asked about - on by default, Settings
+  > Leaderboard turns it off.
+- PLANNED, NOT BUILT (owner 01:32): "For
+  multiple machines we can have our own website once leaderboards is
+  tested" - Steam's boards stay one row per user (best score); a site
+  of ours would list every machine of a user. Not before the Steam
+  leaderboards have been tested. benchmarks.csv already has each run
+  (no machine or user name).
+- Zip 264: Leaderboards is the Benchmark menu's top item.
+- THE LEADERBOARDS WORK (owner's screenshot 02:27, the 5090 and the
+  Miix on Short Text, Fast Model). Zip 265: their page 95 % wide, three
+  columns 40 / 10 / 50, yellow frame, centred name (uPadMenu: STEAM
+  REBUILD).
+- Zip 266: the user's own row of a leaderboard in the frame's yellow
+  (265 compiled and ran: screenshot 03:15).
+- Zip 267: the place is a column of its own (four columns), room for
+  seven digits; the user's row under the top ten has its device.
+- Zip 268: the leaderboard's page is 95 % of the window wide and high
+  and shows the rows that fit; left / right: top or around you.
+- THE MIIX'S BENCHMARKS (owner 02:51, build 65569dc, UHD 620 Vulkan,
+  lowest speed set to 0.4): Short Fast
+  7:53.060 (6.8x), Short Detailed 1:10:18.215 (0.76x), Long Fast
+  28:28.723 (6.5x), Long Detailed 4:25:07.019 (0.70x); words matched
+  98.4 / 99.6 / 98.1 / 99.1 %. Calibration: base 8.8x, turbo 0.71x - a
+  whole book ran at 0.73 - 0.77 of the calibration for base and 0.97 -
+  1.0 for turbo (HISTORY_BOOK_RATIO_CONTINUOUS is 1.0). All seven
+  machines, both texts together, turbo / base: monster 91.0 / 102.5x,
+  steam machine 35.2 / 62.7, mac 25.8 / 73.5, ally 15.4 / 42.1, ideapad
+  14.2 / 46.4, deck 7.2 / 21.5, Miix 0.71 / 6.6.
+- NEXT: the owner's word on 258 - 260, 262, 266 - 268 and the Miix's results; then step
+  5 (the two builders - ask which form the limited one takes) and what
+  is left of "Next" 5 below (the Mac's "no graphics card" line,
+  uInhibit).
 
 ### Where it stands
-- LAST NUMBER USED: 259 (Epubunum; 257 = this handover, CLAUDE.md
-  only; 258, 259 = session 14), 32 (TWhisper). Never commit or push,
+- LAST NUMBER USED: 268 (Epubunum; 257 = this handover, CLAUDE.md
+  only; 258 - 268 = session 14), 32 (TWhisper). Never commit or push,
   and never offer to; the owner applies the zips and pushes.
 - PUSH STATE: not told this session. The owner's builds said "Build:
   2026-11-22 17:27, 65569dc" (commit 65569dc + the zips applied on top).
@@ -104,7 +146,8 @@ handover, with its steps.
   PlayStation pad has no A or B). "Press any button" is fine.
 - Only chapter material is timed or scored: 30 s clear of both ends of
   every LibriVox section.
-- The leaderboard (step 4) is on hold and NOT mentioned to users.
+- The leaderboard (step 4): built in zip 261 (session 14); it may be
+  mentioned to users now.
 - Deliveries: EpubUnum-NN-topic.zip, files changed since the previous zip,
   paths from the repository root, on top of the previous zip; "NO
   PACKAGE REBUILD" or the package banner; the Steam banner only when a
@@ -1299,7 +1342,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 259 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
+Last number used: 268 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
 next-session notes, CLAUDE.md only).
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
@@ -3887,6 +3930,293 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 268 (on top of zip 267): the leaderboard's page fills the window; top / around you
+Session 14, owner 2026-11-23 03:23 "could we show, say the top 25?" and
+03:31: "If we made the leaderboard 95% wide and high we'd be able to fit
+a lot more lines in. If you are on the leaderboard then you appear on
+the list. If you're ranked way down the last leaderboard entry is you
+and 1 less result is shown. We know in advance how many rows we can fit
+on the screen so we can always display a full page (if there are enough
+leaderboard entries). There is also a "Range Around User" so we could
+show two versions of the same board and switch between them with the
+left/right arrow keys". NOT COMPILED (pasdoc_check, project_check: 0
+problems). NO PACKAGE REBUILD. STEAM REBUILD NEEDED (uPadMenu is the
+reader's too). Files: demos/EpubReader/src/uPadMenu.pas (shared),
+demos/common/uSteamBoard.pas, demos/EpubBuilder/src/uBuilder.pas,
+demos/EpubBuilder/README.md, CLAUDE.md.
+- uPadMenu: NextHeightShare (the box that share of the window tall, for
+  one Show), RowsThatFit(share, foot) - the inverse of Show's height
+  sum - and the private ParentHeight.
+- uSteamBoard: SteamBoardRead(board, rows, around, event). The job reads
+  the user's row first (place, the board's size), then ONE page with
+  k_ELeaderboardDataRequestGlobal: from 1, or - around - from
+  EnsureRange(place - rows div 2, 1, size - rows + 1), so the page is
+  full at either end of the board. Steam's GlobalAroundUser is NOT used
+  for the page (near the top it gives fewer rows); only, as before, 0..0
+  for the user's own row. TSteamBoardResult: First, AskedAround, Around.
+  BOARD_TOP is gone.
+- uBuilder: PadBoard (the waiting page, the same size) -> BoardAsk
+  (FBoardRows = RowsThatFit(0.95, foot) - 1 for Back, 3 at least) ->
+  BoardRead. Top page, the user not on it: Shown = FBoardRows - 1 and
+  the user's row ("N. You", yellow, its device) is the last line. The
+  title: "<benchmark> - top (N on the board)" / "- around you (...)";
+  the count and blank lines are no longer rows. PadStep in BPM_BOARD ->
+  BoardSwitch (FBoardAround; only when FBoardHasRank); the foot shows
+  left / right "around you" or "top" and Back (PadFootOf / RefreshFoot).
+  The page on the screen stays while the other is fetched; an answer
+  for a page no longer asked for is dropped (AskedAround).
+- NOT DONE: no scrolling of a board (page up / down through all of it) -
+  the two pages are what there is.
+
+## Zip 267 (on top of zip 266): the leaderboard's place in a column of its own
+Session 14, owner 2026-11-23 03:17 - 03:20: "How many rows will
+leaderboard show?" (ten, BOARD_TOP, and the user's own under them); "If
+I'm 104628th ... will my position appear?" (yes); "In that case the
+first column (rank) needs to be wider and the 2nd (nickname)
+correspondingly shorter so the two columns can fit (there are now 4
+columns)". NOT COMPILED (pasdoc_check, project_check: 0 problems). NO
+PACKAGE REBUILD. STEAM REBUILD NEEDED (uPadMenu is the reader's too).
+Files: demos/EpubReader/src/uPadMenu.pas (shared),
+demos/common/uSteamBoard.pas, demos/EpubBuilder/src/uBuilder.pas,
+demos/EpubBuilder/README.md, CLAUDE.md.
+- uPadMenu, a table (NextColumns): a row's Key is its first column -
+  the text's size and colour (Color, Dim), right-aligned, room for
+  TABLE_KEY_ROOM ('0000000.') at least; the text column is the first
+  share less that column (place + name = 40 %). A line with no key and
+  no values keeps the whole width (Back, the count). Outside a table
+  Key is what it was (a key's name).
+- uBuilder.BoardRead: Info(APlace, AText, AValue, ADevice, ...) - the
+  place is Row.Key ("1."), the name the text.
+- uSteamBoard: TSteamBoardResult.BestDetails (the numbers of the user's
+  own row, from the GlobalAroundUser read) - the "N. You" row under the
+  top ten shows its device too (offered at 03:18; not asked for in so
+  many words).
+
+## Zip 266 (on top of zip 265): the leaderboard's own row in yellow
+Session 14, owner 2026-11-23 03:15, a screenshot of zip 265's page (IT
+COMPILED AND RAN, build 02:34: 95 % wide, the three columns, the yellow
+frame, the centred name): "The leaderboard will look better if your own
+score is in the same Yellow as the border". NOT COMPILED (pasdoc_check,
+project_check: 0 problems). NO PACKAGE REBUILD. STEAM REBUILD NEEDED
+(uPadMenu is the reader's too). Files:
+demos/EpubReader/src/uPadMenu.pas (shared),
+demos/EpubBuilder/src/uBuilder.pas, demos/EpubBuilder/README.md,
+CLAUDE.md.
+- uPadMenu: TPadMenuItem.Color (0 = the menu's own) - the row's text,
+  value and third column in it.
+- uBuilder.BoardRead: the user's row (in the top ten, or the "N. You"
+  row under it) gets BOARD_FRAME_DARK / LIGHT.
+- Also in this zip's CLAUDE.md: the Miix's benchmarks and the seven
+  machines' speeds ("Session 14" at the top). Owner 02:53: seven Steam
+  accounts, one per machine, to fill the boards - waiting for keys.
+
+## Zip 265 (on top of zip 264): the leaderboard's page - 95 % wide, three columns, yellow frame, centred name
+Session 14, owner 2026-11-23 02:27, a screenshot of the 5090's first
+leaderboard page (IT WORKS: zips 261 - 264 compiled and ran, build 01:55;
+"1. <name> (you) 0:00:26.981 NVIDIA GeForce RTX 5090 Laptop GPU", a
+second row from the Miix, "2 on this leaderboard"): "Bad layout (again).
+Make it 95% wide with 3 columns 40/10/50%"; "Yellow border again as
+well"; 02:28 "Center the board name". NOT COMPILED (pasdoc_check,
+project_check: 0 problems). NO PACKAGE REBUILD. STEAM REBUILD NEEDED
+(uPadMenu is the reader's too; the reader's menus do not use the new
+properties). Files: demos/EpubReader/src/uPadMenu.pas (shared),
+demos/EpubBuilder/src/uBuilder.pas, demos/EpubBuilder/README.md,
+CLAUDE.md.
+- uPadMenu: TPadMenuItem.Value2; NextColumns (three shares: Text,
+  Value, Value2 - a table; the box as wide as NextWidthShare allows; the
+  value column never narrower than its widest value; a row without
+  values keeps its text over the whole width); NextFrameColor (the
+  box's frame in that colour, 4 thick). Both for one Show, as
+  NextTitleCentered. The columns are placed once the box's width is
+  known (Inner = W - PAD x 3 - the left column).
+- uBuilder.BoardRead: NextWidthShare 0.95 (BOARD_WIDTH_SHARE),
+  NextColumns [0.4, 0.1, 0.5], NextFrameColor BOARD_FRAME_DARK / LIGHT
+  (uBenchProgress's yellows), NextTitleCentered; the device is Value2,
+  no longer appended to the score. PadBoard's "Asking Steam ..." page
+  the same width (MinWidth for that Show), frame and centred title, so
+  the box does not jump.
+- STANDING, from the owner's "(again)" twice: a new page or box of the
+  builder is WIDE (a share of the window, not as narrow as its text),
+  its columns given widths, the benchmarks' YELLOW FRAME, its title
+  CENTRED - do that the first time.
+- Names to look at: Texts / Seconds (the labels kept for the table),
+  Align Left with Position.X for the first two columns, TAlphaColor($...)
+  typed constants.
+
+## Zip 264 (on top of zip 263): Leaderboards at the top of the Benchmark menu
+Session 14, owner 2026-11-23 02:08: "Make Leaderboards the top option in
+that menu". NOT COMPILED (pasdoc_check, project_check: 0 problems). NO
+PACKAGE REBUILD. Builder only. Files:
+demos/EpubBuilder/src/uBuilder.pas, demos/EpubBuilder/README.md,
+CLAUDE.md.
+- PadBenchmarks: the Leaderboards row is the first (Steam running), so
+  the list opens with it selected - Run all is one down. BuildMenu:
+  Leaderboards..., a separator, then the five. The rows' commands are
+  FPadCmds' (not their places), the bar's items go by Tag: nothing else
+  changed.
+
+## Zip 263 (on top of zip 262): leaderboard - no question, on by default
+Session 14, owner 2026-11-23 02:05: "Don't ask to submit to the
+leaderboard - just do it if leaderboard is checked in settings. Default
+value for leaderboard in settings is yes"; "Where do I view the
+leaderboard?" (answered: Benchmark > Leaderboards in the app; on Steam
+the app's community stats page once the boards have Community Names).
+NOT COMPILED (pasdoc_check, project_check: 0 problems). NO PACKAGE
+REBUILD. Builder only. Files: demos/EpubBuilder/src/uBuilder.pas,
+demos/EpubBuilder/README.md, CLAUDE.md.
+- FBoardUpload is a Boolean, True at first ([Benchmark] Leaderboard,
+  ReadBool / WriteBool - a 0 or 1 written by zip 261 reads the same);
+  zip 261's question, its "< Ask >" and BenchResults are gone (its body
+  is BenchmarkFinished's end again). Settings > Leaderboard: Yes / No.
+- Owner 01:55: the 5090's "no sign of leaderboards" was a build of 01:17
+  (before zip 261; Linux had been built, not Windows). A build with 261
+  logs "Steam: Plug-in ISteamUserStats initialised".
+
+## Zip 262 (on top of zip 261): Settings > Calibration results shows the results page
+Session 14, owner 2026-11-23 01:46: "Settings menu option -> Calibration
+Results should show the new Calibration Results page not just the log".
+NOT COMPILED (pasdoc_check, project_check: 0 problems). NO PACKAGE
+REBUILD. Builder only. Files: demos/EpubBuilder/src/uBuilder.pas,
+demos/EpubBuilder/README.md, CLAUDE.md.
+- BPC_RESULTS -> ShowCalibrationPage (new): miCalibrationClick's lines
+  into the log as before (the log is no longer switched to), then a
+  TBenchProgress with no bars (FCalView, titles nil) and
+  ShowCalibrationResults - zip 251's table. FCalFromSettings: closed
+  (any key, click or button - CalResultsButton), CalResultsClosed shows
+  the Settings page again on Calibration results. Not calibrated: Tell
+  says so (Big Picture: its OK returns to Settings). A calibration
+  running: nothing (the view is its bars').
+- Also in this zip's CLAUDE.md: the owner's plan of 01:32 - a website of
+  ours for several machines of one user, once the Steam leaderboards
+  are tested (see "Session 14" at the top).
+
+## Zip 261 (on top of zip 260): the benchmarks' Steam leaderboards
+Session 14, owner 2026-11-23 01:18: "OK, leaderboards before benchmark
+mode". Asked four things; the owner answered the first (Steam's
+leaderboards, not a server of ours) and left the other three: ASSUMED,
+and said so - one row per user per benchmark with the BEST score kept;
+ASKED ONCE whether scores go up, then automatic; the app shows the
+user's PLACE after a run and a TOP TEN list. NOT COMPILED (pasdoc_check,
+project_check: 0 problems). NO PACKAGE REBUILD. Builder only (the reader
+does not use the new unit): no Steam banner. Files:
+demos/common/uSteamBoard.pas (NEW), demos/EpubBuilder/EpubBuilder.dpr,
+demos/EpubBuilder/EpubBuilder.dproj (the new unit),
+demos/EpubBuilder/src/uBuilder.pas, demos/EpubBuilder/README.md,
+CLAUDE.md.
+- uSteamBoard (STEAMBUILD inside, as uSteamPad; uses uSteam's
+  SteamRunning and Steamworks' Steam.FindPlugin): SteamBoardSubmit(board,
+  score ms, details, top, event), SteamBoardRead(board, top, event),
+  SteamBoardsForget (FormClose), SteamBoardPackText / UnpackText. A
+  TSteamBoardJob per request chains TSteamUserStatsPlugin's ...Async
+  calls: FindOrCreateLeaderboard (ascending, time in ms; FindLeaderboard
+  when only reading) -> UploadLeaderboardScore (KeepBest) ->
+  DownloadLeaderboardEntries GlobalAroundUser 0..0 (the user's rank and
+  best) -> Global 1..top -> ISteamFriends RequestUserInformation, 1.5 s
+  for names Steam must fetch, GetFriendPersonaName. The event comes on
+  the main thread (TSteamAPI's callback timer). The job frees itself
+  through TThread.ForceQueue, never inside Steam's handler.
+- BOARDS: benchmark_short_fast, benchmark_short_detailed,
+  benchmark_long_fast, benchmark_long_detailed (BOARD_NAMES) - made by
+  the first score sent. THE OWNER, on the Steamworks partner site: give
+  them display names; writes must stay allowed from the client (not
+  "trusted"); publish. The score: transcription time, ms. Details
+  (BoardDetails): [0] 1 = the layout, [1] words matched in hundredths of
+  a per cent, [2] 0 processor / 1 graphics, [3] 0, [4..15] the device's
+  description, four ASCII characters a number (48 at most).
+- PRIVACY RULE: no machine name anywhere. Steam names appear on the
+  leaderboard's page of the menu only (that is what a Steam leaderboard
+  is, and the question says so); the log has place and count only.
+- uBuilder: BenchmarkFinished asks once (Ask - the pad's box in Big
+  Picture, a dialog on the desktop) when Steam runs and FBoardUpload is
+  -1; [Benchmark] Leaderboard 0 / 1 in the settings; Settings >
+  Leaderboard (BPC_BOARD 37, Steam running; < Ask > until answered).
+  BenchResults (new: what BenchmarkFinished ended with) calls BoardSend,
+  then the table. BoardSent: the log's "Leaderboard - <benchmark>: 3rd
+  of 41." and the Results table shown again with the row chosen kept
+  (FBenchSel) - the score's cell gets BoardNote ("sending ...", "3rd of
+  41", "your best 0:00:25.100 is 3rd of 41", "not added").
+- THE LIST: Benchmark > Leaderboards... on the bar (Steam running) and a
+  Leaderboards row in the pad's Benchmark list -> PadBoards (BPM_BOARDS
+  10: the four) -> PadBoard (BPM_BOARD 11: "Asking Steam ...", then
+  BoardRead's rows: place, name, score and device; the user's own row
+  under them when not in the top ten; the count). "No scores yet" when
+  the board is not there.
+- NOT KNOWN UNTIL RUN: whether the app's Steamworks settings let the
+  client create leaderboards (else FindOrCreate answers "not found":
+  the log says "the leaderboard is not there yet" - make the four by
+  hand, ascending, time in milliseconds); what GlobalAroundUser returns
+  for a user with no row (taken: nothing, or rows that are not theirs -
+  both handled); nothing stops a made-up score (a client-written board
+  cannot; said to the owner).
+- Names to look at: the anonymous method in TSteamBoardJob.Finish
+  (Free), PLeaderboardFindResult_t / PLeaderboardScoreUploaded_t /
+  PLeaderboardScoresDownloaded_t casts of AData.Data, TSteamID's "="
+  operator, FPadMenu.Show with an array constructor ([Row,
+  TPadMenu.Item('Back')]), Dev.LastIndexOf.
+
+## Zip 260 (on top of zip 259): base by itself when turbo is too slow; F5 / F6; installed models first; the old settings page and the hidden menus gone
+Session 14, owner 2026-11-23 01:08: "Yes, switch to base automatically
+after the start-up calibration if turbo too slow"; "Q for Queue is OK but
+now it's F2/F3 - we should change F2 -> F5 and F3 -> F6 to avoid
+potential Reader issues"; "Installed models should always be listed
+before uninstalled ones, en or otherwise"; "The window's Settings...
+button should open File > Settings - the existing menu should be
+removed"; "All redundant code should be removed". NOT COMPILED
+(pasdoc_check, project_check: 0 problems). NO PACKAGE REBUILD. STEAM
+REBUILD NEEDED (uReaderInput and the layouts are the reader's too:
+revision 2.5). Files: tools/gen_reader_input.py,
+demos/EpubReader/src/uReaderInput.pas and the eleven
+demos/EpubReader/steaminput/controllers/*.vdf (GENERATED with TSteamAPI
+at 80804ab; LF as the repository has them; the manifest unchanged, not
+in the zip), demos/EpubBuilder/src/uBuilder.pas,
+demos/EpubBuilder/src/uModels.pas, demos/EpubBuilder/README.md,
+CLAUDE.md.
+- BASE BY ITSELF: UseBaseWhenTooSlow, called by CalibrationDone when
+  FCalAtStart, after CalibrationSave and before ApplyCalibration (so
+  base gets its fastest device): the window's model at its best
+  (CalibrationBest) is below FLowestSpeed / 10, base (BENCH_QUICK_MODEL)
+  is in the models folder and its best is not below it -> FModelPath :=
+  base, FillModels, a log line with both speeds. Any model, not turbo
+  only. Not after Settings > Re-calibrate (the user chose the model).
+- KEYS: MENU_KEYS Menu = vk 116 "F5", Library (the queue) = vk 117 "F6";
+  LAYOUT_REVISION 5 (LAYOUT_MAJOR stays 2). The layouts differ from 2.4
+  in title, description and minor_revision only (diffed). The reader's
+  own F3 (find next) no longer shares a key with the menu table.
+- MODEL ORDER: uModels.ModelListOrder's Rank - base, turbo; installed
+  (every language, then .en); to download (every language, then .en);
+  each smallest first. base and turbo stay first even when not
+  installed (the rule of zip 216, "in all situations"; said to the
+  owner).
+- THE OLD SETTINGS PAGE IS GONE: pnlSettings, btnSettings,
+  btnSettingsClick, btnSettingsDoneClick, the Done button, its rows and
+  captions. The window's Settings... button calls miSettingsClick (File >
+  Settings: the menu's Settings page). The controls the code reads
+  (cbModel, cbDevice, cbLanguage, cbPower, cbGpu, chkChapters, chkReuse)
+  are STATE, not redundant: they sit on laySettings, a TLayout never
+  shown (as they did, unseen, in Big Picture). What only the old page
+  had is now a Settings row, desktop only: BPC_REUSE 34 "Use a saved
+  transcript (this build only)", BPC_GPU 35 "Window GPU" (Windows),
+  BPC_FOLDER_MODELS 36 "Models folder" (not Steam, no download running;
+  ChooseModelsFolder, was btnModelFolderClick). BPC_SETTINGS_TOP = 36.
+- THE HIDDEN VIEW AND TOOLS MENUS ARE GONE (zip 223 kept them on no bar
+  for their state): miLog, miDarkMode, miExpert (ticks nobody saw),
+  miCalibrate / miCalibrateAll / miDiagnostics / miDiagnosticsAll /
+  miDownloadAll (one state: FToolsReady, set by UpdateControls), miRocm
+  (FRocmOffer, set by CheckRocmDlc), miDarkModeClick, miFolderClick,
+  miDownloadAllClick. Download every model was and is the Model list's
+  first row. The bar: File (Settings..., Exit) and Benchmark.
+- NOT REMOVED: nothing else was looked for - "all redundant code" was
+  taken as what these changes made redundant and what zip 223 had left
+  behind. A wider sweep of uBuilder for dead code is a job of its own.
+- OWNER'S ANSWERS (01:08), no code: touch in the pad menu works; the
+  benchmark audio is in the depot; 960 "was pixels but has been resolved
+  by % width of screen"; Q for the queue is settled by the F keys; the
+  Miix's results are still to come.
+- Names to look at: laySettings (combo boxes on a layout never shown -
+  as before in Big Picture), the {$IFDEF MSWINDOWS} inside PadStep's
+  case and PadHome, FToolsReady before the first UpdateControls (False:
+  no calibrate rows until then), ChooseModelsFolder.
 
 ## Zip 259 (on top of zip 258): BookManager's Dark mode
 Session 14, owner 2026-11-22 19:57 "BookManager should have a DarkMode

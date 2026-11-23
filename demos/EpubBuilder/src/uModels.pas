@@ -186,10 +186,12 @@ function ModelIsStandard(const AName: string): Boolean;
   @returns(the label) }
 function ModelLabel(const AName: string): string;
 
-{ The catalogue in the order the model list shows it (owner, 2026-11-22):
-  base and large-v3-turbo first, always; then the models of every language,
-  those in AModelsFolder before those still to download, each smallest
-  first; the English-only (.en) models at the very end in the same way.
+{ The catalogue in the order the model list shows it (owner, 2026-11-22
+  and 23): base and large-v3-turbo first, always; then the models in
+  AModelsFolder - those of every language, then the English-only (.en)
+  ones, each smallest first; then those still to download in the same
+  way ("Installed models should always be listed before uninstalled
+  ones, en or otherwise").
   @param(AModelsFolder  where the model files are)
   @returns(places in MODEL_CATALOGUE) }
 function ModelListOrder(const AModelsFolder: string): TArray<Integer>;
@@ -312,12 +314,13 @@ function ModelListOrder(const AModelsFolder: string): TArray<Integer>;
     for K := 0 to Length(MODEL_STANDARD) - 1 do
       if SameText(MODEL_STANDARD[K], ModelName) then
         Exit(K);
+    // installed before not installed, whatever the language (owner,
+    // 2026-11-23); within each, every language before English only
+    Group := 2;
     if ModelName.EndsWith('.en', True) then
-      Group := 4
-    else
-      Group := 2;
-    if not FileExists(TPath.Combine(AModelsFolder, ModelFileName(ModelName))) then
       Inc(Group);
+    if not FileExists(TPath.Combine(AModelsFolder, ModelFileName(ModelName))) then
+      Inc(Group, 2);
     Result := Group * 100000 + MODEL_CATALOGUE[AIndex].SizeMB;
   end;
 

@@ -44,17 +44,16 @@ The menu bar has **File** only: **Settings...** and **Exit**. "Settings >"
 in this text is **File > Settings...**: the Settings page of the menu
 that Big Picture uses, over the window - Model (with Download every
 model), Re-calibrate and Diagnostics (this model, every model), Device,
-Language, Power, Chapters of a file, Dark mode, Expert mode, Output, the
-Books / Audio / Output folders, Show the log, Calibration results, Build
+Language, Power, Lowest acceptable speed, Chapters of a file, Use a
+saved transcript (this build only), Window GPU (Windows), Dark mode,
+Expert mode, Output, the Books / Audio / Output folders, the Models
+folder (not in Steam builds), Show the log, Calibration results, Build
 history, and AMD ROCm acceleration when it applies. Arrow keys or W A S
 D, Enter, the mouse and its wheel work it; Esc, a right click or **Back**
-closes it. (The View and Tools menus it replaces are gone.) **F2** opens
-the whole menu and **F3** the queue's, as in Big Picture.
+closes it. **F5** opens the whole menu and **F6** the queue's, as in Big
+Picture.
 
-**Settings...** (the window's button) opens the settings on a page of
-their own over the window: Model (and its Folder...), Device, Language,
-Power, Window GPU (Windows), "Chapters of a file are parts" and "Use a
-saved transcript". **Done** closes it (Enter too) and saves; the line on
+**Settings...** (the window's button) opens the same page; the line on
 the window says what is set - the model, the device, the language, the
 power, and what is not as usual (a file's chapters not parts, USING THE
 SAVED TRANSCRIPT). In Big Picture the pad's menu has all of these, and
@@ -106,10 +105,10 @@ many passages again and so were slower in a build than their twins.
 
 **Settings > Expert mode** - in Big Picture **Expert
 mode** - puts all ten in the list: base and turbo first, always; then
-the models of every language (tiny, small, medium, large), those
-installed before those still to download, each smallest first; the
-English-only ones (tiny.en, base.en, small.en, medium.en) at the very
-end in the same way. The list says **turbo** for large-v3-turbo and
+the installed models - those of every language (tiny, small, medium,
+large), then the English-only ones (tiny.en, base.en, small.en,
+medium.en), each smallest first; then those still to download, in the
+same way. The list says **turbo** for large-v3-turbo and
 **large** for large-v3; the files, the queue files and the logs keep
 whisper.cpp's names. After them come the other `ggml-*.bin` files of
 the models folder and **Other model file ...**, which takes one from
@@ -204,7 +203,9 @@ memory) is recorded. Create and Add to queue ask before building on it
   has changed.
 - **Settings > Re-calibrate every model**: every
   `ggml-*.bin` beside the model, smallest first.
-- **Settings > Calibration results**: what is kept, model by model.
+- **Settings > Calibration results**: the Calibration results page (the
+  table a calibration ends with, below) over the window, until a key,
+  a click or a button; what is kept, model by model, goes into the log.
 
 Choosing a model that has been calibrated sets the device to its fastest.
 Results are kept per model in `EpubBuilder.ini`
@@ -248,6 +249,10 @@ extremely approximate. A model below the lowest acceptable speed is
 marked with a star. Under the table: better estimates come once a few
 books have been transcribed here (they learn from this machine's own
 builds). The same table goes into the log.
+
+After the start-up calibration, a chosen model that is below the lowest
+acceptable speed on every device gives way to **base** when base is
+fast enough (a slow tablet: turbo 0.6x, base 6.7x); the log says so.
 
 **Settings > Lowest acceptable speed** (2.0x at first): a model the
 calibration timed below it at its best - or the device chosen for it,
@@ -321,6 +326,38 @@ unless changed), No deletes it. **X** on the pad or **H** on the keyboard
 the bars behind them, and shows them again. Each benchmark's log and a
 line per run (benchmarks.csv) are kept in a Benchmarks folder beside the
 settings.
+
+### Leaderboards (Steam)
+
+In a Steam build with Steam running, each benchmark has a Steam
+leaderboard: the fastest transcription first, one row for each player -
+their best. Scores are added without asking while **Settings >
+Leaderboard** is Yes, which it is at first; No keeps them here. A row
+shows the player's Steam name, the score and the device it ran on
+(its description, such as "NVIDIA GeForce RTX 5090 Laptop GPU" - never
+the computer's name). The Results box adds each score's place
+("3rd of 41"; "your best 0:00:25.100 is 3rd of 41" when an earlier run
+was faster), and the log says the same without names.
+
+**Benchmark > Leaderboards...**, the menu's first item (the pad's
+Benchmark list: **Leaderboards**, its top row) lists the four; choosing one shows it as a table over the window (95 %
+of its width and of its height) in the benchmarks' yellow frame, in four
+columns: place (room for seven digits), name, score, device. It shows
+as many rows as the window has room for - a full page whenever the
+board has that many. Your own row is in the frame's yellow; when you
+are further down than the page reaches, your row is its last line and
+one row fewer of the top is shown. The title says which page it is and
+how many are on the board.
+
+**Left / right** switch between the **top** of the board and the rows
+**around you** (your row in the middle; near the top or the bottom of
+the board the page moves so that it stays full) - once you have a score
+on that board.
+
+The four leaderboards are named `benchmark_short_fast`,
+`benchmark_short_detailed`, `benchmark_long_fast` and
+`benchmark_long_detailed` in Steamworks; the first score sent to one
+makes it (lowest first, shown as a time in milliseconds).
 
 ## Build history and the time left
 
@@ -849,11 +886,11 @@ row, returns:
 | change a value | left / right | Left / Right, A / D | |
 | choose | A | Enter | left click, tap |
 | back (a question: no) | B | Esc | right click |
-| the menu / close it | Start / Menu | F2 | a click beside the menu closes it |
-| the queue | View / Select | F3 | |
+| the menu / close it | Start / Menu | F5 | a click beside the menu closes it |
+| the queue | View / Select | F6 | |
 
-The keys drive the menu while it shows; in Big Picture F2 or Enter
-opens it, on the desktop F2. **Controls** lists these as they are bound now, the button or
+The keys drive the menu while it shows; in Big Picture F5 or Enter
+opens it, on the desktop F5. **Controls** lists these as they are bound now, the button or
 key on the left and what it does on the right: Steam's pictures of the
 pad's own controls (their names when Steam has none), or the keys and
 the mouse when those were used last. Use the other while the list shows

@@ -48,6 +48,10 @@ type
     Text: string;
     { On the right ('' = nothing): a setting's value, a control's name. }
     Value: string;
+    { A third column after the value, shown only by a Show given
+      NextColumns (EpubBuilder's leaderboards: place and name, score,
+      device). }
+    Value2: string;
     { Pictures on the left (PNG files; '' or missing files are left out). }
     Glyphs: TArray<string>;
     { A key's name in the same column on the left, where a picture would be
@@ -58,6 +62,10 @@ type
     { Shown faded: a row of less interest (EpubBuilder: a book already
       transcribed). }
     Dim: Boolean;
+    { The row's text and values in this colour (0 = the menu's own:
+      EpubBuilder's leaderboards show the user's own row in the frame's
+      yellow, owner 2026-11-23). }
+    Color: TAlphaColor;
     { A line of information, not a choice: the selection passes over it
       and a click on it does nothing (EpubBuilder: a benchmark's results,
       a table of text and value). }
@@ -128,6 +136,12 @@ type
     FTitleCentered: Boolean;
     { Backing field of @link(NextWidthShare). }
     FNextShare: Single;
+    { Backing field of @link(NextColumns). }
+    FNextColumns: TArray<Single>;
+    { Backing field of @link(NextFrameColor). }
+    FNextFrame: TAlphaColor;
+    { Backing field of @link(NextHeightShare). }
+    FNextHShare: Single;
     { The foot's hints as pictures and words (SetHints; nil = its text). }
     FHintBar: TLayout;
     { What FHintBar shows (SetHints draws it again only when it changes). }
@@ -168,6 +182,8 @@ type
     procedure ClearRows;
     { Height of a row. }
     function RowHeight: Single;
+    { The height of what the menu covers (the window's client height). }
+    function ParentHeight: Single;
     { The picture in AFile (loaded once; nil when it cannot be). }
     function Bitmap(const AFile: string): TBitmap;
     { AColor with alpha AAlpha (0 - 255). }
@@ -264,6 +280,38 @@ type
       limit - EpubBuilder's calibration page, 0.6, owner 2026-11-22: its
       answers were under the text); back to 0 after it. }
     property NextWidthShare: Single read FNextShare write FNextShare;
+    { The next Show lays its rows out as a table of three columns - Text,
+      Value, Value2 - each this share of a row's width (EpubBuilder's
+      leaderboards, owner 2026-11-23: "95% wide with 3 columns
+      40/10/50%"), and makes the box as wide as NextWidthShare allows.
+      The value column is never narrower than its widest value (the
+      third column gives way). A row's Key, when rows have one, is a
+      column of its own before the text, inside the text's share - a
+      place on a leaderboard: right-aligned, in the text's size and
+      colour, with room for seven digits whatever the rows hold (owner,
+      2026-11-23: "the first column (rank) needs to be wider and the 2nd
+      (nickname) correspondingly shorter ... there are now 4 columns").
+      A row with no key and neither value keeps its text over the whole
+      width. Three numbers; nil (as after the Show) = the
+      usual text and value. }
+    property NextColumns: TArray<Single> read FNextColumns write FNextColumns;
+    { The next Show (or ShowText) frames its box in this colour, four
+      thick (EpubBuilder's leaderboards: the yellow of its benchmarks'
+      frames, owner 2026-11-23); 0 (as after the Show) = the usual thin
+      frame. }
+    property NextFrameColor: TAlphaColor read FNextFrame write FNextFrame;
+    { The next Show (or ShowText) makes the box this share of the window
+      tall, whatever its rows need (EpubBuilder's leaderboards, owner
+      2026-11-23: "95% wide and high"; RowsThatFit says how many rows
+      such a box holds); 0 (as after the Show) = as tall as its rows, at
+      most MAX_ROWS of them. }
+    property NextHeightShare: Single read FNextHShare write FNextHShare;
+    { How many rows a box AHeightShare of the window tall shows without
+      scrolling, at this font size (set FontSize first).
+      @param(AHeightShare  the box's share of the window's height)
+      @param(AFoot  the box has a foot (hints))
+      @returns(the rows, 1 at least) }
+    function RowsThatFit(AHeightShare: Single; AFoot: Boolean): Integer;
     { A row clicked or tapped (already selected). }
     property OnChoose: TPadMenuChooseEvent read FOnChoose write FOnChoose;
     { Closed by a click beside the box. }
@@ -295,6 +343,8 @@ const
   MAX_ROWS = 11;
   { Padding inside the box. }
   PAD = 20;
+  { A table's key column (NextColumns) has room for this at least. }
+  TABLE_KEY_ROOM = '0000000.';
   { The fade-in, seconds. }
   FADE_S = 0.15;
 
@@ -397,6 +447,28 @@ end;
 function TPadMenu.RowHeight: Single;
 begin
   Result := Round(FFontSize * 2.0);
+end;
+
+function TPadMenu.ParentHeight: Single;
+begin
+  Result := 0;
+  if FShade.Parent is TCommonCustomForm then
+    Result := TCommonCustomForm(FShade.Parent).ClientHeight
+  else if FShade.Parent is TControl then
+    Result := TControl(FShade.Parent).Height;
+end;
+
+function TPadMenu.RowsThatFit(AHeightShare: Single; AFoot: Boolean): Integer;
+var
+  Room: Single;
+begin
+  // the box less what Show puts around the rows: its padding, the title,
+  // the rule, the foot
+  Room := ParentHeight * AHeightShare - (PAD * 1.5 + RowHeight + PAD / 2 + 1);
+  if AFoot then
+    Room := Room - (FFontSize * 1.5 + PAD / 2);
+  // a little to spare: a row cut in half is worse than a gap
+  Result := Max(1, Trunc((Room - 2) / RowHeight));
 end;
 
 function TPadMenu.Bitmap(const AFile: string): TBitmap;
@@ -508,14 +580,23 @@ procedure TPadMenu.Show(const ATitle: string; const AItems: TArray<TPadMenuItem>
 var
   I, K: Integer;
   R: TRectangle;
-  L, V, KeyL: TLabel;
+  L, V, V2, KeyL: TLabel;
   Img: TImage;
   B: TBitmap;
   Icons: TLayout;
-  W, H, MaxW, MaxH, Icon, BodyH, ValW, Need, LeftW: Single;
+  W, H, MaxW, MaxH, Icon, BodyH, ValW, Need, LeftW, Inner, ColText, ColValue: Single;
   Body: string;
   TL: TTextLayout;
+  Table: Boolean;
+  Cols: TArray<Single>;
+  Texts, Seconds: TArray<TLabel>;
 begin
+  // a table of three columns, for this Show only (NextColumns)
+  Cols := FNextColumns;
+  FNextColumns := nil;
+  Table := Length(Cols) = 3;
+  Texts := nil;
+  Seconds := nil;
   // ShowText's text (a plain Show has none)
   Body := FBodyText;
   FBodyText := '';
@@ -525,6 +606,14 @@ begin
   Icon := RowHeight * 0.8;
   // the widest picture (or key) column any row needs: the rows line up
   LeftW := LeftWidth(AItems);
+  // a table's keys are drawn in the text's size, and their column is as
+  // wide on every page: room for TABLE_KEY_ROOM at least
+  if Table and (LeftW > 0) then
+  begin
+    LeftW := Max(LeftW, TextW(TABLE_KEY_ROOM, FFontSize) + 8 + PAD / 2);
+    for I := 0 to High(AItems) do
+      LeftW := Max(LeftW, TextW(AItems[I].Key, FFontSize) + 8 + PAD / 2);
+  end;
   FTitle.Text := ATitle;
   // centred for this Show only (NextTitleCentered)
   if FTitleCentered then
@@ -562,7 +651,9 @@ begin
     R.OnMouseDown := AnyMouseDown;
     R.OnMouseWheel := AnyMouseWheel;
     R.Padding.Rect := TRectF.Create(PAD / 2, 0, PAD / 2, 0);
-    if LeftW > 0 then
+    // (a table's line with no key and no values has the whole width)
+    if (LeftW > 0) and not (Table and (AItems[I].Key = '') and (Length(AItems[I].Glyphs) = 0) and
+      (AItems[I].Value = '') and (AItems[I].Value2 = '')) then
     begin
       // the controls' pictures (or the keys' names), in a column of the
       // same width on every row
@@ -580,6 +671,19 @@ begin
         KeyL.TextSettings.Font.Size := FFontSize * 0.9;
         KeyL.TextSettings.FontColor := Faded(FFore, $C0);
         KeyL.TextSettings.WordWrap := False;
+        if Table then
+        begin
+          // a table's first column: as its text, against the next column
+          KeyL.TextSettings.Font.Size := FFontSize;
+          if AItems[I].Color <> 0 then
+            KeyL.TextSettings.FontColor := AItems[I].Color
+          else if AItems[I].Dim then
+            KeyL.TextSettings.FontColor := Faded(FFore, $80)
+          else
+            KeyL.TextSettings.FontColor := FFore;
+          KeyL.TextSettings.HorzAlign := TTextAlign.Trailing;
+          KeyL.Margins.Right := PAD / 2;
+        end;
         KeyL.Text := AItems[I].Key;
         KeyL.HitTest := False;
       end;
@@ -602,10 +706,12 @@ begin
     V.Width := Max(ValW, FFontSize * 8);
     // no value: the text has the row's whole width (the empty column cut
     // short rows' text)
-    V.Visible := AItems[I].Value <> '';
+    V.Visible := (AItems[I].Value <> '') or (Table and (AItems[I].Value2 <> ''));
     V.StyledSettings := V.StyledSettings - [TStyledSetting.FontColor, TStyledSetting.Size];
     V.TextSettings.Font.Size := FFontSize * 0.9;
     V.TextSettings.FontColor := Faded(FFore, $C0);
+    if AItems[I].Color <> 0 then
+      V.TextSettings.FontColor := AItems[I].Color;
     V.TextSettings.HorzAlign := TTextAlign.Trailing;
     V.Text := AItems[I].Value;
     V.HitTest := False;
@@ -614,12 +720,31 @@ begin
     L.Align := TAlignLayout.Client;
     L.StyledSettings := L.StyledSettings - [TStyledSetting.FontColor, TStyledSetting.Size];
     L.TextSettings.Font.Size := FFontSize;
-    if AItems[I].Dim then
+    if AItems[I].Color <> 0 then
+      L.TextSettings.FontColor := AItems[I].Color
+    else if AItems[I].Dim then
       L.TextSettings.FontColor := Faded(FFore, $80)
     else
       L.TextSettings.FontColor := FFore;
     L.Text := AItems[I].Text;
     L.HitTest := False;
+    // a table's third column (placed below, once the box's width is known)
+    V2 := nil;
+    if Table and V.Visible then
+    begin
+      V2 := TLabel.Create(R);
+      V2.Parent := R;
+      V2.StyledSettings := V2.StyledSettings - [TStyledSetting.FontColor, TStyledSetting.Size];
+      V2.TextSettings.Font.Size := FFontSize * 0.9;
+      V2.TextSettings.FontColor := Faded(FFore, $C0);
+      if AItems[I].Color <> 0 then
+        V2.TextSettings.FontColor := AItems[I].Color;
+      V2.TextSettings.WordWrap := False;
+      V2.Text := AItems[I].Value2;
+      V2.HitTest := False;
+    end;
+    Texts := Texts + [L];
+    Seconds := Seconds + [V2];
     FRows := FRows + [R];
     FValues := FValues + [V];
   end;
@@ -647,8 +772,8 @@ begin
     MaxW := Min(MaxW, BOX_MAX_WIDTH);
   FNextShare := 0;
   W := Max(Need, FMinWidth);
-  // a text: the widest box the window allows
-  if Body <> '' then
+  // a text, a table: the widest box the window allows
+  if (Body <> '') or Table then
     W := Max(W, MaxW);
   W := Max(Min(W, MaxW), FFontSize * 12);
   H := PAD * 1.5 + RowHeight * (1 + Min(Length(AItems), MAX_ROWS)) + PAD / 2 + 1;
@@ -684,10 +809,47 @@ begin
   end;
   if FFoot.Visible then
     H := H + FFoot.Height + PAD / 2;
+  if Table then
+  begin
+    // a row's width without the box's padding and its own (Needed adds
+    // the same); the columns from the left: text, value, the rest
+    // the key column is part of the first share: the text is that much
+    // shorter
+    Inner := Max(W - PAD * 3, FFontSize * 12);
+    ColText := Max(Inner * Cols[0] - LeftW, FFontSize * 6);
+    ColValue := Max(Inner * Cols[1], ValW);
+    for I := 0 to High(Seconds) do
+      if Seconds[I] <> nil then
+      begin
+        Texts[I].Align := TAlignLayout.Left;
+        Texts[I].Width := ColText;
+        Texts[I].Position.X := LeftW;
+        FValues[I].Align := TAlignLayout.Left;
+        FValues[I].Width := ColValue;
+        FValues[I].Position.X := LeftW + ColText + 1;
+        // the value against the third column, a gap between them
+        FValues[I].TextSettings.HorzAlign := TTextAlign.Trailing;
+        Seconds[I].Align := TAlignLayout.Client;
+        Seconds[I].Margins.Left := PAD;
+        Seconds[I].TextSettings.HorzAlign := TTextAlign.Leading;
+      end;
+  end;
   FBox.Fill.Color := FBack;
   FBox.Stroke.Color := Faded(FFore, $30);
+  FBox.Stroke.Thickness := 1;
+  // a frame of its own colour, for this Show only (NextFrameColor)
+  if FNextFrame <> 0 then
+  begin
+    FBox.Stroke.Color := FNextFrame;
+    FBox.Stroke.Thickness := 4;
+  end;
+  FNextFrame := 0;
   FBox.Width := W;
   FBox.Height := Min(H, MaxH);
+  // that share of the window, for this Show only (NextHeightShare)
+  if (FNextHShare > 0) and (ParentHeight > 0) then
+    FBox.Height := ParentHeight * FNextHShare;
+  FNextHShare := 0;
   FSelected := EnsureRange(ASelected, -1, High(FRows));
   if (FSelected < 0) and (Length(FRows) > 0) then
     FSelected := 0;

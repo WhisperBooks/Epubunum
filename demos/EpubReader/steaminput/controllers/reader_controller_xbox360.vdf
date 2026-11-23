@@ -2,11 +2,11 @@
 {
 	"version"		"3"
 	"revision"		"1"
-	"title"		"EpubReader - Xbox 360 (r4)"
-	"description"		"Default layout for the Xbox 360 (reader_controller_xbox360.vdf, revision 4) - EpubReader: reading, listening and its menu."
+	"title"		"EpubReader - Xbox 360 (r5)"
+	"description"		"Default layout for the Xbox 360 (reader_controller_xbox360.vdf, revision 5) - EpubReader: reading, listening and its menu."
 	"controller_type"		"controller_xbox360"
 	"major_revision"		"2"
-	"minor_revision"		"4"
+	"minor_revision"		"5"
 	"Timestamp"		"0"
 	"actions"
 	{
@@ -44,8 +44,8 @@
 	{
 		"english"
 		{
-			"title"		"EpubReader - Xbox 360 (r4)"
-			"description"		"Default layout for the Xbox 360 (reader_controller_xbox360.vdf, revision 4) - EpubReader: reading, listening and its menu."
+			"title"		"EpubReader - Xbox 360 (r5)"
+			"description"		"Default layout for the Xbox 360 (reader_controller_xbox360.vdf, revision 5) - EpubReader: reading, listening and its menu."
 			"Set_Reader"		"Reading"
 			"Action_Scroll"		"Scroll the page"
 			"Action_Up"		"Up (menu, library) / scroll up"

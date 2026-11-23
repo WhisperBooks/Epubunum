@@ -38,6 +38,7 @@ uses
   uQuitSignal in '..\common\uQuitSignal.pas',
   // Steam: only in the Steam / SteamDebug configurations (STEAMBUILD)
   uSteam in '..\common\uSteam.pas',
+  uSteamBoard in '..\common\uSteamBoard.pas',
   // the pad in Big Picture: Steam Input with the reader's manifest (one per
   // Steam app) and the reader's pad menu
   uSteamPad in '..\common\uSteamPad.pas',

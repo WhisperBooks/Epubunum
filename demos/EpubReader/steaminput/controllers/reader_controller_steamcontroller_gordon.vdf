@@ -2,11 +2,11 @@
 {
 	"version"		"3"
 	"revision"		"1"
-	"title"		"EpubReader - Steam Controller (2015) (r4)"
-	"description"		"Default layout for the Steam Controller (2015) (reader_controller_steamcontroller_gordon.vdf, revision 4) - EpubReader: reading, listening and its menu."
+	"title"		"EpubReader - Steam Controller (2015) (r5)"
+	"description"		"Default layout for the Steam Controller (2015) (reader_controller_steamcontroller_gordon.vdf, revision 5) - EpubReader: reading, listening and its menu."
 	"controller_type"		"controller_steamcontroller_gordon"
 	"major_revision"		"2"
-	"minor_revision"		"4"
+	"minor_revision"		"5"
 	"Timestamp"		"0"
 	"actions"
 	{
@@ -44,8 +44,8 @@
 	{
 		"english"
 		{
-			"title"		"EpubReader - Steam Controller (2015) (r4)"
-			"description"		"Default layout for the Steam Controller (2015) (reader_controller_steamcontroller_gordon.vdf, revision 4) - EpubReader: reading, listening and its menu."
+			"title"		"EpubReader - Steam Controller (2015) (r5)"
+			"description"		"Default layout for the Steam Controller (2015) (reader_controller_steamcontroller_gordon.vdf, revision 5) - EpubReader: reading, listening and its menu."
 			"Set_Reader"		"Reading"
 			"Action_Scroll"		"Scroll the page"
 			"Action_Up"		"Up (menu, library) / scroll up"

@@ -60,7 +60,10 @@ SUMMARY = "EpubReader: reading, listening and its menu."
 #   4 - 2026-11-22: H for "Again" (EpubBuilder: show / hide the benchmark
 #       results - pad X, which "Again" already was; owner: "Add a "X"
 #       button / H key binding that Hides/Shows the results")
-LAYOUT_REVISION = 4
+#   5 - 2026-11-23: Menu on F5 and Queue ("Library") on F6 (owner: "we
+#       should change F2 -> F5 and F3 -> F6 to avoid potential Reader
+#       issues" - the reader's F3 is find next)
+LAYOUT_REVISION = 5
 # RAISE WHEN AN INTERACTION IS ADDED OR TAKEN AWAY (owner, 2026-11-22: "raise
 # the major revision code as well as defining new interactions"); written
 # into every layout in place of TSteamAPI's "major_revision" "0"
@@ -151,8 +154,8 @@ MENU_KEYS = [
     ("Right", "char", "D", "D"),
     ("Play", "vk", 13, "Enter"),
     ("Back", "vk", 27, "Esc"),
-    ("Menu", "vk", 113, "F2"),
-    ("Library", "vk", 114, "F3"),
+    ("Menu", "vk", 116, "F5"),
+    ("Library", "vk", 117, "F6"),
     # EpubBuilder: show / hide the benchmark results (pad X)
     ("Again", "char", "H", "H"),
 ]
