@@ -350,12 +350,12 @@ const
 
 class function TPadMenu.Item(const AText: string; const AValue: string): TPadMenuItem;
 begin
+  // every field, the ones added later too: a record's numbers are not
+  // cleared by themselves (zip 266's Color was left as it came - rows
+  // drawn in whatever colour the memory held, most of them unseen)
+  Result := Default(TPadMenuItem);
   Result.Text := AText;
   Result.Value := AValue;
-  Result.Glyphs := nil;
-  Result.Key := '';
-  Result.Dim := False;
-  Result.Info := False;
 end;
 
 constructor TPadMenu.Create(AOwner: TComponent; AParent: TFmxObject);

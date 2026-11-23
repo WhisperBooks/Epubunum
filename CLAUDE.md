@@ -35,6 +35,77 @@ handover, with its steps.
 - Zip 262: Settings > Calibration results opens the results page.
 - Zip 263: the leaderboard is not asked about - on by default, Settings
   > Leaderboard turns it off.
+- APPLE TV (owner 03:56; the plan is "THEN,
+  HIGH PRIORITY: an Apple TV (tvOS) player" below - still native Swift,
+  Delphi has no tvOS target): "We want an Apple TV (box) version of
+  Reader. This will rely on a Server to take an ebook that streams the
+  content to the Apple TV. Apple TVs have very low memory allowances so
+  I'm not sure an entire epub minus audio would fit." SAID TO THE OWNER
+  (checked 2026-11-23, Apple's tvOS programming guide): the low
+  allowance is PERSISTENT STORAGE - 500 KB (NSUserDefaults), everything
+  else a cache the system may purge when the app is not running - not
+  working memory; a book's text and word timings are small (A Christmas
+  Carol: 31,847 words, 28,556 clips - well under 1 MB as compact data)
+  and fit in memory, but need not: the server sends a chapter at a
+  time (text + timings) and the chapter's audio by HTTP range requests,
+  the TV keeps only the pairing and where each book was left.
+  DECIDED (owner 04:00): the server is a program on the user's own
+  network - "similar to BookManager but also available headless" - not
+  a hosted site. So: a new program (suggested: demos/BookServer, not a
+  Steam program, as BookManager) on uLink's discovery, pairing and
+  tokens, serving a folder of built books: the library, a book's
+  chapters, a chapter's text + word timings, a chapter's audio with
+  HTTP ranges, the cover; with a window, and the same without one.
+  OPEN: how a HEADLESS server pairs (it cannot show the 6-digit code -
+  "TENTATIVE: a headless EpubBuilder" below: the owner turned down the
+  log / approve-from-a-paired-client options and kept email and an
+  activation website as tentative; with a TV the code could be shown
+  ON THE TV and typed nowhere - not discussed yet); the decisions in
+  the tvOS plan below. NOT BUILT.
+  DECIDED (owner 04:05): the name is BookServer; HEADLESS PAIRING BY AN
+  ACTIVATION WEBSITE ("Once epubunum.com is online we can use that for
+  activation. An activation server will have extremely low usage so
+  this is not a concern"), on a subdomain of its own, e.g.
+  link.epubunum.com (the owner typed "link.epubumum.com": taken as a
+  slip - confirm when it exists). That is IDEA B of "TENTATIVE: a
+  headless EpubBuilder" below, no longer tentative for BookServer. The
+  constraint there stands: the STEAM programs never need an outside
+  site - their on-screen code stays; activation is for the non-Steam
+  BookServer (and optional elsewhere). Waits for the domain.
+  Owner 04:08: the link subdomain "is now also waiting for DNS (can
+  take a day or two). All domains will be https" - written
+  "link.epubumum.com" a second time; owner 04:08: "Typo
+  link.epubunum.com". THE HOSTS: https://link.epubunum.com (activation)
+  and https://leaderboard.epubunum.com (our leaderboard).
+  Owner 04:10: "When the link website is up it could also handle
+  headless BookManager authentication" - so ONE activation scheme for
+  every install that has no screen or wants no code: BookServer, a
+  headless BookManager, the headless EpubBuilder of the tentative note
+  (non-Steam), the Apple TV. Design it once, in a shared unit (beside
+  uLink); the on-screen code remains for the rest. TBD with the site. HTTPS from Delphi: System.Net.HttpClient (the
+  system's TLS, no OpenSSL to ship) - not Indy.
+- ALL OF THE WEBSITE LEADERBOARD IS TBD (owner 03:51: "Mark everything
+  as TBD - it'll take a while for the website to come up"): the site,
+  the PHP endpoint, the validation, and the draft MySQL schema written
+  at 03:47 (asked: "Can we design a MySQL database schema"). The draft
+  is tools/leaderboard_schema.sql (zip 269; marked TBD at its top;
+  never run): benchmarks, players, machines (a random install id -
+  the machine is what is ranked), devices, runs (every submission;
+  status / verified for whatever validation is chosen), bests (the
+  board). Open with it: how a non-Steam user claims several machines;
+  a row per machine or per person; Steam users tied by Steam id. DO
+  NOT BUILD any of it until the owner says the site is up.
+- PLANNED, NOT BUILT (owner 03:39): OUR
+  OWN LEADERBOARD at https://leaderboard.epubunum.com (waiting for DNS)
+  beside Steam's - "Submissions can be via POST to a PHP endpoint on
+  the website. As this will allow both Steam and non-Steam we'll need
+  some validation of some kind (TBD)". Nothing to build until the site
+  is live and the validation is decided; said to the owner: what a
+  submission could carry (benchmarks.csv's fields, a per-install id, no
+  machine or user name), and that a client cannot prove a time - the
+  choices are a Steam ticket checked by the server (Steam users), a
+  per-install key with rate limits and plausibility checks, and the
+  run's log kept for the top rows.
 - PLANNED, NOT BUILT (owner 01:32): "For
   multiple machines we can have our own website once leaderboards is
   tested" - Steam's boards stay one row per user (best score); a site
@@ -52,6 +123,8 @@ handover, with its steps.
   seven digits; the user's row under the top ten has its device.
 - Zip 268: the leaderboard's page is 95 % of the window wide and high
   and shows the rows that fit; left / right: top or around you.
+- Zip 269: zip 266 left menu rows unseen (TPadMenuItem.Color not set
+  by TPadMenu.Item) - put right; no pad or keys while a benchmark runs.
 - THE MIIX'S BENCHMARKS (owner 02:51, build 65569dc, UHD 620 Vulkan,
   lowest speed set to 0.4): Short Fast
   7:53.060 (6.8x), Short Detailed 1:10:18.215 (0.76x), Long Fast
@@ -62,14 +135,14 @@ handover, with its steps.
   machines, both texts together, turbo / base: monster 91.0 / 102.5x,
   steam machine 35.2 / 62.7, mac 25.8 / 73.5, ally 15.4 / 42.1, ideapad
   14.2 / 46.4, deck 7.2 / 21.5, Miix 0.71 / 6.6.
-- NEXT: the owner's word on 258 - 260, 262, 266 - 268 and the Miix's results; then step
+- NEXT: the owner's word on 258 - 260, 262, 266 - 269 and the Miix's results; then step
   5 (the two builders - ask which form the limited one takes) and what
   is left of "Next" 5 below (the Mac's "no graphics card" line,
   uInhibit).
 
 ### Where it stands
-- LAST NUMBER USED: 268 (Epubunum; 257 = this handover, CLAUDE.md
-  only; 258 - 268 = session 14), 32 (TWhisper). Never commit or push,
+- LAST NUMBER USED: 269 (Epubunum; 257 = this handover, CLAUDE.md
+  only; 258 - 269 = session 14), 32 (TWhisper). Never commit or push,
   and never offer to; the owner applies the zips and pushes.
 - PUSH STATE: not told this session. The owner's builds said "Build:
   2026-11-22 17:27, 65569dc" (commit 65569dc + the zips applied on top).
@@ -1342,7 +1415,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 268 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
+Last number used: 269 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
 next-session notes, CLAUDE.md only).
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
@@ -3930,6 +4003,42 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 269 (on top of zip 268): menu rows unseen (zip 266's fault); no pad or keys during a benchmark
+Session 14, owner 2026-11-23 05:18, a screenshot (Windows, Big Picture,
+keyboard and mouse; Mac the same): the Benchmark list showed only
+"Leaderboards" and "Back" - the five benchmark rows were there (the
+selection on an empty one) but unseen; "The benchmark results also came
+up blank"; and "When running the benchmark pressing [A] brings up the
+menu - this shouldn't happen. The pad/keys should not have any effect
+mid-benchmark." NOT COMPILED (pasdoc_check, project_check: 0 problems).
+NO PACKAGE REBUILD. STEAM REBUILD NEEDED (uPadMenu: the READER'S MENUS
+HAD THE SAME FAULT since zip 266). Files:
+demos/EpubReader/src/uPadMenu.pas (shared),
+demos/EpubBuilder/src/uBuilder.pas, tools/leaderboard_schema.sql (NEW:
+the TBD draft), CLAUDE.md.
+- THE FAULT WAS MINE: zip 266 added TPadMenuItem.Color and
+  TPadMenu.Item did not set it - a record's numeric fields are not
+  cleared, so a row got whatever colour the stack held (alpha 0, or
+  black). Item now starts from Default(TPadMenuItem). RULE: a field
+  added to a record that a function builds field by field - make the
+  function start from Default(), or set the new field there.
+- uBuilder: BenchRunning (FBenchOption >= 1 or FBenchQueue not empty);
+  PadPress returns at once while it is True unless a question shows
+  (BPM_ASK). Keys go through PadPress too (KeyDown). The results box
+  after the run is not "running" (X / H, the answer).
+- SAID TO THE OWNER: in Big Picture nothing now stops a running
+  benchmark but leaving the program (the bars have no Cancel button
+  there; Menu > Cancel was the way and is closed) - the Miix's Detailed
+  runs take hours. Offered: a held button, or a Cancel that asks first.
+- Seen in the same screenshot, working: the four "Leaderboard - ...:
+  1st of 1." lines after Run all on the 5090 (Long Text, Detailed Model
+  0:02:05.388).
+- In this zip's CLAUDE.md from the hours before (no code): the Miix's
+  benchmarks and the seven machines' speeds; the website leaderboard,
+  all TBD (its draft schema: tools/leaderboard_schema.sql); the Apple
+  TV reader through BookServer (a new local program, also headless);
+  activation at https://link.epubunum.com for headless installs.
 
 ## Zip 268 (on top of zip 267): the leaderboard's page fills the window; top / around you
 Session 14, owner 2026-11-23 03:23 "could we show, say the top 25?" and

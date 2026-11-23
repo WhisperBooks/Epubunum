@@ -1337,6 +1337,10 @@ type
       two texts go together.
       @returns(the number) }
     function BenchCount: Integer;
+    { A benchmark is running, or the next of Run all is about to: the pad
+      and the keys do nothing then (PadPress).
+      @returns(True while one runs) }
+    function BenchRunning: Boolean;
     { Option AOption's name: BENCH_NAMES, but 0 with the number that can
       run here - "Run all 2 benchmarks" where one model is missing or too
       slow (owner, 2026-11-22, the Miix: "The label say 4").
@@ -6598,6 +6602,12 @@ begin
   end;
   if AButton = BP_TOGGLE then
     Exit;
+  // a benchmark running: the pad and the keys do nothing (owner,
+  // 2026-11-23: "pressing [A] brings up the menu - this shouldn't
+  // happen. The pad/keys should not have any effect mid-benchmark") -
+  // except to answer a question it asks
+  if BenchRunning and not (FPadMenu.Showing and (FPadMode = BPM_ASK)) then
+    Exit;
   // the cover chooser over everything: the pad moves its frame
   if (FCoverPick <> nil) and FCoverPick.Showing then
   begin
@@ -9301,6 +9311,11 @@ begin
       FBenchCan[I] := Detailed
     else
       FBenchCan[I] := Fast;
+end;
+
+function TfrmBuilder.BenchRunning: Boolean;
+begin
+  Result := (FBenchOption >= 1) or (Length(FBenchQueue) > 0);
 end;
 
 function TfrmBuilder.BenchCount: Integer;
