@@ -128,7 +128,8 @@ def main():
         installs = []
         for name, device, kind, backend, score in MACHINES:
             install = str(uuid.uuid4())
-            st, a = call(base, "/api/register.php", {"install_id": install, "name": name, "os": "Test OS"})
+            st, a = call(base, "/api/register.php", {"install_id": install, "name": name,
+                                                     "os": "Test OS (Version 1.2, 64-bit)"})
             check("register " + name, st == 200 and a.get("ok") and len(a.get("key", "")) == 64, (st, a))
             installs.append((install, a.get("key", ""), name, device, kind, backend, score))
         st, a = call(base, "/api/register.php", {"install_id": installs[0][0], "name": "Again"})
@@ -189,6 +190,10 @@ def main():
               st == 200 and st2 == 200 and len(rows) == 7 and rows[3]["avg_watts"] == 48 and
               rows[3]["peak_watts"] == 55 and rows[3]["limit_watts"] == 50 and rows[6]["score_ms"] == 1600000 and
               rows[6]["avg_watts"] is None and rows[0]["avg_watts"] is None, (st, st2, c))
+        st, a = run(base, mid[0], mid[1], 249000, os="SteamOS 3.8.2", avg_watts=48, limit_watts=50)
+        st, c = call(base, "/api/board.php?benchmark=benchmark_long_fast&rows=7")
+        check("a score's os replaces the registration's", st == 200 and c["rows"][3]["os"] == "SteamOS 3.8.2" and
+              c["rows"][0]["os"] == "Test OS", c)
         st, a = call(base, "/api/board.php?benchmark=benchmark_short_fast")
         check("an empty board", st == 200 and a.get("count") == 0 and a.get("rows") == [], a)
         st, a = call(base, "/api/board.php?benchmark=nothing")
@@ -197,7 +202,8 @@ def main():
         print("page")
         html = urllib.request.urlopen(base + "/index.php?b=benchmark_long_fast", timeout=10).read().decode()
         check("the page lists the seven", html.count("<td class=\"place\">") == 7 and "0:01:59.437" in html and
-              "Player seven" in html and "94x" in html and "48 W of 50" in html)
+              "Player seven" in html and "94x" in html and "48 W of 50" in html and
+              html.count("<td class=\"os\">Test OS</td>") == 6)
         con = sqlite3.connect(dbfile)
         con.execute("UPDATE players SET display_name = '<script>alert(1)</script>' WHERE id = 1")
         con.commit()
@@ -211,7 +217,7 @@ def main():
         n = con.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
         k = con.execute("SELECT COUNT(*) FROM runs WHERE status = 'rejected'").fetchone()[0]
         con.close()
-        check("every run was kept, the refused ones with their reason", n == 15 and k == 4, (n, k))
+        check("every run was kept, the refused ones with their reason", n == 16 and k == 4, (n, k))
 
         print("rate limit")
         spare = str(uuid.uuid4())

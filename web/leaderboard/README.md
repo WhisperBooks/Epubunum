@@ -96,7 +96,8 @@ person's), `label` (what the owner calls the machine), `os`, `cpu`,
 `benchmark_long_detailed`), `score_ms`, `audio_ms`, `words`,
 `words_matched`, `model`, `device`, `device_kind` (`cpu`, `integrated`,
 `gpu`), `backend`, `build`, `channel` (`steam`, `direct`), `ran_at`
-(`YYYY-MM-DD HH:MM:SS`, UTC), optionally `name`, and `avg_watts`,
+(`YYYY-MM-DD HH:MM:SS`, UTC), optionally `name`, `os` (the system now:
+it replaces the registration's), and `avg_watts`,
 `peak_watts`, `limit_watts` (what the card drew over the run - `avg_watts`
 is the MEDIAN of the readings since EpubBuilder's zip 276, the mean in the
 few runs before; the name stayed - and the limit it was held to; NVIDIA cards, and AMD's on Linux; a value outside 1 - 2000 is not
@@ -107,7 +108,7 @@ kept and the score still is). Answer: `status` (`ok`,
 `first` (the first row's place), `around=<install id>` (the page with that
 machine in its middle, full at either end of the board), `install=<install
 id>` (marks its rows). Answer: `benchmark`, `count`, `first`, `rows`
-(`place`, `name`, `label`, `score_ms`, `score`, `device`, `backend`,
+(`place`, `name`, `label`, `score_ms`, `score`, `device`, `backend`, `os`,
 `avg_watts`, `peak_watts`, `limit_watts` - null when not known -, `me`),
 `you` (`place`, `score_ms`) or null.
 

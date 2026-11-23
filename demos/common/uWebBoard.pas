@@ -15,8 +15,8 @@
   two in its settings and gives them with every call; WebBoardSubmit's
   answers carry them back when they were made or changed.
 
-  What is sent: at registration the operating system, the processor's
-  name and the memory in GB; with a score the benchmark, the time, the
+  What is sent: at registration the operating system (again with every
+  score: it changes), the processor's name and the memory in GB; with a score the benchmark, the time, the
   recording's length, the words and the words matched, the model's file
   name, the device's description, the build and the moment, and - where
   it can be read - the power the card drew (uGpuPower). No name and
@@ -242,7 +242,7 @@ begin
   Body := TJSONObject.Create;
   Body.AddPair('install_id', FInstallId);
   // what the machine is - never what it is called
-  Body.AddPair('os', TOSVersion.ToString);
+  Body.AddPair('os', MachineOs);
   Cpu := MachineCpu;
   if Cpu <> '' then
     Body.AddPair('cpu', Cpu);
@@ -288,6 +288,8 @@ begin
   Body.AddPair('build', AScore.Build);
   Body.AddPair('channel', AScore.Channel);
   Body.AddPair('ran_at', FormatDateTime('yyyy"-"mm"-"dd hh":"nn":"ss', AScore.RanAt));
+  // with every score: the system may have changed since the registration
+  Body.AddPair('os', MachineOs);
   if AScore.MedianWatts > 0 then
     Body.AddPair('avg_watts', TJSONNumber.Create(AScore.MedianWatts));
   if AScore.PeakWatts > 0 then

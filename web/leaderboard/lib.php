@@ -215,7 +215,7 @@ function lb_page(int $benchmarkId, int $first, int $rows): array
     $first = max(1, $first);
     $rows = max(1, min(LB_PAGE_MAX, $rows));
     $q = lb_db()->prepare(
-        'SELECT b.machine_id, b.score_ms, p.display_name, m.label, d.description AS device, d.backend,
+        'SELECT b.machine_id, b.score_ms, p.display_name, m.label, m.os, d.description AS device, d.backend,
                 r.words, r.words_matched, r.ran_at, r.verified, r.avg_watts, r.peak_watts, r.limit_watts
          FROM bests b
          JOIN machines m ON m.id = b.machine_id AND m.hidden = 0
@@ -234,6 +234,21 @@ function lb_page(int $benchmarkId, int $first, int $rows): array
         $out[] = $row;
     }
     return $out;
+}
+
+/**
+ * An operating system's name for a board, from what a machine registered
+ * with: 'Windows 11 (Version 25H2, OS Build 26200.1, 64-bit Edition)' is
+ * 'Windows 11' - what stands before the first bracket ('' when not known).
+ */
+function lb_os(?string $os): string
+{
+    $os = trim((string) $os);
+    $at = strpos($os, '(');
+    if ($at !== false) {
+        $os = trim(substr($os, 0, $at));
+    }
+    return $os;
 }
 
 /** A score in ms as H:MM:SS.mmm, as EpubBuilder writes it. */

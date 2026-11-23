@@ -99,13 +99,14 @@ header('X-Content-Type-Options: nosniff');
   td.place { width: 4.5rem; font-family: var(--book); font-size: 1.25rem; }
   td.who span { display: block; color: var(--ink-soft); font-size: 0.9rem; }
   td.device span { color: var(--ink-soft); }
+  td.os, td.power { white-space: nowrap; }
   tbody tr:first-child td { font-weight: 600; }
   tbody tr:first-child td.who span, tbody tr:first-child td.device span { font-weight: 400; }
   /* a narrow screen: each row is two lines - who and time, then what it ran on and the speed */
   @media (max-width: 40rem) {
     thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
     tbody tr { display: grid; grid-template-columns: 2.75rem 1fr auto; column-gap: 0.75rem;
-               grid-template-areas: "place who time" "place device speed" "place power power";
+               grid-template-areas: "place who time" "place device speed" "place os power";
                padding: 0.8rem 0;
                border-top: 1px solid var(--rule); }
     tbody td { border: 0; padding: 0; }
@@ -113,7 +114,8 @@ header('X-Content-Type-Options: nosniff');
     td.who { grid-area: who; }
     td.time { grid-area: time; }
     td.speed { grid-area: speed; color: var(--ink-soft); font-size: 0.9rem; }
-    td.power { grid-area: power; text-align: left; color: var(--ink-soft); font-size: 0.9rem; font-weight: 400; }
+    td.os { grid-area: os; color: var(--ink-soft); font-size: 0.9rem; font-weight: 400; }
+    td.power { grid-area: power; text-align: right; color: var(--ink-soft); font-size: 0.9rem; font-weight: 400; }
     td.device { grid-area: device; color: var(--ink-soft); font-size: 0.9rem; font-weight: 400; }
     tbody tr:first-child td.device, tbody tr:first-child td.speed { font-weight: 400; }
   }
@@ -164,6 +166,7 @@ header('X-Content-Type-Options: nosniff');
             <th scope="col" class="num">Time</th>
             <th scope="col" class="num">Speed</th>
             <th scope="col">Ran on</th>
+            <th scope="col">System</th>
             <th scope="col" class="num">Power</th>
           </tr>
         </thead>
@@ -175,6 +178,7 @@ header('X-Content-Type-Options: nosniff');
             <td class="num time"><?= lb_h(lb_score((int) $row['score_ms'])) ?></td>
             <td class="num speed"><?= lb_h(speed_text($current, (int) $row['score_ms'])) ?></td>
             <td class="device"><?= lb_h($row['device']) ?> <span><?= lb_h($row['backend']) ?></span></td>
+            <td class="os"><?= lb_h(lb_os($row['os'])) ?></td>
             <td class="num power"><?= lb_h(power_text($row)) ?></td>
           </tr>
 <?php endforeach; ?>

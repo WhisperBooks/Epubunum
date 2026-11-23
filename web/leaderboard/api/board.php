@@ -12,7 +12,7 @@
 //
 // Answer (JSON): ok, benchmark {slug, name}, count, first,
 //                rows [{place, name, label, score_ms, score, device,
-//                       backend, avg_watts, peak_watts, limit_watts
+//                       backend, os, avg_watts, peak_watts, limit_watts
 //                       (null when not known), me}],
 //                you {place, score_ms} or null.
 // An install id says which machine, not who may see: a board is public.
@@ -61,6 +61,7 @@ try {
             'score' => lb_score((int) $row['score_ms']),
             'device' => $row['device'],
             'backend' => $row['backend'],
+            'os' => lb_os($row['os']),
             'avg_watts' => $row['avg_watts'] === null ? null : (int) $row['avg_watts'],
             'peak_watts' => $row['peak_watts'] === null ? null : (int) $row['peak_watts'],
             'limit_watts' => $row['limit_watts'] === null ? null : (int) $row['limit_watts'],

@@ -29,6 +29,16 @@ function MachineMemory: UInt64;
   @returns(the line) }
 function MachineText: string;
 
+{ The operating system in a few words, for the website's leaderboard:
+  'Windows 11 (Version ...)' as the run-time library has it; on Linux
+  the HOST's name and version from its os-release ('SteamOS 3.8.2',
+  'Ubuntu 24.04'). Steam runs a Linux program in a container whose own
+  os-release says 'Steam Runtime 3' (owner, 2026-11-23: "Doesn't
+  actually say SteamOS" - three machines all showed that); the host's
+  is at /run/host there, and is looked for first.
+  @returns(the text) }
+function MachineOs: string;
+
 implementation
 
 uses
@@ -165,6 +175,50 @@ begin
   {$ELSE}
   // (Linux sets it on every path: a first 0 there was H2077)
   Result := 0;
+  {$ENDIF}
+end;
+
+function MachineOs: string;
+{$IF Defined(LINUX) and not Defined(ANDROID)}
+const
+  // the host's seen from inside Steam's container, then the system's own
+  FILES: array[0..3] of string = ('/run/host/etc/os-release', '/run/host/usr/lib/os-release',
+    '/etc/os-release', '/usr/lib/os-release');
+var
+  L: TStringList;
+  I: Integer;
+  Name, Version, Pretty: string;
+
+  { KEY's value in the file loaded, without its quotes. }
+  function Value(const AKey: string): string;
+  begin
+    Result := Trim(L.Values[AKey]);
+    if (Length(Result) >= 2) and CharInSet(Result[1], ['"', '''']) and (Result[Length(Result)] = Result[1]) then
+      Result := Copy(Result, 2, Length(Result) - 2);
+  end;
+{$ENDIF}
+begin
+  Result := TOSVersion.ToString;
+  {$IF Defined(LINUX) and not Defined(ANDROID)}
+  L := TStringList.Create;
+  try
+    L.NameValueSeparator := '=';
+    for I := Low(FILES) to High(FILES) do
+    begin
+      L.Text := ReadProcFile(FILES[I]);
+      Name := Value('NAME');
+      Version := Value('VERSION_ID');
+      Pretty := Value('PRETTY_NAME');
+      if (Name <> '') and (Version <> '') then
+        Exit(Name + ' ' + Version);
+      if Pretty <> '' then
+        Exit(Pretty);
+      if Name <> '' then
+        Exit(Name);
+    end;
+  finally
+    L.Free;
+  end;
   {$ENDIF}
 end;
 

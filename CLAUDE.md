@@ -4,7 +4,163 @@ Read README.md first, then this file. Keep both up to date with every change.
 The rules follow TWhisper's and TFFMpegAPI's CLAUDE.md (same owner, same
 conventions); where this file is silent, theirs apply.
 
-## Handover - READ THIS FIRST (latest: session 13, 2026-11-22 18:13)
+## Handover - READ THIS FIRST (latest: session 14, 2026-11-23 21:21)
+
+Written at the owner's request (21:21: "write up a session handover in
+claude.md"). Session 14 ran from 2026-11-22 18:30 to 2026-11-23 21:21:
+zips 258 - 281 here (281 = this handover, CLAUDE.md only). Each zip has
+its own section further down ("Zip 280" first, newest first). The
+session's running log, entry by entry with the owner's words, is
+"Session 14 - the log" inside the session 13 handover below; this is
+the map. Sessions 13 and earlier: their handovers follow.
+
+### Where it stands (2026-11-23 21:21)
+- THE REPOSITORY: the owner's last push seen is 1310cf6 "External
+  leaderboard" (18:05; zips to 274). This working copy = 1310cf6 + zips
+  275 - 281. Never commit or push, never offer to.
+- STEAM: the build deployed holds zips to 278 (the logs of 20:21 say
+  "median" and read AMD's power). Zip 280's program side is NOT built;
+  the owner: "No rush to do another steam deployment - it takes a
+  while" - BATCH what needs a build (list below), keep site-only
+  changes apart.
+- THE THREE SITES are up, HTTPS, Plesk, PHP + MySQL:
+  https://www.epubunum.com (web/www/index.html, zip 271 / 277),
+  https://leaderboard.epubunum.com (web/leaderboard, zips 272 - 280),
+  https://link.epubunum.com (still Plesk's default page - not built).
+  The owner uploads the files himself and runs SQL in phpMyAdmin
+  (database "epubunum"). The site's settings are in a file outside
+  the repository (web/leaderboard/README.md).
+- THE BOARDS CAN BE READ FROM A SESSION: WebFetch
+  https://leaderboard.epubunum.com/api/board.php?benchmark=
+  benchmark_long_fast&rows=N (the four slugs: benchmark_short_fast,
+  _short_detailed, _long_fast, _long_detailed). The fetch is cached by
+  address for a quarter of an hour: change rows= to read again. The
+  owner prefers this to sending screenshots ("you can look at board
+  yourself - otherwise its 4x grabs"); of a log he pastes the tail from
+  the last "Score -" line.
+
+### What session 14 made (in the order of its use)
+1. STEAM'S LEADERBOARDS for the four benchmarks (uSteamBoard; zips
+   261, 263 - 270): on by default (Settings > Leaderboard), no question
+   asked; Benchmark > Leaderboards (top item) shows a board 95 % of the
+   window, four columns, the user's row yellow, left / right = top or
+   around you. WORKS on all seven machines, one Steam account each.
+2. THE WEBSITE'S LEADERBOARD (zips 272 - 280): a row is a MACHINE's
+   best run. Server: register.php (an install's random id -> a key),
+   submit.php (rate limits, plausibility, 'pending' above 400x),
+   board.php (JSON), index.php (the page). Client: uWebBoard - every
+   build, Steam or not, sends each score when Settings > Leaderboard
+   is Yes ("yes send to both"); ANONYMOUS, no name and no Steam id
+   ("for now anonymous is fine"). WORKS: five machines on the site.
+3. THE CARD'S POWER with a score (uGpuPower; zips 274, 276, 278): read
+   once a second for the whole benchmark, the MEDIAN ("median then"),
+   the highest, and the limit the card is held to; logged ("GPU power
+   - ..."), sent (avg_watts holds the median - the name stayed),
+   shown ("116 W of 175"). NVIDIA on Windows and Linux (NVML), AMD on
+   Linux (the kernel's hwmon files). ALL CONFIRMED UNDER STEAM,
+   Steam's Linux container included.
+4. The System column (zip 279) and the host's name for it (zip 280).
+5. The landing page (zip 271); the name written "epubunum" (zip 277).
+6. Before those: Run all N benchmarks and the introduction's timing
+   (258), BookManager's Dark mode (259), base by itself when turbo is
+   too slow, F5 / F6, the old settings page gone (260), Calibration
+   results as a page (262), no pad or keys during a benchmark (269).
+
+### What the power readings showed (owner's machines, 2026-11-23)
+- The 5090 laptop's OWN power profile (the maker's - not Windows', not
+  the program's Power setting) is the card's limit: low ~92 W, medium
+  ~120 W, high 175 W. The detailed model wants ~115 W, the fast one
+  ~67 W: medium = high within 2 %, low costs 45 - 65 % (the fast model
+  too: the processor is held back as well, unseen). The limit drifts
+  within a profile and the highest readings pass it (it is read once,
+  at a benchmark's start - offered to read it each second: no answer).
+- Long Text, Detailed / Fast, best runs on the site: 5090 2:06.2 at
+  116 W of 175 / 1:55.5 at 69 W; Steam Machine 5:23.8 at 62 W of 110 /
+  2:59.6 at 35 W; Ally 12:20.2 at 31 W, no limit / 4:32.3 at 21 W;
+  GTX 1650 (Linux) 13:18.3 at 51 W of 85 / 4:12.0 at 29 W; Deck
+  26:02.8 at 15 W of 15 / 8:58.3 at 5 W of 15.
+- The Deck's detailed runs sit AT its 15 W cap (its slider was at the
+  maximum). The Deck's 5 W on the fast model is less than "the whole
+  chip" should draw: what an APU's file measures is NOT SURE - the
+  site's footer and the README say "the whole chip's"; soften when
+  known. The Ally has no cap in the driver's files (its power control
+  is ASUS's own).
+- dGPU-only mode on the 5090 (a reboot): the builder calibrates again
+  (the device list changed - right); nothing gained beyond noise.
+
+### Standing rules added in session 14 (also in their zips' sections)
+- A NEW PAGE OR BOX in the builder is WIDE (a share of the window),
+  with set column widths, the benchmarks' YELLOW frame and a CENTRED
+  title - the first time ("Bad layout (again)", zip 265).
+- A record built field by field starts as Default(T) (zip 269: a new
+  field left unset made menu rows invisible in both programs).
+- PULL BEFORE CHANGING A .dproj; its line <Platform Condition=...> is
+  the owner's and goes back as it came; say in the delivery that a
+  .dproj is in the zip (zip 275: two zips reset his build to Linux64
+  and he tested the wrong program three times). The debug log's second
+  line "Build:" tells which build ran.
+- THE NAME IS "epubunum" where the public reads it (the sites, the
+  READMEs) - "Only care about publically visible versions - for
+  consistency (may change again later)". Folders, identifiers and the
+  programs' names are not renamed.
+- THE SITE'S TABLE `benchmarks` IS THE LIST OF BOARDS - never emptied.
+  To empty the boards: DELETE FROM bests; DELETE FROM runs; (and for a
+  clean slate devices, machines, players, in that order).
+- A database change is an ALTER TABLE the owner runs BEFORE the PHP
+  that needs it is uploaded; it goes in web/leaderboard/README.md.
+- The site's PHP is written so that tools/test_leaderboard.py can run
+  it against SQLite (no ON DUPLICATE KEY, no window functions); run it
+  before a delivery that touches web/leaderboard.
+- When "nothing arrives": first ask which build ran and whether the
+  zip is in the folder - before looking for a fault.
+
+### Waiting for the next Steam deployment (needs a build)
+- Zip 280: Linux machines say "SteamOS 3.x" / "Ubuntu 24.04", not
+  "Steam Runtime 3" (the host's os-release at /run/host - NOT SEEN TO
+  WORK). submit.php of zip 280 can be uploaded at any time.
+- Zip 275's four hints (compiled? not said) and zip 277's two message
+  texts.
+- Add here whatever else needs a build, and say so in the delivery.
+
+### Not confirmed by the owner
+- Zips 258 - 260 and 262 in full (the Calibration results page was
+  seen working at 18:25 in two screenshots; 259's Dark mode not said).
+- Zip 269's "no pad or keys during a benchmark": in Big Picture
+  nothing but quitting stops a benchmark now - a held button was
+  offered, no answer.
+- Zip 275 (the hints; three site files and .gitignore the repository
+  lacked; tools/leaderboard_schema.sql still to DELETE there).
+- Zip 277 on the sites; zip 280.
+- The landing page's claims to check: "in testing on Steam", the
+  platforms, "99 words in 100".
+- The old calibration page seen under the new one on Linux (session
+  14's start): cause not found; zip 258 avoids making it.
+
+### Decided, not to be raised again
+- Apple's GPU power is NOT read (19:48: "OK, forget Apple").
+- No consent question for the leaderboards: on by default.
+- The website's validation is version 1 as built (the owner said
+  "TBD" and used it); Steam ids are not sent, so nothing to verify.
+
+### Next (the owner's word decides the order)
+1. AMD's power ON WINDOWS - when Windows is on the Steam Machine
+   ("probably next week"; then the Deck and the Ally "if things go
+   well"). Needs AMD's ADL / ADLX library; read its header first.
+2. link.epubunum.com: ONE activation scheme for every install without
+   a screen (BookServer, a headless BookManager, a headless
+   EpubBuilder, the Apple TV) - design in the session 13 handover's
+   log below; then BookServer; then the Apple TV reader (native
+   Swift).
+3. Offered, no answer: the website's boards inside the program (its
+   Leaderboards page shows Steam's only - a non-Steam build has none);
+   names on the site; the limit read each second; an in-app "save a
+   picture of this window"; the build stamp where it is seen before a
+   run; 25 rows on a board.
+4. STILL FROM SESSION 13's LIST: step 5, the two builders (benchmark-
+   only and the full one behind the DLC) - ASK which form the limited
+   one takes; the Mac's "no graphics card" line; uInhibit.
+
+## Handover (session 13, 2026-11-22 18:13)
 
 Written at the owner's request (18:13: "OK, this is getting better.
 Write up progress in CLAUDE.md so I can start a new session"). Session 13
@@ -13,7 +169,7 @@ TWhisper-32. Each zip has its own section further down ("Zip 256" first,
 newest first); this is the map. Session 13's task list follows this
 handover, with its steps.
 
-### Session 14 (2026-11-22 18:30 -) - after this handover
+### Session 14 - the log (2026-11-22 18:30 - 2026-11-23 21:21; its handover is above)
 - PUSHED: 6f7515b "Handover" (all zips to 257 applied, owner 19:57).
 - Zip 258 (see its section): Run all N benchmarks, the introduction
   only once the window has its size, the estimate tuned on six
@@ -162,6 +318,12 @@ handover, with its steps.
   5090's PROFILES ARE THE CARD'S LIMIT: ~92 / 120 / 175 W. WAITS FOR:
   the 1650 under Steam on Linux; a "GPU power" line on the Steam
   Machine, the Deck or the Ally.
+- ZIP 278 WORKS (1650 on Linux, Ally, Steam Machine). Zip 279: the
+  System column on the site. Apple's power: NOT TO BE DONE. AMD on
+  Windows: when the owner has Windows on the Steam Machine.
+- Zip 280: the system sent is the HOST's (Linux under Steam said
+  "Steam Runtime 3"), with every score. WAITS FOR: a Linux run - does
+  the site say SteamOS / Ubuntu?
 - ZIP 270 COMPILED AND RAN (owner 13:27, four screenshots, the desktop
   window on the 5090): all four boards
   hold the seven machines, one Steam account each; no device cut short;
@@ -189,8 +351,8 @@ handover, with its steps.
   uInhibit).
 
 ### Where it stands
-- LAST NUMBER USED: 278 (Epubunum; 257 = this handover, CLAUDE.md
-  only; 258 - 278 = session 14), 32 (TWhisper). Never commit or push,
+- LAST NUMBER USED: 281 (Epubunum; 257 = this handover, CLAUDE.md
+  only; 258 - 280 = session 14; 281 = session 14's handover), 32 (TWhisper). Never commit or push,
   and never offer to; the owner applies the zips and pushes.
 - PUSH STATE: not told this session. The owner's builds said "Build:
   2026-11-22 17:27, 65569dc" (commit 65569dc + the zips applied on top).
@@ -1463,7 +1625,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 278 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
+Last number used: 281 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
 next-session notes, CLAUDE.md only).
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
@@ -4051,6 +4213,60 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 281 (on top of zip 280): session 14's handover
+Owner 2026-11-23 21:21: "write up a session handover in claude.md".
+CLAUDE.md only: "Handover - READ THIS FIRST (latest: session 14)" at
+the top - where it stands, what was made, what the power readings
+showed, the rules added, what waits for a build, what is not
+confirmed, what is decided, what is next. Session 13's handover keeps
+its place under it, its "Session 14" entries now headed "Session 14 -
+the log".
+
+## Zip 280 (on top of zip 279): the host's system, not "Steam Runtime 3"
+Session 14, owner 2026-11-23 21:00, zip 279 uploaded: "Doesn't actually
+say SteamOS" - the three Linux machines all read "Steam Runtime 3"
+(the site read from here): Steam runs a Linux program in a container
+whose /etc/os-release is the runtime's. NOT COMPILED. Files:
+demos/common/uMachine.pas (MachineOs), uWebBoard.pas;
+web/leaderboard/api/submit.php, README.md; tools/test_leaderboard.py;
+CLAUDE.md. No .dproj, no ALTER TABLE.
+- MachineOs (Linux): NAME + VERSION_ID (else PRETTY_NAME) of the first
+  of /run/host/etc/os-release, /run/host/usr/lib/os-release,
+  /etc/os-release, /usr/lib/os-release; elsewhere TOSVersion.ToString.
+  THAT /run/host HOLDS THE HOST'S FILE in Steam's container is what
+  the container's makers describe - NOT SEEN HERE; if a machine still
+  says Steam Runtime, `cat /run/host/etc/os-release` in the program's
+  environment is the question.
+- Sent with EVERY score now; submit.php puts it in machines.os - so the
+  machines already registered are put right by their next run, and an
+  upgrade shows.
+- MachineText (the logs' line) is as it was.
+- uMachine is BookManager's too: it need not be rebuilt for this.
+
+## Zip 279 (on top of zip 278): the operating system on the website's boards
+Session 14, owner 2026-11-23 20:55: "we should add os to leaderboard".
+THE SITE ONLY - nothing to compile, no ALTER TABLE (machines.os has
+been filled at registration since zip 273). Files: web/leaderboard/
+lib.php (lb_os; lb_page reads m.os), index.php (a System column),
+api/board.php (os), README.md; tools/test_leaderboard.py; CLAUDE.md.
+- lb_os: what stands before the first bracket of what the program sent
+  (TOSVersion.ToString): 'Windows 11', 'SteamOS', 'Ubuntu 24.04.3 LTS'.
+  WHAT THE PROGRAM REALLY SENDS ON LINUX AND macOS IS NOT KNOWN HERE -
+  the owner's page will show it; lb_os is where to shorten further.
+- It is the system at REGISTRATION: an upgrade does not change it (the
+  program could send it with each score - not done, not asked).
+- ZIP 278 WORKS (owner 20:23, 20:52; the site read): AMD on Linux
+  inside Steam's container - the Ally 31 W, highest 43 W, NO cap (its
+  power control is not the driver's); the Steam Machine 62 / 35 W
+  (detailed / fast), cap 110 W. NVIDIA on Linux under Steam works too
+  (the IdeaPad's 1650: 51 / 29 W of 70 - 85 W). Four machines on the
+  site; the Deck is still to run (set its TDP slider to the maximum -
+  owner).
+- DECIDED: Apple's power is NOT read (owner 19:48: "OK, forget Apple" -
+  no public way; the private one could crash and change). AMD ON
+  WINDOWS WAITS for Windows on the Steam Machine ("probably next
+  week"), then the Deck and the Ally.
 
 ## Zip 278 (on top of zip 277): AMD cards' power on Linux
 Session 14, owner 2026-11-23 19:30: "AMD have 18.72% market - possibly

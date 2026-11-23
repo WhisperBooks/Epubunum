@@ -14,6 +14,7 @@
 //                  channel                'steam' or 'direct'
 //                  ran_at                 'YYYY-MM-DD HH:MM:SS', UTC
 //                  name                   the name to show now (optional)
+//                  os                     the system now (optional)
 //                  avg_watts, peak_watts, limit_watts
 //                                         what the card drew over the run
 //                                         and the limit it was held to, W
@@ -133,6 +134,12 @@ try {
     $runId = (int) $db->lastInsertId();
 
     $db->prepare('UPDATE machines SET last_seen = ? WHERE id = ?')->execute([$now, $machineId]);
+    // the system as it is now (an upgrade; and a first registration from
+    // inside Steam's container said 'Steam Runtime 3')
+    $os = lb_text($in['os'] ?? '', 60);
+    if ($os !== '') {
+        $db->prepare('UPDATE machines SET os = ? WHERE id = ?')->execute([$os, $machineId]);
+    }
 
     // the name shown follows the latest one sent
     $name = lb_text($in['name'] ?? '', LB_MAX_NAME);
