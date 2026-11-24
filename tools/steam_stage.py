@@ -162,9 +162,17 @@ def stage(args):
                 say("  WARNING: %s is in parts.txt but not in %s" % (n, src))
         say("  %s: %d file(s), %.0f MB" % (os.path.basename(folder), count, total / 1048576.0))
     # what the base depot still needs
-    for need in ("EpubBuilder", "EpubBuilder.sh", "libsteam_api.so", "libwhisper.so.1", "libggml.so.0"):
+    for need in ("EpubBuilder", "EpubBuilder.sh", "libsteam_api.so", "libwhisper.so.1"):
         if not os.path.exists(os.path.join(linux, need)):
             say("  NOTE: %s has no %s" % (args.linux, need))
+    # ggml's number: 1 from ggml 1.0 (whisper.cpp 1.9.6), 0 before - and
+    # never both (an older build's file left beside the new one)
+    ggml = [n for n in ("libggml.so.1", "libggml.so.0") if os.path.exists(os.path.join(linux, n))]
+    if not ggml:
+        say("  NOTE: %s has no libggml.so.1" % args.linux)
+    elif len(ggml) > 1:
+        say("  WARNING: %s has %s: files of two whisper.cpp builds - deploy to an empty folder" %
+            (args.linux, " and ".join(ggml)))
     # the reference texts (uCalibration's REFERENCE_TEXTS): recordings and
     # their EPUBs in media/, not named here
     media = os.path.join(linux, "media")

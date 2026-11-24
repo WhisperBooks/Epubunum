@@ -71,6 +71,15 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\OSXARM64\libggml-base.1.dylib">
+            <RemoteDir>EpubBuilder.app\Contents\Frameworks\</RemoteDir>
+            <RemoteName>libggml-base.1.dylib</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
         <DeployFile Include="..\..\redistributable_bin\OSXARM64\libggml-cpu-apple_m1.so">
             <RemoteDir>EpubBuilder.app\Contents\Frameworks\</RemoteDir>
             <RemoteName>libggml-cpu-apple_m1.so</RemoteName>
@@ -93,15 +102,6 @@
         <DeployFile Include="..\..\redistributable_bin\OSXARM64\libavcodec.62.dylib">
             <RemoteDir>EpubBuilder.app\Contents\Frameworks\</RemoteDir>
             <RemoteName>libavcodec.62.dylib</RemoteName>
-            <DeployClass>File</DeployClass>
-            <Operation>0</Operation>
-            <LocalCommand/>
-            <RemoteCommand/>
-            <Overwrite>True</Overwrite>
-        </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\OSXARM64\libggml-base.0.dylib">
-            <RemoteDir>EpubBuilder.app\Contents\Frameworks\</RemoteDir>
-            <RemoteName>libggml-base.0.dylib</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
@@ -171,6 +171,15 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\OSXARM64\libggml.1.dylib">
+            <RemoteDir>EpubBuilder.app\Contents\Frameworks\</RemoteDir>
+            <RemoteName>libggml.1.dylib</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
         <DeployFile Include="..\..\redistributable_bin\OSXARM64\libswresample.6.dylib">
             <RemoteDir>EpubBuilder.app\Contents\Frameworks\</RemoteDir>
             <RemoteName>libswresample.6.dylib</RemoteName>
@@ -194,15 +203,6 @@
             <RemoteName>Info.plist</RemoteName>
             <DeployClass>ProjectOSXInfoPList</DeployClass>
             <Operation>1</Operation>
-            <LocalCommand/>
-            <RemoteCommand/>
-            <Overwrite>True</Overwrite>
-        </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\OSXARM64\libggml.0.dylib">
-            <RemoteDir>EpubBuilder.app\Contents\Frameworks\</RemoteDir>
-            <RemoteName>libggml.0.dylib</RemoteName>
-            <DeployClass>File</DeployClass>
-            <Operation>0</Operation>
             <LocalCommand/>
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
@@ -271,11 +271,11 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\OSXARM64\libavcodec.dylib">
-            <RemoteDir>EpubBuilder.app\Contents\Frameworks\</RemoteDir>
-            <RemoteName>libavcodec.dylib</RemoteName>
-            <DeployClass>File</DeployClass>
-            <Operation>0</Operation>
+        <DeployFile Include="OSXARM64\Release\EpubBuilder.info.plist" Condition="'$(Config)'=='Release'">
+            <RemoteDir>EpubBuilder.app\Contents\</RemoteDir>
+            <RemoteName>Info.plist</RemoteName>
+            <DeployClass>ProjectOSXInfoPList</DeployClass>
+            <Operation>1</Operation>
             <LocalCommand/>
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
@@ -289,11 +289,11 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="OSXARM64\Release\EpubBuilder.info.plist" Condition="'$(Config)'=='Release'">
-            <RemoteDir>EpubBuilder.app\Contents\</RemoteDir>
-            <RemoteName>Info.plist</RemoteName>
-            <DeployClass>ProjectOSXInfoPList</DeployClass>
-            <Operation>1</Operation>
+        <DeployFile Include="..\..\redistributable_bin\OSXARM64\libavcodec.dylib">
+            <RemoteDir>EpubBuilder.app\Contents\Frameworks\</RemoteDir>
+            <RemoteName>libavcodec.dylib</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
             <LocalCommand/>
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
@@ -402,18 +402,18 @@
     <ItemGroup Condition="'$(Platform)'=='iOSSimARM64'"/>
     <ItemGroup Condition="'$(Platform)'=='Win64x'"/>
     <ItemGroup Condition="'$(Platform)'=='Linux64'">
-        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\FFmpeg-BUILD-INFO.txt">
-            <RemoteDir>EpubBuilder\licences\</RemoteDir>
-            <RemoteName>FFmpeg-BUILD-INFO.txt</RemoteName>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libavutil.so.60">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libavutil.so.60</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\Linux64\libavutil.so.60">
-            <RemoteDir>EpubBuilder\</RemoteDir>
-            <RemoteName>libavutil.so.60</RemoteName>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\FFmpeg-BUILD-INFO.txt">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>FFmpeg-BUILD-INFO.txt</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
@@ -430,15 +430,6 @@
             <Overwrite>True</Overwrite>
             <Required>True</Required>
         </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\Linux64\librocm_sysdeps_drm.so.2">
-            <RemoteDir>EpubBuilder\</RemoteDir>
-            <RemoteName>librocm_sysdeps_drm.so.2</RemoteName>
-            <DeployClass>File</DeployClass>
-            <Operation>0</Operation>
-            <LocalCommand/>
-            <RemoteCommand/>
-            <Overwrite>True</Overwrite>
-        </DeployFile>
         <DeployFile Include="..\..\redistributable_bin\Linux64\licences\brotli-copyright.txt">
             <RemoteDir>EpubBuilder\licences\</RemoteDir>
             <RemoteName>brotli-copyright.txt</RemoteName>
@@ -448,27 +439,9 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\Linux64\librocroller.so.1">
-            <RemoteDir>EpubBuilder\</RemoteDir>
-            <RemoteName>librocroller.so.1</RemoteName>
-            <DeployClass>File</DeployClass>
-            <Operation>0</Operation>
-            <LocalCommand/>
-            <RemoteCommand/>
-            <Overwrite>True</Overwrite>
-        </DeployFile>
         <DeployFile Include="..\..\redistributable_bin\Linux64\licences\FreeType-copyright.txt">
             <RemoteDir>EpubBuilder\licences\</RemoteDir>
             <RemoteName>FreeType-copyright.txt</RemoteName>
-            <DeployClass>File</DeployClass>
-            <Operation>0</Operation>
-            <LocalCommand/>
-            <RemoteCommand/>
-            <Overwrite>True</Overwrite>
-        </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\Linux64\librocm_sysdeps_z.so.1">
-            <RemoteDir>EpubBuilder\</RemoteDir>
-            <RemoteName>librocm_sysdeps_z.so.1</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
@@ -493,18 +466,18 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\FFmpeg-COPYING.LGPLv3">
-            <RemoteDir>EpubBuilder\licences\</RemoteDir>
-            <RemoteName>FFmpeg-COPYING.LGPLv3</RemoteName>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libggml.so.1">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libggml.so.1</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\Linux64\libggml-base.so.0">
-            <RemoteDir>EpubBuilder\</RemoteDir>
-            <RemoteName>libggml-base.so.0</RemoteName>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\FFmpeg-COPYING.LGPLv3">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>FFmpeg-COPYING.LGPLv3</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
@@ -559,15 +532,6 @@
         <DeployFile Include="..\..\redistributable_bin\Linux64\libggml-cpu-zen4.so">
             <RemoteDir>EpubBuilder\</RemoteDir>
             <RemoteName>libggml-cpu-zen4.so</RemoteName>
-            <DeployClass>File</DeployClass>
-            <Operation>0</Operation>
-            <LocalCommand/>
-            <RemoteCommand/>
-            <Overwrite>True</Overwrite>
-        </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\Linux64\libLLVM.so.24.0git">
-            <RemoteDir>EpubBuilder\</RemoteDir>
-            <RemoteName>libLLVM.so.24.0git</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
@@ -691,18 +655,9 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\Linux64\librocm_sysdeps_bz2.so">
-            <RemoteDir>EpubBuilder\</RemoteDir>
-            <RemoteName>librocm_sysdeps_bz2.so</RemoteName>
-            <DeployClass>File</DeployClass>
-            <Operation>0</Operation>
-            <LocalCommand/>
-            <RemoteCommand/>
-            <Overwrite>True</Overwrite>
-        </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\Linux64\libclang-cpp.so.24.0git">
-            <RemoteDir>EpubBuilder\</RemoteDir>
-            <RemoteName>libclang-cpp.so.24.0git</RemoteName>
+        <DeployFile Include="..\EpubReader\steaminput\epubreader_controllers.vdf">
+            <RemoteDir>EpubBuilder\steaminput\</RemoteDir>
+            <RemoteName>epubreader_controllers.vdf</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
@@ -712,15 +667,6 @@
         <DeployFile Include="..\..\redistributable_bin\Linux64\libswresample.so">
             <RemoteDir>EpubBuilder\</RemoteDir>
             <RemoteName>libswresample.so</RemoteName>
-            <DeployClass>File</DeployClass>
-            <Operation>0</Operation>
-            <LocalCommand/>
-            <RemoteCommand/>
-            <Overwrite>True</Overwrite>
-        </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\Linux64\librocm_sysdeps_drm_amdgpu.so.1">
-            <RemoteDir>EpubBuilder\</RemoteDir>
-            <RemoteName>librocm_sysdeps_drm_amdgpu.so.1</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
@@ -754,9 +700,9 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\steam\linux64\libsteam_api.so" Condition="'$(Config)'=='Steam'">
-            <RemoteDir>EpubBuilder\</RemoteDir>
-            <RemoteName>libsteam_api.so</RemoteName>
+        <DeployFile Include="..\EpubReader\steaminput\controllers\reader_controller_triton.vdf">
+            <RemoteDir>EpubBuilder\steaminput\controllers\</RemoteDir>
+            <RemoteName>reader_controller_triton.vdf</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
@@ -772,9 +718,9 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="..\EpubReader\steaminput\controllers\reader_controller_triton.vdf">
-            <RemoteDir>EpubBuilder\steaminput\controllers\</RemoteDir>
-            <RemoteName>reader_controller_triton.vdf</RemoteName>
+        <DeployFile Include="..\..\redistributable_bin\steam\linux64\libsteam_api.so" Condition="'$(Config)'=='Steam'">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libsteam_api.so</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
@@ -793,15 +739,6 @@
         <DeployFile Include="..\..\redistributable_bin\Linux64\libbrotlidec.so.1">
             <RemoteDir>EpubBuilder\</RemoteDir>
             <RemoteName>libbrotlidec.so.1</RemoteName>
-            <DeployClass>File</DeployClass>
-            <Operation>0</Operation>
-            <LocalCommand/>
-            <RemoteCommand/>
-            <Overwrite>True</Overwrite>
-        </DeployFile>
-        <DeployFile Include="..\EpubReader\steaminput\epubreader_controllers.vdf">
-            <RemoteDir>EpubBuilder\steaminput\</RemoteDir>
-            <RemoteName>epubreader_controllers.vdf</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
@@ -857,6 +794,15 @@
         <DeployFile Include="..\..\redistributable_bin\Linux64\libavfilter.so">
             <RemoteDir>EpubBuilder\</RemoteDir>
             <RemoteName>libavfilter.so</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libggml-base.so.1">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libggml-base.so.1</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
@@ -944,24 +890,6 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\Linux64\librocm_sysdeps_liblzma.so.5">
-            <RemoteDir>EpubBuilder\</RemoteDir>
-            <RemoteName>librocm_sysdeps_liblzma.so.5</RemoteName>
-            <DeployClass>File</DeployClass>
-            <Operation>0</Operation>
-            <LocalCommand/>
-            <RemoteCommand/>
-            <Overwrite>True</Overwrite>
-        </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\Linux64\libggml.so.0">
-            <RemoteDir>EpubBuilder\</RemoteDir>
-            <RemoteName>libggml.so.0</RemoteName>
-            <DeployClass>File</DeployClass>
-            <Operation>0</Operation>
-            <LocalCommand/>
-            <RemoteCommand/>
-            <Overwrite>True</Overwrite>
-        </DeployFile>
         <DeployFile Include="..\EpubReader\steaminput\controllers\reader_controller_switch_joycon_pair.vdf">
             <RemoteDir>EpubBuilder\steaminput\controllers\</RemoteDir>
             <RemoteName>reader_controller_switch_joycon_pair.vdf</RemoteName>
@@ -989,24 +917,6 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\Linux64\librocm_sysdeps_numa.so.1">
-            <RemoteDir>EpubBuilder\</RemoteDir>
-            <RemoteName>librocm_sysdeps_numa.so.1</RemoteName>
-            <DeployClass>File</DeployClass>
-            <Operation>0</Operation>
-            <LocalCommand/>
-            <RemoteCommand/>
-            <Overwrite>True</Overwrite>
-        </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\Linux64\librocm_sysdeps_elf.so.1">
-            <RemoteDir>EpubBuilder\</RemoteDir>
-            <RemoteName>librocm_sysdeps_elf.so.1</RemoteName>
-            <DeployClass>File</DeployClass>
-            <Operation>0</Operation>
-            <LocalCommand/>
-            <RemoteCommand/>
-            <Overwrite>True</Overwrite>
-        </DeployFile>
         <DeployFile Include="..\..\redistributable_bin\Linux64\licences\FFmpeg-LICENSE.md">
             <RemoteDir>EpubBuilder\licences\</RemoteDir>
             <RemoteName>FFmpeg-LICENSE.md</RemoteName>
@@ -1019,15 +929,6 @@
         <DeployFile Include="..\..\redistributable_bin\Linux64\libggml-cpu-ivybridge.so">
             <RemoteDir>EpubBuilder\</RemoteDir>
             <RemoteName>libggml-cpu-ivybridge.so</RemoteName>
-            <DeployClass>File</DeployClass>
-            <Operation>0</Operation>
-            <LocalCommand/>
-            <RemoteCommand/>
-            <Overwrite>True</Overwrite>
-        </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\Linux64\librocm_sysdeps_zstd.so.1">
-            <RemoteDir>EpubBuilder\</RemoteDir>
-            <RemoteName>librocm_sysdeps_zstd.so.1</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
@@ -1109,24 +1010,6 @@
         <DeployFile Include="..\EpubReader\steaminput\controllers\reader_controller_neptune.vdf">
             <RemoteDir>EpubBuilder\steaminput\controllers\</RemoteDir>
             <RemoteName>reader_controller_neptune.vdf</RemoteName>
-            <DeployClass>File</DeployClass>
-            <Operation>0</Operation>
-            <LocalCommand/>
-            <RemoteCommand/>
-            <Overwrite>True</Overwrite>
-        </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\Linux64\liborigami.so.1">
-            <RemoteDir>EpubBuilder\</RemoteDir>
-            <RemoteName>liborigami.so.1</RemoteName>
-            <DeployClass>File</DeployClass>
-            <Operation>0</Operation>
-            <LocalCommand/>
-            <RemoteCommand/>
-            <Overwrite>True</Overwrite>
-        </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\Linux64\librocm_kpack.so.0">
-            <RemoteDir>EpubBuilder\</RemoteDir>
-            <RemoteName>librocm_kpack.so.0</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>

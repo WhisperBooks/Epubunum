@@ -89,6 +89,18 @@ the map. Sessions 13 and earlier: their handovers follow.
 - dGPU-only mode on the 5090 (a reboot): the builder calibrates again
   (the device list changed - right); nothing gained beyond noise.
 
+### Standing rules added in session 15
+- A COMMAND GIVEN TO THE OWNER IS GIVEN IN FULL (owner, 2026-11-24
+  21:28: "standing rule - no shorthand - say it in full"): every
+  argument it needs, with the owner's real folders where they are
+  known (C:\src\epubunum, C:\src\whisper-dev, C:\src\Whisper =
+  TWhisper; Linux ~/src/whisper-dev; the Mac's whisper-dev on its
+  SN770 volume) - never a shortened form with "as before" or an
+  argument left for the owner to add. What happened:
+  `tools\redist.bat collect C:\src\whisper-dev` was given without
+  its FFmpeg folder and stopped ("No avutil-60.dll"). A folder that is
+  NOT known is asked for, not guessed.
+
 ### Standing rules added in session 14 (also in their zips' sections)
 - A NEW PAGE OR BOX in the builder is WIDE (a share of the window),
   with set column widths, the benchmarks' YELLOW frame and a CENTRED
@@ -1677,7 +1689,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 307 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
+Last number used: 310 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
 next-session notes, CLAUDE.md only).
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
@@ -4265,6 +4277,100 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 310 (on top of zip 309): the website says "24 GB VRAM"
+Session 15, owner 2026-11-24 21:50: "When quoting GPU RAM size it
+should be marked as VRAM (or GPU RAM)". THE SITE ONLY: files
+web/leaderboard/lib.php (UPLOAD IT; no database change),
+tools/test_leaderboard.py, CLAUDE.md. No program changes.
+- lb_device_memory: '24 GB VRAM' (was '24 GB', beside the machine
+  line's '64 GB'). The API's device_memory_mb is a number, unchanged.
+- THE FIRST 1.9.6 SCORES ARE ON THE SITE (21:45, the 5090, Windows,
+  Vulkan; fetched): Short Detailed 0:00:35.525 (1.9.5's best
+  0:00:34.808), Long Fast 0:01:59.078 (0:01:55.537), Long Detailed
+  0:02:06.725 (0:02:06.159) - one run against the best of several:
+  no difference to speak of. Each board offers 1.9.6 and 1.9.5; the
+  row has the card's memory and the machine line. ZIPS 293 - 302 AND
+  306 WORK END TO END WITH A SECOND VERSION.
+- SHORT TEXT, FAST MODEL HAD NO 1.9.6 SCORE at 21:46 (the three others
+  had): not held as too fast (that is over 400x; it would need 8 s).
+  The owner was asked for the debug log's "Website leaderboard -
+  Short Text, Fast Model:" line - NOT ANSWERED (he went on to the
+  Linux and Mac libraries). TO CHECK.
+
+## Zip 309 (on top of zip 308): "Seconds 120.0x" out of the calibration's summary
+Session 15, 2026-11-24 21:41. NOT COMPILED. Files:
+demos/EpubBuilder/src/uCalibration.pas; CLAUDE.md (with the new
+standing rule of 21:28 at the top: commands in full). No .dproj.
+- THE FIRST 1.9.6 BUILD RUNS ON WINDOWS (the owner's calibration log,
+  21:37, whisper.cpp 1.9.6-dev from the Steam folder, CUDA toolkit
+  13.5 DLLs copied in by hand): base CPU 21.1x, CUDA0 69.4x, Vulkan0
+  134.1x; turbo CPU 6.1x, CUDA0 84.6x, Vulkan0 97.2x - VULKAN STILL
+  THE FASTEST ON THE 5090 (as with 1.9.5); 41 s for both models.
+  WhisperConsole's 30 s timing had said Vulkan 7.88x / CUDA 87x: too
+  short a piece to compare with (owner) - NOT a slower Vulkan.
+  TWhisper-33 COMPILES (WhisperConsole --check: delivery 33, layout
+  check passed, 111 values). Linux's container build: "looks good"
+  (owner; not seen here). macOS: built, dlls seen (libggml.1.dylib).
+- That log's last line: "Device: Vulkan0 - the fastest ... (Seconds
+  120.0x, CPU 6.1x, ...)": CalibrationSummary took the section's
+  'Seconds' key (the stretch's length, since zip 242) for a device.
+  Now left out, with 'CoreML'.
+- WHAT HAPPENED WITH THE CALIBRATION THAT EVENING (three builds, ONE
+  settings file): a Release build without models ran 1.9.6 first and
+  marked it; the Steam build then "went straight to menu - no
+  re-calibration"; the owner set the ini's Whisper back to 1.9.5 by
+  hand and it calibrated. NOT EXPLAINED: Done is written False when a
+  version's calibration is put aside, and CUDA's DLLs coming changed
+  the device list - either should have asked. No debug log of that
+  start was seen. TO FIND when it shows again. (The hand edit will
+  have filed that moment's sections as 1.9.5's, over the real ones.)
+- Steam / SteamDebug builds copy CPU and Vulkan only (postbuild.bat,
+  since 2026-11-17) - LEFT SO (owner 21:34 on the full set: "Lots of
+  files nobody will use"); Windows' Steam depot has no CUDA / HIP
+  until its DLC is made. For a test: tools\redist.bat deploy <the
+  build's folder> (everything), or the four CUDA file patterns alone.
+- THE MESSAGES A PERSON NEEDS ARE STILL LogLine: "put aside:
+  calibrate again", "no model to calibrate: choose one" are not on
+  the window (seen that evening: nothing said why no calibration
+  came). The pass over LogLine was offered again - NOT ANSWERED.
+
+## Zip 308 (on top of zip 307): whisper.cpp 1.9.6 - ggml's libraries are .so.1
+Session 15, owner 2026-11-24 17:42 "OK, whisper-dev time" - 18:38. Files:
+tools/steam_stage.py; CLAUDE.md. No Pascal, no .dproj in the zip.
+- THE OTHER TWO REPOSITORIES (cloned beside this one; each has its own
+  CLAUDE.md with the detail): whisper-dev-23 (pushed, d7f76d6: the
+  submodule at v1.9.6 = 96ec4d9, compared); TWhisper-33 (delivered
+  18:36, NOT YET PUSHED at 18:38: WHISPER_BINDING_VERSION 1.9.6, ggml
+  looked for as .so, .so.1, .so.0; A PACKAGE REBUILD). Both carry the
+  TAG 1.9.5 on the last 1.9.5 commit and, since 18:38, a BRANCH 1.9.6
+  beside main (same commit as main then).
+- WHAT 1.9.6 IS, against the 5922450 that was shipped: whisper.h not
+  one line, whisper.cpp's source five; all else ggml 0.29 -> 1.0.0.
+  THE ONE THING THAT REACHES HERE: ggml's files are libggml.so.1 /
+  libggml-base.so.1 (Mac: libggml.1.dylib, libggml-base.1.dylib),
+  were .so.0 / .0.dylib. Windows' names do not change.
+- NOTHING HERE NAMES THE NUMBER BUT: (1) tools/steam_stage.py's note
+  "has no libggml.so.0" - now .so.1 or .so.0, and a WARNING when both
+  are there (two builds' files in one folder); (2) EpubBuilder.dproj /
+  .deployproj's DeployFile entries (four files, Linux64 and OSXARM64)
+  - NOT EDITED BY HAND: tools/deploy_redist.py writes them from the
+  folder. THE OWNER'S STEPS per platform, after whisper-dev's build:
+  tools/redist.sh collect (it empties redistributable_bin/<platform>
+  first, so no .0 file stays), then python tools/deploy_redist.py
+  (Linux64: with the --skip the owner uses; then --platform OSXARM64)
+  - the .dproj changes by that, on the owner's machine. A DEPLOY
+  FOLDER ON THE TARGET (PAServer's scratch, the Steam content folder)
+  KEEPS OLD FILES: libggml.so.0 left there is not loaded (libwhisper
+  asks for .so.1; TWhisper opens libggml.so first) but ships - clean
+  the folder once. Windows: redist.bat copies by pattern, same names.
+- I said at 17:50 that steam_stage.py "would refuse a 1.9.6 build":
+  WRONG, it only prints a note. Corrected to the owner.
+- NOT DONE HERE, BY ITS NATURE: any build with 1.9.6's libraries. The
+  first one must have zips 293 - 307 (it has: e225fd8 = all to 307,
+  compared 18:39). Boards: Steam's per-version boards
+  (benchmark_x_whisper_1_9_6) are made by the first score; the
+  website's 1.9.6 boards appear with the first run.
 
 ## Zip 307 (on top of zip 306): "Fremont" is the Steam Machine
 Session 15, 2026-11-24 17:37 - 17:39. NOT COMPILED. Files:

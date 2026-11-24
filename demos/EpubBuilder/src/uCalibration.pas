@@ -1001,7 +1001,11 @@ begin
     Ini.ReadSection(ModelSection(AModelFile), Keys);
     for I := 0 to Keys.Count - 1 do
     begin
-      if SameText(Keys[I], 'Made') or SameText(Keys[I], 'Best') or SameText(Keys[I], 'BestSpeed') then
+      // what the section says of the calibration itself is not a device
+      // ('Seconds' showed as "Seconds 120.0x" in the Device line - the
+      // owner's calibration log, 2026-11-24)
+      if SameText(Keys[I], 'Made') or SameText(Keys[I], 'Best') or SameText(Keys[I], 'BestSpeed') or
+        SameText(Keys[I], 'Seconds') or SameText(Keys[I], 'CoreML') then
         Continue;
       V := Ini.ReadString(ModelSection(AModelFile), Keys[I], '');
       if StartsText(FAILED_PREFIX, V) then

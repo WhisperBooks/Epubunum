@@ -448,13 +448,6 @@ $(PreBuildEvent)]]></PreBuildEvent>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libLLVM.so.24.0git" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libLLVM.so.24.0git</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
                 <DeployFile LocalName="..\..\redistributable_bin\Linux64\libavcodec.so.62" Class="File">
                     <Platform Name="Linux64">
                         <RemoteDir>.\</RemoteDir>
@@ -525,13 +518,6 @@ $(PreBuildEvent)]]></PreBuildEvent>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libclang-cpp.so.24.0git" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libclang-cpp.so.24.0git</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
                 <DeployFile LocalName="..\..\redistributable_bin\Linux64\libfreetype.so.6" Class="File">
                     <Platform Name="Linux64">
                         <RemoteDir>.\</RemoteDir>
@@ -539,10 +525,10 @@ $(PreBuildEvent)]]></PreBuildEvent>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-base.so.0" Class="File">
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml-base.so.1" Class="File">
                     <Platform Name="Linux64">
                         <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libggml-base.so.0</RemoteName>
+                        <RemoteName>libggml-base.so.1</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
@@ -658,10 +644,10 @@ $(PreBuildEvent)]]></PreBuildEvent>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml.so.0" Class="File">
+                <DeployFile LocalName="..\..\redistributable_bin\Linux64\libggml.so.1" Class="File">
                     <Platform Name="Linux64">
                         <RemoteDir>.\</RemoteDir>
-                        <RemoteName>libggml.so.0</RemoteName>
+                        <RemoteName>libggml.so.1</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
@@ -676,83 +662,6 @@ $(PreBuildEvent)]]></PreBuildEvent>
                     <Platform Name="Linux64">
                         <RemoteDir>.\</RemoteDir>
                         <RemoteName>libgomp.so.1</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\liborigami.so.1" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>liborigami.so.1</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_kpack.so.0" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>librocm_kpack.so.0</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_sysdeps_bz2.so" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>librocm_sysdeps_bz2.so</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_sysdeps_drm.so.2" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>librocm_sysdeps_drm.so.2</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_sysdeps_drm_amdgpu.so.1" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>librocm_sysdeps_drm_amdgpu.so.1</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_sysdeps_elf.so.1" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>librocm_sysdeps_elf.so.1</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_sysdeps_liblzma.so.5" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>librocm_sysdeps_liblzma.so.5</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_sysdeps_numa.so.1" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>librocm_sysdeps_numa.so.1</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_sysdeps_z.so.1" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>librocm_sysdeps_z.so.1</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocm_sysdeps_zstd.so.1" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>librocm_sysdeps_zstd.so.1</RemoteName>
-                        <Overwrite>true</Overwrite>
-                    </Platform>
-                </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\Linux64\librocroller.so.1" Class="File">
-                    <Platform Name="Linux64">
-                        <RemoteDir>.\</RemoteDir>
-                        <RemoteName>librocroller.so.1</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
@@ -910,10 +819,10 @@ $(PreBuildEvent)]]></PreBuildEvent>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libggml-base.0.dylib" Class="File">
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libggml-base.1.dylib" Class="File">
                     <Platform Name="OSXARM64">
                         <RemoteDir>Contents\Frameworks\</RemoteDir>
-                        <RemoteName>libggml-base.0.dylib</RemoteName>
+                        <RemoteName>libggml-base.1.dylib</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
@@ -952,10 +861,10 @@ $(PreBuildEvent)]]></PreBuildEvent>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
-                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libggml.0.dylib" Class="File">
+                <DeployFile LocalName="..\..\redistributable_bin\OSXARM64\libggml.1.dylib" Class="File">
                     <Platform Name="OSXARM64">
                         <RemoteDir>Contents\Frameworks\</RemoteDir>
-                        <RemoteName>libggml.0.dylib</RemoteName>
+                        <RemoteName>libggml.1.dylib</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>

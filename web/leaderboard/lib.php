@@ -189,8 +189,10 @@ function lb_machine_facts(array $in): array
 }
 
 /**
- * The memory of the device a run was on, in whole GB ('24 GB' of the
- * 23.6 a card reports; '' when it was not sent).
+ * The memory of the device a run was on, in whole GB and named as the
+ * graphics card's own ('24 GB VRAM' of the 23.6 a card reports - beside
+ * the computer's "64 GB" a bare number was not told apart; owner,
+ * 2026-11-24); '' when it was not sent. Only runs on a GPU send it.
  */
 function lb_device_memory(array $row): string
 {
@@ -198,7 +200,7 @@ function lb_device_memory(array $row): string
     if ($mb <= 0) {
         return '';
     }
-    return $mb < 1024 ? $mb . ' MB' : (int) round($mb / 1024) . ' GB';
+    return ($mb < 1024 ? $mb . ' MB' : (int) round($mb / 1024) . ' GB') . ' VRAM';
 }
 
 /**
