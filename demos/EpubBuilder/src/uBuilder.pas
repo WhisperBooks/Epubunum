@@ -902,6 +902,10 @@ type
     FWebInstall: string;
     { The key the site gave it ([Leaderboard] Key). }
     FWebKey: string;
+    { The machine's number the site gave with a score ([Leaderboard]
+      Machine; 0 = none yet): the website's page marks that row
+      (BoardOpenWeb). }
+    FWebMachine: Integer;
     { This run's scores for the website's leaderboard. }
     FWebScores: array[1..4] of TWebBoardScore;
     { Each score's way to the website: 0 not sent, 1 being sent, 2 there
@@ -1017,6 +1021,13 @@ type
     { Fills cbModel from the catalogue and the models folder, FModelPath
       selected. }
     procedure FillModels;
+    { A model's calibration is of the encoder it ran with: one made with
+      the model's Core ML encoder is put aside when the encoder is no
+      longer there, and the other way round (uCalibration's
+      CalibrationForEncoders) - said in the log. Called when the model
+      list is filled (an encoder was downloaded) and after a calibration
+      was kept; nothing until whisper.cpp is loaded. }
+    procedure CalibrationEncoders;
     { Downloads model AName (AWithModel) and / or its Core ML encoder
       (AWithEncoder) into the models folder (TModelDownload); the model
       is chosen when it is complete. }
@@ -1587,6 +1598,15 @@ type
     procedure BoardRead(const AResult: TSteamBoardResult);
     { Benchmark > Leaderboards... }
     procedure miBoardsClick(Sender: TObject);
+    { Benchmark > Website leaderboard... }
+    procedure miWebBoardClick(Sender: TObject);
+    { Opens the website's board of benchmark AOption (1 .. 4; 0 = the
+      site's first) in a browser: whisper.cpp's version in the address (a
+      user who has not updated sees their own version's boards), and this
+      machine's row marked once a score of it reached the site (owner,
+      2026-11-24). Big Picture: Steam's overlay browser; else the
+      system's own, and Steam's when that cannot be opened. }
+    procedure BoardOpenWeb(AOption: Integer);
     { Settings > Model > Download every model (the top row of Big Picture's model
       list): asks, then fetches every model of the catalogue that is not
       in the models folder, one after another (FDownloadQueue). The model
@@ -3546,6 +3566,21 @@ begin
     cbDevice.Items[0] := DefaultDeviceItem;
     FWhisperText := Format('whisper.cpp %s from %s', [Lib.Version, Lib.LibraryFolder]);
     FWhisperVersion := WhisperVersionNumbers(Lib.Version);
+    // what the machine is, for the leaderboards: read now, off the
+    // window's thread (a Mac's system report takes a moment)
+    TThread.CreateAnonymousThread(
+      procedure
+      begin
+        MachineFacts;
+      end).Start;
+    // the build history's estimates: this version's builds only, and of
+    // a model only those made with the encoder it has now
+    HistoryWhisper := FWhisperVersion;
+    HistoryUsesCoreML :=
+      function(AFile: string): Boolean
+      begin
+        Result := UsesCoreML(TPath.Combine(FModelsFolder, AFile));
+      end;
     FCoreML := Pos('COREML = 1', Lib.SystemInfo) > 0;
     LogLine(Format('whisper.cpp %s loaded from %s', [Lib.Version, Lib.LibraryFolder]));
     // the calibration is one version's: another's is put aside
@@ -3688,6 +3723,7 @@ begin
       FBoardUpload := Ini.ReadBool('Benchmark', 'Leaderboard', True);
       FWebInstall := Ini.ReadString('Leaderboard', 'Install', '');
       FWebKey := Ini.ReadString('Leaderboard', 'Key', '');
+      FWebMachine := Ini.ReadInteger('Leaderboard', 'Machine', 0);
       FLowestSpeed := EnsureRange(Round(StrToFloatDef(Ini.ReadString('Build', 'LowestSpeed', ''),
         LOWEST_SPEED_TOP / 10, TFormatSettings.Invariant) * 10), 0, LOWEST_SPEED_TOP);
       // not a change of the user's (which saves the settings half read)
@@ -3749,6 +3785,7 @@ begin
       Ini.WriteBool('Benchmark', 'Leaderboard', FBoardUpload);
       Ini.WriteString('Leaderboard', 'Install', FWebInstall);
       Ini.WriteString('Leaderboard', 'Key', FWebKey);
+      Ini.WriteInteger('Leaderboard', 'Machine', FWebMachine);
       Ini.WriteString('Build', 'LowestSpeed', FormatFloat('0.0', FLowestSpeed / 10, TFormatSettings.Invariant));
       // no longer kept (off at every start)
       Ini.DeleteKey('Build', 'UseSavedTranscript');
@@ -3860,6 +3897,8 @@ begin
   SteamBoardsForget;
   WebBoardForget;
   GSiteForget := True;
+  // it holds the window
+  HistoryUsesCoreML := nil;
   FreeAndNil(FLink);
   if FCalib <> nil then
   begin
@@ -4486,6 +4525,32 @@ begin
     cbModel.ItemIndex := Sel;
   finally
     FFillingModels := False;
+  end;
+  // an encoder may have come or gone: its model's calibration follows
+  CalibrationEncoders;
+end;
+
+procedure TfrmBuilder.CalibrationEncoders;
+var
+  Aside: TArray<string>;
+begin
+  // not before the library says whether it is a Core ML build (every
+  // model would look as if it had lost its encoder)
+  if (FWhisperText = '') or (FModelsFolder = '') then
+    Exit;
+  try
+    Aside := CalibrationForEncoders(SettingsFile, FCoreML,
+      function(AFile: string): Boolean
+      begin
+        Result := UsesCoreML(TPath.Combine(FModelsFolder, AFile));
+      end);
+    if Length(Aside) > 0 then
+      LogLine(Format('Calibration: the Core ML encoder of %s came or went - what was timed without that is put ' +
+        'aside (its speed is another); the model is calibrated again when it is next used.',
+        [string.Join(', ', Aside)]));
+  except
+    on E: Exception do
+      DebugLog('calibration and Core ML: ' + E.Message);
   end;
 end;
 
@@ -5328,7 +5393,8 @@ begin
     TotalBytes := 0;
     Md.Add('# EpubBuilder queue report');
     Md.Add('');
-    Md.Add(Format('%s - %d job(s)', [FormatDateTime('yyyy-mm-dd hh:nn', Now), Length(FJobs)]));
+    Md.Add(Format('%s - %d job(s)', [FormatDateTime('yyyy-mm-dd hh:nn', Now), Length(FJobs)]) +
+      IfThen(FWhisperVersion <> '', ' - whisper.cpp ' + FWhisperVersion, ''));
     Md.Add('');
     Md.Add('| # | Book | State | Time | Audio | Speed | Matched | Verdict | EPUB |');
     Md.Add('|---|---|---|---|---|---|---|---|---|');
@@ -6086,6 +6152,13 @@ begin
   if SteamRunning then
   begin
     miBoards := Item(M, '&Leaderboards...', miBoardsClick);
+    Item(M, '&Website leaderboard...', miWebBoardClick);
+    Item(M, '-', nil);
+  end
+  else
+  begin
+    // without Steam the website's is the leaderboard
+    Item(M, '&Website leaderboard...', miWebBoardClick);
     Item(M, '-', nil);
   end;
   for I := 0 to High(miBench) do
@@ -6294,6 +6367,8 @@ const
   PADROW_LOADQ = -11;
   { The Benchmark list: Leaderboards. }
   PADROW_BOARDS = -12;
+  { The Benchmark list and a leaderboard's page: the website's board. }
+  PADROW_WEB = -13;
   { The model list's first row: Download every model. }
   PADROW_DOWNLOAD_ALL = -12;
   { Audio files the folder lists (as Add files...). }
@@ -7834,6 +7909,8 @@ begin
       end
       else if Cmd = PADROW_BOARDS then
         PadBoards
+      else if Cmd = PADROW_WEB then
+        BoardOpenWeb(0)
       else if Cmd = PADROW_BACK then
         PadHome(BPC_BENCH);
     BPM_BOARDS:
@@ -7842,7 +7919,9 @@ begin
       else if Cmd = PADROW_BACK then
         PadBenchmarks;
     BPM_BOARD:
-      if Cmd = PADROW_BACK then
+      if Cmd = PADROW_WEB then
+        BoardOpenWeb(FBoardShown)
+      else if Cmd = PADROW_BACK then
         PadBoards;
     BPM_QUEUES:
       if (Cmd >= 0) and (Cmd <= High(FPadBooks)) then
@@ -10018,7 +10097,8 @@ begin
           FormatFloat('0.000', ASummary.BenchSeconds, TFormatSettings.Invariant),
           FormatFloat('0.0', ASummary.BenchAudioSeconds, TFormatSettings.Invariant),
           IntToStr(ASummary.BenchWords), IntToStr(ASummary.BenchMatched), CsvText(ASummary.Model),
-          CsvText(ASummary.Device), CsvText(ASummary.DeviceText), CsvText(BuildStamp),
+          CsvText(ASummary.Device), CsvText(ASummary.DeviceText + IfThen(UsesCoreML(ASummary.Model),
+          ' + Core ML', '')), CsvText(BuildStamp),
           CsvText(FWhisperVersion)]));
       finally
         W.Free;
@@ -10171,6 +10251,11 @@ begin
     Result.Device := 'unknown';
   if Result.Backend = '' then
     Result.Backend := 'unknown';
+  // a Mac whose model has its Core ML encoder: the encoder ran through
+  // Core ML, at another speed than Metal's or the processor's alone
+  // (owner, 2026-11-24)
+  if UsesCoreML(ASummary.Model) then
+    Result.Backend := Result.Backend + ' + Core ML';
 end;
 
 function TfrmBuilder.SteamBoardName(AOption: Integer): string;
@@ -10187,6 +10272,13 @@ var
   Parts: TArray<string>;
 begin
   Dev := BoardDevice(ASummary.DeviceText);
+  // Core ML's encoder is another speed: said with the device
+  if UsesCoreML(ASummary.Model) then
+    Dev := Dev + ' + Core ML';
+  // which machine: its model, after the device (Steam's rows have no
+  // second line; the website's have the cores and the memory too)
+  if MachineFacts.Model <> '' then
+    Dev := Dev + ', ' + MachineFacts.Model;
   SetLength(Result, BOARD_DEVICE_AT);
   Result[0] := BOARD_FORMAT;
   Result[1] := 0;
@@ -10237,6 +10329,14 @@ begin
   begin
     FWebInstall := AResult.InstallId;
     FWebKey := AResult.Key;
+    // a new installation at the site: its number comes with the answer
+    FWebMachine := 0;
+    SaveSettings;
+  end;
+  // which row of the website's boards is this machine's
+  if (AResult.Machine > 0) and (AResult.Machine <> FWebMachine) then
+  begin
+    FWebMachine := AResult.Machine;
     SaveSettings;
   end;
   Option := 0;
@@ -10352,6 +10452,31 @@ begin
   PadBoards;
 end;
 
+procedure TfrmBuilder.miWebBoardClick(Sender: TObject);
+begin
+  BoardOpenWeb(0);
+end;
+
+procedure TfrmBuilder.BoardOpenWeb(AOption: Integer);
+var
+  Url, Board: string;
+  Done: Boolean;
+begin
+  Board := '';
+  if (AOption >= 1) and (AOption <= 4) then
+    Board := BOARD_NAMES[AOption];
+  Url := WebBoardPage(Board, FWhisperVersion, FWebMachine);
+  // Big Picture: no other browser comes to the front there
+  if FBigPicture then
+    Done := SteamOpenWebPage(Url)
+  else
+    Done := OpenSitePage(Url, WEB_BOARD_URL) or SteamOpenWebPage(Url);
+  if Done then
+    WindowLine('The website''s leaderboard was asked for in a browser: ' + Url)
+  else
+    Tell('No browser could be opened from here. The leaderboard is at ' + Url);
+end;
+
 procedure TfrmBuilder.PadBoards;
 var
   Items: TArray<TPadMenuItem>;
@@ -10407,7 +10532,8 @@ begin
   if (FPadMenu = nil) or (FBoardShown < 1) or (FBoardShown > 4) then
     Exit;
   // the rows the page holds, less its Back row
-  FBoardRows := Max(3, FPadMenu.RowsThatFit(BOARD_WIDTH_SHARE, True) - 1);
+  // the rows that fit, less Back and the website's row
+  FBoardRows := Max(3, FPadMenu.RowsThatFit(BOARD_WIDTH_SHARE, True) - 2);
   SteamBoardRead(SteamBoardName(FBoardShown), FBoardRows, FBoardAround, BoardRead);
 end;
 
@@ -10512,6 +10638,10 @@ begin
       Title := Format('%s - %s (%d on the board)', [Title, IfThen(FBoardAround, 'around you', 'top'),
         AResult.Count]);
   end;
+  // the same board on the website (every machine's best, the power drawn,
+  // words a minute), this machine's row marked
+  Items := Items + [TPadMenu.Item('This board on the website')];
+  FPadCmds := FPadCmds + [PADROW_WEB];
   Items := Items + [TPadMenu.Item('Back')];
   FPadCmds := FPadCmds + [PADROW_BACK];
   // owner, 2026-11-23: 95 % of the window wide and high; place and name
@@ -10669,6 +10799,13 @@ begin
   begin
     Items := Items + [TPadMenu.Item('Leaderboards')];
     FPadCmds := FPadCmds + [PADROW_BOARDS];
+  end;
+  // the website's boards, in a browser (Big Picture: Steam's overlay -
+  // so only where there is one)
+  if not FBigPicture or SteamRunning then
+  begin
+    Items := Items + [TPadMenu.Item('Website leaderboard')];
+    FPadCmds := FPadCmds + [PADROW_WEB];
   end;
   for I := 0 to High(miBench) do
   begin
@@ -11236,6 +11373,8 @@ begin
   begin
     try
       CalibrationSave(SettingsFile, T.Results, CalibrationDevicesKey(FDevices), T.AudioFile);
+      // each model's section says which encoder it was timed with
+      CalibrationEncoders;
       LogLine('Kept in ' + SettingsFile);
       // at start-up: a model too slow here gives way to base
       if FCalAtStart then
@@ -12083,6 +12222,10 @@ begin
   R.Title := ASummary.Title;
   R.Language := ASummary.Language;
   R.OutputName := ExtractFileName(FRunOut);
+  R.Whisper := FWhisperVersion;
+  // only a Core ML build says (elsewhere there is nothing to tell apart)
+  if FCoreML then
+    R.CoreML := IfThen(UsesCoreML(ASummary.Model), '1', '0');
   FLastResult := Format('Last: %s - %.1fx real time, matched %.1f %%', [R.Title, HistorySpeed(R),
     R.MatchedPercent]);
   if FExpSpeed > 0 then

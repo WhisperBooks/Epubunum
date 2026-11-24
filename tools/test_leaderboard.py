@@ -37,6 +37,7 @@ CREATE TABLE players (id INTEGER PRIMARY KEY AUTOINCREMENT, source TEXT NOT NULL
   display_name TEXT NOT NULL, banned INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL);
 CREATE TABLE machines (id INTEGER PRIMARY KEY AUTOINCREMENT, player_id INTEGER NOT NULL REFERENCES players(id),
   install_id TEXT UNIQUE NOT NULL, key_hash TEXT NOT NULL, label TEXT, os TEXT, cpu TEXT, memory_gb INTEGER,
+  model TEXT, cores INTEGER, perf_cores INTEGER, eff_cores INTEGER, threads INTEGER, gpu_cores INTEGER,
   hidden INTEGER NOT NULL DEFAULT 0, sender_hash TEXT, created_at TEXT NOT NULL, last_seen TEXT NOT NULL);
 CREATE TABLE devices (id INTEGER PRIMARY KEY AUTOINCREMENT, description TEXT NOT NULL, kind TEXT NOT NULL,
   backend TEXT NOT NULL, UNIQUE (description, kind, backend));
@@ -195,6 +196,29 @@ def main():
         st, c = call(base, "/api/board.php?benchmark=benchmark_long_fast&rows=7")
         check("a score's os replaces the registration's", st == 200 and c["rows"][3]["os"] == "SteamOS 3.8.2" and
               c["rows"][0]["os"] == "Test OS", c)
+        st, a = run(base, mid[0], mid[1], 248000, os="macOS (Version 26.1.0)", backend="Metal + Core ML")
+        st, c = call(base, "/api/board.php?benchmark=benchmark_long_fast&rows=7")
+        check("a Mac's version comes out of the bracket; Core ML is part of the backend", st == 200 and
+              c["rows"][3]["os"] == "macOS 26.1" and c["rows"][3]["backend"] == "Metal + Core ML", c)
+        st, a = run(base, mid[0], mid[1], 247000, os="macOS 26.1 (25B78)", avg_watts=48, limit_watts=50)
+        st, c = call(base, "/api/board.php?benchmark=benchmark_long_fast&rows=7")
+        check("a Mac's system that has its version is left as it is", c["rows"][3]["os"] == "macOS 26.1", c)
+        st, a = run(base, mid[0], mid[1], 249000, os="SteamOS 3.8.2")
+        st, c = call(base, "/api/board.php?benchmark=benchmark_long_fast&rows=7")
+        check("a machine that said nothing of itself is Unknown", c["rows"][0]["machine"] == "Unknown", c["rows"][0])
+        st, a = run(base, mid[0], mid[1], 260000, machine_model="Mac mini", cpu="Apple M4", memory_gb=16, cores=10,
+                    perf_cores=4, eff_cores=6, threads=10, gpu_cores=10, device="Apple M4")
+        st, a = run(base, mid[0], mid[1], 246000, device="Apple M4", avg_watts=48, limit_watts=50)
+        st, c = call(base, "/api/board.php?benchmark=benchmark_long_fast&rows=7")
+        check("a Mac's model, cores, graphics cores and memory; the chip is not said twice; a score without them "
+              "leaves them", c["rows"][3]["machine"] == "Mac mini \u00b7 10 cores (4P + 6E) \u00b7 10-core GPU \u00b7 16 GB",
+              c["rows"][3])
+        st, a = run(base, last[0], last[1], 1700000, machine_model="ROG Ally RC71L", cpu="AMD Ryzen Z1 Extreme", cores=8,
+                    threads=16, memory_gb=16, gpu_cores=0, perf_cores="x")
+        st, c = call(base, "/api/board.php?benchmark=benchmark_long_fast&rows=7")
+        check("a PC: the processor is named when the run was on something else; what is not a number is left out",
+              c["rows"][6]["machine"] == "ROG Ally RC71L \u00b7 AMD Ryzen Z1 Extreme \u00b7 8 cores \u00b7 16 GB",
+              c["rows"][6])
         st, a = call(base, "/api/board.php?benchmark=benchmark_short_fast")
         check("an empty board", st == 200 and a.get("count") == 0 and a.get("rows") == [], a)
         st, a = call(base, "/api/board.php?benchmark=nothing")
@@ -218,6 +242,19 @@ def main():
               a.get("count") == 7 and a.get("whisper") == "1.9.5" and a["rows"][0]["score_ms"] == 119437 and
               a.get("you") == {"place": 1, "score_ms": 119437}, a)
         st, a = run(base, last[0], last[1], 1500000, whisper="v1.9.6-dev")
+        check("the answer names the machine and the run, for the page's address", isinstance(a.get("machine"), int) and
+              a["machine"] > 0 and isinstance(a.get("run"), int) and a["run"] > 0, a)
+        mine = a["machine"]
+        html = urllib.request.urlopen(base + "/index.php?b=benchmark_long_fast&w=1.9.5&m=%d" % mine,
+                                      timeout=10).read().decode()
+        check("?m= marks that machine's row and says its place", html.count('<tr id="you" class="you">') == 1 and
+              "Your computer is in place 7, marked below." in html and
+              ("b=benchmark_short_fast&amp;w=1.9.5&amp;m=%d" % mine) in html, html[html.find("<main"):][:1200])
+        html = urllib.request.urlopen(base + "/index.php?b=benchmark_short_fast&m=%d" % mine, timeout=10).read().decode()
+        check("?m= on a board the machine is not on says so", 'class="you"' not in html and
+              "Your computer has no score on this board yet." in html)
+        html = urllib.request.urlopen(base + "/index.php?b=benchmark_long_fast&m=x%22%3E", timeout=10).read().decode()
+        check("an m that is not a number marks nothing", 'class="you"' not in html and "Your computer" not in html)
         check("'v1.9.6-dev' is 1.9.6", st == 200 and a.get("whisper") == "1.9.6" and a.get("place") == 2 and
               a.get("count") == 2, (st, a))
         st, a = run(base, last[0], last[1], 1500000, whisper="newest")
@@ -252,8 +289,8 @@ def main():
         k = con.execute("SELECT COUNT(*) FROM runs WHERE status = 'rejected'").fetchone()[0]
         v = dict(con.execute("SELECT whisper, COUNT(*) FROM runs GROUP BY whisper").fetchall())
         con.close()
-        check("every run was kept, the refused ones with their reason", n == 18 and k == 4, (n, k))
-        check("each run has its whisper.cpp version", v == {"1.9.5": 16, "1.9.6": 2}, v)
+        check("every run was kept, the refused ones with their reason", n == 24 and k == 4, (n, k))
+        check("each run has its whisper.cpp version", v == {"1.9.5": 22, "1.9.6": 2}, v)
 
         print("rate limit")
         spare = str(uuid.uuid4())

@@ -65,6 +65,12 @@ CREATE TABLE machines (
   os          VARCHAR(60)  NULL,               -- 'Windows 11', 'SteamOS'
   cpu         VARCHAR(100) NULL,               -- the processor's description
   memory_gb   SMALLINT UNSIGNED NULL,
+  model       VARCHAR(60)  NULL,               -- 'Mac mini', 'Steam Deck', 'ROG Ally RC71L'
+  cores       SMALLINT UNSIGNED NULL,          -- processor cores
+  perf_cores  SMALLINT UNSIGNED NULL,          -- of them performance cores ...
+  eff_cores   SMALLINT UNSIGNED NULL,          -- ... and efficiency cores (Apple's chips)
+  threads     SMALLINT UNSIGNED NULL,          -- logical processors
+  gpu_cores   SMALLINT UNSIGNED NULL,          -- an Apple chip's graphics cores
   hidden      TINYINT NOT NULL DEFAULT 0,      -- taken off the boards
   sender_hash CHAR(64)     NULL,               -- who registered it (limits)
   created_at  DATETIME NOT NULL,

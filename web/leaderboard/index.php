@@ -1,7 +1,10 @@
 <?php
 // The public page: the four boards, one at a time (?b=benchmark_long_fast),
 // each under one version of whisper.cpp (&w=1.9.5; the newest that has
-// scores when left out).
+// scores when left out). &m=N (a machine's number, as submit.php gives
+// it to the program) marks that machine's row and shows the part of the
+// board it is in; the program's address ends in #you, so the browser
+// goes to the row.
 
 declare(strict_types=1);
 require __DIR__ . '/lib.php';
@@ -12,6 +15,9 @@ $rows = [];
 $count = 0;
 $whispers = [];    // the versions of whisper.cpp that have a board, newest first
 $whisper = '';     // the one shown
+$mine = 0;         // the machine whose row is marked (?m=), 0 = none
+$minePlace = 0;    // its place on this board, 0 = it has no row here
+$first = 1;        // the place of the first row shown
 $problem = '';
 try {
     $benchmarks = lb_benchmarks();
@@ -31,9 +37,18 @@ try {
     if (!isset($_GET['w']) || !in_array($whisper, $whispers, true)) {
         $whisper = $whispers ? $whispers[0] : LB_WHISPER_FIRST;
     }
+    $mine = max(0, lb_int($_GET['m'] ?? null) ?? 0);
     if ($current !== null) {
         $count = lb_board_count((int) $current['id'], $whisper);
-        $rows = lb_page((int) $current['id'], $whisper, 1, LB_PAGE_MAX);
+        if ($mine > 0) {
+            $place = lb_place((int) $current['id'], $whisper, $mine);
+            $minePlace = $place ? $place['place'] : 0;
+            // further down than a page: the page with it in the middle
+            if ($minePlace > LB_PAGE_MAX) {
+                $first = max(1, min($minePlace - intdiv(LB_PAGE_MAX, 2), $count - LB_PAGE_MAX + 1));
+            }
+        }
+        $rows = lb_page((int) $current['id'], $whisper, $first, LB_PAGE_MAX);
     }
 } catch (Throwable $e) {
     error_log('leaderboard page: ' . $e->getMessage());
@@ -126,8 +141,12 @@ header('X-Content-Type-Options: nosniff');
   td.place { width: 4.5rem; font-family: var(--book); font-size: 1.25rem; }
   td.who span { display: block; color: var(--ink-soft); font-size: 0.9rem; }
   td.device span { color: var(--ink-soft); }
+  td.device small { display: block; color: var(--ink-soft); font-size: 0.9rem; font-weight: 400; }
   td.os, td.power { white-space: nowrap; }
   tbody tr:first-child td { font-weight: 600; }
+  tbody tr.you td { background: #fbf0c4; }
+  tbody tr.you td.place { box-shadow: inset 4px 0 0 var(--marker); }
+  tbody tr.you { scroll-margin-top: 6rem; }
   tbody tr:first-child td.who span, tbody tr:first-child td.device span { font-weight: 400; }
   /* a narrow screen: each row is a few lines - who and time, what it ran on and the words a minute,
      the system and the speed, then the power */
@@ -169,7 +188,7 @@ header('X-Content-Type-Options: nosniff');
 <?php if ($benchmarks): ?>
     <ul class="boards">
 <?php foreach ($benchmarks as $b): ?>
-      <li><a href="?b=<?= lb_h($b['slug']) ?><?= $whispers && $whisper !== $whispers[0] ? '&amp;w=' . lb_h($whisper) : '' ?>"<?= $current && $b['id'] === $current['id'] ? ' aria-current="page"' : '' ?>><?= lb_h($b['name']) ?></a></li>
+      <li><a href="?b=<?= lb_h($b['slug']) ?><?= $whispers && $whisper !== $whispers[0] ? '&amp;w=' . lb_h($whisper) : '' ?><?= $mine > 0 ? '&amp;m=' . $mine : '' ?>"<?= $current && $b['id'] === $current['id'] ? ' aria-current="page"' : '' ?>><?= lb_h($b['name']) ?></a></li>
 <?php endforeach; ?>
     </ul>
 <?php endif; ?>
@@ -185,12 +204,13 @@ header('X-Content-Type-Options: nosniff');
 <?php if (count($whispers) > 1): ?>
     <p class="versions">whisper.cpp
 <?php foreach ($whispers as $w): ?>
-      <a href="?b=<?= lb_h($current['slug']) ?>&amp;w=<?= lb_h($w) ?>"<?= $w === $whisper ? ' aria-current="true"' : '' ?>><?= lb_h($w) ?></a>
+      <a href="?b=<?= lb_h($current['slug']) ?>&amp;w=<?= lb_h($w) ?><?= $mine > 0 ? '&amp;m=' . $mine : '' ?>"<?= $w === $whisper ? ' aria-current="true"' : '' ?>><?= lb_h($w) ?></a>
 <?php endforeach; ?>
     </p>
 <?php endif; ?>
     <p class="about"><?= lb_h($current['book']) ?>, <?= lb_h(lb_score((int) $current['audio_ms'])) ?> of narration.
-      <?= $count === 1 ? '1 computer' : number_format($count) . ' computers' ?> on this board<?= $whispers ? ' (whisper.cpp ' . lb_h($whisper) . ')' : '' ?><?= $count > count($rows) ? '; the first ' . count($rows) . ' are shown' : '' ?>.</p>
+      <?= $count === 1 ? '1 computer' : number_format($count) . ' computers' ?> on this board<?= $whispers ? ' (whisper.cpp ' . lb_h($whisper) . ')' : '' ?><?php if ($count > count($rows)): ?><?= $first === 1 ? '; the first ' . count($rows) . ' are shown' : '; places ' . number_format($first) . ' to ' . number_format($first + count($rows) - 1) . ' are shown' ?><?php endif; ?>.<?php if ($mine > 0): ?>
+      <?= $minePlace > 0 ? 'Your computer is in place ' . number_format($minePlace) . ', marked below.' : 'Your computer has no score on this board yet.' ?><?php endif; ?></p>
 <?php if (!$rows): ?>
     <p class="empty">No scores yet<?= count($whispers) > 1 ? ' with whisper.cpp ' . lb_h($whisper) : '' ?>. Run this benchmark in EpubBuilder to be the first.</p>
 <?php else: ?>
@@ -210,13 +230,13 @@ header('X-Content-Type-Options: nosniff');
         </thead>
         <tbody>
 <?php foreach ($rows as $row): ?>
-          <tr>
+          <tr<?= $mine > 0 && (int) $row['machine_id'] === $mine ? ' id="you" class="you"' : '' ?>>
             <td class="place"><?= (int) $row['place'] ?></td>
             <td class="who"><?= lb_h($row['display_name']) ?><?php if ($row['label'] !== null && $row['label'] !== ''): ?><span><?= lb_h($row['label']) ?></span><?php endif; ?></td>
             <td class="num time"><?= lb_h(lb_score((int) $row['score_ms'])) ?></td>
             <td class="num wpm"><?= lb_h(wpm_text($row)) ?></td>
             <td class="num speed"><?= lb_h(speed_text($current, (int) $row['score_ms'])) ?></td>
-            <td class="device"><?= lb_h($row['device']) ?> <span><?= lb_h($row['backend']) ?></span></td>
+            <td class="device"><?= lb_h($row['device']) ?> <span><?= lb_h($row['backend']) ?></span><small><?= lb_h(lb_machine_text($row)) ?></small></td>
             <td class="os"><?= lb_h(lb_os($row['os'])) ?></td>
             <td class="num power"><?= lb_h(power_text($row)) ?></td>
           </tr>
@@ -232,7 +252,9 @@ header('X-Content-Type-Options: nosniff');
 <footer>
   <div class="wrap">
     <span>epubunum</span>
-    <span>Scores are kept apart by the version of whisper.cpp that made them: a new version can be faster or
+    <span>Under what a run ran on is the computer itself: its model, processor cores, an Apple chip's
+      graphics cores and its memory - "Unknown" where the program could not tell. Never its name.
+      Scores are kept apart by the version of whisper.cpp that made them: a new version can be faster or
       slower on the same computer.
       Words/min is the book's words divided by the time taken: how many words were transcribed each minute.
       Speed is the narration's length divided by the time: 60x means an hour of audio in a minute.

@@ -282,6 +282,43 @@ newest), Steam's leaderboards for any version after 1.9.5 are new ones
 are), the Leaderboards page shows the boards of the version loaded and
 names it in its title, and `benchmarks.csv` has a Whisper column.
 
+The **build history** keeps the version with each build, and the time a
+build or a benchmark is expected to take is worked out from the builds
+THIS version made (and its calibration): after a new whisper.cpp the
+first estimates come from the new calibration alone, until a book has
+been built. Build history's table shows every build with its version;
+its summary counts this version's and says how many others there are. A
+queue's report names the version in its first line.
+
+**A Mac's score says Core ML** when the benchmark's model had its Core ML
+encoder ("Metal + Core ML" on the website, "Apple M4 + Core ML" on
+Steam's board): the encoder then runs at another speed than Metal's
+alone. The website shows a Mac's system with its version ("macOS 26.1").
+
+**Which machine it was** goes with every score: the model ("Mac mini",
+"Steam Deck", "ROG Ally RC71L"), the processor, its cores (an Apple chip's
+performance and efficiency cores, and its graphics cores) and the memory
+- as far as the system tells, and never the computer's or the user's
+name. The website shows them under what the run ran on (the model, then "10 cores
+(4P + 6E)", "10-core GPU", "16 GB", with a dot between them; "Unknown"
+when nothing could be told); Steam's board has the model after the device.
+The calibration and the build history follow: a model's calibration is
+of the encoder it was timed with (download a model's Core ML encoder
+later and its old calibration is put aside; the model is calibrated
+again), and the time a build is expected to take looks only at the
+model's builds made with the encoder it has now. Build history shows
+"MTL0 + Core ML" in its Device column.
+
+**The website's board from the program:** **Benchmark > Website
+leaderboard...** (the pad's Benchmark list: **Website leaderboard**), and
+on each of Steam's boards the row **This board on the website**, open
+https://leaderboard.epubunum.com in a browser - at the boards of the
+whisper.cpp version this EpubBuilder runs (so a copy that has not been
+updated shows its own version's boards), and, once a score of this
+computer has reached the site, with its row marked and gone to. On the
+desktop it is your own browser; in Big Picture it is Steam's overlay
+browser (not offered in a Big Picture without Steam).
+
 The **Benchmark** menu (Big Picture: **Benchmark** on the home list)
 has five items, each with the time it is expected to take:
 

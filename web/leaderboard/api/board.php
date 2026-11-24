@@ -17,7 +17,8 @@
 //                versions this benchmark has a board for, newest first),
 //                count, first,
 //                rows [{place, name, label, score_ms, score, device,
-//                       backend, os, avg_watts, peak_watts, limit_watts
+//                       backend, os, machine (the model, cores and
+//                       memory in a few words, or "Unknown"), avg_watts, peak_watts, limit_watts
 //                       (null when not known), me}],
 //                you {place, score_ms} or null.
 // An install id says which machine, not who may see: a board is public.
@@ -71,6 +72,7 @@ try {
             'device' => $row['device'],
             'backend' => $row['backend'],
             'os' => lb_os($row['os']),
+            'machine' => lb_machine_text($row),
             'avg_watts' => $row['avg_watts'] === null ? null : (int) $row['avg_watts'],
             'peak_watts' => $row['peak_watts'] === null ? null : (int) $row['peak_watts'],
             'limit_watts' => $row['limit_watts'] === null ? null : (int) $row['limit_watts'],

@@ -124,7 +124,7 @@ the map. Sessions 13 and earlier: their handovers follow.
 - Zips 284 - 286 (session 15): the link site in EpubBuilder - uLink's
   /pair/ticket, --activate, Settings > Account (the code in the window
   and in Big Picture). The owner deploys after 286.
-- Zips 290, 291, 293: Open in browser, the window without the log,
+- Zips 290, 291, 293 - 298: Open in browser, the window without the log,
   whisper.cpp's version in scores and calibrations (293 BEFORE or WITH
   the first build that ships 1.9.6's libraries).
 - Add here whatever else needs a build, and say so in the delivery.
@@ -1660,7 +1660,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 293 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
+Last number used: 298 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
 next-session notes, CLAUDE.md only).
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
@@ -4248,6 +4248,219 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 298 (on top of zip 297): which machine - model, cores, graphics cores, memory
+Session 15, owner 2026-11-24 15:50: "My Mac M4 now shows as macOS
+27.0" (zip 296's lib.php is up; the record read "macOS (Version
+27.0.1)"; "Major, minor is fine"). "It would be good to differentiate
+Macs more. Memory and CPU/GPU cores are the big things that tend to
+make a difference. Is there a way to get the model - e.g. Mac Mini,
+Macbook Pro, Mac Studio?" - yes; offered for every machine; 15:52:
+"Seems sensible to do it for everything with fallback to Unknown".
+PASCAL NOT COMPILED (and no Mac here); the site tested. No .dproj.
+Files: demos/common/uMachine.pas, uWebBoard.pas;
+demos/EpubBuilder/src/uBuilder.pas, README.md; web/leaderboard/
+lib.php, index.php, schema.sql, README.md, api/submit.php,
+api/register.php, api/board.php; tools/test_leaderboard.py; CLAUDE.md.
+- uMachine.MachineFacts (read once, kept, safe from any thread; the
+  builder asks first from a thread at start): Model, Cpu, Cores,
+  PerfCores, EffCores, Threads, GpuCores, MemoryGb - '' / 0 = not
+  told. NEVER the computer's or the user's name.
+  * A MAC: sysctlbyname (machdep.cpu.brand_string "Apple M4 Pro",
+    hw.memsize, hw.physicalcpu, hw.perflevel0 / 1 .physicalcpu) and
+    the system's report for what only it has in words:
+    /usr/sbin/system_profiler SPHardwareDataType SPDisplaysDataType -
+    "Model Name: Mac mini", and under "Graphics/Displays:" "Total
+    Number of Cores: 10". The four C calls are declared in the unit
+    (libc, _PU), not taken from the RTL's units. MachineCpu and
+    MachineMemory answer on a Mac now too (they were '' and 0 - the
+    record's cpu and memory_gb were NULL).
+  * WINDOWS: the registry's HARDWARE\DESCRIPTION\System\BIOS
+    SystemProductName (a maker's placeholder - "System Product Name",
+    "To Be Filled By O.E.M." ... - is nothing); the cores from
+    GetLogicalProcessorInformation.
+  * LINUX: /sys/class/dmi/id/product_name (Valve's "Jupiter" /
+    "Galileo" are "Steam Deck" / "Steam Deck OLED"; anything else as
+    the maker wrote it); the cores from /proc/cpuinfo's physical id
+    and core id pairs.
+- THE FIELD IS machine_model, NOT model: a score's `model` is whisper's
+  model file (the tests caught it - "Mac mini" was refused as "not
+  the benchmark's model").
+- THE SITE - THE DATABASE FIRST (README, "Changes to a database
+  already made": one ALTER, six columns on machines), then the five
+  PHP files together. submit.php and register.php keep each fact
+  given (lb_machine_facts: a fact left out is NOT emptied);
+  lb_machine_text makes the line - the model, the processor when the
+  device is not it already, "10 cores (4P + 6E)" / "8 cores" / "16
+  threads", "10-core GPU", "16 GB" - or "Unknown" when nothing is
+  known. The page: a small second line in the "Ran on" cell.
+  board.php: `machine`.
+- EVERY ROW SAYS "Unknown" until that machine sends a score with this
+  build: nothing is filled in from the old records' cpu.
+- Steam's board: the device text ends ", <model>" (after "+ Core ML").
+- NOT SEEN: what any machine reads. To check on each after the build:
+  the row's second line. Doubts: system_profiler's wording on other
+  macOS versions ("Model Name", "Total Number of Cores" under
+  "Graphics/Displays:"); what the Steam Machine and the handhelds
+  have in product_name; a Windows machine with a board maker's
+  placeholder.
+
+## Zip 297 (on top of zip 296): the calibration and the history's estimates by Core ML
+Session 15, owner 2026-11-24 15:41 "yes" to zip 296's question (the
+calibration and the build history's estimates split by Core ML too).
+NOT COMPILED. Files: demos/EpubBuilder/src/uCalibration.pas,
+uHistory.pas, uBuilder.pas, README.md; CLAUDE.md. No .dproj.
+- CALIBRATION: each model section keeps CoreML = 1 / 0.
+  CalibrationForEncoders(settings, Core ML build?, uses(file)) walks
+  the model sections: none written -> the state now is written (only
+  on a Core ML build: nothing is added to the settings of a machine
+  without it); written and not the state now -> the section is put
+  aside as [Core ML on Calibration <model>] / [Core ML off ...] and
+  the one kept for the state now is brought back. The builder's
+  CalibrationEncoders calls it at the end of FillModels (an encoder
+  downloaded: the list is filled again) and after CalibrationSave;
+  NOT before whisper.cpp is loaded (FWhisperText = ''): FCoreML is
+  not known then and every model would look as if it had lost its
+  encoder. A model put aside counts as not calibrated - the
+  program's own way with a model that has no calibration applies.
+  MoveIniSection is shared with CalibrationForWhisper.
+- HISTORY: a 17th column `coreml` ('1', '0', '' = not known / no Core
+  ML on the machine); the header with `whisper` alone (zip 294's,
+  WHISPER_HEADER) is upgraded like the older ones.
+  uHistory.HistoryUsesCoreML (a function reference the builder sets
+  when the library is loaded, nil when the window closes):
+  HistoryExpect leaves out the builds OF THE SAME MODEL made in the
+  other state; a row that does not say counts in either. The table's
+  Device cell and the summary's lines say "+ Core ML".
+- WHAT IS SPLIT NOW, in one place: whisper.cpp's version (the
+  website's boards, Steam's boards, benchmarks.csv, the calibration,
+  the history's estimates and summary) and Core ML (a score's backend
+  and Steam's device text, the calibration per model, the history's
+  estimates). NOT: the website ranks a machine's Core ML and Metal
+  runs as one row (its best); the calibration's crash list.
+- NOT SEEN: any of it on the Mac. To try there: the log's lines at
+  the start; Build history's Device column after a build; download a
+  model's encoder and see "Calibration: the Core ML encoder of ...".
+
+## Zip 296 (on top of zip 295): a Mac's version on the board; Core ML named
+Session 15, owner 2026-11-24 15:35: "If you look at the leaderboard Mac
+only says MacOS, no version. Also that run was CoreML, also not
+specifically identified (as coreml is different speed from Metal)".
+READ on the live page: place 2, "Apple M4 Metal", system "macOS".
+PASCAL NOT COMPILED; the site tested here. No .dproj. Files:
+web/leaderboard/lib.php; tools/test_leaderboard.py;
+demos/common/uMachine.pas; demos/EpubBuilder/src/uBuilder.pas,
+README.md; CLAUDE.md.
+- THE SYSTEM: a board shows what stands before the first bracket of
+  what the program sent; a Mac sent TOSVersion.ToString, whose
+  version is only IN the bracket. (1) The site (lb_os): a name that
+  begins "mac" and has no digit takes "Version N.N" out of the
+  bracket - "macOS 26.1"; the row there now is right as soon as
+  lib.php is uploaded, without a new run. The exact text the Mac sent
+  was NOT SEEN ("macOS (Version ...)" is assumed from Delphi's
+  TOSVersion): if the row still says "macOS", send the machines.os
+  value. (2) uMachine.MachineOs on a Mac: "macOS 26.1 (build N)".
+- CORE ML: WebScore's backend ends " + Core ML" ("Metal + Core ML",
+  "CPU + Core ML") when UsesCoreML(the benchmark's model) - a Core ML
+  build and the model's encoder beside it; Steam's device text and
+  benchmarks.csv's the same. The website ranks a machine's best per
+  benchmark and version, whatever backend: a Mac's Core ML and Metal
+  runs are one row, the faster one, with its label.
+- THE ROW THERE NOW (said by the owner to be Core ML) - by hand, once,
+  in phpMyAdmin; it renames the device of every "Apple M4 / Metal"
+  run so far (all the owner's):
+    UPDATE devices SET backend = 'Metal + Core ML'
+    WHERE description = 'Apple M4' AND backend = 'Metal';
+- NOT SPLIT BY CORE ML, ASKED: the calibration and the build
+  history's estimates (a model's encoder downloaded later changes its
+  speed on the same device; the device there is "MTL0" either way).
+- uMachine is compiled by EpubBuilder and BookManager: MachineOs is
+  only called for the two websites.
+
+## Zip 295 (on top of zip 294): the website's board from the program, at its own version and row
+Session 15, owner 2026-11-24 15:27: "I would also like to add the
+ability to open the website using a URL via a button like happens with
+link. This will need to pass the version of whisper it is running as
+some users may not update. Also opening via a link button would allow
+the user to be positioned on their own score in the leaderboard website
+if some data is passed back from the submission regarding their run id
+for example". PASCAL NOT COMPILED; the site tested here. No .dproj.
+Files: web/leaderboard/index.php, api/submit.php, README.md;
+tools/test_leaderboard.py; demos/common/uLinkSite.pas, uWebBoard.pas,
+uSteam.pas; demos/EpubBuilder/src/uBuilder.pas, README.md; CLAUDE.md.
+- THE PUSH b4201ce "pre whisper version bump" (15:06) = zip 293 (all
+  its files as here); zip 294 was not in it. Zip 293's site is LIVE
+  (read at 15:17: "(whisper.cpp 1.9.5)" on the page, no error) - so
+  the two ALTERs ran in MySQL.
+- ALSO 15:27: the Miix and the Ally are running 1.9.5's benchmarks
+  now (the Miix takes hours). "Do I need to run each test machine
+  with latest before 1.9.6 arrives? I imagine ... missing version
+  will mean 1.9.5" - SAID: no; everywhere a missing version IS 1.9.5
+  (the site, Steam's old board names, a calibration, a history row).
+  The page opening on the newest version as soon as one 1.9.6 score
+  is there: "the action described is fine".
+- THE ADDRESS: WebBoardPage(board, version, machine) (uWebBoard) =
+  https://leaderboard.epubunum.com/?b=<slug>&w=<1.9.6>&m=<N>#you.
+  w = the version THIS program runs. m = the MACHINE's number at the
+  site, not a run's: a run that was not the machine's best has no row,
+  the machine always has one. submit.php now answers `machine` and
+  `run`; the builder keeps the first as [Leaderboard] Machine
+  (FWebMachine) - so a machine is marked only after it has sent a
+  score with THIS build or later (0 = the address has no m).
+- THE PAGE: ?m=N marks that row (id and class "you", the marker's
+  yellow), says "Your computer is in place N, marked below" (or that
+  it has no score on this board), shows the hundred rows around it
+  when it is further down than the first hundred, and keeps m in the
+  benchmark and version links. Not a number: nothing marked.
+- IN THE PROGRAM: Benchmark > "Website leaderboard..." on the
+  desktop's menu (with or without Steam); the pad's Benchmark list:
+  "Website leaderboard" (PADROW_WEB = -13; not in a Big Picture
+  without Steam); each of Steam's board pages: "This board on the
+  website" above Back (FBoardRows is one fewer for it). BoardOpenWeb:
+  Big Picture -> SteamOpenWebPage (uSteam: ISteamFriends'
+  ActivateGameOverlayToWebPage - the wrapper's signature was read in
+  G3DGames/TSteamAPI: (const pchURL: string; eMode)); the desktop ->
+  OpenSitePage (uLinkSite: LinkSiteOpen made general - any of the
+  project's sites, the site given; '#' allowed), and Steam's overlay
+  when that fails. Rows chosen with the actions there are: nothing
+  for Steam Input.
+- NOT SEEN: any of it in a program; whether Steam's overlay browser
+  opens from the pad's menu in Game Mode (it needs the overlay on).
+  The page's window around a row past the first hundred is not in
+  the tests (it needs more than a hundred machines).
+
+## Zip 294 (on top of zip 293): the build history and its estimates by whisper.cpp's version
+Session 15, owner 2026-11-24 15:03, to zip 293's "the build history's
+expected times are not split": "everything should be split as timings
+may alter". NOT COMPILED. Files: demos/EpubBuilder/src/uHistory.pas,
+uBuilder.pas, README.md; CLAUDE.md. No .dproj.
+- <settings>-history.csv: a 16th column `whisper` (HEADER; the header
+  before it is PREV_HEADER and is upgraded on the next write, as the
+  two older ones are). A row without one is 1.9.5
+  (HISTORY_WHISPER_FIRST, HistoryRowWhisper). The builder writes
+  FWhisperVersion.
+- uHistory.HistoryWhisper (a unit variable, set in FormCreate when the
+  library is loaded; '' = every row counts): HistoryExpect and
+  HistorySummary look ONLY at the rows of that version - so the time
+  a build or a benchmark is expected to take (and the align + write
+  share) never mixes versions. After a new version: no builds of it
+  yet -> the expectation is the calibration's (itself made again,
+  zip 293) until the first book is built. The summary ends with how
+  many builds other versions made.
+- The history's table (Build history, and its copied text): a 15th
+  column "Whisper"; every row is shown.
+- A queue's report (.md): its first line ends " - whisper.cpp 1.9.6".
+  Its .csv has NO version column (one long Format with 36 arguments -
+  left alone uncompiled; a report is one session's, so one version's).
+- WHAT IS SPLIT NOW (293 + 294): the website's boards, Steam's boards,
+  the Leaderboards page, benchmarks.csv, the calibration, the build
+  history's estimates and summary. NOT: BookManager and EpubReader
+  (they time nothing); the calibration's crash list ([Calibration
+  crashes] - a pair that crashed under one version is still skipped
+  under another until Re-calibrate tries it; say if that should be
+  split too).
+- RULE from now on: anything that keeps or compares a TIME or a SPEED
+  keeps whisper.cpp's version with it and compares within one version.
 
 ## Zip 293 (on top of bf53bf2 = zip 292 pushed): scores and calibrations know whisper.cpp's version
 Session 15, owner 2026-11-24 14:46 "whisper 1.9.6 just came out", 14:55

@@ -166,6 +166,17 @@ function LinkSiteId(const AId: string): string;
   @returns(True when the system took it - not whether a browser showed) }
 function LinkSiteOpen(const AUrl: string): Boolean;
 
+{ Opens a page of ASite in the system's own browser - what LinkSiteOpen
+  does for the link site, for the project's other sites too (the
+  leaderboard's board, with the version of whisper.cpp and the machine's
+  row in its address). Only an address that is ASite itself or begins
+  with ASite + '/', made of plain characters and at most 200 long, is
+  opened: it goes to the system's shell.
+  @param(AUrl the address)
+  @param(ASite the site it must be of: 'https://leaderboard.epubunum.com')
+  @returns(True when the system took it - not whether a browser showed) }
+function OpenSitePage(const AUrl, ASite: string): Boolean;
+
 implementation
 
 uses
@@ -185,9 +196,15 @@ begin
 end;
 
 function LinkSiteOpen(const AUrl: string): Boolean;
+begin
+  Result := OpenSitePage(AUrl, LINK_SITE_URL);
+end;
+
+function OpenSitePage(const AUrl, ASite: string): Boolean;
 const
-  { What an address of the site is made of: nothing a shell reads. }
-  PLAIN = ['A'..'Z', 'a'..'z', '0'..'9', ':', '/', '?', '&', '=', '.', '_', '-', '%'];
+  { What an address of a site is made of: nothing a shell reads (the '#'
+    of a place in the page stands inside the quotes it is given in). }
+  PLAIN = ['A'..'Z', 'a'..'z', '0'..'9', ':', '/', '?', '&', '=', '.', '_', '-', '%', '#'];
 var
   I: Integer;
   {$IFDEF POSIX}
@@ -195,7 +212,8 @@ var
   {$ENDIF}
 begin
   Result := False;
-  if (AUrl <> LINK_SITE_URL) and (Copy(AUrl, 1, Length(LINK_SITE_URL) + 1) <> LINK_SITE_URL + '/') then
+  if (Copy(ASite, 1, 8) <> 'https://') or
+    ((AUrl <> ASite) and (Copy(AUrl, 1, Length(ASite) + 1) <> ASite + '/')) then
     Exit;
   if Length(AUrl) > 200 then
     Exit;

@@ -163,6 +163,72 @@ function lb_machine(string $installId, string $key): ?array
     return $machine;
 }
 
+/**
+ * What a machine is, out of what a program sent: the columns of
+ * `machines` that it gave a believable value for (nothing for what it
+ * left out - a column is never emptied by a program that does not know).
+ */
+function lb_machine_facts(array $in): array
+{
+    $out = [];
+    // a score's `model` is whisper's model file: the machine's is machine_model
+    foreach (['machine_model' => ['model', 60], 'cpu' => ['cpu', 100]] as $field => $to) {
+        $text = lb_text($in[$field] ?? '', $to[1]);
+        if ($text !== '') {
+            $out[$to[0]] = $text;
+        }
+    }
+    foreach (['memory_gb' => 65535, 'cores' => 4096, 'perf_cores' => 4096, 'eff_cores' => 4096,
+              'threads' => 8192, 'gpu_cores' => 4096] as $field => $max) {
+        $n = lb_int($in[$field] ?? null);
+        if ($n !== null && $n >= 1 && $n <= $max) {
+            $out[$field] = $n;
+        }
+    }
+    return $out;
+}
+
+/**
+ * A machine in a few words, for the line under what a run ran on: the
+ * model, the processor (when the device named is not it already), the
+ * cores, an Apple chip's graphics cores and the memory - what is known
+ * of them; "Unknown" when nothing is.
+ */
+function lb_machine_text(array $row): string
+{
+    $parts = [];
+    $model = trim((string) ($row['model'] ?? ''));
+    if ($model !== '') {
+        $parts[] = $model;
+    }
+    $cpu = trim((string) ($row['cpu'] ?? ''));
+    $device = trim((string) ($row['device'] ?? ''));
+    if ($cpu !== '' && stripos($device, $cpu) === false && ($device === '' || stripos($cpu, $device) === false)) {
+        $parts[] = $cpu;
+    }
+    $cores = (int) ($row['cores'] ?? 0);
+    $perf = (int) ($row['perf_cores'] ?? 0);
+    $eff = (int) ($row['eff_cores'] ?? 0);
+    $threads = (int) ($row['threads'] ?? 0);
+    if ($cores > 0 && $perf > 0 && $eff > 0) {
+        $parts[] = $cores . ' cores (' . $perf . 'P + ' . $eff . 'E)';
+    } elseif ($cores > 0) {
+        $parts[] = $cores === 1 ? '1 core' : $cores . ' cores';
+    } elseif ($threads > 0) {
+        $parts[] = $threads === 1 ? '1 thread' : $threads . ' threads';
+    }
+    $gpu = (int) ($row['gpu_cores'] ?? 0);
+    if ($gpu > 0) {
+        $parts[] = $gpu . '-core GPU';
+    }
+    $memory = (int) ($row['memory_gb'] ?? 0);
+    if ($memory > 0) {
+        $parts[] = $memory . ' GB';
+    }
+    // a middle dot between them (written as its code: the file stays ASCII)
+    return $parts ? implode(" \u{00B7} ", $parts) : 'Unknown';
+}
+
 /** The benchmark with that slug, or null. */
 function lb_benchmark(string $slug): ?array
 {
@@ -258,6 +324,7 @@ function lb_page(int $benchmarkId, string $whisper, int $first, int $rows): arra
     $rows = max(1, min(LB_PAGE_MAX, $rows));
     $q = lb_db()->prepare(
         'SELECT b.machine_id, b.score_ms, p.display_name, m.label, m.os, d.description AS device, d.backend,
+                m.model, m.cpu, m.memory_gb, m.cores, m.perf_cores, m.eff_cores, m.threads, m.gpu_cores,
                 r.words, r.words_matched, r.ran_at, r.verified, r.avg_watts, r.peak_watts, r.limit_watts
          FROM bests b
          JOIN machines m ON m.id = b.machine_id AND m.hidden = 0
@@ -281,14 +348,22 @@ function lb_page(int $benchmarkId, string $whisper, int $first, int $rows): arra
 /**
  * An operating system's name for a board, from what a machine registered
  * with: 'Windows 11 (Version 25H2, OS Build 26200.1, 64-bit Edition)' is
- * 'Windows 11' - what stands before the first bracket ('' when not known).
+ * 'Windows 11' - what stands before the first bracket ('' when not known);
+ * a Mac's version, which stands only in the bracket, is added.
  */
 function lb_os(?string $os): string
 {
     $os = trim((string) $os);
     $at = strpos($os, '(');
     if ($at !== false) {
+        $rest = substr($os, $at);
         $os = trim(substr($os, 0, $at));
+        // a Mac's version is only in the bracket ('macOS (Version 26.1.0)',
+        // as the programs sent it until 2026-11-24): 'macOS 26.1'
+        if (stripos($os, 'mac') === 0 && !preg_match('/\d/', $os) &&
+            preg_match('/Version\s+(\d+)\.(\d+)/', $rest, $m)) {
+            $os .= ' ' . (int) $m[1] . '.' . (int) $m[2];
+        }
     }
     return $os;
 }

@@ -69,6 +69,24 @@ Run the statement BEFORE uploading the PHP files that need it (the newer
   Then upload `lib.php`, `index.php`, `api/submit.php` and
   `api/board.php` TOGETHER (the four call each other's new forms).
 
+- 2026-11-24, zip 298 - what a machine is (its model, cores, an Apple
+  chip's graphics cores). NOT RUN AGAINST MySQL when written.
+
+  ```sql
+  ALTER TABLE machines
+    ADD COLUMN model      VARCHAR(60)       NULL AFTER memory_gb,
+    ADD COLUMN cores      SMALLINT UNSIGNED NULL AFTER model,
+    ADD COLUMN perf_cores SMALLINT UNSIGNED NULL AFTER cores,
+    ADD COLUMN eff_cores  SMALLINT UNSIGNED NULL AFTER perf_cores,
+    ADD COLUMN threads    SMALLINT UNSIGNED NULL AFTER eff_cores,
+    ADD COLUMN gpu_cores  SMALLINT UNSIGNED NULL AFTER threads;
+  ```
+
+  Then upload `lib.php`, `index.php`, `api/submit.php`,
+  `api/register.php` and `api/board.php` together. Every row says
+  "Unknown" under its device until that machine's next score from a
+  program that sends these.
+
 To empty the boards (never `benchmarks`: it is the list of boards):
 
 ```sql
@@ -131,13 +149,24 @@ person's), `label` (what the owner calls the machine), `os`, `cpu`,
 `gpu`), `backend`, `build`, `whisper` (whisper.cpp's version, `1.9.6`;
 left out = `1.9.5`), `channel` (`steam`, `direct`), `ran_at`
 (`YYYY-MM-DD HH:MM:SS`, UTC), optionally `name`, `os` (the system now:
-it replaces the registration's), and `avg_watts`,
+it replaces the registration's), what the machine is - `machine_model`
+(`model` is whisper's model file), `cpu`, `memory_gb`, `cores`,
+`perf_cores`, `eff_cores`, `threads`, `gpu_cores`: each kept when given,
+left as it was when not - and `avg_watts`,
 `peak_watts`, `limit_watts` (what the card drew over the run - `avg_watts`
 is the MEDIAN of the readings since EpubBuilder's zip 276, the mean in the
 few runs before; the name stayed - and the limit it was held to; NVIDIA cards, and AMD's on Linux; a value outside 1 - 2000 is not
 kept and the score still is). Answer: `status` (`ok`,
 `pending`), `improved`, `place`, `best_ms`, `count` - of the board of
-that version - and `whisper`.
+that version -, `whisper`, and `machine` and `run`: the machine's and the
+run's numbers at the site.
+
+**The page's address** (what EpubBuilder opens): `?b=<benchmark>` the
+board, `&w=<version>` whisper.cpp's version (left out: the newest that
+has a score), `&m=<machine>` marks that machine's row, says its place and
+shows the part of the board it is in when that is further down than the
+first hundred; `#you` at the end takes the browser to the row. The
+number is not a secret and names nobody.
 
 `GET /api/board.php?benchmark=...` - optionally `whisper` (the version
 whose board is wanted; left out = `1.9.5`), `rows` (25; 100 at most),

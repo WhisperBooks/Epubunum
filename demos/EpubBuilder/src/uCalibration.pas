@@ -344,6 +344,28 @@ function WhisperVersionNumbers(const AText: string): string;
   @returns(True when a calibration of another version was put aside) }
 function CalibrationForWhisper(const AIniFile, AVersion: string; out ARestored: Boolean): Boolean;
 
+{ A model's calibration belongs to the encoder that ran it: with its Core
+  ML encoder beside it (a Mac, a Core ML build) a model runs at another
+  speed on the same device than without (owner, 2026-11-24: "coreml is
+  different speed from Metal"; asked whether the calibration should be
+  split by it too: "yes"). Each model section keeps CoreML = 1 / 0. A
+  section whose value is not what AUses says now - an encoder downloaded
+  since, or taken away - is put aside as "Core ML on Calibration <model>"
+  / "Core ML off Calibration <model>", and the one kept for the state now
+  is brought back; the model then counts as not calibrated (a model
+  without a calibration is calibrated as it comes) or has its own figures
+  again. A section without the value gets the state now (it was made
+  before the value was kept; what it ran with is not known).
+  @param(AIniFile the settings)
+  @param(ACoreMLBuild whisper.cpp is a Core ML build: only then is the
+    value written into sections that have none (nothing is written on a
+    machine that has no Core ML))
+  @param(AUses whether the model of that file name uses its Core ML
+    encoder now)
+  @returns(the file names of the models whose calibration was put aside) }
+function CalibrationForEncoders(const AIniFile: string; ACoreMLBuild: Boolean;
+  const AUses: TFunc<string, Boolean>): TArray<string>;
+
 { Writes AResults into AIniFile: a section per model (its earlier one
   replaced), and [Calibration] Done, Made, Devices (ADevicesKey), Audio.
   Pairs of AResults that succeeded leave the crash list. }
@@ -540,26 +562,89 @@ begin
     Result := Copy(S, 1, I - 1);
 end;
 
+{ AFrom's keys under ATo in AIni (what ATo held is gone); AFrom gone. }
+procedure MoveIniSection(AIni: TMemIniFile; const AFrom, ATo: string);
+var
+  Keys: TStringList;
+  K: Integer;
+begin
+  Keys := TStringList.Create;
+  try
+    AIni.ReadSection(AFrom, Keys);
+    AIni.EraseSection(ATo);
+    for K := 0 to Keys.Count - 1 do
+      AIni.WriteString(ATo, Keys[K], AIni.ReadString(AFrom, Keys[K], ''));
+    AIni.EraseSection(AFrom);
+  finally
+    Keys.Free;
+  end;
+end;
+
+function CalibrationForEncoders(const AIniFile: string; ACoreMLBuild: Boolean;
+  const AUses: TFunc<string, Boolean>): TArray<string>;
+const
+  { A section put aside: 'Core ML on Calibration <file>'. }
+  KEPT_ON = 'Core ML on ';
+  KEPT_OFF = 'Core ML off ';
+var
+  Ini: TMemIniFile;
+  Sections: TStringList;
+  Model, S, FileName, Was, Aside, Back: string;
+  I: Integer;
+  Now1, Changed: Boolean;
+begin
+  Result := nil;
+  if not FileExists(AIniFile) or not Assigned(AUses) then
+    Exit;
+  Model := CAL_SECTION + ' ';
+  Changed := False;
+  Ini := TMemIniFile.Create(AIniFile, TEncoding.UTF8);
+  Sections := TStringList.Create;
+  try
+    Ini.ReadSections(Sections);
+    for I := 0 to Sections.Count - 1 do
+    begin
+      S := Sections[I];
+      if not StartsText(Model, S) or SameText(S, CAL_CRASH_SECTION) then
+        Continue;
+      FileName := Copy(S, Length(Model) + 1, MaxInt);
+      Now1 := AUses(FileName);
+      Was := Ini.ReadString(S, 'CoreML', '');
+      if Was = '' then
+      begin
+        // made before the value was kept: taken for the state now
+        if ACoreMLBuild then
+        begin
+          Ini.WriteString(S, 'CoreML', IfThen(Now1, '1', '0'));
+          Changed := True;
+        end;
+        Continue;
+      end;
+      if (Was = '1') = Now1 then
+        Continue;
+      // the encoder came or went: this calibration is the other state's
+      Aside := IfThen(Was = '1', KEPT_ON, KEPT_OFF) + S;
+      Back := IfThen(Now1, KEPT_ON, KEPT_OFF) + S;
+      MoveIniSection(Ini, S, Aside);
+      if Ini.SectionExists(Back) then
+        MoveIniSection(Ini, Back, S);
+      Result := Result + [FileName];
+      Changed := True;
+    end;
+    if Changed then
+      Ini.UpdateFile;
+  finally
+    Sections.Free;
+    Ini.Free;
+  end;
+end;
+
 function CalibrationForWhisper(const AIniFile, AVersion: string; out ARestored: Boolean): Boolean;
 var
   Ini: TMemIniFile;
-  Sections, Keys: TStringList;
+  Sections: TStringList;
   Was, Model, Kept, S: string;
   I: Integer;
-
-  { AFrom's keys under ATo; AFrom gone. }
-  procedure MoveSection(const AFrom, ATo: string);
-  var
-    K: Integer;
-  begin
-    Keys.Clear;
-    Ini.ReadSection(AFrom, Keys);
-    Ini.EraseSection(ATo);
-    for K := 0 to Keys.Count - 1 do
-      Ini.WriteString(ATo, Keys[K], Ini.ReadString(AFrom, Keys[K], ''));
-    Ini.EraseSection(AFrom);
-  end;
-
 begin
   Result := False;
   ARestored := False;
@@ -571,7 +656,6 @@ begin
   Kept := 'Whisper ' + AVersion + ' ' + Model;
   Ini := TMemIniFile.Create(AIniFile, TEncoding.UTF8);
   Sections := TStringList.Create;
-  Keys := TStringList.Create;
   try
     Ini.ReadSections(Sections);
     Was := Ini.ReadString(CAL_SECTION, 'Whisper', '');
@@ -591,14 +675,14 @@ begin
       begin
         S := Sections[I];
         if StartsText(Model, S) and not SameText(S, CAL_CRASH_SECTION) then
-          MoveSection(S, 'Whisper ' + Was + ' ' + S);
+          MoveIniSection(Ini, S, 'Whisper ' + Was + ' ' + S);
       end;
       for I := 0 to Sections.Count - 1 do
       begin
         S := Sections[I];
         if StartsText(Kept, S) then
         begin
-          MoveSection(S, Copy(S, Length(Kept) - Length(Model) + 1, MaxInt));
+          MoveIniSection(Ini, S, Copy(S, Length(Kept) - Length(Model) + 1, MaxInt));
           ARestored := True;
         end;
       end;
@@ -610,7 +694,6 @@ begin
       Ini.UpdateFile;
     end;
   finally
-    Keys.Free;
     Sections.Free;
     Ini.Free;
   end;

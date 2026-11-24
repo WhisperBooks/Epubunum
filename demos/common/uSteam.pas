@@ -99,6 +99,14 @@ function SteamDlcState(AAppID: Cardinal): TSteamDlcState;
   @returns(a line for the log: what was done, or why not) }
 function SteamGetDlc(AAppID: Cardinal): string;
 
+{ Opens AUrl in the Steam overlay's own browser - the way to a web page
+  where no other browser can come to the front (Big Picture, a Steam
+  Deck's Game Mode).
+  @param(AUrl the page)
+  @returns(True when Steam was asked (a Steam build, Steam running);
+    whether the overlay showed is not known: a user may have it off) }
+function SteamOpenWebPage(const AUrl: string): Boolean;
+
 { What SteamStartup and Steam said before the program's log was open
   (one line each; the forms write them into their logs).
   @returns(the lines) }
@@ -320,6 +328,24 @@ begin
     Result := sdsOwned
   else
     Result := sdsNotOwned;
+  {$ENDIF}
+end;
+
+function SteamOpenWebPage(const AUrl: string): Boolean;
+{$IFDEF STEAMBUILD}
+var
+  F: TSteamFriendsPlugin;
+{$ENDIF}
+begin
+  Result := False;
+  {$IFDEF STEAMBUILD}
+  if not SteamRunning then
+    Exit;
+  F := TSteamFriendsPlugin(Steam.FindPlugin(TSteamFriendsPlugin));
+  if F = nil then
+    Exit;
+  F.ActivateGameOverlayToWebPage(AUrl, k_EActivateGameOverlayToWebPageMode_Default);
+  Result := True;
   {$ENDIF}
 end;
 

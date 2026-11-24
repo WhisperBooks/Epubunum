@@ -18,13 +18,22 @@
 //                  ran_at                 'YYYY-MM-DD HH:MM:SS', UTC
 //                  name                   the name to show now (optional)
 //                  os                     the system now (optional)
+//                  machine_model, cpu, memory_gb, cores, perf_cores,
+//                  eff_cores, threads, gpu_cores
+//                                         what the machine is (optional,
+//                                         each: what is left out stays as
+//                                         it was; never the computer's or
+//                                         the user's name)
 //                  avg_watts, peak_watts, limit_watts
 //                                         what the card drew over the run
 //                                         and the limit it was held to, W
 //                                         (optional: where it can be read)
 // Answer (JSON):   ok true, status 'ok' | 'pending', improved, place,
-//                  count, best_ms, whisper (place is 0 while the run is
-//                  pending and the machine has no row on the board yet).
+//                  count, best_ms, whisper, machine, run (place is 0
+//                  while the run is pending and the machine has no row on
+//                  the board yet). machine is the machine's number, for
+//                  the page's address (?m=N marks its row and shows the
+//                  part of the board it is in); run is this run's.
 //                  A board is the benchmark under that whisper.cpp
 //                  version: place, count and best_ms are that board's.
 //                  ok false, error "..." - a refused run is still kept,
@@ -150,6 +159,11 @@ try {
         $db->prepare('UPDATE machines SET os = ? WHERE id = ?')->execute([$os, $machineId]);
     }
 
+    // what the machine is, as far as the program could tell
+    foreach (lb_machine_facts($in) as $column => $value) {
+        $db->prepare('UPDATE machines SET ' . $column . ' = ? WHERE id = ?')->execute([$value, $machineId]);
+    }
+
     // the name shown follows the latest one sent
     $name = lb_text($in['name'] ?? '', LB_MAX_NAME);
     if ($name !== '') {
@@ -189,6 +203,9 @@ try {
         'best_ms' => $place ? $place['score_ms'] : 0,
         'count' => lb_board_count((int) $benchmark['id'], $whisper),
         'whisper' => $whisper,
+        // for the page's address (?m=): which row is this machine's
+        'machine' => $machineId,
+        'run' => $runId,
     ]);
 } catch (Throwable $e) {
     if (isset($db) && $db->inTransaction()) {

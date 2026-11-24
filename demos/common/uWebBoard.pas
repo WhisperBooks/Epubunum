@@ -99,6 +99,9 @@ type
     Count: Integer;
     { This machine's best there, ms. }
     BestMs: Integer;
+    { The machine's number at the site (0 = not said): for the page's
+      address, which marks its row (WebBoardPage). }
+    Machine: Integer;
     { The installation's id to keep. }
     InstallId: string;
     { Its key to keep ('' when there is none). }
@@ -118,6 +121,18 @@ procedure WebBoardSubmit(const AInstallId, AKey: string; const AScores: TArray<T
 { No answer is given from now on (the window closes). }
 procedure WebBoardForget;
 
+{ The address of the website's board for a person to look at: the
+  benchmark, the version of whisper.cpp this program runs (a user who has
+  not updated is shown the boards of their own version), and this
+  machine's row, marked and gone to.
+  @param(ABoard the benchmark ('benchmark_long_fast'; '' = the first))
+  @param(AWhisper whisper.cpp's version, as 1.9.6 ('' = the newest that
+    has scores))
+  @param(AMachine the machine's number the site gave with a score (0 =
+    none: no row is marked))
+  @returns(the address) }
+function WebBoardPage(const ABoard, AWhisper: string; AMachine: Integer): string;
+
 implementation
 
 uses
@@ -125,6 +140,31 @@ uses
   // THTTPClient.SetContentType's inline body expands only with it (H2443)
   System.NetConsts,
   uMachine;
+
+function WebBoardPage(const ABoard, AWhisper: string; AMachine: Integer): string;
+var
+  Sep: Char;
+
+  { '&name=value' (or '?name=value' for the first). }
+  procedure Add(const AName, AValue: string);
+  begin
+    Result := Result + Sep + AName + '=' + AValue;
+    Sep := '&';
+  end;
+
+begin
+  Result := WEB_BOARD_URL + '/';
+  Sep := '?';
+  if ABoard <> '' then
+    Add('b', ABoard);
+  if AWhisper <> '' then
+    Add('w', AWhisper);
+  if AMachine > 0 then
+  begin
+    Add('m', IntToStr(AMachine));
+    Result := Result + '#you';
+  end;
+end;
 
 const
   { How long the site may take to be reached, and to answer, ms. }
@@ -234,24 +274,47 @@ begin
     Value.Free;
 end;
 
+{ What the machine is, for the site's boards to tell machines apart by
+  (uMachine's MachineFacts - never the computer's or the user's name):
+  each fact that is known is added to ABody; what is not is left out and
+  the site shows "Unknown". }
+procedure AddMachineFacts(ABody: TJSONObject);
+var
+  F: TMachineFacts;
+
+  { A whole number, when it is one a machine can have. }
+  procedure Number(const AName: string; AValue: Integer);
+  begin
+    if (AValue > 0) and (AValue < 65536) then
+      ABody.AddPair(AName, TJSONNumber.Create(AValue));
+  end;
+
+begin
+  F := MachineFacts;
+  // machine_model: a score's `model` is whisper's model file
+  if F.Model <> '' then
+    ABody.AddPair('machine_model', F.Model);
+  if F.Cpu <> '' then
+    ABody.AddPair('cpu', F.Cpu);
+  Number('memory_gb', F.MemoryGb);
+  Number('cores', F.Cores);
+  Number('perf_cores', F.PerfCores);
+  Number('eff_cores', F.EffCores);
+  Number('threads', F.Threads);
+  Number('gpu_cores', F.GpuCores);
+end;
+
 function TWebBoardJob.Register(AClient: THTTPClient): string;
 var
   Body, Answer: TJSONObject;
   Status: Integer;
-  Cpu: string;
-  Memory: UInt64;
 begin
   FKey := '';
   Body := TJSONObject.Create;
   Body.AddPair('install_id', FInstallId);
   // what the machine is - never what it is called
   Body.AddPair('os', MachineOs);
-  Cpu := MachineCpu;
-  if Cpu <> '' then
-    Body.AddPair('cpu', Cpu);
-  Memory := MachineMemory;
-  if Memory > 0 then
-    Body.AddPair('memory_gb', TJSONNumber.Create(Integer(Round(Memory / (1024.0 * 1024.0 * 1024.0)))));
+  AddMachineFacts(Body);
   try
     Post(AClient, '/api/register.php', Body, Status, Answer);
   except
@@ -295,6 +358,9 @@ begin
   Body.AddPair('ran_at', FormatDateTime('yyyy"-"mm"-"dd hh":"nn":"ss', AScore.RanAt));
   // with every score: the system may have changed since the registration
   Body.AddPair('os', MachineOs);
+  // and what the machine is (a machine registered before these were sent
+  // gets them with its next score)
+  AddMachineFacts(Body);
   if AScore.MedianWatts > 0 then
     Body.AddPair('avg_watts', TJSONNumber.Create(AScore.MedianWatts));
   if AScore.PeakWatts > 0 then
@@ -320,6 +386,7 @@ begin
       Result.Place := Answer.GetValue<Integer>('place', 0);
       Result.Count := Answer.GetValue<Integer>('count', 0);
       Result.BestMs := Answer.GetValue<Integer>('best_ms', 0);
+      Result.Machine := Answer.GetValue<Integer>('machine', 0);
     end
     else
       Result.Error := WhyNot(Answer, AStatus);

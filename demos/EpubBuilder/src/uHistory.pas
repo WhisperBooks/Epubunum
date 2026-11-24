@@ -60,10 +60,14 @@ const
     runs of 30 s; rows without calibration_s are too). }
   HISTORY_SHORT_CALIBRATION = 45;
   { The table's columns (HistoryCells, HistoryTable). }
-  HISTORY_HEADERS: array[0..13] of string = ('When', 'Book', 'Language', 'Machine', 'Model', 'Device', 'Audio',
-    'Transcription', 'Speed', 'Calibration', 'Book / calibration', 'Align + write', 'Exact %', 'Matched %');
+  HISTORY_HEADERS: array[0..14] of string = ('When', 'Book', 'Language', 'Machine', 'Model', 'Device', 'Audio',
+    'Transcription', 'Speed', 'Calibration', 'Book / calibration', 'Align + write', 'Exact %', 'Matched %',
+    'Whisper');
   { Their widths in the window, units. }
-  HISTORY_WIDTHS: array[0..13] of Single = (120, 220, 70, 150, 120, 70, 70, 95, 65, 85, 120, 95, 65, 75);
+  HISTORY_WIDTHS: array[0..14] of Single = (120, 220, 70, 150, 120, 70, 70, 95, 65, 85, 120, 95, 65, 75, 70);
+  { whisper.cpp's version of every build kept before the version was
+    (all of them were this): a row without one. }
+  HISTORY_WHISPER_FIRST = '1.9.5';
   { A build matched worse than this (%) is left out of the estimates: the
     wrong recording, or the wrong language (Ender in Exile tagged ru,
     2026-11-19: 62.7 % at 10.3x, against 99.6 % and 17 - 26x for the
@@ -105,10 +109,35 @@ type
     Language: string;
     { The output's file name, without its folder. }
     OutputName: string;
+    { whisper.cpp's version that transcribed it, as 1.9.6 ('' = a row from
+      before 2026-11-24: HISTORY_WHISPER_FIRST - see HistoryRowWhisper). }
+    Whisper: string;
+    { The model ran with its Core ML encoder: '1', '0', or '' = not known
+      (a row from before 2026-11-24, or a machine without Core ML). The
+      same model on the same device runs at another speed with it. }
+    CoreML: string;
   end;
 
   { The rows of a history file, oldest first. }
   TBuildHistory = array of TBuildHistoryRow;
+
+var
+  { whisper.cpp's version loaded, as 1.9.6 - set once by the program when
+    the library is loaded ('' = not known). A new version can be faster or
+    slower on the same machine (owner, 2026-11-24: "everything should be
+    split as timings may alter"), so HistoryExpect and HistorySummary
+    look only at the builds this version made; the table shows all, with
+    each row's version. }
+  HistoryWhisper: string = '';
+  { Whether the model of that file name uses its Core ML encoder now -
+    set by the program (nil = not asked: every row counts). HistoryExpect
+    leaves out the builds of the model that ran in the other state. }
+  HistoryUsesCoreML: TFunc<string, Boolean> = nil;
+
+{ whisper.cpp's version of ARow: its own, or HISTORY_WHISPER_FIRST when it
+  has none.
+  @returns(the version, as 1.9.5) }
+function HistoryRowWhisper(const ARow: TBuildHistoryRow): string;
 
 { The computer's name in AMachineText (MachineText: 'name - system; ...').
   @returns(the text before ' - ', or all of it) }
@@ -167,12 +196,20 @@ function HistoryExpect(const AHistory: TBuildHistory; const AMachine, AModel, AD
 implementation
 
 uses
-  System.DateUtils, System.Generics.Collections, System.IOUtils;
+  System.DateUtils, System.StrUtils, System.Generics.Collections, System.IOUtils;
 
 const
   { The header line (the columns HistoryAdd writes). }
   HEADER = 'made,machine,model,device,audio_s,transcribe_s,after_s,speed,calibration_speed,exact_pct,matched_pct,' +
-    'title,language,file,calibration_s';
+    'title,language,file,calibration_s,whisper,coreml';
+  { The header before Core ML (zip 294, 2026-11-24): a file that starts
+    with it gets HEADER on the next write. }
+  WHISPER_HEADER = 'made,machine,model,device,audio_s,transcribe_s,after_s,speed,calibration_speed,exact_pct,' +
+    'matched_pct,title,language,file,calibration_s,whisper';
+  { The header before whisper.cpp's version (2026-11-24): a file that
+    starts with it gets HEADER on the next write. }
+  PREV_HEADER = 'made,machine,model,device,audio_s,transcribe_s,after_s,speed,calibration_speed,exact_pct,' +
+    'matched_pct,title,language,file,calibration_s';
   { The header before the calibration's length (zip 242): a file that
     starts with it gets HEADER on the next write. }
   MID_HEADER = 'made,machine,model,device,audio_s,transcribe_s,after_s,speed,calibration_speed,exact_pct,' +
@@ -192,6 +229,20 @@ const
 var
   { '.' as the decimal separator, whatever the locale. }
   Inv: TFormatSettings;
+
+function HistoryRowWhisper(const ARow: TBuildHistoryRow): string;
+begin
+  Result := ARow.Whisper;
+  if Result = '' then
+    Result := HISTORY_WHISPER_FIRST;
+end;
+
+{ ARow was made by the whisper.cpp loaded (HistoryWhisper), or no version
+  is known and every row counts. }
+function OfThisWhisper(const ARow: TBuildHistoryRow): Boolean;
+begin
+  Result := (HistoryWhisper = '') or (HistoryRowWhisper(ARow) = HistoryWhisper);
+end;
 
 function HistoryMachine(const AMachineText: string): string;
 var
@@ -224,14 +275,18 @@ begin
   Result := FloatToStrF(AValue, ffFixed, 15, ADigits, Inv);
 end;
 
-{ AFile's first line, when it is OLD_HEADER or MID_HEADER, replaced by
+{ AFile's first line, when it is one of the earlier headers, replaced by
   HEADER (the rows stay: the new columns are empty in them). }
 procedure UpgradeHeader(const AFile: string);
 var
   Text: string;
 begin
   Text := TFile.ReadAllText(AFile, TEncoding.UTF8);
-  if Text.StartsWith(OLD_HEADER + #13) or Text.StartsWith(OLD_HEADER + #10) then
+  if Text.StartsWith(WHISPER_HEADER + #13) or Text.StartsWith(WHISPER_HEADER + #10) then
+    TFile.WriteAllText(AFile, HEADER + Copy(Text, Length(WHISPER_HEADER) + 1, MaxInt), TEncoding.UTF8)
+  else if Text.StartsWith(PREV_HEADER + #13) or Text.StartsWith(PREV_HEADER + #10) then
+    TFile.WriteAllText(AFile, HEADER + Copy(Text, Length(PREV_HEADER) + 1, MaxInt), TEncoding.UTF8)
+  else if Text.StartsWith(OLD_HEADER + #13) or Text.StartsWith(OLD_HEADER + #10) then
     TFile.WriteAllText(AFile, HEADER + Copy(Text, Length(OLD_HEADER) + 1, MaxInt), TEncoding.UTF8)
   else if Text.StartsWith(MID_HEADER + #13) or Text.StartsWith(MID_HEADER + #10) then
     TFile.WriteAllText(AFile, HEADER + Copy(Text, Length(MID_HEADER) + 1, MaxInt), TEncoding.UTF8);
@@ -251,7 +306,7 @@ begin
       Num(ARow.TranscribeSeconds, 1) + ',' + Num(ARow.AfterSeconds, 1) + ',' + Num(HistorySpeed(ARow), 2) + ',' +
       Num(ARow.CalibrationSpeed, 2) + ',' + Num(ARow.ExactPercent, 2) + ',' + Num(ARow.MatchedPercent, 2) + ',' +
       Quoted(ARow.Title) + ',' + Quoted(ARow.Language) + ',' + Quoted(ARow.OutputName) + ',' +
-      Num(ARow.CalibrationSeconds, 0);
+      Num(ARow.CalibrationSeconds, 0) + ',' + Quoted(ARow.Whisper) + ',' + ARow.CoreML;
     IsNew := not FileExists(AFile);
     if not IsNew then
       UpgradeHeader(AFile);
@@ -386,6 +441,12 @@ begin
       R.CalibrationSeconds := 0;
       if Length(F) > 14 then
         R.CalibrationSeconds := StrToFloatDef(F[14], 0, Inv);
+      R.Whisper := '';
+      if Length(F) > 15 then
+        R.Whisper := Trim(F[15]);
+      R.CoreML := '';
+      if (Length(F) > 16) and ((Trim(F[16]) = '1') or (Trim(F[16]) = '0')) then
+        R.CoreML := Trim(F[16]);
       Result[N] := R;
       Inc(N);
     end;
@@ -451,6 +512,8 @@ begin
   Result[3] := ARow.Machine;
   Result[4] := ShortModel(ARow.Model);
   Result[5] := ARow.Device;
+  if ARow.CoreML = '1' then
+    Result[5] := Result[5] + ' + Core ML';
   Result[6] := Hms(ARow.AudioSeconds);
   Result[7] := Hms(ARow.TranscribeSeconds);
   Result[8] := Format('%.1fx', [Speed]);
@@ -466,6 +529,7 @@ begin
     Result[11] := Hms(ARow.AfterSeconds);
   Result[12] := Format('%.1f', [ARow.ExactPercent]);
   Result[13] := Format('%.1f', [ARow.MatchedPercent]);
+  Result[14] := HistoryRowWhisper(ARow);
 end;
 
 function HistoryTable(const AHistory: TBuildHistory): string;
@@ -487,7 +551,7 @@ end;
 function HistorySummary(const AHistory: TBuildHistory; const AMachine: string): string;
 var
   Keys: TStringList;
-  I, K, Others: Integer;
+  I, K, Others, Older: Integer;
   Speeds, Exact, Matched: TArray<Double>;
   Key: string;
 begin
@@ -495,14 +559,18 @@ begin
     Exit('No builds yet: every build that transcribes is added when it ends.');
   Result := '';
   Others := 0;
+  Older := 0;
   Keys := TStringList.Create;
   try
     Keys.CaseSensitive := False;
     Keys.Duplicates := dupIgnore;
     Keys.Sorted := True;
     for I := 0 to High(AHistory) do
-      if SameText(AHistory[I].Machine, AMachine) then
-        Keys.Add(ShortModel(AHistory[I].Model) + ' on ' + AHistory[I].Device)
+      if not OfThisWhisper(AHistory[I]) then
+        Inc(Older)
+      else if SameText(AHistory[I].Machine, AMachine) then
+        Keys.Add(ShortModel(AHistory[I].Model) + ' on ' + AHistory[I].Device +
+          IfThen(AHistory[I].CoreML = '1', ' + Core ML', ''))
       else
         Inc(Others);
     for K := 0 to Keys.Count - 1 do
@@ -512,8 +580,9 @@ begin
       Matched := nil;
       for I := 0 to High(AHistory) do
       begin
-        Key := ShortModel(AHistory[I].Model) + ' on ' + AHistory[I].Device;
-        if SameText(AHistory[I].Machine, AMachine) and SameText(Key, Keys[K]) then
+        Key := ShortModel(AHistory[I].Model) + ' on ' + AHistory[I].Device +
+          IfThen(AHistory[I].CoreML = '1', ' + Core ML', '');
+        if OfThisWhisper(AHistory[I]) and SameText(AHistory[I].Machine, AMachine) and SameText(Key, Keys[K]) then
         begin
           Push(Speeds, HistorySpeed(AHistory[I]));
           Push(Exact, AHistory[I].ExactPercent);
@@ -532,6 +601,9 @@ begin
     Result := Format('On %s:', [AMachine]) + sLineBreak + Result;
   if Others > 0 then
     Result := Result + Format('Other machines: %d build(s) (in the table).', [Others]) + sLineBreak;
+  if Older > 0 then
+    Result := Result + Format('Other versions of whisper.cpp than %s: %d build(s) (in the table; not counted ' +
+      'above, nor in the time estimates).', [HistoryWhisper, Older]) + sLineBreak;
   Result := TrimRight(Result);
 end;
 
@@ -541,7 +613,7 @@ function HistoryExpect(const AHistory: TBuildHistory; const AMachine, AModel, AD
 var
   I: Integer;
   Same, Ratios, After: TArray<Double>;
-  Here: Boolean;
+  Here, WithCoreML, Encoder: Boolean;
   Ratio: Double;
 
   { A calibration of a continuous stretch (method 2), not three of 30 s. }
@@ -558,6 +630,9 @@ begin
   Same := nil;
   Ratios := nil;
   After := nil;
+  // the model's encoder now: its builds in the other state ran at
+  // another speed
+  WithCoreML := Assigned(HistoryUsesCoreML) and HistoryUsesCoreML(AModel);
   // newest first: the latest builds count (a new driver, a new
   // whisper.cpp)
   for I := High(AHistory) downto 0 do
@@ -565,16 +640,22 @@ begin
     Here := SameText(AHistory[I].Machine, AMachine);
     if not Here or (HistorySpeed(AHistory[I]) <= 0) then
       Continue;
+    // another version of whisper.cpp ran at its own speeds
+    if not OfThisWhisper(AHistory[I]) then
+      Continue;
     // a poor build (wrong recording, wrong language) is no guide
     if (AHistory[I].MatchedPercent > 0) and (AHistory[I].MatchedPercent < HISTORY_POOR_MATCH) then
       Continue;
-    if SameText(AHistory[I].Model, AModel) and SameText(AHistory[I].Device, ADevice) and
+    // a row that does not say (an older one) counts in either state
+    Encoder := not Assigned(HistoryUsesCoreML) or (AHistory[I].CoreML = '') or
+      ((AHistory[I].CoreML = '1') = WithCoreML);
+    if Encoder and SameText(AHistory[I].Model, AModel) and SameText(AHistory[I].Device, ADevice) and
       (Length(Same) < HISTORY_RECENT) then
       Push(Same, HistorySpeed(AHistory[I]));
     // the ratio of the same model only (owner, 2026-11-22: base's
     // benchmark expected at 480x from turbo's 3.41 - each model's
     // fallback retries and stale calibrations differ)
-    if SameText(AHistory[I].Model, AModel) and (AHistory[I].CalibrationSpeed > 0) and
+    if Encoder and SameText(AHistory[I].Model, AModel) and (AHistory[I].CalibrationSpeed > 0) and
       (Long(AHistory[I].CalibrationSeconds) = Long(ACalibrationSeconds)) and
       (Length(Ratios) < 2 * HISTORY_RECENT) then
       Push(Ratios, HistorySpeed(AHistory[I]) / AHistory[I].CalibrationSpeed);

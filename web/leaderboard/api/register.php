@@ -8,7 +8,9 @@
 //                  steam_id    the SteamID64, when the build is Steam's
 //                  label       what the owner calls the machine (optional;
 //                              never the computer's own name)
-//                  os, cpu, memory_gb   descriptions (optional)
+//                  os, cpu, memory_gb, machine_model, cores, perf_cores,
+//                  eff_cores, threads, gpu_cores
+//                              what the machine is (optional)
 // Answer (JSON):   ok true, key "..." - shown ONCE; only its hash is kept.
 //                  ok false, error "..." (409: that id is registered).
 
@@ -79,6 +81,11 @@ try {
            ($memory !== null && $memory > 0 && $memory < 65536) ? $memory : null,
            $sender, $now, $now,
        ]);
+    $machineId = (int) $db->lastInsertId();
+    // the rest of what the machine is (the model, its cores ...)
+    foreach (lb_machine_facts($in) as $column => $value) {
+        $db->prepare('UPDATE machines SET ' . $column . ' = ? WHERE id = ?')->execute([$value, $machineId]);
+    }
     $db->commit();
 
     lb_answer(200, ['ok' => true, 'key' => $key]);
