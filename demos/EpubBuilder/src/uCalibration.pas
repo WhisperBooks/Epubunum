@@ -43,6 +43,9 @@ const
   { Section of the pairs that ended the program (key: device + '@' +
     model file name, value: when). }
   CAL_CRASH_SECTION = 'Calibration crashes';
+  { whisper.cpp's version of every calibration and score made before the
+    programs kept it (all of them were this). }
+  WHISPER_VERSION_FIRST = '1.9.5';
   { Timed runs per pair (the median counts): one run of a long stretch
     (zip 242; was 3 of 30 s). }
   CALIBRATION_RUNS = 1;
@@ -316,6 +319,31 @@ function CalibrationBestIndex(const AResults: TWhisperBenchmarkArray; const AMod
   @returns(the answer) }
 function CalibrationSuspect(const AResults: TWhisperBenchmarkArray; AIndex: Integer): Boolean;
 
+{ whisper.cpp's version as scores and calibrations are told apart by it:
+  the three numbers of the library's own text ('1.9.6' of '1.9.6', of
+  'v1.9.6' and of '1.9.6-dev').
+  @param(AText the library's version)
+  @returns(the numbers, '' when AText does not begin with three) }
+function WhisperVersionNumbers(const AText: string): string;
+
+{ The calibration belongs to ONE version of whisper.cpp: a new version
+  can be faster or slower on the same device, so what an older one timed
+  is not used (owner, 2026-11-24: "the leaderboard etc need to be version
+  aware"). Called once the library is loaded. When the settings'
+  calibration is of another version ([Calibration] Whisper; none written
+  = WHISPER_VERSION_FIRST, which every calibration before this was), its
+  model sections are put aside as "Whisper <that version> Calibration
+  <model>" and [Calibration] Done is cleared - the program then finds no
+  calibration and asks for one, as on a new machine. Sections kept
+  earlier for AVersion are brought back (the library changed back), and
+  Done is set again.
+  @param(AIniFile the settings)
+  @param(AVersion the library's version (WhisperVersionNumbers); '' does
+    nothing)
+  @param(ARestored a calibration kept for AVersion was brought back)
+  @returns(True when a calibration of another version was put aside) }
+function CalibrationForWhisper(const AIniFile, AVersion: string; out ARestored: Boolean): Boolean;
+
 { Writes AResults into AIniFile: a section per model (its earlier one
   replaced), and [Calibration] Done, Made, Devices (ADevicesKey), Audio.
   Pairs of AResults that succeeded leave the crash list. }
@@ -480,6 +508,112 @@ const
 function ModelSection(const AModelFile: string): string;
 begin
   Result := CAL_SECTION + ' ' + ExtractFileName(AModelFile);
+end;
+
+function WhisperVersionNumbers(const AText: string): string;
+var
+  S: string;
+  I, Dots, Digits: Integer;
+begin
+  Result := '';
+  S := Trim(AText);
+  if (S <> '') and CharInSet(S[1], ['v', 'V']) then
+    Delete(S, 1, 1);
+  Dots := 0;
+  Digits := 0;
+  I := 1;
+  while I <= Length(S) do
+  begin
+    if CharInSet(S[I], ['0'..'9']) then
+      Inc(Digits)
+    else if (S[I] = '.') and (Digits > 0) and (Dots < 2) then
+    begin
+      Inc(Dots);
+      Digits := 0;
+    end
+    else
+      Break;
+    Inc(I);
+  end;
+  // three numbers, the last with a digit
+  if (Dots = 2) and (Digits > 0) then
+    Result := Copy(S, 1, I - 1);
+end;
+
+function CalibrationForWhisper(const AIniFile, AVersion: string; out ARestored: Boolean): Boolean;
+var
+  Ini: TMemIniFile;
+  Sections, Keys: TStringList;
+  Was, Model, Kept, S: string;
+  I: Integer;
+
+  { AFrom's keys under ATo; AFrom gone. }
+  procedure MoveSection(const AFrom, ATo: string);
+  var
+    K: Integer;
+  begin
+    Keys.Clear;
+    Ini.ReadSection(AFrom, Keys);
+    Ini.EraseSection(ATo);
+    for K := 0 to Keys.Count - 1 do
+      Ini.WriteString(ATo, Keys[K], Ini.ReadString(AFrom, Keys[K], ''));
+    Ini.EraseSection(AFrom);
+  end;
+
+begin
+  Result := False;
+  ARestored := False;
+  if (AVersion = '') or not FileExists(AIniFile) then
+    Exit;
+  // a model's section: 'Calibration <file>'; one put aside: 'Whisper
+  // <version> Calibration <file>'
+  Model := CAL_SECTION + ' ';
+  Kept := 'Whisper ' + AVersion + ' ' + Model;
+  Ini := TMemIniFile.Create(AIniFile, TEncoding.UTF8);
+  Sections := TStringList.Create;
+  Keys := TStringList.Create;
+  try
+    Ini.ReadSections(Sections);
+    Was := Ini.ReadString(CAL_SECTION, 'Whisper', '');
+    if Was = '' then
+    begin
+      // none written: a calibration that is there was made before the
+      // version was kept; none there - nothing to tell apart
+      Was := AVersion;
+      for I := 0 to Sections.Count - 1 do
+        if StartsText(Model, Sections[I]) and not SameText(Sections[I], CAL_CRASH_SECTION) then
+          Was := WHISPER_VERSION_FIRST;
+    end;
+    if Was <> AVersion then
+    begin
+      Result := True;
+      for I := 0 to Sections.Count - 1 do
+      begin
+        S := Sections[I];
+        if StartsText(Model, S) and not SameText(S, CAL_CRASH_SECTION) then
+          MoveSection(S, 'Whisper ' + Was + ' ' + S);
+      end;
+      for I := 0 to Sections.Count - 1 do
+      begin
+        S := Sections[I];
+        if StartsText(Kept, S) then
+        begin
+          MoveSection(S, Copy(S, Length(Kept) - Length(Model) + 1, MaxInt));
+          ARestored := True;
+        end;
+      end;
+      Ini.WriteBool(CAL_SECTION, 'Done', ARestored);
+    end;
+    if Ini.ReadString(CAL_SECTION, 'Whisper', '') <> AVersion then
+    begin
+      Ini.WriteString(CAL_SECTION, 'Whisper', AVersion);
+      Ini.UpdateFile;
+    end;
+  finally
+    Keys.Free;
+    Sections.Free;
+    Ini.Free;
+  end;
 end;
 
 { The words of AText (runs between spaces). }

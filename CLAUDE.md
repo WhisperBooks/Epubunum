@@ -124,6 +124,9 @@ the map. Sessions 13 and earlier: their handovers follow.
 - Zips 284 - 286 (session 15): the link site in EpubBuilder - uLink's
   /pair/ticket, --activate, Settings > Account (the code in the window
   and in Big Picture). The owner deploys after 286.
+- Zips 290, 291, 293: Open in browser, the window without the log,
+  whisper.cpp's version in scores and calibrations (293 BEFORE or WITH
+  the first build that ships 1.9.6's libraries).
 - Add here whatever else needs a build, and say so in the delivery.
 
 ### Not confirmed by the owner
@@ -1657,7 +1660,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 292 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
+Last number used: 293 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
 next-session notes, CLAUDE.md only).
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
@@ -4245,6 +4248,70 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 293 (on top of bf53bf2 = zip 292 pushed): scores and calibrations know whisper.cpp's version
+Session 15, owner 2026-11-24 14:46 "whisper 1.9.6 just came out", 14:55
+"Before new version the leaderboard etc need to be version aware. We
+were aware of this but I don't know if anything has been put in place
+already. For both whisper-dev and twhisper I've version branched them.
+main is now 1.96 then". LOOKED: NOTHING was in place (the version was
+in the log only). Asked and answered: the website "A board per
+version", Steam "New boards per version". PASCAL NOT COMPILED; the
+site tested here (SQLite). Files: web/leaderboard/lib.php, index.php,
+schema.sql, README.md, api/submit.php, api/board.php;
+tools/test_leaderboard.py; demos/common/uWebBoard.pas;
+demos/EpubBuilder/src/uBuilder.pas, uCalibration.pas, README.md;
+CLAUDE.md. No .dproj.
+- THE VERSION is three numbers, '1.9.6' (WhisperVersionNumbers of
+  TWhisper's Lib.Version: 'v1.9.6-dev' is 1.9.6; the site's
+  lb_whisper does the same). FWhisperVersion in the builder.
+  WHISPER_VERSION_FIRST / LB_WHISPER_FIRST = '1.9.5': every score and
+  calibration made before today, and any program that says none.
+- THE SITE - THE DATABASE CHANGES FIRST (web/leaderboard/README.md,
+  "Changes to a database already made": two ALTERs - runs.whisper;
+  bests.whisper INTO ITS PRIMARY KEY and its board index; both default
+  '1.9.5'. NOT RUN AGAINST MySQL), then lib.php, index.php,
+  api/submit.php, api/board.php UPLOADED TOGETHER. A board = a
+  benchmark under one version: bests is (machine, benchmark, whisper);
+  submit.php takes `whisper` and answers that board's place and
+  count; board.php takes `whisper` (none = 1.9.5) and names the
+  versions that have a board (`whispers`); the page opens on the
+  newest version with a score, links to the others (&w=1.9.5; no
+  links while there is one version) and its board links keep the
+  version chosen. tools/test_leaderboard.py: the versions' checks
+  added; all pass.
+- THE DEPLOYED BUILDS send no `whisper`: they stay on 1.9.5's boards,
+  rightly, as long as they ship 1.9.5's libraries.
+- STEAM: SteamBoardName(option) - BOARD_NAMES' name for 1.9.5 (the
+  boards as they are), name + '_whisper_1_9_6' for any other version;
+  used to send, to read, and to match the answers (WebSent and the
+  website's slug keep BOARD_NAMES). uSteamBoard makes a board with
+  the first score sent to it - THEIR NAMES FOR PEOPLE ARE SET ON THE
+  PARTNER SITE BY THE OWNER (four new boards per version). A score's
+  details [3] (was unused) = the version as a number, 1.9.6 = 10906.
+  The Leaderboards page's title ends " - whisper.cpp 1.9.6".
+- THE ORDER THAT MATTERS: this zip must be in the build that first
+  ships 1.9.6's libraries - an older build with 1.9.6's libraries
+  would put 1.9.6's times on 1.9.5's boards (Steam's and the site's).
+- CALIBRATION: CalibrationForWhisper(settings, version), called in
+  FormCreate when the library is loaded: [Calibration] Whisper (none
+  written, a calibration there = 1.9.5) differs -> the model sections
+  are moved to [Whisper <old> Calibration <model>], Done is cleared
+  (the program finds no calibration and asks, as on a new machine),
+  sections kept for the new version are brought back (the owner has
+  both versions as branches). The log says which happened. The
+  history's and the benchmarks' own figures are NOT told apart by
+  version (uHistory's expected times mix them) - not done, say if
+  wanted.
+- benchmarks.csv: a Whisper column at the end (a file begun before
+  has the old heading line and one field more per new row).
+- NOT DONE: EpubReader and BookManager do not show or keep the
+  version; the website does not show a run's version on a row (the
+  board's line says it); 1.9.6 itself was not built or run here - its
+  whisper.h is THE SAME as 1.9.5's (both tags fetched and compared),
+  ggml's headers are not (TWhisper's direct ggml calls, if any, to be
+  checked in its repository), whisper.cpp fixes an assertion in DTW's
+  filter and clamps segment ends to the audio's length.
 
 ## Zip 292 (on top of zip 291): the leaderboard's page shows words a minute
 Session 15, owner 2026-11-24 13:08: "make leaderboard display words

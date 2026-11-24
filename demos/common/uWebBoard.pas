@@ -61,6 +61,9 @@ type
     Backend: string;
     { The program's build stamp. }
     Build: string;
+    { whisper.cpp's version, as 1.9.6 ('' = not known: the site takes it
+      for 1.9.5). A board is a benchmark under one version. }
+    Whisper: string;
     { 'steam' or 'direct'. }
     Channel: string;
     { When it ran, UTC. }
@@ -286,6 +289,8 @@ begin
   Body.AddPair('device_kind', AScore.Kind);
   Body.AddPair('backend', AScore.Backend);
   Body.AddPair('build', AScore.Build);
+  if AScore.Whisper <> '' then
+    Body.AddPair('whisper', AScore.Whisper);
   Body.AddPair('channel', AScore.Channel);
   Body.AddPair('ran_at', FormatDateTime('yyyy"-"mm"-"dd hh":"nn":"ss', AScore.RanAt));
   // with every score: the system may have changed since the registration

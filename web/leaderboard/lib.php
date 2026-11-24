@@ -15,6 +15,11 @@ const LB_SLOWEST = 0.05;           // times real time: slower is refused
 const LB_FASTEST_SHOWN = 400.0;    // faster waits for a person ('pending')
 const LB_FASTEST = 5000.0;         // faster is refused
 const LB_PAGE_MAX = 100;           // rows of a board in one answer
+/**
+ * whisper.cpp's version of every run made before the programs said which
+ * (all of them were this), and so of a program that does not say.
+ */
+const LB_WHISPER_FIRST = '1.9.5';
 
 /**
  * The settings: an array from a PHP file that is NOT in the repository.
@@ -173,29 +178,66 @@ function lb_benchmarks(): array
     return lb_db()->query('SELECT * FROM benchmarks ORDER BY sort_order')->fetchAll();
 }
 
+/**
+ * whisper.cpp's version as the boards are told apart by it: the three
+ * numbers of what the program sent ('1.9.6', and of '1.9.6-dev' too);
+ * LB_WHISPER_FIRST when it sent none; '' when it sent something that is
+ * not a version.
+ */
+function lb_whisper($value): string
+{
+    if ($value === null || $value === '') {
+        return LB_WHISPER_FIRST;
+    }
+    if (!is_string($value) || !preg_match('/^v?(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?![0-9])/', trim($value), $m)) {
+        return '';
+    }
+    return (int) $m[1] . '.' . (int) $m[2] . '.' . (int) $m[3];
+}
+
+/**
+ * The versions of whisper.cpp that have a board (of one benchmark, or of
+ * any when $benchmarkId is 0), the newest first.
+ */
+function lb_whispers(int $benchmarkId = 0): array
+{
+    if ($benchmarkId > 0) {
+        $q = lb_db()->prepare('SELECT DISTINCT whisper FROM bests WHERE benchmark_id = ?');
+        $q->execute([$benchmarkId]);
+    } else {
+        $q = lb_db()->query('SELECT DISTINCT whisper FROM bests');
+    }
+    $versions = array_map('strval', $q->fetchAll(PDO::FETCH_COLUMN));
+    usort($versions, static function (string $a, string $b): int {
+        return version_compare($b, $a);
+    });
+    return $versions;
+}
+
 /** How many machines a board shows. */
-function lb_board_count(int $benchmarkId): int
+function lb_board_count(int $benchmarkId, string $whisper): int
 {
     $q = lb_db()->prepare('SELECT COUNT(*) FROM bests b
                            JOIN machines m ON m.id = b.machine_id AND m.hidden = 0
                            JOIN players p ON p.id = m.player_id AND p.banned = 0
-                           WHERE b.benchmark_id = ?');
-    $q->execute([$benchmarkId]);
+                           WHERE b.benchmark_id = ? AND b.whisper = ?');
+    $q->execute([$benchmarkId, $whisper]);
     return (int) $q->fetchColumn();
 }
 
 /**
+ * A board is one benchmark under one version of whisper.cpp.
  * A machine's place on a board (1 = the fastest) and its best score, or
  * null when it has no row there. Equal scores: the earlier run is ahead.
  */
-function lb_place(int $benchmarkId, int $machineId): ?array
+function lb_place(int $benchmarkId, string $whisper, int $machineId): ?array
 {
     $db = lb_db();
     $q = $db->prepare('SELECT b.score_ms, b.run_id FROM bests b
                        JOIN machines m ON m.id = b.machine_id AND m.hidden = 0
                        JOIN players p ON p.id = m.player_id AND p.banned = 0
-                       WHERE b.benchmark_id = ? AND b.machine_id = ?');
-    $q->execute([$benchmarkId, $machineId]);
+                       WHERE b.benchmark_id = ? AND b.whisper = ? AND b.machine_id = ?');
+    $q->execute([$benchmarkId, $whisper, $machineId]);
     $mine = $q->fetch();
     if (!$mine) {
         return null;
@@ -203,14 +245,14 @@ function lb_place(int $benchmarkId, int $machineId): ?array
     $q = $db->prepare('SELECT COUNT(*) FROM bests b
                        JOIN machines m ON m.id = b.machine_id AND m.hidden = 0
                        JOIN players p ON p.id = m.player_id AND p.banned = 0
-                       WHERE b.benchmark_id = ?
+                       WHERE b.benchmark_id = ? AND b.whisper = ?
                          AND (b.score_ms < ? OR (b.score_ms = ? AND b.run_id < ?))');
-    $q->execute([$benchmarkId, $mine['score_ms'], $mine['score_ms'], $mine['run_id']]);
+    $q->execute([$benchmarkId, $whisper, $mine['score_ms'], $mine['score_ms'], $mine['run_id']]);
     return ['place' => 1 + (int) $q->fetchColumn(), 'score_ms' => (int) $mine['score_ms']];
 }
 
 /** A page of a board: $rows rows from place $first on. */
-function lb_page(int $benchmarkId, int $first, int $rows): array
+function lb_page(int $benchmarkId, string $whisper, int $first, int $rows): array
 {
     $first = max(1, $first);
     $rows = max(1, min(LB_PAGE_MAX, $rows));
@@ -222,11 +264,11 @@ function lb_page(int $benchmarkId, int $first, int $rows): array
          JOIN players p ON p.id = m.player_id AND p.banned = 0
          JOIN runs r ON r.id = b.run_id
          JOIN devices d ON d.id = r.device_id
-         WHERE b.benchmark_id = ?
+         WHERE b.benchmark_id = ? AND b.whisper = ?
          ORDER BY b.score_ms, b.run_id
          LIMIT ' . $rows . ' OFFSET ' . ($first - 1)
     );
-    $q->execute([$benchmarkId]);
+    $q->execute([$benchmarkId, $whisper]);
     $out = [];
     $place = $first;
     foreach ($q->fetchAll() as $row) {

@@ -44,11 +44,12 @@ CREATE TABLE runs (id INTEGER PRIMARY KEY AUTOINCREMENT, machine_id INTEGER NOT 
   benchmark_id INTEGER NOT NULL REFERENCES benchmarks(id), device_id INTEGER NOT NULL REFERENCES devices(id),
   score_ms INTEGER NOT NULL, audio_ms INTEGER NOT NULL, words INTEGER NOT NULL, words_matched INTEGER NOT NULL,
   avg_watts INTEGER, peak_watts INTEGER, limit_watts INTEGER,
-  build TEXT NOT NULL, channel TEXT NOT NULL, ran_at TEXT NOT NULL, received_at TEXT NOT NULL, sender_hash TEXT,
+  build TEXT NOT NULL, whisper TEXT NOT NULL DEFAULT '1.9.5', channel TEXT NOT NULL, ran_at TEXT NOT NULL, received_at TEXT NOT NULL, sender_hash TEXT,
   verified INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL, reject_reason TEXT);
 CREATE TABLE bests (machine_id INTEGER NOT NULL REFERENCES machines(id),
-  benchmark_id INTEGER NOT NULL REFERENCES benchmarks(id), run_id INTEGER NOT NULL REFERENCES runs(id),
-  score_ms INTEGER NOT NULL, PRIMARY KEY (machine_id, benchmark_id));
+  benchmark_id INTEGER NOT NULL REFERENCES benchmarks(id), whisper TEXT NOT NULL DEFAULT '1.9.5',
+  run_id INTEGER NOT NULL REFERENCES runs(id),
+  score_ms INTEGER NOT NULL, PRIMARY KEY (machine_id, benchmark_id, whisper));
 """
 
 # The owner's seven machines on Long Text, Fast Model (the Steam board of 2026-11-23).
@@ -199,15 +200,48 @@ def main():
         st, a = call(base, "/api/board.php?benchmark=nothing")
         check("an unknown board is refused (400)", st == 400, (st, a))
 
-        print("page")
+        print("versions of whisper.cpp")
         html = urllib.request.urlopen(base + "/index.php?b=benchmark_long_fast", timeout=10).read().decode()
+        check("one version: the page has no version links", 'class="versions"' not in html and
+              html.count("<td class=\"place\">") == 7 and "(whisper.cpp 1.9.5)" in html)
+        top = installs[0]
+        st, a = run(base, top[0], top[1], 130000, whisper="1.9.6")
+        check("a slower run under a new version is that version's best", st == 200 and a.get("improved") is True and
+              a.get("place") == 1 and a.get("count") == 1 and a.get("best_ms") == 130000 and
+              a.get("whisper") == "1.9.6", (st, a))
+        st, a = call(base, "/api/board.php?benchmark=benchmark_long_fast&whisper=1.9.6&install=" + top[0])
+        check("the new version's board has that run alone", st == 200 and a.get("count") == 1 and
+              [r["score_ms"] for r in a.get("rows", [])] == [130000] and a.get("whisper") == "1.9.6" and
+              a.get("whispers") == ["1.9.6", "1.9.5"] and a.get("you") == {"place": 1, "score_ms": 130000}, a)
+        st, a = call(base, "/api/board.php?benchmark=benchmark_long_fast&rows=7&install=" + top[0])
+        check("a program that names no version has the first one's board, as it was", st == 200 and
+              a.get("count") == 7 and a.get("whisper") == "1.9.5" and a["rows"][0]["score_ms"] == 119437 and
+              a.get("you") == {"place": 1, "score_ms": 119437}, a)
+        st, a = run(base, last[0], last[1], 1500000, whisper="v1.9.6-dev")
+        check("'v1.9.6-dev' is 1.9.6", st == 200 and a.get("whisper") == "1.9.6" and a.get("place") == 2 and
+              a.get("count") == 2, (st, a))
+        st, a = run(base, last[0], last[1], 1500000, whisper="newest")
+        check("what is not a version is refused (400)", st == 400, (st, a))
+        st, a = call(base, "/api/board.php?benchmark=benchmark_long_fast&whisper=1.10.0")
+        check("a version with no scores: an empty board, the versions that have one named", st == 200 and
+              a.get("count") == 0 and a.get("whispers") == ["1.9.6", "1.9.5"], a)
+        html = urllib.request.urlopen(base + "/index.php?b=benchmark_long_fast", timeout=10).read().decode()
+        check("the page opens on the newest version, with links to both", html.count("<td class=\"place\">") == 2 and
+              "0:02:10.000" in html and 'w=1.9.5">1.9.5</a>' in html and
+              'w=1.9.6" aria-current="true">1.9.6</a>' in html, html[html.find("<main"):][:1500])
+        html = urllib.request.urlopen(base + "/index.php?b=benchmark_short_fast&w=1.9.5", timeout=10).read().decode()
+        check("the other boards' links keep the version chosen", "b=benchmark_long_fast&amp;w=1.9.5" in html and
+              "No scores yet with whisper.cpp 1.9.5" in html)
+
+        print("page")
+        html = urllib.request.urlopen(base + "/index.php?b=benchmark_long_fast&w=1.9.5", timeout=10).read().decode()
         check("the page lists the seven", html.count("<td class=\"place\">") == 7 and "0:01:59.437" in html and
               "Player seven" in html and "94x" in html and "<td class=\"num wpm\">14,227</td>" in html and "48 W of 50" in html and
               html.count("<td class=\"os\">Test OS</td>") == 6)
         con = sqlite3.connect(dbfile)
         con.execute("UPDATE players SET display_name = '<script>alert(1)</script>' WHERE id = 1")
         con.commit()
-        html = urllib.request.urlopen(base + "/index.php?b=benchmark_long_fast", timeout=10).read().decode()
+        html = urllib.request.urlopen(base + "/index.php?b=benchmark_long_fast&w=1.9.5", timeout=10).read().decode()
         check("a name is shown as text, never as markup", "<script>alert(1)</script>" not in html and
               "&lt;script&gt;" in html)
         con.execute("UPDATE machines SET hidden = 1 WHERE id = 1")
@@ -216,8 +250,10 @@ def main():
         check("a hidden machine is off the board", a.get("count") == 6 and a["rows"][0]["score_ms"] == 155096, a)
         n = con.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
         k = con.execute("SELECT COUNT(*) FROM runs WHERE status = 'rejected'").fetchone()[0]
+        v = dict(con.execute("SELECT whisper, COUNT(*) FROM runs GROUP BY whisper").fetchall())
         con.close()
-        check("every run was kept, the refused ones with their reason", n == 16 and k == 4, (n, k))
+        check("every run was kept, the refused ones with their reason", n == 18 and k == 4, (n, k))
+        check("each run has its whisper.cpp version", v == {"1.9.5": 16, "1.9.6": 2}, v)
 
         print("rate limit")
         spare = str(uuid.uuid4())

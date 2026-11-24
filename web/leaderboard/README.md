@@ -49,12 +49,45 @@ Run the statement BEFORE uploading the PHP files that need it (the newer
     ADD COLUMN limit_watts SMALLINT UNSIGNED NULL AFTER peak_watts;
   ```
 
+- 2026-11-24, zip 293 - a board per version of whisper.cpp. Two
+  statements, in this order; every run and best there is becomes 1.9.5's
+  (which they all are). NOT RUN AGAINST MySQL when written: if one
+  stops, send the message back and upload nothing yet.
+
+  ```sql
+  ALTER TABLE runs
+    ADD COLUMN whisper VARCHAR(16) NOT NULL DEFAULT '1.9.5' AFTER build;
+
+  ALTER TABLE bests
+    ADD COLUMN whisper VARCHAR(16) NOT NULL DEFAULT '1.9.5' AFTER benchmark_id,
+    DROP PRIMARY KEY,
+    ADD PRIMARY KEY (machine_id, benchmark_id, whisper),
+    DROP INDEX ix_bests_board,
+    ADD INDEX ix_bests_board (benchmark_id, whisper, score_ms, run_id);
+  ```
+
+  Then upload `lib.php`, `index.php`, `api/submit.php` and
+  `api/board.php` TOGETHER (the four call each other's new forms).
+
 To empty the boards (never `benchmarks`: it is the list of boards):
 
 ```sql
 DELETE FROM bests; DELETE FROM runs; DELETE FROM devices;
 DELETE FROM machines; DELETE FROM players;
 ```
+
+## A board per version of whisper.cpp
+
+A new whisper.cpp can be faster or slower on the same computer, so its
+scores are not ranked with an older version's (owner, 2026-11-24: "the
+leaderboard etc need to be version aware"). A BOARD is a benchmark under
+one version: each machine has a best per benchmark AND version, and a
+slower run under a new version is that version's best, not lost behind
+the old one. The version is the three numbers the program sends
+(`whisper`: `1.9.6`; `v1.9.6-dev` counts as `1.9.6`); a program that
+sends none is 1.9.5 - every program made before 2026-11-24. The page
+opens on the newest version that has a score and links to the others
+(`?b=...&w=1.9.5`); with one version there are no links.
 
 ## What version 1 checks (owner, 2026-11-23: validation "TBD")
 
@@ -95,19 +128,23 @@ person's), `label` (what the owner calls the machine), `os`, `cpu`,
 (`benchmark_short_fast`, `benchmark_short_detailed`, `benchmark_long_fast`,
 `benchmark_long_detailed`), `score_ms`, `audio_ms`, `words`,
 `words_matched`, `model`, `device`, `device_kind` (`cpu`, `integrated`,
-`gpu`), `backend`, `build`, `channel` (`steam`, `direct`), `ran_at`
+`gpu`), `backend`, `build`, `whisper` (whisper.cpp's version, `1.9.6`;
+left out = `1.9.5`), `channel` (`steam`, `direct`), `ran_at`
 (`YYYY-MM-DD HH:MM:SS`, UTC), optionally `name`, `os` (the system now:
 it replaces the registration's), and `avg_watts`,
 `peak_watts`, `limit_watts` (what the card drew over the run - `avg_watts`
 is the MEDIAN of the readings since EpubBuilder's zip 276, the mean in the
 few runs before; the name stayed - and the limit it was held to; NVIDIA cards, and AMD's on Linux; a value outside 1 - 2000 is not
 kept and the score still is). Answer: `status` (`ok`,
-`pending`), `improved`, `place`, `best_ms`, `count`.
+`pending`), `improved`, `place`, `best_ms`, `count` - of the board of
+that version - and `whisper`.
 
-`GET /api/board.php?benchmark=...` - optionally `rows` (25; 100 at most),
+`GET /api/board.php?benchmark=...` - optionally `whisper` (the version
+whose board is wanted; left out = `1.9.5`), `rows` (25; 100 at most),
 `first` (the first row's place), `around=<install id>` (the page with that
 machine in its middle, full at either end of the board), `install=<install
-id>` (marks its rows). Answer: `benchmark`, `count`, `first`, `rows`
+id>` (marks its rows). Answer: `benchmark`, `whisper`, `whispers` (the
+versions this benchmark has a board for, newest first), `count`, `first`, `rows`
 (`place`, `name`, `label`, `score_ms`, `score`, `device`, `backend`, `os`,
 `avg_watts`, `peak_watts`, `limit_watts` - null when not known -, `me`),
 `you` (`place`, `score_ms`) or null.

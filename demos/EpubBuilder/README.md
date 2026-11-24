@@ -158,6 +158,13 @@ them all.
 
 ## Calibration (which device is fastest here)
 
+**A calibration belongs to one version of whisper.cpp.** A new version
+can be faster or slower on the same device, so when the library's
+version changes the calibration made with the other one is put aside (the
+log says so) and EpubBuilder asks for a new one, as on a new machine. It
+is kept in the settings (`[Whisper 1.9.5 Calibration <model>]`) and comes
+back if that version is ever loaded again.
+
 Which device transcribes fastest - the processor, or the graphics card
 through CUDA, Vulkan or ROCm - depends on the card and its memory, its
 driver, the model and the processor. Left to itself ("Default")
@@ -267,6 +274,13 @@ not calibrated yet is not held back (its speed is not known), nor is a
 build from a saved transcript (nothing is transcribed).
 
 ## Benchmarks
+
+**Scores are kept apart by whisper.cpp's version**, for the same reason:
+the website has a board per benchmark and version (the page opens on the
+newest), Steam's leaderboards for any version after 1.9.5 are new ones
+(`benchmark_long_fast_whisper_1_9_6` ...; the four of 1.9.5 stay as they
+are), the Leaderboards page shows the boards of the version loaded and
+names it in its title, and `benchmarks.csv` has a Whisper column.
 
 The **Benchmark** menu (Big Picture: **Benchmark** on the home list)
 has five items, each with the time it is expected to take:

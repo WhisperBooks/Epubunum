@@ -104,6 +104,7 @@ CREATE TABLE runs (
   peak_watts     SMALLINT UNSIGNED NULL,       -- (where it can be read; NULL when
   limit_watts    SMALLINT UNSIGNED NULL,       -- not known) and its limit
   build          VARCHAR(40) NOT NULL,         -- '2026-11-23 02:34, 2ccbf89'
+  whisper        VARCHAR(16) NOT NULL DEFAULT '1.9.5', -- whisper.cpp's version
   channel        VARCHAR(8) NOT NULL,          -- 'steam' or 'direct'
   ran_at         DATETIME NOT NULL,            -- the client's clock, UTC
   received_at    DATETIME NOT NULL,
@@ -120,15 +121,18 @@ CREATE TABLE runs (
   CONSTRAINT fk_runs_device    FOREIGN KEY (device_id)    REFERENCES devices (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- The board: each machine's best accepted run of each benchmark, kept up to
--- date by the endpoint when it accepts a run.
+-- The boards: each machine's best accepted run of each benchmark UNDER EACH
+-- VERSION OF whisper.cpp (a new version can be faster or slower on the
+-- same machine, so their scores are not ranked together), kept up to date
+-- by the endpoint when it accepts a run.
 CREATE TABLE bests (
   machine_id    INT UNSIGNED NOT NULL,
   benchmark_id  TINYINT UNSIGNED NOT NULL,
+  whisper       VARCHAR(16) NOT NULL DEFAULT '1.9.5',
   run_id        BIGINT UNSIGNED NOT NULL,
   score_ms      INT UNSIGNED NOT NULL,
-  PRIMARY KEY (machine_id, benchmark_id),
-  KEY ix_bests_board (benchmark_id, score_ms, run_id),
+  PRIMARY KEY (machine_id, benchmark_id, whisper),
+  KEY ix_bests_board (benchmark_id, whisper, score_ms, run_id),
   CONSTRAINT fk_bests_machine   FOREIGN KEY (machine_id)   REFERENCES machines (id),
   CONSTRAINT fk_bests_benchmark FOREIGN KEY (benchmark_id) REFERENCES benchmarks (id),
   CONSTRAINT fk_bests_run       FOREIGN KEY (run_id)       REFERENCES runs (id)
@@ -141,9 +145,9 @@ CREATE TABLE bests (
 --   UPDATE runs SET status = 'rejected', reject_reason = 'why' WHERE id = 123;
 --   DELETE FROM bests WHERE run_id = 123;
 --   -- then the machine's next best accepted run, if it has one:
---   INSERT INTO bests (machine_id, benchmark_id, run_id, score_ms)
---   SELECT machine_id, benchmark_id, id, score_ms FROM runs
---   WHERE machine_id = 45 AND benchmark_id = 1 AND status = 'ok'
+--   INSERT INTO bests (machine_id, benchmark_id, whisper, run_id, score_ms)
+--   SELECT machine_id, benchmark_id, whisper, id, score_ms FROM runs
+--   WHERE machine_id = 45 AND benchmark_id = 1 AND whisper = '1.9.5' AND status = 'ok'
 --   ORDER BY score_ms, id LIMIT 1;
 --
 -- A whole machine off the boards:  UPDATE machines SET hidden = 1 WHERE id = 45;

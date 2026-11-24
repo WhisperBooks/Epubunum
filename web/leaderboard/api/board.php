@@ -2,6 +2,9 @@
 // GET /api/board.php - a page of a board, for the programs.
 //
 //   benchmark   'benchmark_short_fast' ... (required)
+//   whisper     whisper.cpp's version, as 1.9.6: a board is the benchmark
+//               under one version (left out: 1.9.5, the programs made
+//               before they said which)
 //   rows        how many rows (25 when left out, 100 at most)
 //   first       the place of the first row (1 when left out), or
 //   around      an install id: the page with that machine in its middle,
@@ -10,7 +13,9 @@
 //   install     an install id: its rows are marked "me" and its own place
 //               comes back in "you" (around does the same)
 //
-// Answer (JSON): ok, benchmark {slug, name}, count, first,
+// Answer (JSON): ok, benchmark {slug, name}, whisper, whispers (the
+//                versions this benchmark has a board for, newest first),
+//                count, first,
 //                rows [{place, name, label, score_ms, score, device,
 //                       backend, os, avg_watts, peak_watts, limit_watts
 //                       (null when not known), me}],
@@ -29,10 +34,14 @@ try {
         lb_refuse(400, 'There is no such benchmark.');
     }
     $benchmarkId = (int) $benchmark['id'];
+    $whisper = lb_whisper($_GET['whisper'] ?? null);
+    if ($whisper === '') {
+        lb_refuse(400, 'whisper must be whisper.cpp\'s version, as 1.9.6.');
+    }
     $rows = lb_int($_GET['rows'] ?? null) ?? 25;
     $rows = max(1, min(LB_PAGE_MAX, $rows));
     $first = max(1, lb_int($_GET['first'] ?? null) ?? 1);
-    $count = lb_board_count($benchmarkId);
+    $count = lb_board_count($benchmarkId, $whisper);
 
     // whose rows are "me"
     $mineId = 0;
@@ -44,7 +53,7 @@ try {
         $q->execute([$install]);
         $mineId = (int) $q->fetchColumn();
         if ($mineId > 0) {
-            $you = lb_place($benchmarkId, $mineId);
+            $you = lb_place($benchmarkId, $whisper, $mineId);
         }
     }
     if ($around !== '' && $you !== null) {
@@ -52,7 +61,7 @@ try {
     }
 
     $out = [];
-    foreach (lb_page($benchmarkId, $first, $rows) as $row) {
+    foreach (lb_page($benchmarkId, $whisper, $first, $rows) as $row) {
         $out[] = [
             'place' => $row['place'],
             'name' => $row['display_name'],
@@ -71,6 +80,8 @@ try {
     lb_answer(200, [
         'ok' => true,
         'benchmark' => ['slug' => $benchmark['slug'], 'name' => $benchmark['name']],
+        'whisper' => $whisper,
+        'whispers' => lb_whispers($benchmarkId),
         'count' => $count,
         'first' => $first,
         'rows' => $out,

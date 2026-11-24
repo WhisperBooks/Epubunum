@@ -1,5 +1,7 @@
 <?php
-// The public page: the four boards, one at a time (?b=benchmark_long_fast).
+// The public page: the four boards, one at a time (?b=benchmark_long_fast),
+// each under one version of whisper.cpp (&w=1.9.5; the newest that has
+// scores when left out).
 
 declare(strict_types=1);
 require __DIR__ . '/lib.php';
@@ -8,6 +10,8 @@ $benchmarks = [];
 $current = null;
 $rows = [];
 $count = 0;
+$whispers = [];    // the versions of whisper.cpp that have a board, newest first
+$whisper = '';     // the one shown
 $problem = '';
 try {
     $benchmarks = lb_benchmarks();
@@ -20,9 +24,16 @@ try {
     if ($current === null && $benchmarks) {
         $current = $benchmarks[0];
     }
+    // the versions are the site's, not the benchmark's: the same row of
+    // links on all four boards (one of them may be empty for a version)
+    $whispers = lb_whispers();
+    $whisper = lb_whisper($_GET['w'] ?? null);
+    if (!isset($_GET['w']) || !in_array($whisper, $whispers, true)) {
+        $whisper = $whispers ? $whispers[0] : LB_WHISPER_FIRST;
+    }
     if ($current !== null) {
-        $count = lb_board_count((int) $current['id']);
-        $rows = lb_page((int) $current['id'], 1, LB_PAGE_MAX);
+        $count = lb_board_count((int) $current['id'], $whisper);
+        $rows = lb_page((int) $current['id'], $whisper, 1, LB_PAGE_MAX);
     }
 } catch (Throwable $e) {
     error_log('leaderboard page: ' . $e->getMessage());
@@ -101,6 +112,11 @@ header('X-Content-Type-Options: nosniff');
   h2 { font-family: var(--book); font-weight: 400; font-size: clamp(1.6rem, 2.6vw, 2.1rem); line-height: 1.15;
        margin: 0 0 0.4rem; }
   .about { color: var(--ink-soft); margin: 0 0 2rem; max-width: 44rem; }
+  .versions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0 0 1rem;
+              color: var(--ink-soft); }
+  .versions a { padding: 0.2rem 0.75rem; border: 1px solid var(--rule); border-radius: 999px; color: var(--ink);
+                text-decoration: none; font-variant-numeric: tabular-nums; }
+  .versions a[aria-current="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
   .scroll { overflow-x: auto; }
   table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
   th, td { text-align: left; padding: 0.7rem 1rem 0.7rem 0; border-top: 1px solid var(--rule); font-weight: 400;
@@ -153,7 +169,7 @@ header('X-Content-Type-Options: nosniff');
 <?php if ($benchmarks): ?>
     <ul class="boards">
 <?php foreach ($benchmarks as $b): ?>
-      <li><a href="?b=<?= lb_h($b['slug']) ?>"<?= $current && $b['id'] === $current['id'] ? ' aria-current="page"' : '' ?>><?= lb_h($b['name']) ?></a></li>
+      <li><a href="?b=<?= lb_h($b['slug']) ?><?= $whispers && $whisper !== $whispers[0] ? '&amp;w=' . lb_h($whisper) : '' ?>"<?= $current && $b['id'] === $current['id'] ? ' aria-current="page"' : '' ?>><?= lb_h($b['name']) ?></a></li>
 <?php endforeach; ?>
     </ul>
 <?php endif; ?>
@@ -166,10 +182,17 @@ header('X-Content-Type-Options: nosniff');
     <p class="empty"><?= lb_h($problem) ?></p>
 <?php elseif ($current !== null): ?>
     <h2><?= lb_h($current['name']) ?></h2>
+<?php if (count($whispers) > 1): ?>
+    <p class="versions">whisper.cpp
+<?php foreach ($whispers as $w): ?>
+      <a href="?b=<?= lb_h($current['slug']) ?>&amp;w=<?= lb_h($w) ?>"<?= $w === $whisper ? ' aria-current="true"' : '' ?>><?= lb_h($w) ?></a>
+<?php endforeach; ?>
+    </p>
+<?php endif; ?>
     <p class="about"><?= lb_h($current['book']) ?>, <?= lb_h(lb_score((int) $current['audio_ms'])) ?> of narration.
-      <?= $count === 1 ? '1 computer' : number_format($count) . ' computers' ?> on this board<?= $count > count($rows) ? '; the first ' . count($rows) . ' are shown' : '' ?>.</p>
+      <?= $count === 1 ? '1 computer' : number_format($count) . ' computers' ?> on this board<?= $whispers ? ' (whisper.cpp ' . lb_h($whisper) . ')' : '' ?><?= $count > count($rows) ? '; the first ' . count($rows) . ' are shown' : '' ?>.</p>
 <?php if (!$rows): ?>
-    <p class="empty">No scores yet. Run this benchmark in EpubBuilder to be the first.</p>
+    <p class="empty">No scores yet<?= count($whispers) > 1 ? ' with whisper.cpp ' . lb_h($whisper) : '' ?>. Run this benchmark in EpubBuilder to be the first.</p>
 <?php else: ?>
     <div class="scroll">
       <table>
@@ -209,7 +232,9 @@ header('X-Content-Type-Options: nosniff');
 <footer>
   <div class="wrap">
     <span>epubunum</span>
-    <span>Words/min is the book's words divided by the time taken: how many words were transcribed each minute.
+    <span>Scores are kept apart by the version of whisper.cpp that made them: a new version can be faster or
+      slower on the same computer.
+      Words/min is the book's words divided by the time taken: how many words were transcribed each minute.
       Speed is the narration's length divided by the time: 60x means an hour of audio in a minute.
       Power is what the graphics card typically drew (the median) and, where known, the limit it was held to;
       for graphics built into a processor it is the whole chip's. Not every card reports it.</span>

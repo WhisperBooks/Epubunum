@@ -800,6 +800,13 @@ type
     FCalib: TCalibrationThread;
     { whisper.cpp's version and folder, for the logs ('' = not loaded). }
     FWhisperText: string;
+    { whisper.cpp's version as scores and calibrations are told apart by
+      it: three numbers, '1.9.6' ('' = not loaded, or not a version). A
+      new version can be faster or slower on the same machine, so each
+      has its own leaderboards (the website's `whisper`, Steam's board
+      names - SteamBoardName) and its own calibration
+      (CalibrationForWhisper). }
+    FWhisperVersion: string;
     { whisper.cpp was built with Core ML (macOS, whisper-dev zip 22: its
       system info says COREML = 1): models get their Core ML encoder. }
     FCoreML: Boolean;
@@ -1524,10 +1531,18 @@ type
     procedure BenchToggleResults;
     { The numbers sent beside a score: [0] their layout (BOARD_FORMAT),
       [1] the words matched, hundredths of a per cent, [2] 0 processor /
-      1 graphics, [3] unused, [4 ..] the device's description, four
+      1 graphics, [3] whisper.cpp's version as a number (1.9.6 = 10906; 0 in
+      scores sent before 2026-11-24), [4 ..] the device's description, four
       characters a number (no machine or user name: the privacy rule).
       @returns(the numbers) }
     function BoardDetails(const ASummary: TBuildSummary): TArray<Integer>;
+    { Steam's leaderboard of benchmark AOption (1 .. 4) under the
+      whisper.cpp loaded: BOARD_NAMES' name for WHISPER_VERSION_FIRST
+      (and when the version is not known) - the boards as they were -
+      and that name with '_whisper_1_9_6' for any other. uSteamBoard
+      makes a board with the first score sent to it.
+      @returns(the board's name in Steamworks) }
+    function SteamBoardName(AOption: Integer): string;
     { A device's description alone, from its text ('Vulkan0 - NVIDIA
       GeForce RTX 5090 Laptop GPU (GPU, Vulkan, 22.7 of 23.6 GB free)').
       @returns(the description: 'NVIDIA GeForce RTX 5090 Laptop GPU') }
@@ -3444,6 +3459,7 @@ var
   I: Integer;
   Line, Moved, Why: string;
   Kept: TWhisperDeviceArray;
+  CalRestored: Boolean;
 begin
   OnCloseQuery := FormCloseQuery;
   OnShow := FormShow;
@@ -3529,8 +3545,24 @@ begin
     // visible anywhere)
     cbDevice.Items[0] := DefaultDeviceItem;
     FWhisperText := Format('whisper.cpp %s from %s', [Lib.Version, Lib.LibraryFolder]);
+    FWhisperVersion := WhisperVersionNumbers(Lib.Version);
     FCoreML := Pos('COREML = 1', Lib.SystemInfo) > 0;
     LogLine(Format('whisper.cpp %s loaded from %s', [Lib.Version, Lib.LibraryFolder]));
+    // the calibration is one version's: another's is put aside
+    try
+      if CalibrationForWhisper(SettingsFile, FWhisperVersion, CalRestored) then
+      begin
+        if CalRestored then
+          LogLine(Format('Calibration: whisper.cpp is %s now - the calibration kept for it is used again.',
+            [FWhisperVersion]))
+        else
+          LogLine(Format('Calibration: whisper.cpp is %s now - the calibration made with another version is ' +
+            'put aside (speeds differ between versions): calibrate again.', [FWhisperVersion]));
+      end;
+    except
+      on E: Exception do
+        DebugLog('calibration and whisper.cpp''s version: ' + E.Message);
+    end;
   except
     on E: Exception do
     begin
@@ -9980,13 +10012,14 @@ begin
       try
         if NewCsv then
           W.WriteLine('Date,Benchmark,Score,Transcription s,Chapter material s,Words,Words matched,Model,Device,' +
-            'Device text,Build');
+            'Device text,Build,Whisper');
         W.WriteLine(string.Join(',', [CsvText(FormatDateTime('yyyy-mm-dd hh:nn', Now)),
           CsvText(BENCH_NAMES[Option]), CsvText(BenchScore(ASummary.BenchSeconds)),
           FormatFloat('0.000', ASummary.BenchSeconds, TFormatSettings.Invariant),
           FormatFloat('0.0', ASummary.BenchAudioSeconds, TFormatSettings.Invariant),
           IntToStr(ASummary.BenchWords), IntToStr(ASummary.BenchMatched), CsvText(ASummary.Model),
-          CsvText(ASummary.Device), CsvText(ASummary.DeviceText), CsvText(BuildStamp)]));
+          CsvText(ASummary.Device), CsvText(ASummary.DeviceText), CsvText(BuildStamp),
+          CsvText(FWhisperVersion)]));
       finally
         W.Free;
       end;
@@ -10096,6 +10129,7 @@ begin
   Result.Matched := ASummary.BenchMatched;
   Result.Model := ExtractFileName(ASummary.Model);
   Result.Build := BuildStamp;
+  Result.Whisper := FWhisperVersion;
   if Result.Build = '' then
     Result.Build := 'unknown';
   Result.Channel := IfThen(SteamBuild, 'steam', 'direct');
@@ -10139,10 +10173,18 @@ begin
     Result.Backend := 'unknown';
 end;
 
+function TfrmBuilder.SteamBoardName(AOption: Integer): string;
+begin
+  Result := BOARD_NAMES[AOption];
+  if (FWhisperVersion <> '') and (FWhisperVersion <> WHISPER_VERSION_FIRST) then
+    Result := Result + '_whisper_' + FWhisperVersion.Replace('.', '_');
+end;
+
 function TfrmBuilder.BoardDetails(const ASummary: TBuildSummary): TArray<Integer>;
 var
   Dev: string;
   Packed4: TArray<Integer>;
+  Parts: TArray<string>;
 begin
   Dev := BoardDevice(ASummary.DeviceText);
   SetLength(Result, BOARD_DEVICE_AT);
@@ -10151,7 +10193,11 @@ begin
   if ASummary.BenchWords > 0 then
     Result[1] := Round(ASummary.BenchMatched * 10000.0 / ASummary.BenchWords);
   Result[2] := Ord(not SameText(ASummary.Device, 'CPU'));
+  // whisper.cpp's version as one number: 1.9.6 = 10906 (0 = not known)
   Result[3] := 0;
+  Parts := FWhisperVersion.Split(['.']);
+  if Length(Parts) = 3 then
+    Result[3] := StrToIntDef(Parts[0], 0) * 10000 + StrToIntDef(Parts[1], 0) * 100 + StrToIntDef(Parts[2], 0);
   Packed4 := SteamBoardPackText(Dev, BOARD_DEVICE_NUMBERS);
   Result := Result + Packed4;
 end;
@@ -10169,7 +10215,7 @@ begin
       begin
         FBoardState[I] := 1;
         // the place and the rows are all that is wanted here
-        SteamBoardSubmit(BOARD_NAMES[I], FBoardMs[I], FBoardDetails[I], 0, BoardSent);
+        SteamBoardSubmit(SteamBoardName(I), FBoardMs[I], FBoardDetails[I], 0, BoardSent);
       end;
   // the website's, Steam or not
   Web := nil;
@@ -10239,7 +10285,7 @@ var
 begin
   Option := 0;
   for I := 1 to 4 do
-    if SameText(BOARD_NAMES[I], AResult.Board) then
+    if SameText(SteamBoardName(I), AResult.Board) then
       Option := I;
   if (Option = 0) or (FBoardState[Option] <> 1) then
     Exit;
@@ -10362,7 +10408,7 @@ begin
     Exit;
   // the rows the page holds, less its Back row
   FBoardRows := Max(3, FPadMenu.RowsThatFit(BOARD_WIDTH_SHARE, True) - 1);
-  SteamBoardRead(BOARD_NAMES[FBoardShown], FBoardRows, FBoardAround, BoardRead);
+  SteamBoardRead(SteamBoardName(FBoardShown), FBoardRows, FBoardAround, BoardRead);
 end;
 
 procedure TfrmBuilder.BoardSwitch;
@@ -10412,7 +10458,7 @@ begin
   // only while its page shows, and for the page asked for last (left and
   // right pressed in a hurry: an earlier answer is not shown)
   if (FPadMenu = nil) or (FPadMode <> BPM_BOARD) or not FPadMenu.Showing or (FBoardShown < 1) or
-    (FBoardShown > 4) or not SameText(AResult.Board, BOARD_NAMES[FBoardShown]) or
+    (FBoardShown > 4) or not SameText(AResult.Board, SteamBoardName(FBoardShown)) or
     (AResult.AskedAround <> FBoardAround) then
     Exit;
   Items := nil;
@@ -10425,6 +10471,9 @@ begin
   // asked for the rows around a user who has none: the top came
   FBoardAround := AResult.Ok and AResult.Around;
   Title := BENCH_NAMES[FBoardShown];
+  // a board is the benchmark under one version of whisper.cpp
+  if FWhisperVersion <> '' then
+    Title := Title + ' - whisper.cpp ' + FWhisperVersion;
   if not AResult.Ok then
   begin
     if AResult.Error = 'the leaderboard is not there yet' then

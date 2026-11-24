@@ -11,6 +11,9 @@
 //                  device_kind            'cpu', 'integrated' or 'gpu'
 //                  backend                'CPU', 'Vulkan', 'Metal', ...
 //                  build                  EpubBuilder's build stamp
+//                  whisper                whisper.cpp's version ('1.9.6');
+//                                         left out: 1.9.5 (the programs
+//                                         made before it was sent)
 //                  channel                'steam' or 'direct'
 //                  ran_at                 'YYYY-MM-DD HH:MM:SS', UTC
 //                  name                   the name to show now (optional)
@@ -20,8 +23,10 @@
 //                                         and the limit it was held to, W
 //                                         (optional: where it can be read)
 // Answer (JSON):   ok true, status 'ok' | 'pending', improved, place,
-//                  count, best_ms (place is 0 while the run is pending and
-//                  the machine has no row on the board yet).
+//                  count, best_ms, whisper (place is 0 while the run is
+//                  pending and the machine has no row on the board yet).
+//                  A board is the benchmark under that whisper.cpp
+//                  version: place, count and best_ms are that board's.
 //                  ok false, error "..." - a refused run is still kept,
 //                  with the reason, when the machine is known.
 
@@ -67,6 +72,7 @@ try {
     $channel = strtolower(lb_text($in['channel'] ?? '', 8));
     $model = lb_text($in['model'] ?? '', 40);
     $ranAt = lb_text($in['ran_at'] ?? '', 19);
+    $whisper = lb_whisper($in['whisper'] ?? null);
     // optional, and never a reason to refuse: not a believable number
     // of watts is simply not kept
     $watts = [];
@@ -79,6 +85,9 @@ try {
     if ($score === null || $audio === null || $words === null || $matched === null || $score <= 0 ||
         $score > 2000000000 || $audio > 2000000000 || $words > 100000000 || $matched > 100000000) {
         lb_refuse(400, 'score_ms, audio_ms, words and words_matched must be whole numbers.');
+    }
+    if ($whisper === '') {
+        lb_refuse(400, 'whisper must be whisper.cpp\'s version, as 1.9.6.');
     }
     if ($device === '' || $backend === '' || $build === '' ||
         !in_array($kind, ['cpu', 'integrated', 'gpu'], true) ||
@@ -125,11 +134,11 @@ try {
 
     $db->prepare('INSERT INTO runs (machine_id, benchmark_id, device_id, score_ms, audio_ms, words, words_matched,
                                     avg_watts, peak_watts, limit_watts,
-                                    build, channel, ran_at, received_at, sender_hash, verified, status,
-                                    reject_reason)
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)')
+                                    build, whisper, channel, ran_at, received_at, sender_hash, verified,
+                                    status, reject_reason)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)')
        ->execute([$machineId, $benchmark['id'], $deviceId, $score, $audio, $words, $matched,
-                  $watts[0], $watts[1], $watts[2], $build, $channel,
+                  $watts[0], $watts[1], $watts[2], $build, $whisper, $channel,
                   $ranAt, $now, $sender, $status, $reason]);
     $runId = (int) $db->lastInsertId();
 
@@ -147,19 +156,22 @@ try {
         $db->prepare('UPDATE players SET display_name = ? WHERE id = ?')->execute([$name, $machine['player_id']]);
     }
 
-    // the board keeps the machine's best accepted run
+    // the board - the benchmark under this whisper.cpp version - keeps
+    // the machine's best accepted run
     $improved = false;
     if ($status === 'ok') {
-        $q = $db->prepare('SELECT score_ms FROM bests WHERE machine_id = ? AND benchmark_id = ?');
-        $q->execute([$machineId, $benchmark['id']]);
+        $q = $db->prepare('SELECT score_ms FROM bests WHERE machine_id = ? AND benchmark_id = ? AND whisper = ?');
+        $q->execute([$machineId, $benchmark['id'], $whisper]);
         $best = $q->fetchColumn();
         if ($best === false) {
-            $db->prepare('INSERT INTO bests (machine_id, benchmark_id, run_id, score_ms) VALUES (?, ?, ?, ?)')
-               ->execute([$machineId, $benchmark['id'], $runId, $score]);
+            $db->prepare('INSERT INTO bests (machine_id, benchmark_id, whisper, run_id, score_ms)
+                          VALUES (?, ?, ?, ?, ?)')
+               ->execute([$machineId, $benchmark['id'], $whisper, $runId, $score]);
             $improved = true;
         } elseif ($score < (int) $best) {
-            $db->prepare('UPDATE bests SET run_id = ?, score_ms = ? WHERE machine_id = ? AND benchmark_id = ?')
-               ->execute([$runId, $score, $machineId, $benchmark['id']]);
+            $db->prepare('UPDATE bests SET run_id = ?, score_ms = ?
+                          WHERE machine_id = ? AND benchmark_id = ? AND whisper = ?')
+               ->execute([$runId, $score, $machineId, $benchmark['id'], $whisper]);
             $improved = true;
         }
     }
@@ -168,14 +180,15 @@ try {
     if ($status === 'rejected') {
         lb_refuse(422, 'The score was not accepted: ' . $reason . '.');
     }
-    $place = lb_place((int) $benchmark['id'], $machineId);
+    $place = lb_place((int) $benchmark['id'], $whisper, $machineId);
     lb_answer(200, [
         'ok' => true,
         'status' => $status,
         'improved' => $improved,
         'place' => $place ? $place['place'] : 0,
         'best_ms' => $place ? $place['score_ms'] : 0,
-        'count' => lb_board_count((int) $benchmark['id']),
+        'count' => lb_board_count((int) $benchmark['id'], $whisper),
+        'whisper' => $whisper,
     ]);
 } catch (Throwable $e) {
     if (isset($db) && $db->inTransaction()) {
