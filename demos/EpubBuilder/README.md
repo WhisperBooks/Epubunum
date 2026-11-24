@@ -279,7 +279,7 @@ build from a saved transcript (nothing is transcribed).
 the website has a board per benchmark and version (the page opens on the
 newest), Steam's leaderboards for any version after 1.9.5 are new ones
 (`benchmark_long_fast_whisper_1_9_6` ...; the four of 1.9.5 stay as they
-are), the Leaderboards page shows the boards of the version loaded and
+are), the Steam leaderboards page shows the boards of the version loaded and
 names it in its title, and `benchmarks.csv` has a Whisper column.
 
 The **build history** keeps the version with each build, and the time a
@@ -312,7 +312,7 @@ model's builds made with the encoder it has now. Build history shows
 "MTL0 + Core ML" in its Device column.
 
 **The website's board from the program:** **Benchmark > Website
-leaderboard...** (the pad's Benchmark list: **Website leaderboard**), and
+leaderboards...** (the pad's Benchmark list: **Website leaderboards**), and
 on each of Steam's boards the row **This board on the website**, open
 https://leaderboard.epubunum.com in a browser - at the boards of the
 whisper.cpp version this EpubBuilder runs (so a copy that has not been
@@ -392,8 +392,8 @@ the computer's name). The Results box adds each score's place
 ("3rd of 41"; "your best 0:00:25.100 is 3rd of 41" when an earlier run
 was faster), and the log says the same without names.
 
-**Benchmark > Leaderboards...**, the menu's first item (the pad's
-Benchmark list: **Leaderboards**, its top row) lists the four; choosing one shows it as a table over the window (95 %
+**Benchmark > Steam leaderboards...**, the menu's first item (the pad's
+Benchmark list: **Steam leaderboards**, its top row) lists the four; choosing one shows it as a table over the window (95 %
 of its width and of its height) in the benchmarks' yellow frame, in four
 columns: place (room for seven digits), name, score, device. It shows
 as many rows as the window has room for - a full page whenever the
@@ -446,7 +446,7 @@ their power, have no such line and an empty Power column.
 The log says what the site answered ("Website leaderboard - Long Text,
 Fast Model: 3rd of 12."). The Results box shows the site's place when
 Steam is not running (with Steam it shows Steam's). The boards are read
-on the website; **Leaderboards** in the program shows Steam's.
+on the website; **Steam leaderboards** in the program shows Steam's.
 
 ## Build history and the time left
 

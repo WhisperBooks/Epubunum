@@ -50,7 +50,9 @@ if exist "%OUT%" rmdir /s /q "%OUT%"
 mkdir "%OUT%\licences"
 rem whisper.cpp's DLLs with their sub-folders (HIP: rocblas\library), not
 rem the Debug build; robocopy's exit codes below 8 are success
-robocopy "%WDIR%" "%OUT%" /e /xd debug /xf README.md .gitignore *.pdb /njh /njs /nfl /ndl >nul
+rem no programs (ffmpeg.exe, ffplay.exe, ffprobe.exe, whisper's tools): the
+rem libraries are what the programs use
+robocopy "%WDIR%" "%OUT%" /e /xd debug /xf README.md .gitignore *.pdb *.exe /njh /njs /nfl /ndl >nul
 if errorlevel 8 goto failed
 if /i not "%FDIR%"=="%WDIR%" copy /y "%FDIR%\*.dll" "%OUT%\" >nul || goto failed
 for %%f in (COPYING.LGPLv2.1 COPYING.LGPLv3 LICENSE.md BUILD-INFO.txt) do (
@@ -86,7 +88,7 @@ if not exist "%~2\" (
   echo No folder %~2
   exit /b 1
 )
-robocopy "%OUT%" "%~2" /e /njh /njs /nfl /ndl >nul
+robocopy "%OUT%" "%~2" /e /xf *.exe /njh /njs /nfl /ndl >nul
 if errorlevel 8 goto failed
 echo Libraries copied next to the program in %~2
 exit /b 0

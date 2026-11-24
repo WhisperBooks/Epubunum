@@ -103,6 +103,68 @@ var
   { Guards the two. }
   GFactsGate: TObject = nil;
 
+{$IF Defined(MSWINDOWS)}
+{ GetLogicalProcessorInformationEx: the system's list of processors,
+  with each core's efficiency class (the plain call has none). }
+function WinProcessorInfoEx(ARelation: DWORD; ABuffer: Pointer; var ALength: DWORD): BOOL; stdcall;
+  external kernel32 name 'GetLogicalProcessorInformationEx';
+
+{ The cores by kind, on a chip that has two (Intel's P and E cores,
+  Arm's big and little): the cores of the highest efficiency class are
+  the performance cores, all others the efficiency cores. Both 0 on a
+  chip with one kind, or when the system does not say.
+  @param(ACores every core counted (0 = not said))
+  @param(APerf the performance cores)
+  @param(AEff the efficiency cores) }
+procedure WinCoreKinds(out ACores, APerf, AEff: Integer);
+var
+  Len, At, Size: DWORD;
+  Buf: TBytes;
+  Counts: array[Byte] of Integer;
+  I, Top, Kinds: Integer;
+begin
+  ACores := 0;
+  APerf := 0;
+  AEff := 0;
+  Len := 0;
+  // 0 = RelationProcessorCore
+  WinProcessorInfoEx(0, nil, Len);
+  if Len < 12 then
+    Exit;
+  SetLength(Buf, Len);
+  if not WinProcessorInfoEx(0, @Buf[0], Len) then
+    Exit;
+  FillChar(Counts, SizeOf(Counts), 0);
+  // each entry: Relationship (4 bytes), Size (4), Flags (1),
+  // EfficiencyClass (1), ...
+  At := 0;
+  while At + 12 <= Len do
+  begin
+    Size := PCardinal(@Buf[At + 4])^;
+    if (Size < 12) or (At + Size > Len) then
+      Break;
+    if PCardinal(@Buf[At])^ = 0 then
+    begin
+      Inc(Counts[Buf[At + 9]]);
+      Inc(ACores);
+    end;
+    Inc(At, Size);
+  end;
+  Top := -1;
+  Kinds := 0;
+  for I := 0 to High(Counts) do
+    if Counts[I] > 0 then
+    begin
+      Inc(Kinds);
+      Top := I;
+    end;
+  if Kinds < 2 then
+    Exit;
+  APerf := Counts[Top];
+  AEff := ACores - APerf;
+end;
+{$ENDIF}
+
 {$IF Defined(MACOS) and not Defined(IOS)}
 { sysctlbyname(3): a value of the system by its name. }
 function MacSysctlByName(AName: MarshaledAString; AOld: Pointer; AOldLen: PNativeUInt; ANew: Pointer;
@@ -334,6 +396,7 @@ var
   Buf: TBytes;
   P: PSystemLogicalProcessorInformation;
   I: Integer;
+  AllCores: Integer;
 {$ELSEIF Defined(MACOS) and not Defined(IOS)}
 var
   Lines: TArray<string>;
@@ -362,6 +425,16 @@ begin
       begin
         Vendor := R.ReadString('SystemManufacturer');
         Product := R.ReadString('SystemProductName');
+        // Lenovo's product name is a type's code ('83EY' - the owner's
+        // Legion, 2026-11-24); the name people know is its version
+        if (Pos('lenovo', LowerCase(Vendor)) > 0) and (CleanModel(Vendor, R.ReadString('SystemVersion')) <> '') then
+          Product := R.ReadString('SystemVersion');
+        // a maker's placeholder there: the family, then the main board (a
+        // PC built from parts has no model, its board has a name)
+        if CleanModel(Vendor, Product) = '' then
+          Product := R.ReadString('SystemFamily');
+        if CleanModel(Vendor, Product) = '' then
+          Product := R.ReadString('BaseBoardProduct');
       end;
     finally
       R.Free;
@@ -383,6 +456,15 @@ begin
           Inc(P);
         end;
       end;
+    end;
+    // the kinds of core (and the count again: the plain list stops at
+    // 64 processors)
+    try
+      WinCoreKinds(AllCores, Result.PerfCores, Result.EffCores);
+      if AllCores > 0 then
+        Result.Cores := AllCores;
+    except
+      // an older Windows without the call: the plain count stays
     end;
     {$ELSEIF Defined(MACOS) and not Defined(IOS)}
     Result.Cores := Integer(MacSysNumber('hw.physicalcpu'));
@@ -411,9 +493,22 @@ begin
       else if Graphics and SameText(Line, 'Total Number of Cores') and (Result.GpuCores = 0) then
         Result.GpuCores := StrToIntDef(Value, 0);
     end;
+    // the report did not say (it could not be run, or words it differently):
+    // the model's identifier at least ('Mac16,10')
+    if Result.Model = '' then
+      Result.Model := CleanModel('Apple', MacSysText('hw.model'));
     {$ELSEIF Defined(LINUX) and not Defined(ANDROID)}
     Result.Model := CleanModel(Trim(ReadProcFile('/sys/class/dmi/id/sys_vendor')),
       Trim(ReadProcFile('/sys/class/dmi/id/product_name')));
+    // Lenovo's product name is a type's code: the name is its version
+    if (Pos('lenovo', LowerCase(ReadProcFile('/sys/class/dmi/id/sys_vendor'))) > 0) and
+      (CleanModel('Lenovo', Trim(ReadProcFile('/sys/class/dmi/id/product_version'))) <> '') then
+      Result.Model := CleanModel('Lenovo', Trim(ReadProcFile('/sys/class/dmi/id/product_version')));
+    // a maker's placeholder there: the family, then the main board
+    if Result.Model = '' then
+      Result.Model := CleanModel('', Trim(ReadProcFile('/sys/class/dmi/id/product_family')));
+    if Result.Model = '' then
+      Result.Model := CleanModel('', Trim(ReadProcFile('/sys/class/dmi/id/board_name')));
     // the cores: the pairs of 'physical id' and 'core id' in /proc/cpuinfo
     L := TStringList.Create;
     Seen := TStringList.Create;

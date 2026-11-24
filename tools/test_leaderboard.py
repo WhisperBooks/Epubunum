@@ -214,8 +214,12 @@ def main():
         check("a Mac's model, cores, graphics cores and memory; the chip is not said twice; a score without them "
               "leaves them", c["rows"][3]["machine"] == "Mac mini \u00b7 10 cores (4P + 6E) \u00b7 10-core GPU \u00b7 16 GB",
               c["rows"][3])
+        st, a = run(base, installs[0][0], installs[0][1], 150000, device="NVIDIA GeForce RTX 5090 Laptop GPU", device_memory_mb=24166)
+        st, c2 = call(base, "/api/board.php?benchmark=benchmark_long_fast&rows=7")
+        check("a best run made before the memory was sent shows what a later run on the same device said",
+              c2["rows"][0]["score_ms"] == 119437 and c2["rows"][0]["device_memory_mb"] == 24166, c2["rows"][0])
         check("the device's own memory is kept with the run", c["rows"][3]["device_memory_mb"] == 24166 and
-              c["rows"][0]["device_memory_mb"] is None, c["rows"][3])
+              c["rows"][1]["device_memory_mb"] is None, c["rows"][3])
         st, a = run(base, last[0], last[1], 1700000, machine_model="ROG Ally RC71L", cpu="AMD Ryzen Z1 Extreme", cores=8,
                     threads=16, memory_gb=16, gpu_cores=0, perf_cores="x")
         st, c = call(base, "/api/board.php?benchmark=benchmark_long_fast&rows=7")
@@ -292,8 +296,8 @@ def main():
         k = con.execute("SELECT COUNT(*) FROM runs WHERE status = 'rejected'").fetchone()[0]
         v = dict(con.execute("SELECT whisper, COUNT(*) FROM runs GROUP BY whisper").fetchall())
         con.close()
-        check("every run was kept, the refused ones with their reason", n == 24 and k == 4, (n, k))
-        check("each run has its whisper.cpp version", v == {"1.9.5": 22, "1.9.6": 2}, v)
+        check("every run was kept, the refused ones with their reason", n == 25 and k == 4, (n, k))
+        check("each run has its whisper.cpp version", v == {"1.9.5": 23, "1.9.6": 2}, v)
 
         print("rate limit")
         spare = str(uuid.uuid4())

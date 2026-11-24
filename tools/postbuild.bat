@@ -75,7 +75,9 @@ goto steam
 :builder
 if "%STEAM%"=="1" goto buildercore
 set "STEP=the libraries"
-robocopy "%SRC%" "%OUT%" /e /xf README.md %RC% >nul
+rem no programs: whisper.cpp and FFmpeg are used through their DLLs only
+rem (ffmpeg.exe, ffplay.exe, ffprobe.exe and whisper's tools are never run)
+robocopy "%SRC%" "%OUT%" /e /xf README.md *.exe %RC% >nul
 if errorlevel 8 goto failed
 echo postbuild: whisper.cpp (every backend) and FFmpeg copied to %OUT%
 call :media
@@ -85,7 +87,7 @@ goto steam
 rem CPU + Vulkan: everything but the cuda and rocm parts (their DLLs,
 rem rocBLAS / hipBLASLt kernel folders and licence texts)
 set "STEP=the libraries (CPU and Vulkan)"
-robocopy "%SRC%" "%OUT%" /e /xd rocblas hipblaslt /xf README.md ggml-cuda.dll cudart64_*.dll cublas64_*.dll cublasLt64_*.dll nvrtc*.dll ggml-hip.dll amdhip64*.dll amd_comgr*.dll hiprtc*.dll hipblas*.dll hipblaslt*.dll rocblas*.dll rocsolver*.dll libhipblas*.dll CUDA-* ROCm-* %RC% >nul
+robocopy "%SRC%" "%OUT%" /e /xd rocblas hipblaslt /xf README.md *.exe ggml-cuda.dll cudart64_*.dll cublas64_*.dll cublasLt64_*.dll nvrtc*.dll ggml-hip.dll amdhip64*.dll amd_comgr*.dll hiprtc*.dll hipblas*.dll hipblaslt*.dll rocblas*.dll rocsolver*.dll libhipblas*.dll CUDA-* ROCm-* %RC% >nul
 if errorlevel 8 goto failed
 echo postbuild: whisper.cpp (CPU and Vulkan) and FFmpeg copied to %OUT%
 call :media

@@ -107,6 +107,24 @@ function SteamGetDlc(AAppID: Cardinal): string;
     whether the overlay showed is not known: a user may have it off) }
 function SteamOpenWebPage(const AUrl: string): Boolean;
 
+{ Keeps Steam's overlay drawn over AForm. On Windows the overlay is
+  drawn INTO the program's own frames: it shows, and answers, only when
+  the program draws one - and these programs draw when something changes
+  (the builder, idle, every two seconds), so the overlay came late and
+  its menus moved in jumps (owner, 2026-11-24: "getting to Steam menus
+  can be a bit hit + miss"). Steam says when it has something to draw
+  (ISteamUtils' BOverlayNeedsPresent, made for programs that draw on
+  events): asked sixty times a second, and the window is drawn again
+  while it says yes - nothing is drawn while it says no. Nothing outside
+  a Steam build, or without Steam. Call it once, when the form exists.
+  @param(AForm the program's window)
+  @param(ABusy says when the program is at work that must not be slowed
+    (the builder transcribing or calibrating: the drawing shares the
+    graphics card with it, and Steam's frame counter alone keeps the
+    overlay asking): the window is then drawn for the overlay ten times a
+    second only. nil = never) }
+procedure SteamOverlayFollow(AForm: TCommonCustomForm; const ABusy: TFunc<Boolean> = nil);
+
 { What SteamStartup and Steam said before the program's log was open
   (one line each; the forms write them into their logs).
   @returns(the lines) }
@@ -118,9 +136,33 @@ implementation
 uses
   Steamworks.Types, Steamworks.SDKTypes, Steamworks.Core, Steamworks.Components, Steamworks.FMX,
   Steamworks.FMX.Screen, Steamworks.Plugin.Apps, Steamworks.Plugin.Friends, Steamworks.Plugin.Utils,
+  FMX.Types,
   uDebugLog;
 
 type
+  { SteamOverlayFollow's timer: the window drawn again while Steam's
+    overlay has something to show. Owned by the window. }
+  TOverlayFollower = class(TComponent)
+  private
+    { The window. }
+    FForm: TCommonCustomForm;
+    { Sixty times a second. }
+    FTimer: TTimer;
+    { The overlay needed a frame at the last look (for the log's line). }
+    FNeeded: Boolean;
+    { The call is not there (an older redistributable): no more asked. }
+    FBroken: Boolean;
+    { The program is at work: drawn every sixth time only (may be nil). }
+    FBusy: TFunc<Boolean>;
+    { Ticks since the window was last drawn while at work. }
+    FSkipped: Integer;
+    { FTimer: asks Steam, draws. }
+    procedure Tick(Sender: TObject);
+  public
+    { The follower of AForm, started. }
+    constructor Create(AForm: TCommonCustomForm; const ABusy: TFunc<Boolean>); reintroduce;
+  end;
+
   { Receives TSteamAPI's events (they are methods of an object). }
   TSteamHost = class
   public
@@ -328,6 +370,67 @@ begin
     Result := sdsOwned
   else
     Result := sdsNotOwned;
+  {$ENDIF}
+end;
+
+{$IFDEF STEAMBUILD}
+constructor TOverlayFollower.Create(AForm: TCommonCustomForm; const ABusy: TFunc<Boolean>);
+begin
+  inherited Create(AForm);
+  FForm := AForm;
+  FBusy := ABusy;
+  FTimer := TTimer.Create(Self);
+  FTimer.Interval := 16;
+  FTimer.OnTimer := Tick;
+  FTimer.Enabled := True;
+end;
+
+procedure TOverlayFollower.Tick(Sender: TObject);
+var
+  U: TSteamUtilsPlugin;
+  Needs: Boolean;
+begin
+  if FBroken or (GSteam = nil) or not GSteam.IsRunning then
+    Exit;
+  try
+    U := TSteamUtilsPlugin(Steam.FindPlugin(TSteamUtilsPlugin));
+    Needs := (U <> nil) and U.Active and U.BOverlayNeedsPresent;
+  except
+    on E: Exception do
+    begin
+      FBroken := True;
+      DebugLog('Steam overlay: not followed - ' + E.Message);
+      Exit;
+    end;
+  end;
+  // once for each time it opens or shows something, not sixty a second
+  if Needs <> FNeeded then
+  begin
+    FNeeded := Needs;
+    if Needs then
+      DebugLog('Steam overlay: it has something to show - the window is drawn for it');
+  end;
+  if not Needs then
+    Exit;
+  // at work: ten frames a second for the overlay, not sixty
+  if Assigned(FBusy) and FBusy() then
+  begin
+    Inc(FSkipped);
+    if FSkipped < 6 then
+      Exit;
+  end;
+  FSkipped := 0;
+  FForm.Invalidate;
+end;
+{$ENDIF}
+
+procedure SteamOverlayFollow(AForm: TCommonCustomForm; const ABusy: TFunc<Boolean>);
+begin
+  {$IFDEF STEAMBUILD}
+  if (AForm = nil) or not SteamRunning then
+    Exit;
+  TOverlayFollower.Create(AForm, ABusy);
+  DebugLog('Steam overlay: followed (the window is drawn whenever Steam has something to show over it)');
   {$ENDIF}
 end;
 

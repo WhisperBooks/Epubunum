@@ -1234,6 +1234,19 @@ type
       from uReaderInput's table.
       @returns(the text) }
     function PadFoot: string;
+    { Big Picture with nothing running: the menu is all there is to see,
+      so it is never closed (owner, 2026-11-24: the back button on the
+      first list "dumps you to a menu-less screen - that shouldn't
+      happen"). While something runs it may be closed, to see the
+      progress behind it.
+      @returns(True when the menu must stay) }
+    function PadStays: Boolean;
+    { The buttons of the foot and what they do, for the list shown: none
+      to close the menu where PadStays, none to go back on the first list
+      then either.
+      @param(AButtons the buttons (BP_*))
+      @param(ATexts what each does) }
+    procedure PadFootParts(out AButtons: TArray<Integer>; out ATexts: TArray<string>);
     { PadFoot for the keys (AKeys) or for a pad.
       @returns(the text) }
     function PadFootFor(AKeys: Boolean): string;
@@ -1598,7 +1611,7 @@ type
     procedure BoardRead(const AResult: TSteamBoardResult);
     { Benchmark > Leaderboards... }
     procedure miBoardsClick(Sender: TObject);
-    { Benchmark > Website leaderboard... }
+    { Benchmark > Website leaderboards... }
     procedure miWebBoardClick(Sender: TObject);
     { Opens the website's board of benchmark AOption (1 .. 4; 0 = the
       site's first) in a browser: whisper.cpp's version in the address (a
@@ -3486,6 +3499,14 @@ begin
   OnActivate := FormActivated;
   OnDeactivate := FormDeactivated;
   FRedraw := TWindowRedraw.Create(Self, True);
+  // Steam's overlay is drawn into the window's own frames: one whenever
+  // it has something to show (uSteam)
+  SteamOverlayFollow(Self,
+    function: Boolean
+    begin
+      // transcribing or calibrating: the card is at work
+      Result := (FBuild <> nil) or (FCalib <> nil);
+    end);
   tmSleep := TTimer.Create(Self);
   tmSleep.Interval := 250;
   tmSleep.OnTimer := tmSleepTimer;
@@ -6151,14 +6172,14 @@ begin
   // Steam's leaderboards of the four, at the top (owner, 2026-11-23)
   if SteamRunning then
   begin
-    miBoards := Item(M, '&Leaderboards...', miBoardsClick);
-    Item(M, '&Website leaderboard...', miWebBoardClick);
+    miBoards := Item(M, '&Steam leaderboards...', miBoardsClick);
+    Item(M, '&Website leaderboards...', miWebBoardClick);
     Item(M, '-', nil);
   end
   else
   begin
     // without Steam the website's is the leaderboard
-    Item(M, '&Website leaderboard...', miWebBoardClick);
+    Item(M, '&Website leaderboards...', miWebBoardClick);
     Item(M, '-', nil);
   end;
   for I := 0 to High(miBench) do
@@ -6929,8 +6950,11 @@ begin
     BP_MENU:
       if FPadMode = BPM_ASK then
         PadAnswer(-1)
-      else
-        FPadMenu.Hide;
+      else if not PadStays then
+        FPadMenu.Hide
+      else if (FPadMode <> BPM_HOME) or FPadSettings then
+        // Big Picture, nothing running: the first list, never no list
+        PadHome(BPC_BOOK);
     BP_QUEUE:
       if FPadMode <> BPM_ASK then
         PadQueue(-1);
@@ -6944,19 +6968,35 @@ const
   { What each of BP_FOOT_BUTTONS does. }
   BP_FOOT_TEXTS: array[0..5] of string = ('choose', 'back', '', 'change', 'close', 'the queue');
 
+function TfrmBuilder.PadStays: Boolean;
+begin
+  Result := FBigPicture and (FBuild = nil) and (FCalib = nil) and (FDownload = nil) and not FQueueRunning;
+end;
+
+procedure TfrmBuilder.PadFootParts(out AButtons: TArray<Integer>; out ATexts: TArray<string>);
+var
+  I: Integer;
+  First: Boolean;
+begin
+  AButtons := nil;
+  ATexts := nil;
+  // the first list: nothing to go back to
+  First := (FPadMode = BPM_HOME) and not FPadSettings;
+  for I := 0 to High(BP_FOOT_BUTTONS) do
+  begin
+    if PadStays and ((BP_FOOT_BUTTONS[I] = BP_MENU) or (First and (BP_FOOT_BUTTONS[I] = BP_BACK))) then
+      Continue;
+    AButtons := AButtons + [BP_FOOT_BUTTONS[I]];
+    ATexts := ATexts + [BP_FOOT_TEXTS[I]];
+  end;
+end;
+
 function TfrmBuilder.PadFoot: string;
 var
   B: TArray<Integer>;
   T: TArray<string>;
-  I: Integer;
 begin
-  SetLength(B, Length(BP_FOOT_BUTTONS));
-  SetLength(T, Length(BP_FOOT_TEXTS));
-  for I := 0 to High(B) do
-  begin
-    B[I] := BP_FOOT_BUTTONS[I];
-    T[I] := BP_FOOT_TEXTS[I];
-  end;
+  PadFootParts(B, T);
   Result := PadFootOf(B, T);
 end;
 
@@ -6964,15 +7004,8 @@ function TfrmBuilder.PadFootFor(AKeys: Boolean): string;
 var
   B: TArray<Integer>;
   T: TArray<string>;
-  I: Integer;
 begin
-  SetLength(B, Length(BP_FOOT_BUTTONS));
-  SetLength(T, Length(BP_FOOT_TEXTS));
-  for I := 0 to High(B) do
-  begin
-    B[I] := BP_FOOT_BUTTONS[I];
-    T[I] := BP_FOOT_TEXTS[I];
-  end;
+  PadFootParts(B, T);
   Result := TPadMenu.HintsText(PadHintsFor(B, T, AKeys));
 end;
 
@@ -7281,7 +7314,11 @@ begin
     BPM_QUEUES: PadQueue(-1);
     BPM_JOB: PadQueue(FPadJob);
   else
-    FPadMenu.Hide;
+    // Big Picture, nothing running: the list stays (see PadStays)
+    if not PadStays then
+      FPadMenu.Hide
+    else if FPadMode <> BPM_HOME then
+      PadHome(BPC_BOOK);
   end;
 end;
 
@@ -10508,7 +10545,7 @@ begin
   Items := Items + [TPadMenu.Item('Back')];
   FPadCmds := FPadCmds + [PADROW_BACK];
   FPadMode := BPM_BOARDS;
-  FPadMenu.Show('Leaderboards', Items, EnsureRange(FBoardShown - 1, 0, 3),
+  FPadMenu.Show('Steam leaderboards', Items, EnsureRange(FBoardShown - 1, 0, 3),
     'The fastest transcriptions on Steam: each player''s best.');
 end;
 
@@ -10811,14 +10848,16 @@ begin
   // Steam's leaderboards of the four, the top row (owner, 2026-11-23)
   if SteamRunning then
   begin
-    Items := Items + [TPadMenu.Item('Leaderboards')];
+    // named for whose they are: the website's row is beside it (owner,
+    // 2026-11-24: "shouldn't the first be Steam Leaderboards")
+    Items := Items + [TPadMenu.Item('Steam leaderboards')];
     FPadCmds := FPadCmds + [PADROW_BOARDS];
   end;
   // the website's boards, in a browser (Big Picture: Steam's overlay -
   // so only where there is one)
   if not FBigPicture or SteamRunning then
   begin
-    Items := Items + [TPadMenu.Item('Website leaderboard')];
+    Items := Items + [TPadMenu.Item('Website leaderboards')];
     FPadCmds := FPadCmds + [PADROW_WEB];
   end;
   for I := 0 to High(miBench) do

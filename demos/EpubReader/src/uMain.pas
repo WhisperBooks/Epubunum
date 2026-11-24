@@ -2294,6 +2294,9 @@ begin
   OnActivate := FormActivated;
   OnDeactivate := FormDeactivated;
   FRedraw := TWindowRedraw.Create(Self);
+  // Steam's overlay is drawn into the window's own frames: one whenever
+  // it has something to show (uSteam)
+  SteamOverlayFollow(Self);
   // Steam's Exit Game ends the program with SIGTERM: the place is saved
   // first (owner)
   if QuitSignalInstall(QuitSignalled) then

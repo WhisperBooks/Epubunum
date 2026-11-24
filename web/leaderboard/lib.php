@@ -339,7 +339,9 @@ function lb_page(int $benchmarkId, string $whisper, int $first, int $rows): arra
         'SELECT b.machine_id, b.score_ms, p.display_name, m.label, m.os, d.description AS device, d.backend,
                 m.model, m.cpu, m.memory_gb, m.cores, m.perf_cores, m.eff_cores, m.threads, m.gpu_cores,
                 r.words, r.words_matched, r.ran_at, r.verified, r.avg_watts, r.peak_watts, r.limit_watts,
-                r.device_memory_mb
+                COALESCE(r.device_memory_mb,
+                         (SELECT MAX(r2.device_memory_mb) FROM runs r2
+                          WHERE r2.machine_id = b.machine_id AND r2.device_id = r.device_id)) AS device_memory_mb
          FROM bests b
          JOIN machines m ON m.id = b.machine_id AND m.hidden = 0
          JOIN players p ON p.id = m.player_id AND p.banned = 0

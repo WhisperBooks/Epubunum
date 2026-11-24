@@ -127,6 +127,9 @@ the map. Sessions 13 and earlier: their handovers follow.
 - Zips 290, 291, 293 - 299: Open in browser, the window without the log,
   whisper.cpp's version in scores and calibrations (293 BEFORE or WITH
   the first build that ships 1.9.6's libraries).
+- Zips 301 - 303 (machine facts, menu texts), 306 (Windows' P and E cores), 304 (Steam's overlay is
+  given frames: BUILDER AND READER; a benchmark with and without
+  Steam's frame counter to compare), 305 (Big Picture's menu stays).
 - Add here whatever else needs a build, and say so in the delivery.
 
 ### Not confirmed by the owner
@@ -173,6 +176,20 @@ the map. Sessions 13 and earlier: their handovers follow.
   Steam work - not to be started or raised before then. Not carried
   over from Steam Input: rebinding, the Deck's back paddles and
   trackpads, gyro.
+
+- 16:47, A NOTE FOR THE NON-STEAM VERSION (owner, after zip 303):
+  "This option [Steam leaderboards], of course, should only appear on
+  Steam version. Same for using any Steam related function. We're
+  doing Steam ATM so this is a note for when we do the non-Steam
+  version". AS IT IS NOW (looked at, zip 303's source): the menu
+  item, the pad's row and the page are made only when SteamRunning;
+  uSteam's functions do nothing outside a STEAMBUILD
+  (SteamOpenWebPage answers False); "Website leaderboards" is offered
+  everywhere but in a Big Picture without Steam. WHEN THE NON-STEAM
+  VERSION IS DONE: go through every SteamRunning / SteamBuild use and
+  every text that names Steam (the log's lines, the README), with
+  the SDL3 pad fallback (parked above) - a non-Steam build must
+  neither show nor call anything of Steam's.
 
 ### Next (the owner's word decides the order)
 1. AMD's power ON WINDOWS - when Windows is on the Steam Machine
@@ -1660,7 +1677,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 299 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
+Last number used: 306 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
 next-session notes, CLAUDE.md only).
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
@@ -4248,6 +4265,176 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 306 (on top of zip 305): Windows says its performance and efficiency cores
+Session 15, owner 2026-11-24 16:55, a screenshot of the 5090's row in
+`machines` (model "Legion 9 18IAX10", cores 24, threads 24, perf_cores,
+eff_cores and gpu_cores NULL): "Still no cores or GPU memory". NOT
+COMPILED. Files: demos/common/uMachine.pas; CLAUDE.md. No .dproj.
+- ZIP 302's LENOVO NAME WORKS (seen in that row), and cores / threads
+  are stored: 24 / 24 is right for that chip (no hyper-threading).
+- perf_cores / eff_cores were Mac and Linux only. Now Windows too:
+  uMachine.WinCoreKinds reads GetLogicalProcessorInformationEx (own
+  external, WinProcessorInfoEx; the entries read as bytes - the
+  efficiency class is byte 9 of each) - the highest class = the
+  performance cores, the rest efficiency; one class only = both 0.
+  The core count comes from it too (the plain call stops at 64
+  processors). EXPECTED on the 5090: 8 + 16.
+- gpu_cores IS APPLE'S ONLY (a PC's card has no such count): NULL is
+  right there.
+- GPU MEMORY IS NOT IN `machines`: it is runs.device_memory_mb, of the
+  run's device. The owner was given the query to look
+  (SELECT id, created, device_id, device_memory_mb FROM runs ORDER BY
+  id DESC LIMIT 10) - ANSWER AWAITED; a NULL in a run made with zip
+  300 or later means the device text is not as uBuilder.WebScore
+  reads it (then: a line of the debug log's "device: ..." is needed).
+
+## Zip 305 (on top of zip 304): Big Picture's menu is never closed while idle
+Session 15, owner 2026-11-24 16:51: "[B] on that menu also dumps you to
+a menu-less screen - that shouldn't happen either". NOT COMPILED. Files:
+demos/EpubBuilder/src/uBuilder.pas; CLAUDE.md. No .dproj. BUILDER ONLY.
+- PadStays: Big Picture and nothing running (no build, calibration,
+  download or queue). Then back on the first list does nothing, and
+  the menu button goes to the first list from any other (nothing on
+  it). WHILE SOMETHING RUNS the menu still closes, to see the progress
+  behind it - as before.
+- The foot (PadFootParts, for PadFoot and PadFootFor) then names no
+  button to close, and none to go back on the first list.
+- Outside Big Picture nothing changes. A NEW WAY TO HIDE THE MENU MUST
+  ASK PadStays first.
+- 16:49, the owner's screenshot "I thought we got rid of the memo?":
+  it is the progress panel (title "Idle", "Last: ..."), put behind the
+  menu in zip 291 by the owner's choice; told so, offered to hide it
+  while idle - NOT ANSWERED.
+
+## Zip 304 (on top of zip 303): Steam's overlay is given frames to draw in
+Session 15, owner 2026-11-24 16:48: "Are we loading Steam Overlays? It
+appears that getting to Steam menus can be a bit hit + miss". NOT
+COMPILED. Files: demos/common/uSteam.pas;
+demos/EpubBuilder/src/uBuilder.pas; demos/EpubReader/src/uMain.pas;
+CLAUDE.md (with 16:47's note for the non-Steam version, in the
+session's log). No .dproj. BOTH STEAM PROGRAMS.
+- THE OVERLAY IS LOADED (Steam puts it into the program; the frame
+  counter in the owner's 16:18 screenshot is its) - but on Windows it
+  is drawn INTO the program's own frames, and these programs draw on
+  events: the builder, idle, every two seconds (uRedraw); 13 a second
+  during a benchmark. So the overlay opened late and moved in jumps.
+  NOT SEEN, taken from how the overlay works and that screenshot.
+- uSteam.SteamOverlayFollow(form, busy): a timer of the form (16 ms)
+  asks ISteamUtils' BOverlayNeedsPresent (TSteamUtilsPlugin, read in
+  G3DGames/TSteamAPI: the call for programs that draw on events) and
+  Invalidates the form while it says yes. busy (the builder: FBuild
+  or FCalib) -> every sixth tick only, ten frames a second: with
+  Steam's frame counter on the overlay may ask for a frame all the
+  time, and the drawing shares the card with the transcription - A
+  BENCHMARK MUST NOT BE SLOWED BY IT (to check: a benchmark with and
+  without the frame counter). An exception (an older redistributable
+  without the call): logged once, no more asked.
+- Called in both programs' FormCreate beside TWindowRedraw.Create.
+  The debug log: "Steam overlay: followed ..." at the start, and a
+  line each time the overlay begins to need frames.
+- LINUX Game Mode: gamescope draws Steam's overlay itself - nothing
+  is expected to change there (the call then says no).
+
+## Zip 303 (on top of zip 302): "Steam leaderboards" and "Website leaderboards"
+Session 15, owner 2026-11-24 16:44: "The menu lists Leaderboards and
+Website Leaderboards shouldn't the first be Steam Leaderboards" - yes.
+NOT COMPILED. Files: demos/EpubBuilder/src/uBuilder.pas, README.md;
+CLAUDE.md. Texts only: the desktop's Benchmark menu ("Steam
+leaderboards...", "Website leaderboards..."), the pad's Benchmark list
+and the list's title. The website's row was "Website leaderboard"
+(singular) - plural now, as the owner said it and as it opens all
+four. The README's heading "Leaderboards (Steam)" and the log's
+"Website leaderboard - <benchmark>: ..." lines are as they were.
+
+## Zip 302 (on top of zip 301): the machine's model has fallbacks
+Session 15, owner 2026-11-24 16:40: "Are we using fallbacks if the
+more accurate ones aren't populated?" - PARTLY, said field by field;
+the model had none but Lenovo's. NOT COMPILED. Files:
+demos/common/uMachine.pas; CLAUDE.md.
+- The owner's laptop (16:38 - 16:39): a Legion 9i; the registry has
+  SystemManufacturer LENOVO, SystemProductName 83EY, SystemVersion and
+  SystemFamily both "Legion 9 18IAX10" - zip 301's choice is right.
+- THE MODEL, in order - Windows: Lenovo's SystemVersion;
+  SystemProductName; SystemFamily; BaseBoardProduct (a PC built from
+  parts: its board). Linux: Lenovo's product_version; product_name;
+  product_family; board_name. A Mac: the report's "Model Name"; then
+  sysctl hw.model ("Mac16,10"). A maker's placeholder counts as
+  nothing at every step. Then the site's "Unknown".
+- THE OTHERS, as they were: cores -> "N cores (P + E)" when the two
+  kinds are known, else "N cores", else the site says "N threads";
+  the processor's name from the system, '' when not told; the memory
+  as the system counts it; a card's memory from whisper.cpp's device
+  text only (the site then looks at the machine's other runs on that
+  device - zip 301).
+- NO FALLBACK, and none known: an Apple chip's graphics cores (only
+  the report has them); the performance / efficiency split outside a
+  Mac (Intel's hybrid processors: not read on Windows or Linux).
+
+## Zip 301 (on top of zip 300): a card's memory on the row of an older best; Lenovo's model
+Session 15, owner 2026-11-24 16:36: "No GPU info still"; "I looked
+at table (no entry for GPU RAM either)". READ on the live page after
+the 5090's two runs with build 79bd491: its second line is now "83EY
+. Intel(R) Core(TM) Ultra 9 275HX . 24 cores . 64 GB" (zip 298 works:
+the machine's facts arrive) - and no memory after "Vulkan". PASCAL
+NOT COMPILED; the site tested. Files: web/leaderboard/lib.php;
+tools/test_leaderboard.py; demos/common/uMachine.pas; CLAUDE.md.
+- WHY THE PAGE SHOWS NONE: the memory is the RUN's (runs.
+  device_memory_mb - NOT a column of machines, where the owner may
+  have looked: SAID), and a board shows the machine's BEST run - the
+  5090's best is older than the field. lb_page now takes, when the
+  best run has none, what any run of that machine ON THE SAME DEVICE
+  said (COALESCE + a sub-select; the same statement in SQLite).
+- NOT KNOWN: whether today's four runs carry it (the owner's "no
+  entry" - which table?). If runs.device_memory_mb is NULL in the
+  newest rows, build 79bd491 did not send it: then say so - WebScore's
+  reading of '(GPU, Vulkan, 22.7 of 23.6 GB free)' was gone through
+  again and gives 24166.
+- "83EY": Lenovo's SystemProductName is the type's code; the name is
+  SystemVersion (Windows) / product_version (Linux) - used for Lenovo
+  when it is not a placeholder. NOT SEEN: what that value is on the
+  owner's laptop.
+- The owner's SteamPipe deployment folder: he expected it to be known
+  ("Your history knows it"); it is NOT in this file (no absolute
+  paths in tracked files) - ask when it is needed.
+- The second run of the four benchmarks (16:31): 0:27.955, 0:35.404,
+  1:58.928, 2:07.527 - the fast model moved, the detailed did not:
+  spread, as read from the log.
+
+## Zip 300 (on top of zip 299): FFmpeg's programs are no longer shipped
+Session 15, owner 2026-11-24 16:25: "we ship ffmpeg.exe + ffplay.exe
+etc - are those really required?" - NO: looked through every source
+and script - nothing starts ffmpeg.exe, ffplay.exe or ffprobe.exe;
+FFmpeg (and whisper.cpp) are used through their DLLs only. They came
+along because the Windows scripts copy a folder whole. Files:
+tools/postbuild.bat, tools/redist.bat; CLAUDE.md. No source changed.
+- redist.bat collect: robocopy of whisper-dev's folder now leaves out
+  *.exe (ffmpeg-dev's share was *.dll only already); deploy too.
+- postbuild.bat: EpubBuilder's two copies (every backend; CPU and
+  Vulkan for Steam) leave out *.exe. EpubReader's copy was av*.dll /
+  sw*.dll / postproc*.dll only - it never had them.
+- Linux and macOS (redist.sh, deploy_redist.py) copy *.so* / *.dylib
+  only: no programs there.
+- WHAT IS ALREADY THERE STAYS until deleted by hand: the .exe files in
+  redistributable_bin\Win64, in the builder's output folders and in
+  the Steam content folder the depot is built from (robocopy without
+  /purge does not remove). After deleting them there, the next
+  SteamPipe upload drops them from the depot.
+- ALSO 16:17 - 16:23, the owner's test build 79bd491 on the 5090 (the
+  first compile and run of zips 290 - 299; whisper.cpp 1.9.5-dev):
+  "have you altered the benchmarks - they're slower and stall at
+  start". The debug log READ (5398 lines): the right device, the
+  23 November calibration in use, every score sent and answered. THE
+  STALL is each model's FIRST use after the program starts - the first
+  30 s of benchmark 1 took 20 s (encode 1866 ms a run against 6.9
+  after), benchmark 2's (the other model) 6.6 s, benchmarks 3 and 4
+  0.3 / 0.6 s - in the UNTIMED lead-in. THE TIMES: the detailed model
+  within 1 % of its best; the fast model 5 - 8 % behind, with 4 and
+  48 fallbacks (12 s of batched decoding in the long one) - taken for
+  run-to-run spread, NOT PROVEN (benchmarks.csv would show it). The
+  owner ran again: "looks better". Nothing of today's is in the timed
+  part. OPEN: whether the CALIBRATION times a model's first use
+  (not looked at).
 
 ## Zip 299 (on top of zip 298): the memory of the device a run was on
 Session 15, owner 2026-11-24 16:02: "There doesn't appear to be GPU
