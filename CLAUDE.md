@@ -1677,7 +1677,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 306 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
+Last number used: 307 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
 next-session notes, CLAUDE.md only).
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
@@ -4265,6 +4265,27 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 307 (on top of zip 306): "Fremont" is the Steam Machine
+Session 15, 2026-11-24 17:37 - 17:39. NOT COMPILED. Files:
+demos/common/uMachine.pas; CLAUDE.md. No .dproj.
+- 17:04 the owner pulled and pushed (e78a5bc = everything to zip 306,
+  compared: identical), deployed to Steam, and ran the top three
+  machines. SEEN ON THE SITE: the 5090 "Vulkan, 24 GB", "Legion 9
+  18IAX10 ... 24 cores (8P + 16E) . 64 GB" - ZIPS 300 - 302 AND 306
+  WORK (306 so compiled); the Mac "Mac mini . 10 cores (4P + 6E) .
+  10-core GPU . 16 GB", no device memory (right: shared); the Steam
+  Machine "Vulkan, 8 GB", model "Fremont".
+- The page had not shown the device memory because the host's
+  index.php / lib.php were older than zip 300 / 301 (runs 75 - 84 had
+  24166 MB stored) - uploaded by the owner, then right.
+- CleanModel: Valve's 'Fremont' -> 'Steam Machine' (beside Jupiter and
+  Galileo; ONLY WHEN THE MAKER SAYS Valve - the maker's text of that
+  machine was not seen). Owner: "I'll do a full run after whisper" -
+  THIS GOES INTO THE FIRST 1.9.6 BUILD; every machine is run again
+  then, which fills the three rows still without details.
+- Zips 304 / 305 (the overlay, the menu that stays): deployed, NOT
+  YET SAID whether they work.
 
 ## Zip 306 (on top of zip 305): Windows says its performance and efficiency cores
 Session 15, owner 2026-11-24 16:55, a screenshot of the 5090's row in

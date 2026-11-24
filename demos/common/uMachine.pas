@@ -378,7 +378,10 @@ begin
     if SameText(Result, 'Jupiter') then
       Result := 'Steam Deck'
     else if SameText(Result, 'Galileo') then
-      Result := 'Steam Deck OLED';
+      Result := 'Steam Deck OLED'
+    // the Steam Machine (the owner's said 'Fremont', 2026-11-24)
+    else if SameText(Result, 'Fremont') then
+      Result := 'Steam Machine';
   end;
   // one line, not too long for a board
   while Pos('  ', Result) > 0 do
