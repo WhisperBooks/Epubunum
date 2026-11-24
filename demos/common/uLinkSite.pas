@@ -155,9 +155,22 @@ type
 { An install id as the site writes it: lower case, without braces. }
 function LinkSiteId(const AId: string): string;
 
+{ Opens a page of the link site in the system's own browser - the page a
+  code is typed on, with the code in it already (TLinkSiteCode.Url).
+  Owner, 2026-11-24: "It would be nicer if there was a button that
+  automatically opened your default web browser at the desired page."
+  Only an address of the site itself, made of plain characters, is
+  opened (it comes from the site's answer and goes to the system's
+  shell). Windows: the shell's "open"; macOS: open; Linux: xdg-open.
+  @param(AUrl the address)
+  @returns(True when the system took it - not whether a browser showed) }
+function LinkSiteOpen(const AUrl: string): Boolean;
+
 implementation
 
 uses
+  {$IFDEF MSWINDOWS} Winapi.Windows, Winapi.ShellAPI, {$ENDIF}
+  {$IFDEF POSIX} Posix.Stdlib, {$ENDIF}
   System.Classes, System.Net.HttpClient, System.Net.URLClient,
   // TJSONArray's inline getters expand only with it (H2443)
   System.Generics.Collections,
@@ -169,6 +182,36 @@ function LinkSiteId(const AId: string): string;
 begin
   Result := LowerCase(Trim(AId));
   Result := StringReplace(StringReplace(Result, '{', '', [rfReplaceAll]), '}', '', [rfReplaceAll]);
+end;
+
+function LinkSiteOpen(const AUrl: string): Boolean;
+const
+  { What an address of the site is made of: nothing a shell reads. }
+  PLAIN = ['A'..'Z', 'a'..'z', '0'..'9', ':', '/', '?', '&', '=', '.', '_', '-', '%'];
+var
+  I: Integer;
+  {$IFDEF POSIX}
+  Line: UTF8String;
+  {$ENDIF}
+begin
+  Result := False;
+  if (AUrl <> LINK_SITE_URL) and (Copy(AUrl, 1, Length(LINK_SITE_URL) + 1) <> LINK_SITE_URL + '/') then
+    Exit;
+  if Length(AUrl) > 200 then
+    Exit;
+  for I := 1 to Length(AUrl) do
+    if not CharInSet(AUrl[I], PLAIN) then
+      Exit;
+  {$IF Defined(MSWINDOWS)}
+  Result := ShellExecute(0, 'open', PChar(AUrl), nil, nil, SW_SHOWNORMAL) > 32;
+  {$ELSEIF Defined(MACOS)}
+  Line := UTF8String('open "' + AUrl + '"');
+  Result := _system(MarshaledAString(Line)) = 0;
+  {$ELSEIF Defined(POSIX)}
+  // in the background: the browser may stay open as long as it likes
+  Line := UTF8String('xdg-open "' + AUrl + '" >/dev/null 2>&1 &');
+  Result := _system(MarshaledAString(Line)) = 0;
+  {$ENDIF}
 end;
 
 { ELinkSite }

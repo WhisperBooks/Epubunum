@@ -495,8 +495,13 @@ type
     btnCancel: TButton;
     { How far the build is. }
     pbBuild: TProgressBar;
-    { What the build did. }
-    mmLog: TMemo;
+    { The window's last message, under the progress panel: what
+      WindowLine says - a book chosen, the queue changed, a program
+      paired, why something was not started. The log itself is not in
+      the window (owner, 2026-11-24: "The form's copy is not required any
+      more as we have access to the log by several other methods now" -
+      the debug log's file, the build's .log, BookManager's Log tab). }
+    lblMessage: TLabel;
     { What is being done now, with the time taken and the time left. }
     lblStatus: TLabel;
     { Refreshes lblStatus every second while building (the clock moves
@@ -662,9 +667,9 @@ type
       PadAnswer): after "Calibrate it now? - No" the next model is one
       press away. }
     FPadToModel: Boolean;
-    { In the log's place (owner, 2026-11-20: "little point in having a debug
-      output window for transcription"): what is being done, in large
-      type; the log behind Settings > Show the log. }
+    { Where the log once was (owner, 2026-11-20: "little point in having a
+      debug output window for transcription"): what is being done, in
+      large type. }
     layProgress: TLayout;
     { Linux (Game Mode): the window brought back after the screen saver or
       a display that was off (uRedraw). }
@@ -703,6 +708,12 @@ type
     lblSiteCode: TLabel;
     { The account bar: how long the code works. }
     lblSiteTime: TLabel;
+    { The account bar's Open in browser: the system's browser at the page
+      the code is typed on. Not shown in Big Picture (no browser comes to
+      the front there). }
+    btnSiteOpen: TButton;
+    { That page's address, the code in it. }
+    FSiteUrl: string;
     { Every second while the account bar shows: the time left, and - every
       FSiteEvery seconds - the link site asked whether the code was typed. }
     tmSite: TTimer;
@@ -959,11 +970,16 @@ type
     function DeviceMatch(const AName, ADescription: string): string;
     { The description of device AName ('' when none). @returns(it) }
     function DeviceDescription(const AName: string): string;
-    { Appends a line to the log (and to the running build's log). }
+    { Appends a line to the log - the debug log's file and the link
+      (BookManager's Log tab) - and to the running build's log. Nothing of
+      it shows in the window. }
     procedure LogLine(const AText: string);
-    { Appends a line about the window - a book or audio chosen, the queue
-      changed - to the log, but not to the running build's log: what is
-      done in the window during a queue is not part of that book's build. }
+    { A line about the window - a book or audio chosen, the queue changed,
+      a program paired - to the log (not to the running build's log: what
+      is done in the window during a queue is not part of that book's
+      build) AND to the window's message line (lblMessage): the one way a
+      line reaches the eye. What the user must see goes through here (or
+      through Tell). }
     procedure WindowLine(const AText: string);
     { Appends a line of the build or the calibration to the log (and to
       the running build's log) - not to the debug log, which the thread
@@ -1063,10 +1079,6 @@ type
       saved-transcript choice: ready for the next book (after Add to
       queue). }
     procedure ClearBook;
-    { Shows the log (AOn) or the progress panel in its place; kept. }
-    procedure SetLogVisible(AOn: Boolean);
-    { Settings > Show the log. }
-    procedure miLogClick(Sender: TObject);
     { cbLanguage set to ACode ('' = from the book). }
     procedure SelectLanguage(const ACode: string);
     { Asks AText with AButtons: a dialog, or in Big Picture the pad's
@@ -1078,17 +1090,19 @@ type
       @param(AResult  called with the answer) }
     procedure Ask(const AText: string; AType: TMsgDlgType; const AButtons: TMsgDlgButtons; ADefault: TMsgDlgBtn;
       const AResult: TInputCloseDialogProc);
-    { Says why a build or a job was not started: the window's log, and in
-      Big Picture also the pad's menu (the log is behind it - a second
-      Add to queue refused without a word, Steam Deck 2026-11-20). }
+    { Says why a build or a job was not started: the window's message
+      line, and in Big Picture also the pad's menu (the window is behind
+      it - a second Add to queue refused without a word, Steam Deck
+      2026-11-20). }
     procedure Tell(const AText: string);
     { Starts the pad (Steam Input) and, in Big Picture, the pad's menu. }
     procedure StartPad;
-    { Big Picture: the window behind the pad's menu is the log alone, full
-      screen, in large type (owner, 2026-11-20: on a Steam Deck the
-      window's text was too small and the window too large - "redo the
-      form when displayed in big picture mode. The only thing to remain
-      may be the message log"); the pad's menu does the rest. The
+    { Big Picture: the window behind the pad's menu is the progress panel
+      and the last message alone, full screen, in large type (owner,
+      2026-11-20: on a Steam Deck the window's text was too small and the
+      window too large - "redo the form when displayed in big picture
+      mode. The only thing to remain may be the message log"; 2026-11-24:
+      the log left the window too); the pad's menu does the rest. The
       pairing bar still shows above it. }
     procedure BigPictureWindow;
     { Once the window shows: the display in the debug log, the calibration's
@@ -1140,6 +1154,8 @@ type
     procedure HideSiteClaim;
     { The account bar's Cancel button. }
     procedure btnSiteCancelClick(Sender: TObject);
+    { The account bar's Open in browser button. }
+    procedure btnSiteOpenClick(Sender: TObject);
     { tmSite: the time left; the link site asked; the bar closes when the
       code ran out. }
     procedure tmSiteTimer(Sender: TObject);
@@ -3171,7 +3187,7 @@ begin
   layBottom := TLayout.Create(Self);
   layBottom.Parent := Self;
   layBottom.Align := TAlignLayout.Bottom;
-  layBottom.Height := 4 * (ROW_HEIGHT + GAP div 2) + 190;
+  layBottom.Height := 4 * (ROW_HEIGHT + GAP div 2) + 240;
 
   Row := AddRow(layBottom, 'Output EPUB');
   edOut := TEdit.Create(Self);
@@ -3213,13 +3229,17 @@ begin
   tmStatus.Enabled := False;
   tmStatus.OnTimer := tmStatusTimer;
 
-  mmLog := TMemo.Create(Self);
-  mmLog.Parent := layBottom;
-  mmLog.Align := TAlignLayout.Client;
-  mmLog.Margins.Rect := RectF(GAP, GAP, GAP, GAP);
-  mmLog.ReadOnly := True;
-  mmLog.WordWrap := True;
-  // the progress panel in the log's place (the log behind View)
+  // the window's last message (WindowLine), at the foot
+  lblMessage := TLabel.Create(Self);
+  lblMessage.Parent := layBottom;
+  lblMessage.Align := TAlignLayout.Bottom;
+  lblMessage.Height := 44;
+  lblMessage.Margins.Rect := RectF(GAP * 2, 0, GAP * 2, GAP);
+  lblMessage.WordWrap := True;
+  lblMessage.Trimming := TTextTrimming.Character;
+  lblMessage.TextSettings.VertAlign := TTextAlign.Trailing;
+  lblMessage.Text := '';
+  // the progress panel: what is being done, in large type
   layProgress := TLayout.Create(Self);
   layProgress.Parent := layBottom;
   layProgress.Align := TAlignLayout.Client;
@@ -3248,7 +3268,6 @@ begin
   lblPTime.Position.Y := 200;
   lblPSpeed.Position.Y := 300;
   lblPTitle.Text := 'Idle';
-  mmLog.Visible := False;
 
   // the top: the book (left) and its audio (right)
   layTop := TLayout.Create(Self);
@@ -3630,8 +3649,6 @@ begin
         if SameText(FDevices[I].Name, Device) then
           cbDevice.ItemIndex := I + 1;
       chkChapters.IsChecked := Ini.ReadBool('Build', 'Chapters', True);
-      // the log, or the progress panel in its place (the panel at first)
-      SetLogVisible(Ini.ReadBool('View', 'Log', False));
       // Big Picture dark unless turned off (applied when the pad's menu
       // and the window are made)
       FPadDark := Ini.ReadBool('View', 'Dark', True);
@@ -3868,8 +3885,6 @@ begin
   if FLink <> nil then
     FLink.AddLog(AText);
   DebugLog(AText);
-  mmLog.Lines.Add(AText);
-  mmLog.GoToTextEnd;
   if FLogging and (FBuildLog <> nil) then
     FBuildLog.Add(AText);
 end;
@@ -3878,8 +3893,6 @@ procedure TfrmBuilder.ThreadLine(const AText: string);
 begin
   if FLink <> nil then
     FLink.AddLog(AText);
-  mmLog.Lines.Add(AText);
-  mmLog.GoToTextEnd;
   if FLogging and (FBuildLog <> nil) then
     FBuildLog.Add(AText);
 end;
@@ -3889,8 +3902,9 @@ begin
   if FLink <> nil then
     FLink.AddLog(AText);
   DebugLog(AText);
-  mmLog.Lines.Add(AText);
-  mmLog.GoToTextEnd;
+  // the one thing of the log the window still shows: its last message
+  if lblMessage <> nil then
+    lblMessage.Text := AText;
 end;
 
 function TfrmBuilder.EffectivePower: Integer;
@@ -4902,7 +4916,6 @@ begin
   if FBuild <> nil then
     Exit;
   SaveSettings;
-  mmLog.Lines.Clear;
   StartJob(JobFromWindow(ADevice), -1);
 end;
 
@@ -5421,7 +5434,6 @@ begin
     LogLine('Nothing in the queue to run: add books with "Add to queue", or load a queue.');
     Exit;
   end;
-  mmLog.Lines.Clear;
   LogLine(Format('=== Queue: %d job(s) to build (%s) ===', [N, FormatDateTime('yyyy-mm-dd hh:nn', Now)]));
   QueueSleepNote;
   FQueueRunning := True;
@@ -5983,34 +5995,6 @@ begin
   end;
 end;
 
-procedure TfrmBuilder.SetLogVisible(AOn: Boolean);
-begin
-  mmLog.Visible := AOn;
-  layProgress.Visible := not AOn;
-  if AOn then
-    mmLog.GoToTextEnd;
-end;
-
-procedure TfrmBuilder.miLogClick(Sender: TObject);
-var
-  Ini: TMemIniFile;
-begin
-  SetLogVisible(not mmLog.Visible);
-  try
-    ForceDirectories(ExtractFilePath(SettingsFile));
-    Ini := TMemIniFile.Create(SettingsFile, TEncoding.UTF8);
-    try
-      Ini.WriteBool('View', 'Log', mmLog.Visible);
-      Ini.UpdateFile;
-    finally
-      Ini.Free;
-    end;
-  except
-    on E: Exception do
-      DebugLog('settings: ' + E.Message);
-  end;
-end;
-
 procedure TfrmBuilder.tmStatusTimer(Sender: TObject);
 begin
   ShowStatus;
@@ -6202,7 +6186,8 @@ const
   BPC_SETTINGS = 23;
   { The Settings page: back to the first page. }
   BPC_SETTINGS_BACK = 24;
-  { Settings, the desktop: the log or the progress panel. }
+  { Not used (it was Settings > Show the log, the desktop; the window
+    has no log since 2026-11-24). The number is kept free. }
   BPC_LOG = 25;
   { Settings, the desktop: the books folder. }
   BPC_FOLDER_BOOKS = 26;
@@ -6235,7 +6220,7 @@ const
     others are its first page. PadHome shows the page of the row asked
     for. }
   BP_SETTINGS_ROWS = [BPC_MODEL, BPC_CALIBRATE, BPC_CALIBRATE_ALL, BPC_DIAGNOSE, BPC_DIAGNOSE_ALL, BPC_DEVICE,
-    BPC_LANGUAGE, BPC_POWER, BPC_CHAPTERS, BPC_DARK, BPC_EXPERT, BPC_OUTPUT, BPC_SETTINGS_BACK, BPC_LOG,
+    BPC_LANGUAGE, BPC_POWER, BPC_CHAPTERS, BPC_DARK, BPC_EXPERT, BPC_OUTPUT, BPC_SETTINGS_BACK,
     BPC_FOLDER_BOOKS, BPC_FOLDER_AUDIO, BPC_FOLDER_OUTPUT, BPC_RESULTS, BPC_HISTORY, BPC_ROCM, BPC_LOWEST,
     BPC_REUSE, BPC_GPU, BPC_FOLDER_MODELS, BPC_BOARD, BPC_ACCOUNT];
   { The highest BPC_* in BP_SETTINGS_ROWS (a set holds 0 .. 255: the
@@ -6573,11 +6558,12 @@ end;
 
 procedure TfrmBuilder.BigPictureWindow;
 const
-  { The log's text in Big Picture (Steam asks for at least 24 on a Deck;
-    a TV is read from the sofa). }
+  { The window's text in Big Picture (Steam asks for at least 24 on a
+    Deck; a TV is read from the sofa). }
   LOG_SIZE_BIG = 24;
 var
   I: Integer;
+  L: TLabel;
 begin
   layTop.Visible := False;
   layQueue.Visible := False;
@@ -6585,16 +6571,26 @@ begin
   layBook.Visible := False;
   splSides.Visible := False;
   layAudio.Visible := False;
-  // the bottom part fills the window; of it only the log
+  // the bottom part fills the window; of it only the progress panel and
+  // the last message, in large type
   layBottom.Align := TAlignLayout.Client;
   for I := 0 to layBottom.ControlsCount - 1 do
     layBottom.Controls[I].Visible := False;
-  SetLogVisible(True);
-  mmLog.StyledSettings := mmLog.StyledSettings - [TStyledSetting.Size];
-  mmLog.TextSettings.Font.Size := LOG_SIZE_BIG;
-  mmLog.Margins.Rect := RectF(GAP * 3, GAP * 3, GAP * 3, GAP * 3);
-  mmLog.GoToTextEnd;
-  DebugLog(Format('Big Picture: the window shows the log only (text %d)', [LOG_SIZE_BIG]));
+  layProgress.Visible := True;
+  layProgress.Margins.Rect := RectF(GAP * 3, GAP * 3, GAP * 3, GAP);
+  for L in [lblPSpeed, lblPTime, lblPJob] do
+  begin
+    L.TextSettings.Font.Size := LOG_SIZE_BIG;
+    L.Height := 40;
+  end;
+  lblPTitle.TextSettings.Font.Size := 34;
+  lblPTitle.Height := 56;
+  lblMessage.Visible := True;
+  lblMessage.StyledSettings := lblMessage.StyledSettings - [TStyledSetting.Size];
+  lblMessage.TextSettings.Font.Size := LOG_SIZE_BIG;
+  lblMessage.Height := 110;
+  lblMessage.Margins.Rect := RectF(GAP * 3, 0, GAP * 3, GAP * 3);
+  DebugLog(Format('Big Picture: the window shows the progress and the last message (text %d)', [LOG_SIZE_BIG]));
   // dark unless turned off (the style may not be applied yet: tmDark
   // looks again)
   ApplyDarkWindow;
@@ -7284,14 +7280,12 @@ begin
     Add(BPC_OUTPUT, 'Output', ExtractFileName(edOut.Text))
   else
     Add(BPC_OUTPUT, 'Output', ExtractFileName(ExcludeTrailingPathDelimiter(FOutFolder)));
-  // the folder dialogs, the log's switch and the history's window are
-  // the desktop's
+  // the folder dialogs and the history's window are the desktop's
   if not FBigPicture then
   begin
     Add(BPC_FOLDER_BOOKS, 'Books folder', ExtractFileName(ExcludeTrailingPathDelimiter(FBookFolder)));
     Add(BPC_FOLDER_AUDIO, 'Audio folder', ExtractFileName(ExcludeTrailingPathDelimiter(FAudioFolder)));
     Add(BPC_FOLDER_OUTPUT, 'Output folder', ExtractFileName(ExcludeTrailingPathDelimiter(FOutFolder)));
-    Add(BPC_LOG, 'Show the log', IfThen(mmLog.Visible, '< Yes >', '< No >'));
   end;
   Add(BPC_RESULTS, 'Calibration results', '');
   if not FBigPicture then
@@ -7385,7 +7379,7 @@ const
     begin
       TCustomStyleObject(Obj).SourceLookup := '';
       TCustomStyleObject(Obj).Source := nil;
-      DebugLog('dark: the background of ' + IfThen(AMemo = mmLog, 'the log', 'the book''s text') + ' (' +
+      DebugLog('dark: the background of ' + 'the book''s text' + ' (' +
         Obj.ClassName + ') is no longer drawn');
       AMemo.Repaint;
     end;
@@ -7484,7 +7478,7 @@ const
   end;
 
 begin
-  if mmLog = nil then
+  if lblMessage = nil then
     Exit;
   if FPadDark <> FWindowDark then
   begin
@@ -7605,7 +7599,6 @@ begin
     // the list is shown again below: in its new colours
     BPC_DARK: ToggleDark;
     BPC_EXPERT: ToggleExpert;
-    BPC_LOG: miLogClick(nil);
     BPC_LOWEST: StepLowestSpeed(ADelta);
   else
     Exit;
@@ -7634,7 +7627,7 @@ begin
         BPC_BOOK: PadBooks;
         BPC_AUDIO: PadAudioList(False);
         BPC_MODEL: PadModels;
-        BPC_DEVICE, BPC_LANGUAGE, BPC_POWER, BPC_CHAPTERS, BPC_DARK, BPC_EXPERT, BPC_LOG, BPC_REUSE, BPC_GPU,
+        BPC_DEVICE, BPC_LANGUAGE, BPC_POWER, BPC_CHAPTERS, BPC_DARK, BPC_EXPERT, BPC_REUSE, BPC_GPU,
         BPC_BOARD:
           PadStep(1);
         // chosen: a step down (owner, 2026-11-22: "from 2.0 down to 0.0")
@@ -9857,7 +9850,6 @@ begin
   FBenchView.OnTick := BenchTick;
   FBenchView.OnButton := BenchCancel;
   BenchTick(nil);
-  mmLog.Lines.Clear;
   // Run all with fewer than four: which are left out, and why
   if FBenchAll then
     for I := 1 to 4 do
@@ -10858,7 +10850,6 @@ begin
         Devs[I] := Own;
     end;
     // the diagnostics' lines: in the window and in <settings>-diagnostics.log
-    mmLog.Lines.Clear;
     FBuildLog.Clear;
     FLogging := True;
     LogLine(Format('=== Diagnostics (%s) ===', [FormatDateTime('yyyy-mm-dd hh:nn', Now)]));
@@ -11003,7 +10994,6 @@ begin
       Exit;
     end;
     // the calibration's lines: in the window and in <settings>-calibration.log
-    mmLog.Lines.Clear;
     FBuildLog.Clear;
     FLogging := True;
     LogLine(Format('=== Calibration (%s) ===', [FormatDateTime('yyyy-mm-dd hh:nn', Now)]));
@@ -11705,6 +11695,15 @@ begin
     B.Margins.Rect := RectF(GAP, 14, 0, 14);
     B.Text := 'Cancel';
     B.OnClick := btnSiteCancelClick;
+    // left of Cancel
+    btnSiteOpen := TButton.Create(Self);
+    btnSiteOpen.Parent := pnlSite;
+    btnSiteOpen.Align := TAlignLayout.Right;
+    btnSiteOpen.Position.X := 0;
+    btnSiteOpen.Width := 170;
+    btnSiteOpen.Margins.Rect := RectF(GAP, 14, 0, 14);
+    btnSiteOpen.Text := 'Open in browser';
+    btnSiteOpen.OnClick := btnSiteOpenClick;
     lblSiteCode := TLabel.Create(Self);
     lblSiteCode.Parent := pnlSite;
     lblSiteCode.Align := TAlignLayout.Right;
@@ -11741,6 +11740,8 @@ begin
   WindowLine(Text + ' ' + ACode.Code);
   lblSiteText.Text := Text;
   lblSiteCode.Text := ACode.Code;
+  FSiteUrl := ACode.Url;
+  btnSiteOpen.Visible := not FBigPicture;
   pnlSite.Visible := True;
   tmSite.Enabled := True;
   tmSiteTimer(nil);
@@ -11793,6 +11794,14 @@ begin
       FPadMenu.Hide;
     end;
   end;
+end;
+
+procedure TfrmBuilder.btnSiteOpenClick(Sender: TObject);
+begin
+  if LinkSiteOpen(FSiteUrl) then
+    WindowLine('The browser was asked for link.epubunum.com: sign in there and press Add it (the code is filled in).')
+  else
+    WindowLine('The browser could not be opened from here: go to link.epubunum.com yourself and type the code.');
 end;
 
 procedure TfrmBuilder.btnSiteCancelClick(Sender: TObject);

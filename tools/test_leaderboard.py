@@ -202,7 +202,7 @@ def main():
         print("page")
         html = urllib.request.urlopen(base + "/index.php?b=benchmark_long_fast", timeout=10).read().decode()
         check("the page lists the seven", html.count("<td class=\"place\">") == 7 and "0:01:59.437" in html and
-              "Player seven" in html and "94x" in html and "48 W of 50" in html and
+              "Player seven" in html and "94x" in html and "<td class=\"num wpm\">14,227</td>" in html and "48 W of 50" in html and
               html.count("<td class=\"os\">Test OS</td>") == 6)
         con = sqlite3.connect(dbfile)
         con.execute("UPDATE players SET display_name = '<script>alert(1)</script>' WHERE id = 1")

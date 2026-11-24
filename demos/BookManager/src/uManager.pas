@@ -110,6 +110,9 @@ type
     laySite: TLayout;
     { The code, and where to type it. }
     lblSite: TLabel;
+    { The page the code is typed on, with the code in it (the row's Open
+      in browser). }
+    FSiteUrl: string;
     { Asks the link site whether the code was typed. }
     tmSite: TTimer;
     { The tabs. }
@@ -322,6 +325,9 @@ type
     procedure btnAccountClick(Sender: TObject);
     { The link site's row's Cancel: the code is no longer waited for. }
     procedure btnSiteCancelClick(Sender: TObject);
+    { The link site's row's Open in browser: the system's browser at the
+      page the code is typed on, the code filled in. }
+    procedure btnSiteOpenClick(Sender: TObject);
     { tmSite: asks the link site whether the code shown was typed. }
     procedure tmSiteTimer(Sender: TObject);
     { Asks the link site, in a thread (FSiteBusy while it runs).
@@ -713,6 +719,15 @@ begin
   B.Width := 90;
   B.Text := 'Cancel';
   B.OnClick := btnSiteCancelClick;
+  // left of Cancel
+  B := TButton.Create(Self);
+  B.Parent := laySite;
+  B.Align := TAlignLayout.Right;
+  B.Position.X := 0;
+  B.Width := 150;
+  B.Margins.Right := GAP div 2;
+  B.Text := 'Open in browser';
+  B.OnClick := btnSiteOpenClick;
   lblSite := TLabel.Create(Self);
   lblSite.Parent := laySite;
   lblSite.Align := TAlignLayout.Client;
@@ -1658,6 +1673,14 @@ begin
   SetStatus('The code is no longer waited for. Account... gives a new one.');
 end;
 
+procedure TfrmManager.btnSiteOpenClick(Sender: TObject);
+begin
+  if LinkSiteOpen(FSiteUrl) then
+    SetStatus('The browser was asked for link.epubunum.com: sign in there and press Add it (the code is filled in).')
+  else
+    SetStatus('The browser could not be opened from here: go to link.epubunum.com yourself and type the code.');
+end;
+
 procedure TfrmManager.HideSite;
 begin
   tmSite.Enabled := False;
@@ -1779,6 +1802,7 @@ begin
     // tmSite asked: not typed yet
     Exit;
   lblSite.Text := Format('Sign in at %s and type this code there:    %s', [ACode.Site, ACode.Code]);
+  FSiteUrl := ACode.Url;
   FSiteCodeUntil := Now + ACode.ExpiresIn / SecsPerDay;
   tmSite.Interval := ACode.Interval * 1000;
   // under the builder row, above the dark tabs' names

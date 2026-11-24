@@ -1657,7 +1657,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 289 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
+Last number used: 292 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
 next-session notes, CLAUDE.md only).
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
@@ -4245,6 +4245,95 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 292 (on top of zip 291): the leaderboard's page shows words a minute
+Session 15, owner 2026-11-24 13:08: "make leaderboard display words
+per minute". SITE ONLY: web/leaderboard/index.php;
+tools/test_leaderboard.py; CLAUDE.md. No change to the database (a
+run's `words` was always kept and the page's rows already had it).
+- A column "Words/min" between Time and Speed: the run's words over
+  its time (words * 60000 / score_ms), whole, with thousands' commas
+  (A Christmas Carol's 28,320 words in 0:01:59.437 = 14,227). Empty
+  when a row has no words. Speed (x real time) STAYS beside it - the
+  owner said "display", not "in place of"; say if it is to go.
+- A narrow screen: the row's lines are who / time, ran on / words a
+  minute (with " words/min" after the number), system / speed, power.
+- The footer says what it is.
+- TAKEN TO MEAN the website's page. NOT changed: api/board.php (its
+  rows already carry `words` and `score_ms` - a program can work it
+  out), EpubBuilder's own Leaderboards page (Steam's boards: a time
+  only) and its calibration texts. Ask if those were meant too.
+- test_leaderboard.py checks the figure; all pass. NOT SEEN in a
+  browser; not uploaded.
+- STILL OPEN from 09:40: the pass over EpubBuilder's 183 LogLine
+  calls (zip 291) - no answer yet. Zips 290 and 291 were not in the
+  repository at 13:08 (16d27a7 still the last push).
+
+## Zip 291 (on top of zip 290): the log leaves EpubBuilder's window; a message line
+Session 15, owner 2026-11-24 09:40: "At the moment we log everything
+both to file and to the form. The form's copy is not required any more
+as we have access to the log by several other methods now". Asked how
+far and where the messages go: "Remove the memo entirely" and "A
+status line". NOT COMPILED. Files: demos/EpubBuilder/src/uBuilder.pas,
+README.md; CLAUDE.md. No .dproj. EpubBuilder ONLY (BookManager's Log
+tab and EpubReader are as they were - not asked).
+- GONE: mmLog (the memo), SetLogVisible, miLogClick, the Settings row
+  "Show the log" (BPC_LOG = 25 stays as a number, unused, so that no
+  other command is renumbered), [View] Log is no longer read or
+  written, the five mmLog.Lines.Clear.
+- LogLine and ThreadLine: the debug log / the link (BookManager's Log
+  tab) / the running build's log - NOTHING IN THE WINDOW.
+- WindowLine: the same AND lblMessage - one label under the progress
+  panel (two lines on the desktop, large in Big Picture), the window's
+  LAST message. Tell goes through WindowLine, so on the desktop its
+  text is there; in Big Picture also the OK box, as before.
+- BIG PICTURE's window behind the menu: the progress panel (title 34,
+  the rest 24) and the message line (24) - no longer the log.
+- layBottom is 50 higher on the desktop (the message line's room).
+- THE GAP TO KNOW: 183 calls are LogLine. Some answer a click and were
+  read in the window ("Nothing in the queue to run...", "link: not
+  joined to an account - ...", a folder not made): they are now in the
+  file only. NOT gone through one by one in this zip - OFFERED: a pass
+  that makes the ones the user must see WindowLine or Tell. Until
+  then: what a person must see goes through WindowLine or Tell, never
+  LogLine (a rule from now on).
+- The README's "the log says ..." now means the files and BookManager's
+  tab; its "Progress, and the log" section says so.
+- NOT SEEN: the window. Likeliest faults: the bottom area's heights
+  (the panel's four lines plus the message line), a long message cut
+  after two lines on the desktop.
+
+## Zip 290 (on top of 16d27a7 = zip 289 pushed): Open in browser beside the code
+Session 15, owner 2026-11-24 09:33: "Non-Steam devices at least should
+have a browser. It would be nicer if there was a button that
+automatically opened your default web browser at the desired page.
+This way a user may open it manually or just click a button".
+NOT COMPILED. No .dproj, no .dpr (the function is in uLinkSite, which
+both programs have). Files: demos/common/uLinkSite.pas;
+demos/BookManager/src/uManager.pas, README.md;
+demos/EpubBuilder/src/uBuilder.pas, README.md; CLAUDE.md.
+- THE PUSH 16d27a7 "link" (09:24) was checked: all 143 files as the
+  working copy here (three .bat by CR LF only, as before); zip 289 is
+  in, schema.sql too (owner: "I purposely left the sql out - sorry,
+  that was a bad idea").
+- LinkSiteOpen(url) (uLinkSite): Windows ShellExecute "open", macOS
+  `open`, Linux `xdg-open` in the background. ONLY an address that
+  begins with LINK_SITE_URL and is made of plain characters is opened
+  (it comes from the site's answer and goes to a shell); at most 200
+  characters.
+- The address is the code's own (TLinkSiteCode.Url, .../?code=ABCD-
+  EFGH): the page has the code in its box, and keeps it through the
+  sign-in when the browser is not signed in. The owner still presses
+  Add it there (a page that added on arrival could be made to add by
+  a link from elsewhere).
+- BookManager: "Open in browser" in the link site's row, left of
+  Cancel. EpubBuilder: the same in the account bar, NOT SHOWN IN BIG
+  PICTURE (btnSiteOpen.Visible := not FBigPicture - no browser comes
+  to the front in Game Mode; the pad's box is unchanged, so nothing
+  for Steam Input). A Steam build on the desktop shows it too.
+- Linux inside Steam's runtime: whether xdg-open reaches the host's
+  browser from the container is NOT KNOWN; the log line says when the
+  system refused, not when nothing showed.
 
 ## Zip 289 (on top of 5b7de61 "link"): zip 283's three files, which the push lacks
 Session 15, owner 2026-11-24 09:18: "check the repo + sync". The push

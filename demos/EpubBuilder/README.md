@@ -37,7 +37,7 @@ At the top the **book** (left) and its **audio** (right); below them,
 across the window, the **job queue** (Load, Save, Remove, Up, Down, Run
 queue); at the bottom the **output**, a line of the settings with
 **Settings...**, Create / Add to queue / Update job / Cancel, and the
-progress (or the log, Settings > Show the log). The dividers between book and audio and
+progress, with the window's last message under it. The dividers between book and audio and
 between them and the queue can be dragged.
 
 The menu bar has **File** only: **Settings...** and **Exit**. "Settings >"
@@ -47,7 +47,7 @@ model), Re-calibrate and Diagnostics (this model, every model), Device,
 Language, Power, Lowest acceptable speed, Chapters of a file, Use a
 saved transcript (this build only), Window GPU (Windows), Dark mode,
 Expert mode, Output, the Books / Audio / Output folders, the Models
-folder (not in Steam builds), Show the log, Calibration results, Build
+folder (not in Steam builds), Calibration results, Build
 history, and AMD ROCm acceleration when it applies. Arrow keys or W A S
 D, Enter, the mouse and its wheel work it; Esc, a right click or **Back**
 closes it. **F5** opens the whole menu and **F6** the queue's, as in Big
@@ -57,7 +57,7 @@ Picture.
 the window says what is set - the model, the device, the language, the
 power, and what is not as usual (a file's chapters not parts, USING THE
 SAVED TRANSCRIPT). In Big Picture the pad's menu has all of these, and
-the window shows the log only.
+the window shows the progress and the last message only.
 
 For the calibration and the diagnostics (below), the **reference texts**
 in `media/` - beside the program, or in a folder up to five levels above
@@ -643,8 +643,7 @@ deleted. Another model or other audio starts from the first part.
 
 Every run writes `EpubBuilder-debug.log` next to the settings
 (`%APPDATA%\EpubUnum` on Windows, `~/Library/Application Support/
-EpubUnum` on macOS, `~/.config/EpubUnum` on Linux; the window's log
-shows the path): the build's steps, the devices, whisper.cpp's and ggml's
+EpubUnum` on macOS, `~/.config/EpubUnum` on Linux): the build's steps, the devices, whisper.cpp's and ggml's
 own lines, each written to the file at once. When the builder disappears
 without a message (a library crashed), the last lines say what it was
 doing. The previous run's log is kept as `EpubBuilder-debug.log.old`.
@@ -941,11 +940,11 @@ mouse is not one of its devices). The programs ask which *action* a key
 or a click means and act on the action as for a pad; no key is named in
 their own code. Layout revision 1.3.
 
-In Big Picture the window behind the menu is the log alone, full screen
-in large type (24) - no menu bar, columns or settings: the pad's menu has
-all of them. While a build runs the menu's foot shows its progress; close
-the menu to read the log. A program asking to connect (BookManager)
-still shows its bar above the log. On the desktop the window is never
+In Big Picture the window behind the menu is the progress panel and the
+last message alone, full screen in large type (24) - no menu bar, columns
+or settings: the pad's menu has all of them. While a build runs the
+menu's foot shows its progress; close the menu to see the panel. A
+program asking to connect (BookManager) still shows its bar above it. On the desktop the window is never
 made wider than the screen (a Steam Deck in Desktop Mode). Questions (an output already there, a model to
 download, the calibration) are asked in the same menu. The pad uses
 EpubReader's Steam Input actions (one manifest per Steam app); outside
@@ -958,7 +957,7 @@ EpubBuilder is dark, in Big Picture and on the desktop alike: the pad's
 menu, its questions and the window. **Settings > Dark mode** (left / right, or A) - turns that off and
 on; it is one setting for both (`[View] Dark`, on unless turned off). On
 the desktop the window's background, its captions and status line, the
-audio and queue lists, the book's text and the log go dark; the edit and
+audio and queue lists, the book's text and the message line go dark; the edit and
 combo boxes, the buttons, the settings panel and the menu bar keep the
 system's own look.
 
@@ -977,9 +976,14 @@ While it works, the window's lower part shows what is being done in large
 type: the book, its job in the queue, how far it is, the time taken and
 left, and the transcription's speed so far (x real time); when idle, the
 jobs waiting and the last build's result. The line above it still shows
-the words being transcribed. The log - every line also kept in the book's
-.log and the debug log - is behind **Settings > Show the log** (kept between
-starts).
+the words being transcribed. Under the panel is the window's **last
+message**: a book or audio chosen, the queue changed, a program paired,
+why something was not started.
+
+**The log is not in the window** (it was, until 2026-11-24). Every line
+is in the debug log's file (below), a build's lines also in the book's
+`.log` beside it, and BookManager's **Log** tab shows it live from
+another computer. "The log says ..." in this file means those.
 
 ## The cover
 
@@ -1025,7 +1029,9 @@ builders they hear. Its HTTP port is 47821, or the next free one up to
   link.epubunum.com** shows a code in a bar at the top of the window (in
   Big Picture also in the pad's box): sign in at that address on any
   phone or computer (a link is mailed to you; there is no password) and
-  type the code there. The bar closes by itself when the account has
+  type the code there - or, on the desktop, press the bar's **Open in
+  browser**: the page opens in your own browser with the code filled in
+  (not in Big Picture). The bar closes by itself when the account has
   this EpubBuilder, or when the code runs out (ten minutes); the row
   then says "joined". Where there is no screen to read a code from,
   press **Make a key** on the site instead and start EpubBuilder once

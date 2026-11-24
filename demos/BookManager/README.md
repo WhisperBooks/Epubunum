@@ -40,7 +40,8 @@ reset), BookManager says so and asks to pair again.
 https://link.epubunum.com pair with each other without the code.
 **Account...** shows a code and that address: sign in there (a link is
 mailed to you; there is no password) and type the code - BookManager says
-when the account has it. From then on **Pair...** first asks the site for
+when the account has it. **Open in browser** in that row opens the page
+in your own browser with the code filled in already. From then on **Pair...** first asks the site for
 a ticket and hands it to EpubBuilder; if that EpubBuilder is not in the
 account (or the site is not reached) BookManager says why and the 6-digit
 code is asked for as before. Nothing of this is needed: with **Account...**

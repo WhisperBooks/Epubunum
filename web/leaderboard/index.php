@@ -29,6 +29,17 @@ try {
     $problem = 'The leaderboard is being set up. Please come back soon.';
 }
 
+/** The words transcribed a minute, for a row: the book's words over the time taken ('' = not known). */
+function wpm_text(array $row): string
+{
+    $words = (int) ($row['words'] ?? 0);
+    $scoreMs = (int) ($row['score_ms'] ?? 0);
+    if ($words <= 0 || $scoreMs <= 0) {
+        return '';
+    }
+    return number_format($words * 60000 / $scoreMs, 0);
+}
+
 /** The speed against real time, for a row. */
 function speed_text(array $benchmark, int $scoreMs): string
 {
@@ -102,11 +113,12 @@ header('X-Content-Type-Options: nosniff');
   td.os, td.power { white-space: nowrap; }
   tbody tr:first-child td { font-weight: 600; }
   tbody tr:first-child td.who span, tbody tr:first-child td.device span { font-weight: 400; }
-  /* a narrow screen: each row is two lines - who and time, then what it ran on and the speed */
+  /* a narrow screen: each row is a few lines - who and time, what it ran on and the words a minute,
+     the system and the speed, then the power */
   @media (max-width: 40rem) {
     thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
     tbody tr { display: grid; grid-template-columns: 2.75rem 1fr auto; column-gap: 0.75rem;
-               grid-template-areas: "place who time" "place device speed" "place os power";
+               grid-template-areas: "place who time" "place device wpm" "place os speed" "place power power";
                padding: 0.8rem 0;
                border-top: 1px solid var(--rule); }
     tbody td { border: 0; padding: 0; }
@@ -114,10 +126,12 @@ header('X-Content-Type-Options: nosniff');
     td.who { grid-area: who; }
     td.time { grid-area: time; }
     td.speed { grid-area: speed; color: var(--ink-soft); font-size: 0.9rem; }
+    td.wpm { grid-area: wpm; color: var(--ink-soft); font-size: 0.9rem; font-weight: 400; }
+    td.wpm:not(:empty)::after { content: " words/min"; }
     td.os { grid-area: os; color: var(--ink-soft); font-size: 0.9rem; font-weight: 400; }
     td.power { grid-area: power; text-align: right; color: var(--ink-soft); font-size: 0.9rem; font-weight: 400; }
     td.device { grid-area: device; color: var(--ink-soft); font-size: 0.9rem; font-weight: 400; }
-    tbody tr:first-child td.device, tbody tr:first-child td.speed { font-weight: 400; }
+    tbody tr:first-child td.device, tbody tr:first-child td.speed, tbody tr:first-child td.wpm { font-weight: 400; }
   }
   .empty { padding: 2.5rem 0; border-top: 1px solid var(--rule); color: var(--ink-soft); max-width: 40rem; }
 
@@ -164,6 +178,7 @@ header('X-Content-Type-Options: nosniff');
             <th scope="col">Place</th>
             <th scope="col">Who</th>
             <th scope="col" class="num">Time</th>
+            <th scope="col" class="num">Words/min</th>
             <th scope="col" class="num">Speed</th>
             <th scope="col">Ran on</th>
             <th scope="col">System</th>
@@ -176,6 +191,7 @@ header('X-Content-Type-Options: nosniff');
             <td class="place"><?= (int) $row['place'] ?></td>
             <td class="who"><?= lb_h($row['display_name']) ?><?php if ($row['label'] !== null && $row['label'] !== ''): ?><span><?= lb_h($row['label']) ?></span><?php endif; ?></td>
             <td class="num time"><?= lb_h(lb_score((int) $row['score_ms'])) ?></td>
+            <td class="num wpm"><?= lb_h(wpm_text($row)) ?></td>
             <td class="num speed"><?= lb_h(speed_text($current, (int) $row['score_ms'])) ?></td>
             <td class="device"><?= lb_h($row['device']) ?> <span><?= lb_h($row['backend']) ?></span></td>
             <td class="os"><?= lb_h(lb_os($row['os'])) ?></td>
@@ -193,7 +209,8 @@ header('X-Content-Type-Options: nosniff');
 <footer>
   <div class="wrap">
     <span>epubunum</span>
-    <span>Speed is the narration's length divided by the time: 60x means an hour of audio in a minute.
+    <span>Words/min is the book's words divided by the time taken: how many words were transcribed each minute.
+      Speed is the narration's length divided by the time: 60x means an hour of audio in a minute.
       Power is what the graphics card typically drew (the median) and, where known, the limit it was held to;
       for graphics built into a processor it is the whole chip's. Not every card reports it.</span>
   </div>
