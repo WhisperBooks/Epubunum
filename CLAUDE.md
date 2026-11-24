@@ -157,6 +157,20 @@ the map. Sessions 13 and earlier: their handovers follow.
   = the site. Next for it: the shared unit beside uLink, then
   BookServer (see "Zip 282").
 
+- 09:10 - 09:12, PARKED (owner): "Is it possible to write a joypad
+  fallback system for non-Steam big picture builds?" - yes: a second
+  implementation behind uSteamPad's interface (Poll, Origin, PadName),
+  the default buttons in the generator's tables beside the keys, its
+  own glyphs for each pad family (Steam's come from Steam at run
+  time), and a way into Big Picture without Steam (FBigPicture is
+  SteamBigPicture today). Offered native backends or SDL3; owner:
+  "Yeah, I was thinking SDL3 as well. This is for Builder and Reader
+  but not until Steam is done". So: SDL3 (one more library per
+  platform to redistribute), EpubBuilder and EpubReader, AFTER the
+  Steam work - not to be started or raised before then. Not carried
+  over from Steam Input: rebinding, the Deck's back paddles and
+  trackpads, gyro.
+
 ### Next (the owner's word decides the order)
 1. AMD's power ON WINDOWS - when Windows is on the Steam Machine
    ("probably next week"; then the Deck and the Ally "if things go
@@ -1643,7 +1657,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 288 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
+Last number used: 289 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
 next-session notes, CLAUDE.md only).
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
@@ -4231,6 +4245,31 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 289 (on top of 5b7de61 "link"): zip 283's three files, which the push lacks
+Session 15, owner 2026-11-24 09:18: "check the repo + sync". The push
+5b7de61 "link" (09:18) was compared with the deliveries file by file:
+it IS zips 282 and 284 - 288 (25 of 26 files the same to the byte;
+the .sh files still executable) - but ZIP 283 IS NOT IN IT:
+web/link/lib.php, web/link/README.md and tools/test_link.py are zip
+282's. web/link/index.php is zip 284's, which CALLS ln_setup_hint -
+a function only zip 283's lib.php has. On the page that works (the
+call is in the failure's branch) but a settings or database failure
+would now end in PHP's fatal error, not in "The link site is being
+set up". THE LIVE SITE is likely the same pair (at 08:12 the page had
+no hint line: 283 was never uploaded) - upload lib.php with this zip.
+Files (unchanged since zip 283, sent again so that 283's older
+index.php is not taken by mistake): web/link/lib.php, README.md;
+tools/test_link.py; web/link/schema.sql (see below); CLAUDE.md (this section, and the pad fallback
+parked at 09:12 in the session's log). test_link.py: 56 checks pass.
+- ALSO NOT IN THE PUSH: web/link/schema.sql (zip 282; .gitignore
+  does not leave it out - it was not added, or not copied in). The
+  database was made from it, so the owner has it somewhere; it is in
+  this zip again, unchanged.
+- The working copy here = 5b7de61 + this zip.
+- The owner's test of Settings > Account in Big Picture was starting
+  (09:13 "About to test...", 09:15 "How do I link big picture?" - the
+  steps said back); no result yet.
 
 ## Zip 288 (on top of zip 287): uLinkSite's four hints
 Session 15, owner 2026-11-24 09:05: EpubBuilder BUILDS ("Success",

@@ -121,6 +121,29 @@ def register(base, app, label=None):
     return install, a.get("key", ""), st, a
 
 
+def setup_page(tmp, name, settings):
+    """The page of a site started with these settings ('' = no settings file)."""
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    config = os.path.join(tmp, name + ".php")
+    if settings:
+        with open(config, "w") as f:
+            f.write("<?php return [%s];\n" % settings)
+    server = subprocess.Popen(["php", "-S", "127.0.0.1:%d" % port, "-t", SITE], env=dict(os.environ, LN_CONFIG=config),
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        for _ in range(50):
+            try:
+                return urllib.request.urlopen("http://127.0.0.1:%d/" % port, timeout=1).read().decode()
+            except Exception:
+                time.sleep(0.1)
+        return ""
+    finally:
+        server.terminate()
+
+
 def main():
     tmp = tempfile.mkdtemp(prefix="lntest-")
     dbfile = os.path.join(tmp, "link.sqlite")
@@ -149,6 +172,19 @@ def main():
                 break
             except Exception:
                 time.sleep(0.1)
+
+        print("setting up")
+        page = setup_page(tmp, "none", "")
+        check("no settings file: the page says so", "being set up" in page and "no settings file was found" in page, page[-900:])
+        page = setup_page(tmp, "nosite", "'dsn' => 'sqlite:%s', 'salt' => 'x'" % dbfile)
+        check("settings without site: the page says so", "lacks dsn, salt or site" in page, page[-900:])
+        empty = os.path.join(tmp, "empty.sqlite")
+        page = setup_page(tmp, "notables", "'dsn' => 'sqlite:%s', 'salt' => 'x', 'site' => 'http://x'" % empty)
+        check("a database without tables: the page says so", "the tables are missing" in page, page[-900:])
+        page = setup_page(tmp, "nodb", "'dsn' => 'sqlite:%s', 'salt' => 'x', 'site' => 'http://x', 'password' => 'SECRET-PW'"
+                          % os.path.join(tmp, "no-such-folder", "x.sqlite"))
+        check("a database that refuses: the page says so, without the settings", "the database refused" in page and
+              "SECRET-PW" not in page and tmp not in page, page[-900:])
 
         print("sign in")
         page = Browser(base).get()

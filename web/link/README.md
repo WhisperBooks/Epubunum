@@ -62,9 +62,13 @@ stays, and this is an extra.
    `config.sample.php` into the document root, with the `api` folder;
    remove the default `index.html` there.
 5. **Look**: the address shows "Your programs, connected" and asks for a
-   mail address. "The link site is being set up" means the settings file
-   was not found or the database refused the connection (the reason is in
-   the domain's PHP error log, never on the page). Then sign in: if no
+   mail address. "The link site is being set up" has a line under it
+   for whoever is setting it up, saying which step failed: no settings
+   file found, the file lacks `dsn`, `salt` or `site`, the database
+   refused (with its error number: 1045 the user or password, 1044 /
+   1049 the database's name, 2002 the server), or the tables are missing.
+   Names, paths and passwords are never on the page - the full message
+   is in the domain's PHP error log. Then sign in: if no
    mail comes, the error log says whether it was accepted for sending.
 
 ## Changes to a database already made

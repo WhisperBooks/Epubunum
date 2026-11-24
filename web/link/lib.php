@@ -46,13 +46,38 @@ function ln_config(): array
         if (is_file($place)) {
             $config = require $place;
             if (!is_array($config) || empty($config['dsn']) || empty($config['salt']) || empty($config['site'])) {
-                throw new RuntimeException('The link settings are incomplete.');
+                throw new RuntimeException('The link settings are incomplete.', 2);
             }
             $config['site'] = rtrim((string) $config['site'], '/');
             return $config;
         }
     }
-    throw new RuntimeException('The link site is not set up yet (no settings file).');
+    throw new RuntimeException('The link site is not set up yet (no settings file).', 1);
+}
+
+/**
+ * Why the site is not working, for its own page: which step of the
+ * setting-up failed, with the database's error number - never a name, a
+ * path or a password (those are in the domain's PHP error log).
+ */
+function ln_setup_hint(Throwable $e): string
+{
+    if ($e instanceof PDOException) {
+        $number = $e->errorInfo[1] ?? $e->getCode();
+        $text = $e->getMessage();
+        if (stripos($text, "doesn't exist") !== false || stripos($text, 'no such table') !== false) {
+            return 'the settings and the database are right, but the tables are missing: import schema.sql';
+        }
+        return 'the settings file was read, but the database refused: error ' . preg_replace('/[^0-9A-Za-z]/', '',
+            (string) $number) . ' (1045 the user or password, 1044 / 1049 the database\'s name, 2002 the server)';
+    }
+    if ($e instanceof RuntimeException && $e->getCode() === 1) {
+        return 'no settings file was found: link-config.php one folder above the site, or config.php beside index.php';
+    }
+    if ($e instanceof RuntimeException && $e->getCode() === 2) {
+        return 'the settings file was read, but it lacks dsn, salt or site';
+    }
+    return 'the reason is in the PHP error log';
 }
 
 /** The database. */
