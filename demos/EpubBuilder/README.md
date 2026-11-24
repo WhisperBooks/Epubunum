@@ -1020,6 +1020,28 @@ builders they hear. Its HTTP port is 47821, or the next free one up to
   the bar closes by itself - as it does when the code runs out or was
   typed wrong five times. **Refuse connection** turns the program away
   (it can ask again). Only paired programs can send or fetch.
+- **Pairing without the code (optional):** programs in the same account
+  at https://link.epubunum.com pair without it. **Settings > Account at
+  link.epubunum.com** shows a code in a bar at the top of the window (in
+  Big Picture also in the pad's box): sign in at that address on any
+  phone or computer (a link is mailed to you; there is no password) and
+  type the code there. The bar closes by itself when the account has
+  this EpubBuilder, or when the code runs out (ten minutes); the row
+  then says "joined". Where there is no screen to read a code from,
+  press **Make a key** on the site instead and start EpubBuilder once
+  with that one-time key on the command line (Steam: the program's
+  Properties > Launch Options):
+
+  ```
+  --activate ABCD-EFGH-JKMN
+  ```
+
+  The log says "this EpubBuilder is in your account"; take the switch
+  off again. A BookManager of the same account then pairs with
+  **Pair...** alone. Kept in the settings ([Link] SiteKey, SiteClaimed).
+  Nothing of this is needed: until the Account row or `--activate` is
+  used EpubBuilder never asks an outside site about pairing, and the
+  6-digit code works as always.
 - **Files sent in** go to the books folder (EPUB, MOBI) or the audio
   folder (m4b, mp3, ...), into a sub folder when one is given (an
   audiobook's folder of files stays together). Each is written as

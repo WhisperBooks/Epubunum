@@ -21,7 +21,7 @@ uses
   Whisper.Types, Whisper.API, Whisper.Audio, Whisper.Core, Whisper.Words, Whisper.Align, Whisper.AudioSet,
   uDebugLog, uMachine, uCalibration, uHistory, uModels, uSteam, uSteamBoard, uWebBoard, uGpuPower, uInhibit, uQuitSignal, uSteamPad,
   uPadMenu, uCards,
-  uRedraw, uLink, uCovers, uCoverPick, uEpubUnum, uBenchProgress, uMacWindow;
+  uRedraw, uLink, uLinkSite, uCovers, uCoverPick, uEpubUnum, uBenchProgress, uMacWindow;
 
 type
   { Audio for a book, offered in Big Picture: one file, or a folder's
@@ -692,6 +692,38 @@ type
     FPairUntil: TDateTime;
     { The pad's box (Big Picture) shows the pairing: closed with the bar. }
     FPairPad: Boolean;
+    { The account bar at the top (made when first needed): the code to
+      type at the link site so that this EpubBuilder joins its owner's
+      account (Settings > Account). As the pairing bar it closes by
+      itself: when the code was typed there, or ran out. }
+    pnlSite: TPanel;
+    { The account bar: where to type the code. }
+    lblSiteText: TLabel;
+    { The account bar: the code, large. }
+    lblSiteCode: TLabel;
+    { The account bar: how long the code works. }
+    lblSiteTime: TLabel;
+    { Every second while the account bar shows: the time left, and - every
+      FSiteEvery seconds - the link site asked whether the code was typed. }
+    tmSite: TTimer;
+    { Until when the code shown works (0 = none shown). }
+    FSiteCodeUntil: TDateTime;
+    { The link site is asked this often while a code shows, s. }
+    FSiteEvery: Integer;
+    { Seconds since it was last asked. }
+    FSiteWaited: Integer;
+    { The pad's box (Big Picture) shows the account's code: closed with
+      the bar. }
+    FSitePad: Boolean;
+    { A call to the link site is on its way (one at a time). }
+    FSiteBusy: Boolean;
+    { The link's id: this installation's id at the link site too. }
+    FSiteId: string;
+    { Its key at the link site ([Link] SiteKey; '' = not made known). }
+    FSiteKey: string;
+    { An account has this EpubBuilder ([Link] SiteClaimed: as the site
+      last said). }
+    FSiteClaimed: Boolean;
     { Steam's Game Mode: reads the system's sleep news (InhibitPoll) four
       times a second - tmSleepTimer. }
     tmSleep: TTimer;
@@ -1069,6 +1101,48 @@ type
     { Starts FLink: the builder's id and the paired programs from the
       settings ([Link]), the folders. Logged. }
     procedure StartLink;
+    { '--activate KEY' on the command line: this EpubBuilder joins its
+      owner's account at the link site (uLinkSite) with the one-time key
+      made there - made known first when it is not. In a thread;
+      SiteActivated is called.
+      @param(AId the link's id)
+      @param(AKey the link site's key ('' = not made known yet))
+      @param(AActivation the one-time key) }
+    procedure SiteActivate(const AId, AKey, AActivation: string);
+    { SiteActivate's end (main thread): the key kept ([Link] SiteKey),
+      and - AWhy '' - that an account has this EpubBuilder ([Link]
+      SiteClaimed). Logged. }
+    procedure SiteActivated(const AKey, AWhy: string);
+    { Keeps what the link site said: the key, and whether an account has
+      this EpubBuilder - in the fields, for the link's threads (GSiteKey),
+      in the settings ([Link] SiteKey / SiteClaimed), and for the link
+      (tickets are taken from now on when it has). }
+    procedure SiteKeep(const AKey: string; AClaimed: Boolean);
+    { Settings > Account: asks the link site whether an account has this
+      EpubBuilder (making it known first when it is not), and - when none
+      has - for a code to show (ShowSiteClaim). In a thread; SiteAnswered
+      is called. }
+    procedure SiteAccount;
+    { Asks the link site, in a thread (FSiteBusy while it runs).
+      @param(AWantCode ask for a code when no account has this
+        EpubBuilder; False only asks (tmSite)) }
+    procedure SiteAsk(AWantCode: Boolean);
+    { The link site's answer (main thread): the key to keep, whether an
+      account has this EpubBuilder, the code to show (its Code '' = none
+      was asked for), how many other installations the account has, and -
+      AError not '' - why the site was not asked. }
+    procedure SiteAnswered(const AKey: string; AClaimed: Boolean; const ACode: TLinkSiteCode; AOthers: Integer;
+      const AError: string);
+    { Shows the account bar (and, in Big Picture, the pad's box when no
+      other question shows) with ACode. }
+    procedure ShowSiteClaim(const ACode: TLinkSiteCode);
+    { Closes the account bar and the pad's box. }
+    procedure HideSiteClaim;
+    { The account bar's Cancel button. }
+    procedure btnSiteCancelClick(Sender: TObject);
+    { tmSite: the time left; the link site asked; the bar closes when the
+      code ran out. }
+    procedure tmSiteTimer(Sender: TObject);
     { Cover...: the covers there are for the book in the window, as
       thumbnails to choose from (also Big Picture's Cover). }
     procedure ShowCoverPicker;
@@ -1646,6 +1720,16 @@ uses
 {$R *.fmx}
 
 var
+  { Guards GSiteId and GSiteKey: uLink's server threads read them
+    (SiteTicketCheck), the window writes them. }
+  GSiteGate: TCriticalSection = nil;
+  { This installation's id at the link site (the link's own id). }
+  GSiteId: string = '';
+  { Its key there ('' = not made known: no ticket is taken). }
+  GSiteKey: string = '';
+  { The window closes: an answer of the link site that comes after that
+    (its thread is not waited for) touches nothing. }
+  GSiteForget: Boolean = False;
   { Open while builds may run; reset by the window while the system goes
     to sleep (Steam's Game Mode - TfrmBuilder.tmSleepTimer). }
   GSleepGate: TEvent;
@@ -1672,6 +1756,68 @@ const
   DIAG_NO_DTW = '--no-dtw';
   { Environment variable with the meaning of DIAG_NO_DTW (any value). }
   DIAG_NO_DTW_ENV = 'EPUBUNUM_NO_DTW';
+
+{ What follows ASwitch on the command line: '--activate KEY' or
+  '--activate=KEY' ('' = the switch is not there).
+  @param(ASwitch  the command-line switch, with its dashes)
+  @returns(its value) }
+function SwitchValue(const ASwitch: string): string;
+var
+  I: Integer;
+  P: string;
+begin
+  Result := '';
+  for I := 1 to ParamCount do
+  begin
+    P := ParamStr(I);
+    if SameText(P, ASwitch) and (I < ParamCount) then
+      Exit(Trim(ParamStr(I + 1)));
+    if StartsText(ASwitch + '=', P) then
+      Exit(Trim(Copy(P, Length(ASwitch) + 2, MaxInt)));
+  end;
+end;
+
+{ uLink's TicketCheck: asks the link site (uLinkSite) whether ATicket,
+  handed over by a program that wants to pair without the code, is good -
+  it is when that program is an installation of the same account. Called
+  in one of the link's server threads.
+  @param(ATicket the ticket)
+  @param(AClient what the site calls the program)
+  @param(AWhy why not)
+  @returns(True when the program may be paired) }
+function SiteTicketCheck(const ATicket: string; out AClient, AWhy: string): Boolean;
+var
+  Id, Key: string;
+  Site: TLinkSite;
+begin
+  Result := False;
+  AClient := '';
+  AWhy := '';
+  GSiteGate.Enter;
+  try
+    Id := GSiteId;
+    Key := GSiteKey;
+  finally
+    GSiteGate.Leave;
+  end;
+  if Key = '' then
+  begin
+    AWhy := 'this EpubBuilder is in no account of the link site: pair with the code';
+    Exit;
+  end;
+  Site := TLinkSite.Create('EpubBuilder', Id, Key);
+  try
+    try
+      AClient := Site.Check(ATicket).Shown;
+      Result := True;
+    except
+      on E: Exception do
+        AWhy := E.Message;
+    end;
+  finally
+    Site.Free;
+  end;
+end;
 
 { A diagnostic switch is on: ASwitch is on the command line, or the
   environment variable AEnv has a value.
@@ -3664,6 +3810,7 @@ begin
   // a leaderboard still asked for answers nobody
   SteamBoardsForget;
   WebBoardForget;
+  GSiteForget := True;
   FreeAndNil(FLink);
   if FCalib <> nil then
   begin
@@ -6081,16 +6228,19 @@ const
   BPC_FOLDER_MODELS = 36;
   { Settings, Steam running: benchmark scores go to the leaderboards. }
   BPC_BOARD = 37;
+  { The Settings page: Account - this EpubBuilder joins its owner's
+    account at the link site (SiteAccount). }
+  BPC_ACCOUNT = 38;
   { The rows of the home list's Settings page (owner, 2026-11-22); the
     others are its first page. PadHome shows the page of the row asked
     for. }
   BP_SETTINGS_ROWS = [BPC_MODEL, BPC_CALIBRATE, BPC_CALIBRATE_ALL, BPC_DIAGNOSE, BPC_DIAGNOSE_ALL, BPC_DEVICE,
     BPC_LANGUAGE, BPC_POWER, BPC_CHAPTERS, BPC_DARK, BPC_EXPERT, BPC_OUTPUT, BPC_SETTINGS_BACK, BPC_LOG,
     BPC_FOLDER_BOOKS, BPC_FOLDER_AUDIO, BPC_FOLDER_OUTPUT, BPC_RESULTS, BPC_HISTORY, BPC_ROCM, BPC_LOWEST,
-    BPC_REUSE, BPC_GPU, BPC_FOLDER_MODELS, BPC_BOARD];
+    BPC_REUSE, BPC_GPU, BPC_FOLDER_MODELS, BPC_BOARD, BPC_ACCOUNT];
   { The highest BPC_* in BP_SETTINGS_ROWS (a set holds 0 .. 255: the
     command is checked against this before "in"). }
-  BPC_SETTINGS_TOP = BPC_BOARD;
+  BPC_SETTINGS_TOP = BPC_ACCOUNT;
   { The pad's menu in dark colours: its box, its text, the selected row
     (EpubReader's dark menu, uMain.PadMenuColors, with its panel text). }
   PAD_DARK_BACK = $FF23262E;
@@ -6221,6 +6371,7 @@ begin
   DebugLog('pad question: ' + AText.Replace(sLineBreak, ' '));
   // the pairing's box, if it showed, is replaced (its bar stays)
   FPairPad := False;
+  FSitePad := False;
   Items := nil;
   FPadCmds := nil;
   FAskResults := nil;
@@ -7124,6 +7275,9 @@ begin
   // benchmark scores to Steam's leaderboards
   if SteamRunning then
     Add(BPC_BOARD, 'Leaderboard', IfThen(FBoardUpload, '< Yes >', '< No >'));
+  // the link site's account (optional; nothing needs it)
+  if FLink <> nil then
+    Add(BPC_ACCOUNT, 'Account at link.epubunum.com', IfThen(FSiteClaimed, 'joined', 'not joined'));
   Add(BPC_EXPERT, 'Expert mode', IfThen(FExpert, '< Yes >', '< No >'));
   // no book yet: the folder its copy will go to
   if edOut.Text <> '' then
@@ -7522,6 +7676,13 @@ begin
           begin
             FPadMenu.Hide;
             miHistoryClick(nil);
+          end;
+        BPC_ACCOUNT:
+          begin
+            // the bar (and Big Picture's box) show the code: the menu
+            // out of their way
+            FPadMenu.Hide;
+            SiteAccount;
           end;
         BPC_ROCM:
           begin
@@ -8372,13 +8533,111 @@ begin
     end);
 end;
 
+procedure TfrmBuilder.SiteActivate(const AId, AKey, AActivation: string);
+var
+  Id, Key, Activation: string;
+begin
+  Id := AId;
+  Key := AKey;
+  Activation := AActivation;
+  LogLine('link: joining your account at link.epubunum.com (--activate)...');
+  TThread.CreateAnonymousThread(
+    procedure
+    var
+      Site: TLinkSite;
+      Why: string;
+    begin
+      Why := '';
+      Site := TLinkSite.Create('EpubBuilder', Id, Key);
+      try
+        try
+          // no name is sent: the computer's is not the site's to know
+          if Site.Key = '' then
+            Site.Register('');
+          try
+            Site.Claim(Activation);
+          except
+            on E: ELinkSite do
+            begin
+              if E.Status <> 401 then
+                raise;
+              // the site no longer knows this installation: made known
+              // again (the id stays: the paired programs know it by it)
+              FreeAndNil(Site);
+              Site := TLinkSite.Create('EpubBuilder', Id, '');
+              Site.Register('');
+              Site.Claim(Activation);
+            end;
+          end;
+        except
+          on E: Exception do
+            Why := E.Message;
+        end;
+        // a key made is kept whatever came after
+        if Site <> nil then
+          Key := Site.Key;
+      finally
+        Site.Free;
+      end;
+      TThread.Queue(nil,
+        procedure
+        begin
+          if not GSiteForget then
+            SiteActivated(Key, Why);
+        end);
+    end).Start;
+end;
+
+procedure TfrmBuilder.SiteActivated(const AKey, AWhy: string);
+begin
+  SiteKeep(AKey, (AWhy = '') or FSiteClaimed);
+  if AWhy = '' then
+    LogLine('link: this EpubBuilder is in your account at link.epubunum.com - a BookManager of the same ' +
+      'account pairs without a code. Take --activate off the command line.')
+  else
+    LogLine('link: not joined to an account - ' + AWhy);
+end;
+
+procedure TfrmBuilder.SiteKeep(const AKey: string; AClaimed: Boolean);
+var
+  Ini: TMemIniFile;
+begin
+  if AKey <> '' then
+    FSiteKey := AKey;
+  FSiteClaimed := AClaimed;
+  GSiteGate.Enter;
+  try
+    GSiteKey := FSiteKey;
+  finally
+    GSiteGate.Leave;
+  end;
+  if FLink <> nil then
+    FLink.TakesTickets := FSiteClaimed and (FSiteKey <> '');
+  try
+    Ini := TMemIniFile.Create(SettingsFile, TEncoding.UTF8);
+    try
+      Ini.WriteString('Link', 'SiteKey', FSiteKey);
+      Ini.WriteBool('Link', 'SiteClaimed', FSiteClaimed);
+      Ini.UpdateFile;
+    finally
+      Ini.Free;
+    end;
+  except
+    on E: Exception do
+      LogLine('link: the link site''s key was not kept in the settings: ' + E.Message);
+  end;
+end;
+
 procedure TfrmBuilder.StartLink;
 var
   Ini: TMemIniFile;
-  Id, Tokens: string;
+  Id, Tokens, SiteKey, Activation: string;
+  SiteClaimed: Boolean;
 begin
   Id := '';
   Tokens := '';
+  SiteKey := '';
+  SiteClaimed := False;
   try
     Ini := TMemIniFile.Create(SettingsFile, TEncoding.UTF8);
     try
@@ -8391,6 +8650,9 @@ begin
         Ini.UpdateFile;
       end;
       Tokens := Ini.ReadString('Link', 'Paired', '').Replace('|', sLineBreak);
+      // the link site (uLinkSite): only after --activate was used once
+      SiteKey := Ini.ReadString('Link', 'SiteKey', '');
+      SiteClaimed := Ini.ReadBool('Link', 'SiteClaimed', False);
     finally
       Ini.Free;
     end;
@@ -8405,8 +8667,35 @@ begin
     FLink.OnPaired := LinkPaired;
     FLink.OnReceived := LinkReceived;
     FLink.OnPairEnded := LinkPairEnded;
+    // tickets of the link site in place of the code: only for a builder
+    // that is in an account (else /info says none are taken and nothing
+    // outside is ever asked)
+    Activation := SwitchValue('--activate');
+    FSiteId := Id;
+    FSiteKey := SiteKey;
+    FSiteClaimed := SiteClaimed and (SiteKey <> '');
+    GSiteGate.Enter;
+    try
+      GSiteId := Id;
+      GSiteKey := SiteKey;
+    finally
+      GSiteGate.Leave;
+    end;
+    // set once, before the server runs; whether a ticket is taken is
+    // TakesTickets (it changes when an account takes this EpubBuilder)
+    FLink.TicketCheck := SiteTicketCheck;
+    FLink.TakesTickets := FSiteClaimed;
     UpdateLinkFolders;
     LogLine(FLink.Start);
+    if Activation <> '' then
+    begin
+      if FSiteClaimed then
+        LogLine('link: --activate left alone: this EpubBuilder is in an account already.')
+      else if Id = '' then
+        LogLine('link: --activate left alone: the link has no id (the settings were not read).')
+      else
+        SiteActivate(Id, SiteKey, Activation);
+    end;
   except
     on E: Exception do
     begin
@@ -9166,6 +9455,7 @@ begin
   FAskResults := [mrYes, mrNo];
   FAskCancel := mrNo;
   FPairPad := False;
+  FSitePad := False;
   // the menu does not come back by itself after the answer (the answer
   // says where to go)
   FAskThenClose := True;
@@ -10261,6 +10551,7 @@ begin
   end;
   FAskCancel := mrNo;
   FPairPad := False;
+  FSitePad := False;
   FAskThenClose := not FBigPicture;
   FAskProc :=
     procedure(const AResult: TModalResult)
@@ -11284,6 +11575,258 @@ begin
     Result := LANGUAGES[cbLanguage.ItemIndex - 1, 0];
 end;
 
+procedure TfrmBuilder.SiteAccount;
+begin
+  if FSiteBusy then
+    Exit;
+  if (FLink = nil) or (FSiteId = '') then
+  begin
+    Tell('The link is not running here (see the log''s first lines): no account can be joined now.');
+    Exit;
+  end;
+  WindowLine('Asking link.epubunum.com...');
+  SiteAsk(True);
+end;
+
+procedure TfrmBuilder.SiteAsk(AWantCode: Boolean);
+var
+  Id, Key: string;
+begin
+  Id := FSiteId;
+  Key := FSiteKey;
+  FSiteBusy := True;
+  TThread.CreateAnonymousThread(
+    procedure
+    var
+      Site: TLinkSite;
+      Others: TArray<TLinkSiteInstall>;
+      Code: TLinkSiteCode;
+      Claimed: Boolean;
+      Why: string;
+      Count: Integer;
+    begin
+      Code := Default(TLinkSiteCode);
+      Claimed := False;
+      Why := '';
+      Count := 0;
+      Others := nil;
+      Site := TLinkSite.Create('EpubBuilder', Id, Key);
+      try
+        try
+          // no name is sent: the computer's is not the site's to know
+          if Site.Key = '' then
+            Site.Register('');
+          try
+            Claimed := Site.Status(Others);
+          except
+            on E: ELinkSite do
+            begin
+              if E.Status <> 401 then
+                raise;
+              // the site no longer knows this installation: made known
+              // again (the id stays: the paired programs know it by it)
+              FreeAndNil(Site);
+              Site := TLinkSite.Create('EpubBuilder', Id, '');
+              Site.Register('');
+              Claimed := Site.Status(Others);
+            end;
+          end;
+          Count := Length(Others);
+          if AWantCode and not Claimed then
+            Code := Site.AskCode;
+        except
+          on E: Exception do
+            Why := E.Message;
+        end;
+        // a key made is kept whatever came after
+        if (Site <> nil) and (Site.Key <> '') then
+          Key := Site.Key;
+      finally
+        Site.Free;
+      end;
+      TThread.Queue(nil,
+        procedure
+        begin
+          if not GSiteForget then
+            SiteAnswered(Key, Claimed, Code, Count, Why);
+        end);
+    end).Start;
+end;
+
+procedure TfrmBuilder.SiteAnswered(const AKey: string; AClaimed: Boolean; const ACode: TLinkSiteCode;
+  AOthers: Integer; const AError: string);
+var
+  Asked: Boolean;
+begin
+  FSiteBusy := False;
+  // tmSite asked (a code shows), or Settings > Account did
+  Asked := FSiteCodeUntil <> 0;
+  if AError <> '' then
+  begin
+    // the key, when one was made, is kept; what the site last said stands
+    SiteKeep(AKey, FSiteClaimed);
+    if Asked then
+      // the code stays: the next round asks again
+      DebugLog('link site: ' + AError)
+    else
+      Tell('link.epubunum.com: ' + AError);
+    Exit;
+  end;
+  SiteKeep(AKey, AClaimed);
+  if AClaimed then
+  begin
+    HideSiteClaim;
+    Tell(Format('This EpubBuilder is in your account at link.epubunum.com (with %d other installations). ' +
+      'A BookManager of the same account pairs with it without a code.', [AOthers]));
+    Exit;
+  end;
+  if ACode.Code <> '' then
+    ShowSiteClaim(ACode);
+end;
+
+procedure TfrmBuilder.ShowSiteClaim(const ACode: TLinkSiteCode);
+var
+  Lay: TLayout;
+  B: TButton;
+  Text: string;
+begin
+  if pnlSite = nil then
+  begin
+    pnlSite := TPanel.Create(Self);
+    pnlSite.Parent := Self;
+    pnlSite.Align := TAlignLayout.Top;
+    pnlSite.Position.Y := 0;
+    pnlSite.Height := 76;
+    pnlSite.Padding.Rect := RectF(GAP, GAP div 2, GAP, GAP div 2);
+    B := TButton.Create(Self);
+    B.Parent := pnlSite;
+    B.Align := TAlignLayout.Right;
+    B.Width := 170;
+    B.Margins.Rect := RectF(GAP, 14, 0, 14);
+    B.Text := 'Cancel';
+    B.OnClick := btnSiteCancelClick;
+    lblSiteCode := TLabel.Create(Self);
+    lblSiteCode.Parent := pnlSite;
+    lblSiteCode.Align := TAlignLayout.Right;
+    lblSiteCode.Width := 250;
+    lblSiteCode.StyledSettings := lblSiteCode.StyledSettings - [TStyledSetting.Size, TStyledSetting.Style];
+    lblSiteCode.TextSettings.Font.Size := 34;
+    lblSiteCode.TextSettings.Font.Style := [TFontStyle.fsBold];
+    lblSiteCode.WordWrap := False;
+    Lay := TLayout.Create(Self);
+    Lay.Parent := pnlSite;
+    Lay.Align := TAlignLayout.Client;
+    lblSiteText := TLabel.Create(Self);
+    lblSiteText.Parent := Lay;
+    lblSiteText.Align := TAlignLayout.Top;
+    lblSiteText.Height := 40;
+    lblSiteText.StyledSettings := lblSiteText.StyledSettings - [TStyledSetting.Style];
+    lblSiteText.TextSettings.Font.Style := [TFontStyle.fsBold];
+    lblSiteText.WordWrap := True;
+    lblSiteTime := TLabel.Create(Self);
+    lblSiteTime.Parent := Lay;
+    lblSiteTime.Align := TAlignLayout.Top;
+    lblSiteTime.Position.Y := 100;
+    lblSiteTime.Height := 24;
+    tmSite := TTimer.Create(Self);
+    tmSite.Interval := 1000;
+    tmSite.Enabled := False;
+    tmSite.OnTimer := tmSiteTimer;
+  end;
+  FSiteCodeUntil := IncSecond(Now, ACode.ExpiresIn);
+  FSiteEvery := Max(ACode.Interval, 2);
+  FSiteWaited := 0;
+  Text := Format('To put this EpubBuilder in your account: sign in at %s (on any phone or computer) and ' +
+    'type this code there:', [ACode.Site]);
+  WindowLine(Text + ' ' + ACode.Code);
+  lblSiteText.Text := Text;
+  lblSiteCode.Text := ACode.Code;
+  pnlSite.Visible := True;
+  tmSite.Enabled := True;
+  tmSiteTimer(nil);
+  // Big Picture: the pad's box too, unless another question shows there
+  if FBigPicture and (FPadMenu <> nil) and ((FPadMode <> BPM_ASK) or FSitePad) then
+  begin
+    FPadCmds := [PADROW_NONE];
+    FAskResults := [mrCancel];
+    FAskCancel := mrCancel;
+    FAskProc :=
+      procedure(const AResult: TModalResult)
+      begin
+        // the box is gone already (PadAnswer): the bar with it
+        FSitePad := False;
+        HideSiteClaim;
+        WindowLine('The code is no longer waited for (Settings > Account gives a new one).');
+      end;
+    FPadMode := BPM_ASK;
+    FSitePad := True;
+    // a new box: wide, the benchmarks' yellow frame, a centred title
+    FPadMenu.NextTitleCentered := True;
+    FPadMenu.NextWidthShare := 0.6;
+    if FPadDark then
+      FPadMenu.NextFrameColor := BOARD_FRAME_DARK
+    else
+      FPadMenu.NextFrameColor := BOARD_FRAME_LIGHT;
+    FPadMenu.ShowText('Account', Text + sLineBreak + sLineBreak + ACode.Code + sLineBreak + sLineBreak +
+      Format('(It works for %d minutes; this box closes by itself once it is typed there.)',
+      [ACode.ExpiresIn div 60]), [TPadMenu.Item('Cancel')], 0, PadFootOf([BP_CHOOSE, BP_BACK], ['', 'cancel']));
+    RefreshFoot;
+  end;
+end;
+
+procedure TfrmBuilder.HideSiteClaim;
+begin
+  if tmSite <> nil then
+    tmSite.Enabled := False;
+  if pnlSite <> nil then
+    pnlSite.Visible := False;
+  FSiteCodeUntil := 0;
+  if FSitePad then
+  begin
+    FSitePad := False;
+    // still the account's box (not answered, not replaced): closed
+    if (FPadMode = BPM_ASK) and (FPadMenu <> nil) then
+    begin
+      FAskProc := nil;
+      FAskResults := nil;
+      FPadMode := BPM_HOME;
+      FPadMenu.Hide;
+    end;
+  end;
+end;
+
+procedure TfrmBuilder.btnSiteCancelClick(Sender: TObject);
+begin
+  HideSiteClaim;
+  WindowLine('The code is no longer waited for (Settings > Account gives a new one).');
+  PadBackToMenu(False);
+end;
+
+procedure TfrmBuilder.tmSiteTimer(Sender: TObject);
+var
+  Left: Int64;
+begin
+  if FSiteCodeUntil = 0 then
+    Exit;
+  if Now >= FSiteCodeUntil then
+  begin
+    HideSiteClaim;
+    Tell('The code for link.epubunum.com ran out. Settings > Account gives a new one.');
+    Exit;
+  end;
+  Left := SecondsBetween(FSiteCodeUntil, Now);
+  lblSiteTime.Text := Format('It works for %d:%.2d more.', [Left div 60, Left mod 60]);
+  // was it typed? (not at the first call, from ShowSiteClaim)
+  if Sender = nil then
+    Exit;
+  Inc(FSiteWaited);
+  if (FSiteWaited >= FSiteEvery) and not FSiteBusy then
+  begin
+    FSiteWaited := 0;
+    SiteAsk(False);
+  end;
+end;
+
 procedure TfrmBuilder.miSettingsClick(Sender: TObject);
 begin
   if FPadMenu = nil then
@@ -11540,8 +12083,10 @@ end;
 
 initialization
   GSleepGate := TEvent.Create(nil, True, True, '');
+  GSiteGate := TCriticalSection.Create;
 
 finalization
   FreeAndNil(GSleepGate);
+  FreeAndNil(GSiteGate);
 
 end.

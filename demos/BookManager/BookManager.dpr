@@ -18,6 +18,8 @@ uses
   uEpubUnum in '..\common\uEpubUnum.pas',
   // the link to EpubBuilder (Indy)
   uLink in '..\common\uLink.pas',
+  // the link site: an account's installations pair without a code (HTTPS)
+  uLinkSite in '..\common\uLinkSite.pas',
   // where dropped files go
   uRoute in 'src\uRoute.pas',
   // the transfers and the poll (threads)

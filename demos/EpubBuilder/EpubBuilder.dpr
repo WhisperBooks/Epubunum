@@ -34,6 +34,8 @@ uses
   uEpubUnum in '..\common\uEpubUnum.pas',
   // the link: BookManager and EpubReader connect (Indy)
   uLink in '..\common\uLink.pas',
+  // the link site: an account's installations pair without a code (HTTPS)
+  uLinkSite in '..\common\uLinkSite.pas',
   // Steam's Exit Game (SIGTERM): saved before the end
   uQuitSignal in '..\common\uQuitSignal.pas',
   // Steam: only in the Steam / SteamDebug configurations (STEAMBUILD)

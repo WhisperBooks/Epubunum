@@ -36,6 +36,16 @@ BookManager says so and the row closes (**Pair...** asks again). The
 pairing is kept on both sides. If EpubBuilder forgets it (its settings were
 reset), BookManager says so and asks to pair again.
 
+**Without a code (optional):** programs that are in the same account at
+https://link.epubunum.com pair with each other without the code.
+**Account...** shows a code and that address: sign in there (a link is
+mailed to you; there is no password) and type the code - BookManager says
+when the account has it. From then on **Pair...** first asks the site for
+a ticket and hands it to EpubBuilder; if that EpubBuilder is not in the
+account (or the site is not reached) BookManager says why and the 6-digit
+code is asked for as before. Nothing of this is needed: with **Account...**
+never pressed, no outside site is ever asked.
+
 A firewall must let the link through: Windows asks the first time
 BookManager runs (allow it on private networks). EpubBuilder's HTTP port
 is 47821, or the next free one up to 47830.
@@ -129,7 +139,9 @@ BookManager connects).
 `%APPDATA%\EpubUnum`, macOS `~/Library/Application Support/EpubUnum`,
 Linux `~/.config/EpubUnum`): the pairings ([Paired], one line per
 EpubBuilder), the EpubBuilder chosen last, the fetch folder and the
-folder Add files... opens.
+folder Add files... opens. After **Account...**: [Link] - this
+installation's random id and key at the link site, and whether an account
+has it. No name of the computer is sent there.
 
 ## Icon
 

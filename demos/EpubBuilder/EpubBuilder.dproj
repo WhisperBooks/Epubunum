@@ -314,6 +314,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <DCCReference Include="..\common\uRedraw.pas"/>
         <DCCReference Include="..\common\uEpubUnum.pas"/>
         <DCCReference Include="..\common\uLink.pas"/>
+        <DCCReference Include="..\common\uLinkSite.pas"/>
         <DCCReference Include="..\common\uQuitSignal.pas"/>
         <DCCReference Include="..\common\uSteam.pas"/>
         <DCCReference Include="..\common\uSteamBoard.pas"/>

@@ -23,7 +23,7 @@ uses
   // FMX.Objects has a TPath (a shape) that hides System.IOUtils.TPath:
   // that one is written in full here
   FMX.Controls.Presentation, FMX.TabControl, FMX.Objects, FMX.Styles.Objects,
-  uDebugLog, uMachine, uEpubUnum, uLink, uRoute, uTransfers;
+  uDebugLog, uMachine, uEpubUnum, uLink, uLinkSite, uRoute, uTransfers;
 
 type
   { Where a transfer is. }
@@ -102,6 +102,16 @@ type
     layPair: TLayout;
     { The code EpubBuilder shows. }
     edCode: TEdit;
+    { Account...: this BookManager joins its owner's account at the link
+      site (uLinkSite), after which an EpubBuilder of the same account
+      pairs without a code. }
+    btnAccount: TButton;
+    { The link site's row: the code to type there, shown while joining. }
+    laySite: TLayout;
+    { The code, and where to type it. }
+    lblSite: TLabel;
+    { Asks the link site whether the code was typed. }
+    tmSite: TTimer;
     { The tabs. }
     tcMain: TTabControl;
     { Send to EpubBuilder. }
@@ -201,6 +211,17 @@ type
     FLastError: string;
     { The client asking to pair (nil = not pairing). }
     FPairClient: TLinkClient;
+    { This installation's id at the link site ([Link] Id; '' = none made
+      yet). }
+    FSiteId: string;
+    { Its key there ([Link] Key; '' = not made known yet). }
+    FSiteKey: string;
+    { An account has it ([Link] Claimed: as the site last said). }
+    FSiteClaimed: Boolean;
+    { A call to the link site is on its way (one at a time). }
+    FSiteBusy: Boolean;
+    { When the code shown stops working (0 = none shown). }
+    FSiteCodeUntil: TDateTime;
     { The transfers listed (the order of lbTransfers). }
     FRows: TArray<TTransferRow>;
     { The last transfer's number. }
@@ -277,8 +298,44 @@ type
     procedure ChooseBuilder(const AId: string);
     { lblLink and btnPair from the link's state. }
     procedure UpdateLink;
-    { Pair...: the builder shows a code; the code row opens. }
+    { Pair...: with a ticket of the link site when this BookManager is in
+      an account (PairWithTicket), else with the code (PairWithCode). }
     procedure btnPairClick(Sender: TObject);
+    { The builder shows a code; the code row opens.
+      @param(ANote said before the status line's text ('' = nothing):
+        why pairing without a code did not work) }
+    procedure PairWithCode(const ANote: string);
+    { Pairs without a code, in a thread: asks the builder whether it takes
+      a ticket, the link site for one, and hands it over. TicketAnswered
+      is called with what came of it. }
+    procedure PairWithTicket(const ATarget: TLinkTarget);
+    { PairWithTicket's end (main thread): the token kept, or - AToken ''
+      - the code asked for after all, with AWhy said. }
+    procedure TicketAnswered(const ABuilderId, AToken, AWhy: string);
+    { The builder chosen gave AToken: kept, the poll started again.
+      @param(AHow said in the status line: 'Paired' / 'Paired without a
+        code') }
+    procedure PairDone(const AToken, AHow: string);
+    { Account...: makes this BookManager known to the link site when it
+      is not, asks whether an account has it, and - when none has - for a
+      code to show. In a thread; SiteAnswered is called. }
+    procedure btnAccountClick(Sender: TObject);
+    { The link site's row's Cancel: the code is no longer waited for. }
+    procedure btnSiteCancelClick(Sender: TObject);
+    { tmSite: asks the link site whether the code shown was typed. }
+    procedure tmSiteTimer(Sender: TObject);
+    { Asks the link site, in a thread (FSiteBusy while it runs).
+      @param(AWantCode ask for a code to show when no account has this
+        BookManager (Account...); False only asks (tmSite)) }
+    procedure AskSite(AWantCode: Boolean);
+    { The link site's answer (main thread): the id and key to keep,
+      whether an account has this BookManager, the code to show (its
+      Code '' = none was asked for), how many other installations the
+      account has, and - AError not '' - why the site was not asked. }
+    procedure SiteAnswered(const AId, AKey: string; AClaimed: Boolean; const ACode: TLinkSiteCode;
+      AOthers: Integer; const AError: string);
+    { The link site's row hidden, its timer stopped. }
+    procedure HideSite;
     { The code row's Pair: the code sent, the token kept. }
     procedure btnPairOkClick(Sender: TObject);
     { The code row's Cancel. }
@@ -418,6 +475,11 @@ begin
     Result := 0;
 end;
 
+var
+  { The window is closing or gone: an answer of the link site that comes
+    after that (its threads are not waited for) touches nothing. }
+  GManagerGone: Boolean = False;
+
 { TfrmManager }
 
 function TfrmManager.SettingsFile: string;
@@ -441,6 +503,9 @@ begin
       FFetchFolder := Ini.ReadString('Folders', 'Fetch', FFetchFolder);
       FAddFolder := Ini.ReadString('Folders', 'Add', FAddFolder);
       FDark := Ini.ReadBool('View', 'Dark', True);
+      FSiteId := Ini.ReadString('Link', 'Id', '');
+      FSiteKey := Ini.ReadString('Link', 'Key', '');
+      FSiteClaimed := Ini.ReadBool('Link', 'Claimed', False);
     finally
       Ini.Free;
     end;
@@ -469,6 +534,13 @@ begin
       Ini.WriteString('Folders', 'Fetch', FFetchFolder);
       Ini.WriteString('Folders', 'Add', FAddFolder);
       Ini.WriteBool('View', 'Dark', FDark);
+      // the link site: nothing is written until Account... was used
+      if FSiteId <> '' then
+      begin
+        Ini.WriteString('Link', 'Id', FSiteId);
+        Ini.WriteString('Link', 'Key', FSiteKey);
+        Ini.WriteBool('Link', 'Claimed', FSiteClaimed);
+      end;
       Ini.UpdateFile;
     finally
       Ini.Free;
@@ -585,6 +657,13 @@ begin
   btnPair.Margins.Left := GAP;
   btnPair.Text := 'Pair...';
   btnPair.OnClick := btnPairClick;
+  btnAccount := TButton.Create(Self);
+  btnAccount.Parent := layTop;
+  btnAccount.Align := TAlignLayout.Right;
+  btnAccount.Width := 110;
+  btnAccount.Margins.Left := GAP;
+  btnAccount.Text := 'Account...';
+  btnAccount.OnClick := btnAccountClick;
   lblLink := TLabel.Create(Self);
   lblLink.Parent := layTop;
   lblLink.Align := TAlignLayout.Right;
@@ -620,6 +699,26 @@ begin
   B.Margins.Left := GAP;
   AddButton(layPair, 'Cancel', btnPairCancelClick, 90);
   layPair.Visible := False;
+
+  // the link site's row, while this BookManager joins an account
+  laySite := TLayout.Create(Self);
+  laySite.Parent := Self;
+  laySite.Align := TAlignLayout.Top;
+  laySite.Position.Y := 100;
+  laySite.Height := ROW_HEIGHT + GAP;
+  laySite.Padding.Rect := RectF(GAP, GAP, GAP, 0);
+  B := TButton.Create(Self);
+  B.Parent := laySite;
+  B.Align := TAlignLayout.Right;
+  B.Width := 90;
+  B.Text := 'Cancel';
+  B.OnClick := btnSiteCancelClick;
+  lblSite := TLabel.Create(Self);
+  lblSite.Parent := laySite;
+  lblSite.Align := TAlignLayout.Client;
+  lblSite.WordWrap := False;
+  lblSite.Trimming := TTextTrimming.Character;
+  laySite.Visible := False;
 
   // dark: the tabs' names, in this program's colours
   layTabs := TLayout.Create(Self);
@@ -805,6 +904,10 @@ begin
   tmDark := TTimer.Create(Self);
   tmDark.Interval := 500;
   tmDark.OnTimer := tmDarkTimer;
+  tmSite := TTimer.Create(Self);
+  tmSite.Enabled := False;
+  tmSite.Interval := 5000;
+  tmSite.OnTimer := tmSiteTimer;
 end;
 
 procedure TfrmManager.UpdateTabStrip;
@@ -1127,8 +1230,10 @@ end;
 procedure TfrmManager.FormClose(Sender: TObject; var Action: TCloseAction);
 begin
   FClosing := True;
+  GManagerGone := True;
   tmPeers.Enabled := False;
   tmDark.Enabled := False;
+  tmSite.Enabled := False;
   // each stops its call (closing the connection) and waits; the events it
   // queued and that have not run are dropped
   FreeAndNil(FPoller);
@@ -1141,6 +1246,7 @@ end;
 
 procedure TfrmManager.FormDestroy(Sender: TObject);
 begin
+  GManagerGone := True;
   // the threads first (FormClose did it unless the window never closed)
   FreeAndNil(FPoller);
   FreeAndNil(FWorker);
@@ -1364,6 +1470,119 @@ begin
     SetStatus('No EpubBuilder heard yet: start it on a computer of this network.');
     Exit;
   end;
+  // in an account of the link site: a builder of the same account needs
+  // no code (it is asked first; the code is the way when it does not work)
+  if FSiteClaimed and (FSiteKey <> '') and not FSiteBusy then
+    PairWithTicket(T)
+  else
+    PairWithCode('');
+end;
+
+procedure TfrmManager.PairWithTicket(const ATarget: TLinkTarget);
+var
+  BuilderId, Host, SiteId, SiteKey, ClientName: string;
+  Port: Integer;
+begin
+  BuilderId := FBuilderId;
+  Host := ATarget.Host;
+  Port := ATarget.Port;
+  SiteId := FSiteId;
+  SiteKey := FSiteKey;
+  ClientName := FClientName;
+  FSiteBusy := True;
+  btnPair.Enabled := False;
+  SetStatus('Asking link.epubunum.com for a ticket to pair without a code...');
+  TThread.CreateAnonymousThread(
+    procedure
+    var
+      Client: TLinkClient;
+      Site: TLinkSite;
+      Info: TJSONObject;
+      Token, Why: string;
+      Takes: Boolean;
+    begin
+      Token := '';
+      Why := '';
+      Client := nil;
+      Site := nil;
+      try
+        try
+          Client := TLinkClient.Create(Host, Port, ClientName, '');
+          Info := Client.Info;
+          try
+            Takes := Info.GetValue<Boolean>('ticket', False);
+          finally
+            Info.Free;
+          end;
+          if not Takes then
+            Why := 'that EpubBuilder takes no tickets (it is in no account, or is an older build)'
+          else
+          begin
+            Site := TLinkSite.Create('BookManager', SiteId, SiteKey);
+            Token := Client.PairTicket(Site.Ticket(BuilderId));
+          end;
+        except
+          on E: Exception do
+          begin
+            Token := '';
+            Why := E.Message;
+          end;
+        end;
+      finally
+        Site.Free;
+        Client.Free;
+      end;
+      TThread.Queue(nil,
+        procedure
+        begin
+          if not GManagerGone then
+            TicketAnswered(BuilderId, Token, Why);
+        end);
+    end).Start;
+end;
+
+procedure TfrmManager.TicketAnswered(const ABuilderId, AToken, AWhy: string);
+begin
+  FSiteBusy := False;
+  if FClosing then
+    Exit;
+  UpdateLink;
+  // another builder was chosen meanwhile: nothing of this one is kept
+  if ABuilderId <> FBuilderId then
+    Exit;
+  if AToken <> '' then
+    PairDone(AToken, 'Paired without a code')
+  else
+  begin
+    DebugLog('no pairing by ticket: ' + AWhy);
+    PairWithCode('Without a code it did not work (' + AWhy + '). ');
+  end;
+end;
+
+procedure TfrmManager.PairDone(const AToken, AHow: string);
+begin
+  FreeAndNil(FPairClient);
+  layPair.Visible := False;
+  SetTokenFor(FBuilderId, AToken);
+  // from the start, now that it answers
+  FGeneration := FPoller.Follow(FBuilderId);
+  FConnected := False;
+  FLastError := '';
+  FillBuilders;
+  UpdateLink;
+  SetStatus(Format('%s with EpubBuilder on %s: books and audio can be sent, its books fetched.',
+    [AHow, FBuilder.Name]));
+end;
+
+procedure TfrmManager.PairWithCode(const ANote: string);
+var
+  T: TLinkTarget;
+begin
+  if (FBuilderId = '') or not FTargets.Get(FBuilderId, T) or (T.Host = '') then
+  begin
+    SetStatus(ANote + 'No EpubBuilder heard yet: start it on a computer of this network.');
+    Exit;
+  end;
   FreeAndNil(FPairClient);
   FPairClient := TLinkClient.Create(T.Host, T.Port, FClientName, '');
   try
@@ -1372,7 +1591,7 @@ begin
     on E: Exception do
     begin
       FreeAndNil(FPairClient);
-      SetStatus('Pairing did not start: ' + E.Message);
+      SetStatus(ANote + 'Pairing did not start: ' + E.Message);
       Exit;
     end;
   end;
@@ -1381,7 +1600,8 @@ begin
   layPair.Visible := True;
   edCode.Text := '';
   edCode.SetFocus;
-  SetStatus(Format('EpubBuilder on %s shows a code now: type it here (it works for 5 minutes).', [FBuilder.Name]));
+  SetStatus(ANote + Format('EpubBuilder on %s shows a code now: type it here (it works for 5 minutes).',
+    [FBuilder.Name]));
 end;
 
 procedure TfrmManager.btnPairOkClick(Sender: TObject);
@@ -1414,17 +1634,7 @@ begin
       Exit;
     end;
   end;
-  FreeAndNil(FPairClient);
-  layPair.Visible := False;
-  SetTokenFor(FBuilderId, Token);
-  // from the start, now that it answers
-  FGeneration := FPoller.Follow(FBuilderId);
-  FConnected := False;
-  FLastError := '';
-  FillBuilders;
-  UpdateLink;
-  SetStatus(Format('Paired with EpubBuilder on %s: books and audio can be sent, its books fetched.',
-    [FBuilder.Name]));
+  PairDone(Token, 'Paired');
 end;
 
 procedure TfrmManager.btnPairCancelClick(Sender: TObject);
@@ -1432,6 +1642,151 @@ begin
   FreeAndNil(FPairClient);
   layPair.Visible := False;
   SetStatus('Not paired.');
+end;
+
+procedure TfrmManager.btnAccountClick(Sender: TObject);
+begin
+  if FSiteBusy then
+    Exit;
+  SetStatus('Asking link.epubunum.com...');
+  AskSite(True);
+end;
+
+procedure TfrmManager.btnSiteCancelClick(Sender: TObject);
+begin
+  HideSite;
+  SetStatus('The code is no longer waited for. Account... gives a new one.');
+end;
+
+procedure TfrmManager.HideSite;
+begin
+  tmSite.Enabled := False;
+  laySite.Visible := False;
+  FSiteCodeUntil := 0;
+end;
+
+procedure TfrmManager.tmSiteTimer(Sender: TObject);
+begin
+  if FClosing or FSiteBusy then
+    Exit;
+  if (FSiteCodeUntil = 0) or (Now > FSiteCodeUntil) then
+  begin
+    HideSite;
+    SetStatus('The code ran out. Account... gives a new one.');
+    Exit;
+  end;
+  AskSite(False);
+end;
+
+procedure TfrmManager.AskSite(AWantCode: Boolean);
+var
+  Id, Key: string;
+begin
+  if FSiteId = '' then
+    FSiteId := LinkSiteId(TGUID.NewGuid.ToString);
+  Id := FSiteId;
+  Key := FSiteKey;
+  FSiteBusy := True;
+  TThread.CreateAnonymousThread(
+    procedure
+    var
+      Site: TLinkSite;
+      Others: TArray<TLinkSiteInstall>;
+      Code: TLinkSiteCode;
+      Claimed: Boolean;
+      Why: string;
+      Count: Integer;
+    begin
+      Code := Default(TLinkSiteCode);
+      Claimed := False;
+      Why := '';
+      Count := 0;
+      Others := nil;
+      Site := nil;
+      try
+        try
+          Site := TLinkSite.Create('BookManager', Id, Key);
+          // no name is sent: the computer's is not the site's to know
+          if Site.Key = '' then
+            Site.Register('');
+          try
+            Claimed := Site.Status(Others);
+          except
+            on E: ELinkSite do
+            begin
+              if E.Status <> 401 then
+                raise;
+              // the site no longer knows this one: made known again, as
+              // a new installation
+              FreeAndNil(Site);
+              Id := LinkSiteId(TGUID.NewGuid.ToString);
+              Key := '';
+              Site := TLinkSite.Create('BookManager', Id, '');
+              Site.Register('');
+              Claimed := Site.Status(Others);
+            end;
+          end;
+          Count := Length(Others);
+          if AWantCode and not Claimed then
+            Code := Site.AskCode;
+        except
+          on E: Exception do
+            Why := E.Message;
+        end;
+        // a key made is kept whatever came after
+        if (Site <> nil) and (Site.Key <> '') then
+          Key := Site.Key;
+      finally
+        Site.Free;
+      end;
+      TThread.Queue(nil,
+        procedure
+        begin
+          if not GManagerGone then
+            SiteAnswered(Id, Key, Claimed, Code, Count, Why);
+        end);
+    end).Start;
+end;
+
+procedure TfrmManager.SiteAnswered(const AId, AKey: string; AClaimed: Boolean; const ACode: TLinkSiteCode;
+  AOthers: Integer; const AError: string);
+begin
+  FSiteBusy := False;
+  if FClosing then
+    Exit;
+  if AKey <> '' then
+  begin
+    FSiteId := AId;
+    FSiteKey := AKey;
+  end;
+  if AError <> '' then
+  begin
+    SaveSettings;
+    // a code already shown stays: the next round asks again
+    SetStatus('link.epubunum.com: ' + AError);
+    Exit;
+  end;
+  FSiteClaimed := AClaimed;
+  SaveSettings;
+  if AClaimed then
+  begin
+    HideSite;
+    SetStatus(Format('This BookManager is in your account at link.epubunum.com (with %d other installations): ' +
+      'Pair... needs no code with an EpubBuilder of the same account.', [AOthers]));
+    Exit;
+  end;
+  if ACode.Code = '' then
+    // tmSite asked: not typed yet
+    Exit;
+  lblSite.Text := Format('Sign in at %s and type this code there:    %s', [ACode.Site, ACode.Code]);
+  FSiteCodeUntil := Now + ACode.ExpiresIn / SecsPerDay;
+  tmSite.Interval := ACode.Interval * 1000;
+  // under the builder row, above the dark tabs' names
+  laySite.Position.Y := layTop.Position.Y + 1;
+  laySite.Visible := True;
+  tmSite.Enabled := True;
+  SetStatus(Format('Waiting for the code to be typed at %s (it works for %d minutes).',
+    [ACode.Site, ACode.ExpiresIn div 60]));
 end;
 
 procedure TfrmManager.edCodeKeyDown(Sender: TObject; var Key: Word; var KeyChar: Char; Shift: TShiftState);

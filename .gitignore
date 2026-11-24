@@ -46,3 +46,5 @@ timings.txt
 # The websites: settings with passwords are never committed
 web/leaderboard/config.php
 web/**/leaderboard-config.php
+web/link/config.php
+web/**/link-config.php

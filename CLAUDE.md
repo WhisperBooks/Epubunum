@@ -26,7 +26,8 @@ the map. Sessions 13 and earlier: their handovers follow.
 - THE THREE SITES are up, HTTPS, Plesk, PHP + MySQL:
   https://www.epubunum.com (web/www/index.html, zip 271 / 277),
   https://leaderboard.epubunum.com (web/leaderboard, zips 272 - 280),
-  https://link.epubunum.com (still Plesk's default page - not built).
+  https://link.epubunum.com (web/link, zip 282 - written and tested
+  here, NOT UPLOADED: the page there is still Plesk's default).
   The owner uploads the files himself and runs SQL in phpMyAdmin
   (database "epubunum"). The site's settings are in a file outside
   the repository (web/leaderboard/README.md).
@@ -120,6 +121,9 @@ the map. Sessions 13 and earlier: their handovers follow.
   WORK). submit.php of zip 280 can be uploaded at any time.
 - Zip 275's four hints (compiled? not said) and zip 277's two message
   texts.
+- Zips 284 - 286 (session 15): the link site in EpubBuilder - uLink's
+  /pair/ticket, --activate, Settings > Account (the code in the window
+  and in Big Picture). The owner deploys after 286.
 - Add here whatever else needs a build, and say so in the delivery.
 
 ### Not confirmed by the owner
@@ -142,15 +146,29 @@ the map. Sessions 13 and earlier: their handovers follow.
 - The website's validation is version 1 as built (the owner said
   "TBD" and used it); Steam ids are not sent, so nothing to verify.
 
+### Session 15 (2026-11-24 06:38 -) - the log
+- 06:38 the owner gave the repository's address (it clones without a
+  key now: PUBLIC - "Project" below still says PRIVATE; asked, no
+  answer yet), "Read CLAUDE.md", then "link" = item 2 of Next.
+  Three questions asked and answered: sign-in by an EMAIL LINK (not
+  Steam's); an install without a screen joins by a ONE-TIME KEY FROM
+  THE SITE (not a mailed approval); version 1 is ACTIVATION ONLY (the
+  site keeps no addresses; finding stays the local network's). Zip 282
+  = the site. Next for it: the shared unit beside uLink, then
+  BookServer (see "Zip 282").
+
 ### Next (the owner's word decides the order)
 1. AMD's power ON WINDOWS - when Windows is on the Steam Machine
    ("probably next week"; then the Deck and the Ally "if things go
    well"). Needs AMD's ADL / ADLX library; read its header first.
 2. link.epubunum.com: ONE activation scheme for every install without
    a screen (BookServer, a headless BookManager, a headless
-   EpubBuilder, the Apple TV) - design in the session 13 handover's
-   log below; then BookServer; then the Apple TV reader (native
-   Swift).
+   EpubBuilder, the Apple TV) - THE SITE IS ZIP 282 (to upload; its
+   schema and its mail not tried on the host). Then the programs'
+   side: a shared unit beside uLink (System.Net.HttpClient: register,
+   claim / code + status, ticket, check, release), uLink's
+   /pair/ticket, --activate; then BookServer; then the Apple TV
+   reader (native Swift).
 3. Offered, no answer: the website's boards inside the program (its
    Leaderboards page shows Steam's only - a non-Steam build has none);
    names on the site; the limit read each second; an in-app "save a
@@ -1625,7 +1643,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 281 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
+Last number used: 288 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
 next-session notes, CLAUDE.md only).
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
@@ -4213,6 +4231,294 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 288 (on top of zip 287): uLinkSite's four hints
+Session 15, owner 2026-11-24 09:05: EpubBuilder BUILDS ("Success",
+both configurations pasted) with zips 284 - 287 - so zip 287's six
+E2250 were what followed from the E2169. Four hints, uLinkSite only:
+H2077 twice (Post: Value and HttpStatus set before the try and never
+read - taken out) and H2443 twice (TJSONArray's inline getter:
+System.Generics.Collections added to the implementation's uses, as
+uManager and uBuilder have it). Files: demos/common/uLinkSite.pas;
+CLAUDE.md. No hint named uLink, uBuilder or uManager. NOT SEEN: it
+running; BookManager's build.
+
+## Zip 287 (on top of zip 286): uLink compiles - a field after methods
+Session 15, owner 2026-11-24 09:02, the first build of 284 - 286:
+uLink.pas(163) E2169 "Field definition not allowed after methods or
+properties", then six E2250 at the TThread.Queue calls (lines of the
+old code too) and F2063. Files: demos/common/uLink.pas; CLAUDE.md.
+- Zip 286 put TakesTickets' getter and setter between TLinkServer's
+  FIELDS (after FTakesTickets, before FTicketWrong). Moved to the
+  private methods (before CommandGet).
+- The six E2250 are TAKEN FOR what followed from it (they name Queue
+  calls that were there before and compiled) - NOT SURE until it is
+  built: if they stay, send the lines.
+- RULE: in a class, a new accessor goes with the METHODS, never beside
+  its backing field; the other classes touched in this session were
+  looked through for the same (none).
+
+## Zip 286 (on top of zip 285): EpubBuilder's Account row - the code in the window and in Big Picture
+Session 15, owner 2026-11-24 08:57: "Do the big picture Steam version
+then I can do a steam deployment". NOT COMPILED. No .dproj, no .dpr.
+Files: demos/EpubBuilder/src/uBuilder.pas, README.md;
+demos/common/uLink.pas; CLAUDE.md.
+- SETTINGS > "Account at link.epubunum.com" (BPC_ACCOUNT = 38, on the
+  Settings page of the desktop's menu and of Big Picture's; its value
+  "joined" / "not joined"; there whenever the link runs - Steam or
+  not). Chosen: the menu hides, SiteAccount asks the site in a thread
+  (made known first, under the link's id; no name sent). No account
+  has it: ShowSiteClaim - a BAR at the top as the pairing's (pnlSite:
+  the text, the code at size 34, the time left, Cancel) and, in Big
+  Picture, the pad's BOX (ShowText "Account", NextTitleCentered,
+  NextWidthShare 0.6, the boards' yellow frame; one row, Cancel; the
+  foot PadFootOf([BP_CHOOSE, BP_BACK], ['', 'cancel']) - glyphs or
+  keys as the pairing's box). tmSite: every second the time left,
+  every `interval` (5 s) the site asked; typed -> bar and box close,
+  Tell says it is in the account (Big Picture: an OK box); run out
+  (10 minutes) -> closed and said. An account has it already: Tell.
+- STEAM INPUT: nothing new is bound - the row is chosen and the box
+  answered with the actions there are; no key is named in the
+  program's code, no button in a text. tools/gen_reader_input.py and
+  LAYOUT_REVISION are untouched.
+- FSitePad is to the account's box what FPairPad is to the pairing's:
+  set False wherever a question replaces the box (the three places
+  FPairPad is). A pairing asked for while the account's box shows
+  gets its bar only.
+- uLink: TLinkServer.TakesTickets (under the server's lock; False at
+  first) - /info's "ticket" and /pair/ticket follow it. TicketCheck is
+  now set ONCE before Start by EpubBuilder, always; TakesTickets turns
+  on when an account has it (SiteKeep) - zip 285 set TicketCheck only
+  with a key, which could not change after Start without a race.
+- SiteKeep (one place): FSiteKey / FSiteClaimed, GSiteKey for the
+  link's threads, [Link] SiteKey / SiteClaimed, FLink.TakesTickets.
+  SiteActivated (--activate) uses it too.
+- The new methods that use BOARD_FRAME_DARK stand AFTER its const
+  block (before miSettingsClick): a const must be declared above its
+  use - the first try had them beside StartLink.
+- TO TRY (owner): Settings > Account on the desktop and in Big Picture
+  (the box: wide, yellow, centred title, Cancel with the pad's glyph);
+  type the code on the site from a phone; the row says "joined";
+  BookManager (Account... done too) > Pair... says "Paired without a
+  code". Cancel and the ten minutes. A pairing by code while the
+  account's bar shows.
+- NOT SEEN: any of it running. Likeliest faults: a compile error; the
+  bar's layout on a small screen (the code label is 250 wide); the
+  Settings page one row longer in Big Picture.
+
+## Zip 285 (on top of zip 284): BookManager and EpubBuilder use the link site
+Session 15, owner 2026-11-24 08:50 "OK" (to: the Steam builds may carry
+the optional claim; the order wiring -> names -> premium). NOT
+COMPILED. TWO .dproj IN THE ZIP (BookManager.dproj, EpubBuilder.dproj:
+one DCCReference line each for uLinkSite.pas, on top of ab4923a's -
+the Platform line untouched). Files: demos/BookManager/src/uManager.pas,
+BookManager.dpr, BookManager.dproj, README.md; demos/EpubBuilder/src/
+uBuilder.pas, EpubBuilder.dpr, EpubBuilder.dproj, README.md;
+tools/gen_projects.py (BookManager's unit list); CLAUDE.md.
+- BOOKMANAGER: a button Account... beside Pair... - makes itself known
+  to the site (no name sent), asks whether an account has it, else
+  shows a row "Sign in at link.epubunum.com and type this code
+  there: ABCD-EFGH" and asks every 5 s (tmSite) until it is typed, the
+  code runs out or Cancel. [Link] Id / Key / Claimed in BookManager.ini.
+  Pair...: when claimed, PairWithTicket first (a thread: the builder's
+  /info "ticket", TLinkSite.Ticket, TLinkClient.PairTicket); when that
+  does not work, WHY is said and the 6-digit code is asked for as
+  before (PairWithCode). The site's calls run in anonymous threads,
+  one at a time (FSiteBusy); GManagerGone drops an answer that comes
+  after the window closed.
+- EPUBBUILDER (this zip: the server's side, and joining an account
+  WITHOUT a screen's page): --activate KEY (or --activate=KEY) -
+  Register when not known, Claim, the log says so; [Link] SiteKey /
+  SiteClaimed in its settings; with SiteClaimed the switch is left
+  alone (a used key sent again would count as a wrong one at the
+  site). TicketCheck := SiteTicketCheck only when it has a key or
+  --activate is there - else /info says "ticket": false and no
+  outside site is ever asked. The site's install id IS the link's id
+  ([Link] Id): it is never changed (the paired programs know the
+  builder by it); a site that forgot it (401) has it made known again
+  under the same id. GSiteGate guards the id and key (the link's
+  server threads read them).
+- NOT IN THIS ZIP: EpubBuilder's own claim PAGE (a code shown in the
+  window and in Big Picture - wide, yellow frame, centred title; its
+  menu entry through Steam Input's tables; glyphs) - it comes with
+  the leaderboard names, which need it on the owner's seven machines.
+  Until then a Steam machine joins with --activate in Launch Options.
+- An installation has NO LABEL yet (nothing but the program's name and
+  the system is sent): several BookManagers of an account look alike
+  on the site's page. To do: a name typed ON THE SITE (Rename), not
+  taken from the computer.
+- TO TRY (owner): build both (not Steam builds needed: any build);
+  BookManager > Account... > the code on the site; the site > Make a
+  key > EpubBuilder --activate KEY; then Pair... on a BookManager that
+  has no pairing with that builder ("Pair again..." asks too): it
+  should say "Paired without a code". Then the other way: an
+  EpubBuilder NOT in the account must still pair with the code, with
+  the reason said first.
+- WAITING FOR THE NEXT STEAM DEPLOYMENT: this zip's EpubBuilder (and
+  zip 284's uLink) - no hurry, nothing in a Steam build changes until
+  --activate is used.
+
+## Zip 284 (on top of zip 283): the programs' side of the link site - the units
+Session 15, owner 2026-11-24 08:32 "OK" to: a shared unit beside
+uLink, /pair/ticket in uLink, BookManager and EpubBuilder as the first
+pair. THIS ZIP IS THE TWO UNITS ONLY - no program calls them yet, no
+.dpr / .dproj changed. NOT COMPILED (no Delphi here; pasdoc_check and
+project_check pass). Files: demos/common/uLinkSite.pas (new),
+demos/common/uLink.pas; web/link/index.php; CLAUDE.md.
+- THE SITE WORKS ON THE HOST (owner 08:16 - 08:19): the settings file
+  had been "in wrong place" (which folder: asked, not said); the
+  sign-in mail came to the INBOX and its button signed in (a
+  screenshot of "Your installations"). schema.sql loaded into MySQL
+  (database "activate" - a database of its own, not the
+  leaderboard's). The owner pasted the settings into the chat: told to
+  change the password and the salt; neither is written anywhere here.
+- uLinkSite (System.Net.HttpClient, as uWebBoard): TLinkSite.Create(
+  app, install id, key) then Register / Claim / AskCode / Status /
+  Ticket / Check / Release - each BLOCKS (15 s twice at most) and
+  raises ELinkSite (Status = the HTTP status, 0 = not reached). The
+  install id is uLink's own (the builder's id); the site writes it
+  lower case - LinkSiteId. NOT in any project yet: add it to the .dpr
+  and .dproj of the program that first uses it (pull first; say so).
+- uLink: TLinkServer.TicketCheck (a function reference, set before
+  Start; called in the server's threads); POST /pair/ticket?client=&
+  ticket= gives the token as /pair/confirm does (OnPaired fires the
+  same) - 404 when TicketCheck is not set, 403 with the site's words,
+  429 after LINK_TICKET_TRIES (5) refusals in a minute. /info says
+  "ticket": true / false. TLinkClient.PairTicket. uLink itself does
+  NOT use uLinkSite or HTTPS: the program joins the two (TicketCheck
+  := a function that calls TLinkSite.Check). Until a program sets
+  TicketCheck nothing changes for it - so NO Steam rebuild is needed
+  for this zip, but uLink.pas is compiled by EpubBuilder and
+  BookManager at their next build: a compile error would show there.
+- web/link/index.php: the space under the dark header was missing
+  (main.wrap's padding lost to .wrap's - seen in the owner's
+  screenshots); a sign-in link opened by a browser already signed in
+  goes to the plain address (the used token left the address bar).
+  Not uploaded unless the owner wants it now - with the next upload.
+- NEXT (the wiring; ASK FIRST what is below): the install's key and
+  "claimed" in each program's settings; BookManager: Register +
+  AskCode shown in its window + Status asked; when a builder's /info
+  says ticket and both are claimed, PairTicket in place of the code
+  box. EpubBuilder: TicketCheck, and its own way of being claimed (a
+  code on a page - wide, yellow frame, centred title - and/or
+  --activate KEY for a headless start).
+- 08:42 - 08:50, THE NAMES AND A PREMIUM TIER (owner; NOT BUILT):
+  "one thing here that is a concern is some idiot choosing an
+  offensive public name". Offered: names the site makes up, or typed
+  names that wait for his approval. Owner: "both plus a third. A
+  premium account (which is very much like 2) that some users or
+  companies can purchase that allows far more detailed information to
+  be stored about their devices including images, detailed device
+  specs etc. These would be useful for research, the motivated user
+  or reviewers to record extra information." So THREE TIERS: (1) a
+  GENERATED name, public at once (pick / re-roll, no free text);
+  (2) a TYPED name, hidden until the owner accepts it (shown as the
+  generated one meanwhile); (3) PREMIUM, bought: a page per device
+  (photos, full specs, notes), notes on a run - all of it waiting for
+  approval too. Guards said and not objected to: letters, digits and
+  spaces only, 3 - 20; no name twice; a change at most now and then;
+  taken off by hand. accounts gets a `tier` from the start. Said of
+  premium, TO CHECK BY THE OWNER: a payment provider that is the
+  seller (VAT) or Stripe; a paying account's mail address must be
+  STORED (with consent - today only its hash is); image limits and
+  re-encoding; Steam's rules on purchases outside Steam - keep
+  premium a matter of the website, never named in a Steam program.
+  ORDER AGREED ("OK"): the wiring (zip 285), then the names on the
+  leaderboard with an approval page for the owner, then premium
+  (device pages first, the owner the only premium account; payment
+  last).
+- THE OWNER'S IDEA (08:32), NOT BUILT: "we could optionally link
+  devices to an owner so I could claim ownership of all my 7 devices
+  (more when we get iOS, Android + tvOS) I could then have an
+  identifier in the leaderboard rather than anonymous". SAID BACK: it
+  fits - an account that owns installs is what the link site is. What
+  it needs: (1) the account gets a PUBLIC NAME, chosen on the link
+  page (optional; empty = Anonymous as now); (2) EpubBuilder is
+  claimed like any install - so the claim (a code shown, typed on the
+  site) must be IN THE STEAM BUILDS too, optional and off until used
+  (his seven machines run Steam builds; the constraint is that a Steam
+  program never NEEDS the site - asked whether optional is right
+  there); (3) the leaderboard learns which account a machine is of:
+  the two sites have two databases ("epubunum", "activate") and the
+  program has two identities (uWebBoard's install id + key, uLink's
+  id + the link key) - the safe way is that the program proves both:
+  it asks the link site for a short-lived pass and sends it with its
+  score; submit.php asks the link site whether the pass is good and
+  whose it is, and puts the machine under a player of source 'link'
+  (players / machines.player_id are there for it: "machines of one
+  Steam account are one person's" already works so). A name is public:
+  the page must say so, and a name can be taken off by hand (players.
+  banned is there). DECISIONS FOR THE OWNER before it is built: the
+  Steam builds (above); one name for all an account's machines, with
+  the machine's own label beside it (machines.label is there).
+
+## Zip 283 (on top of zip 282): the link page says which setting-up step failed
+Session 15, owner 2026-11-24 08:03 "link site setup issues" + a
+screenshot: zip 282 uploaded, the page says "The link site is being
+set up" (read from here too; the address alone first gave Plesk's
+default page - its index.html was still there - then the page). Which
+of the causes it was could not be seen from here (the log is the
+owner's). Files: web/link/lib.php, index.php, README.md;
+tools/test_link.py; CLAUDE.md. Site only.
+- Under the message, a line "For whoever is setting it up: ..."
+  (ln_setup_hint): no settings file found / the file lacks dsn, salt
+  or site / the database refused, error N (the driver's number only) /
+  the tables are missing. NEVER a name, a path or a password (tested:
+  the page has neither the settings' password nor the folder).
+- A signed-out page now reads one row's worth of `accounts`, so a
+  database without its tables shows at "Look" and not at the first
+  sign-in.
+- THE LIKELIEST CAUSE SAID TO THE OWNER: `site` - the leaderboard's
+  settings file has none, and a copy of it is "incomplete" here.
+- The leaderboard's page was left as it is (its reason stays in the
+  log); offer the same there if wanted.
+- tools/test_link.py: 56 checks, passed.
+
+## Zip 282 (on top of ab4923a = zip 281 pushed): link.epubunum.com, the site
+Session 15, owner 2026-11-24 06:40: "link". SITE ONLY - no Pascal, no
+.dproj, nothing for a build. Files: web/link/ (new: index.php, lib.php,
+schema.sql, config.sample.php, .htaccess, README.md, api/register.php,
+claim.php, code.php, status.php, ticket.php, check.php, release.php);
+tools/test_link.py (new); .gitignore (web/link/config.php,
+link-config.php); CLAUDE.md. Built as the leaderboard's site is (the
+same settings-file places, JSON answers, SQLite-testable statements);
+functions ln_*, the environment's LN_CONFIG for tests.
+- DECIDED (owner, the three answers): an account signs in by a MAILED
+  LINK, no password; an install WITHOUT A SCREEN joins with a ONE-TIME
+  KEY made on the site and given to the program at one start
+  ("BookServer --activate ABCD-EFGH-JKMN" - the page's example: the
+  switch's name is this zip's suggestion, no program has it yet);
+  ACTIVATION ONLY - no addresses kept, no finding outside the local
+  network.
+- THE SCHEME: (1) an install REGISTERS (install_id = the id uLink
+  announces, app, label, os) and gets a key, as the leaderboard's.
+  (2) an account CLAIMS it: claim.php with the one-time key, or - with
+  a screen - code.php gives 8 letters to show (and a url for a QR
+  code), the owner types them on the site, the install asks status.php
+  every 5 s. (3) PAIRING WITHOUT THE 6 DIGITS: the client asks
+  ticket.php for the server's install id, hands the ticket to the
+  server on the local network, the server asks check.php and learns
+  which install the client is - then gives its own X-Link-Token as
+  after a code. The site is not needed again. (4) release.php: an
+  install leaves; the page removes one, signs out, deletes the account.
+- THE MAIL ADDRESS IS NOT STORED (this zip's choice, not asked): the
+  account is the salted hash of the address; the link goes to what was
+  typed. So the site cannot write to anyone - a mailed approval
+  (turned down today anyway) would need the address kept.
+- A sign-in link opens a page with a BUTTON; only the button signs in
+  (mail scanners open links).
+- Times and limits: lib.php's constants; web/link/README.md lists them.
+- THE SALT IS NEVER CHANGED: every hash is made with it (the
+  leaderboard's only counts senders; this one's is the accounts).
+- NOT DONE HERE: schema.sql not run against MySQL; mail() not tried on
+  the host (it needs the mail_from address made in Plesk); the page
+  not looked at in a browser (its markup and styles follow the
+  leaderboard's page); nothing uploaded.
+- STEAM: nothing in a Steam program needs this site (the constraint of
+  "TENTATIVE: a headless EpubBuilder" stands); the page's footer says
+  so.
+- Run before a delivery that touches web/link: python3
+  tools/test_link.py (52 checks; passed for this zip).
 
 ## Zip 281 (on top of zip 280): session 14's handover
 Owner 2026-11-23 21:21: "write up a session handover in claude.md".

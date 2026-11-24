@@ -28,6 +28,11 @@
   @unorderedList(
     @item(GET /info - who it is (no token needed);)
     @item(POST /pair?client=NAME, POST /pair/confirm?client=NAME&code=N;)
+    @item(POST /pair/ticket?client=NAME&ticket=T - pairing without the
+      code, for two installations of one account of the link site
+      (uLinkSite): the token at once, when @link(TLinkServer.TicketCheck)
+      says the ticket is good; 404 when the builder takes none
+      (@link(TLinkServer.TakesTickets));)
     @item(GET /space - the books and audio folders and their free space;)
     @item(GET /books - the books made (the output folders);)
     @item(GET /book?path=P&offset=N - one of them, from byte N;)
@@ -59,6 +64,9 @@ const
   LINK_GONE_SECONDS = 10;
   { A pairing code works this long (minutes). }
   LINK_PAIR_MINUTES = 5;
+  { Tickets refused in a minute before no more are looked at for the
+    rest of it (each one looked at is a call to the link site). }
+  LINK_TICKET_TRIES = 5;
 
 type
   { A builder heard (TLinkFinder). }
@@ -89,6 +97,14 @@ type
   TLinkPairEndedEvent = procedure(const AClient, AWhy: string) of object;
   { A file was received: 'book' or 'audio', and where it is now. }
   TLinkReceivedEvent = procedure(const AKind, AFileName: string) of object;
+  { Asks whether ATicket, handed over by a program that wants to pair
+    without the code, is good (the link site says - uLinkSite's
+    TLinkSite.Check). Called in one of the server's threads; it may take
+    as long as the site does.
+    @param(AClient what the site calls the program, when it is good)
+    @param(AWhy why not, when it is not)
+    @returns(True when the program may be paired) }
+  TLinkTicketCheck = reference to function(const ATicket: string; out AClient, AWhy: string): Boolean;
 
   { The builder's side: says where it is, answers the calls. Its events
     come on the main thread. }
@@ -135,6 +151,14 @@ type
     { The last code was refused on the builder (RefusePair): its program is
       told so. }
     FPairRefused: Boolean;
+    { Backing field of TicketCheck. }
+    FTicketCheck: TLinkTicketCheck;
+    { Backing field of TakesTickets (under FLock). }
+    FTakesTickets: Boolean;
+    { Tickets refused since FTicketSince. }
+    FTicketWrong: Integer;
+    { When the minute FTicketWrong counts in began. }
+    FTicketSince: TDateTime;
     { Backing field of OnPairEnded. }
     FOnPairEnded: TLinkPairEndedEvent;
     { Backing field of OnPairCode. }
@@ -143,6 +167,10 @@ type
     FOnPaired: TLinkPairedEvent;
     { Backing field of OnReceived. }
     FOnReceived: TLinkReceivedEvent;
+    { TakesTickets' getter. }
+    function GetTakesTickets: Boolean;
+    { TakesTickets' setter. }
+    procedure SetTakesTickets(AValue: Boolean);
     { Answers a call. }
     procedure CommandGet(AContext: TIdContext; ARequestInfo: TIdHTTPRequestInfo;
       AResponseInfo: TIdHTTPResponseInfo);
@@ -188,6 +216,14 @@ type
     procedure RefusePair;
     { The HTTP port in use (0 = not listening). }
     property Port: Integer read FPort;
+    { Says whether a ticket is good (/pair/ticket). Not set: the builder
+      takes no tickets, and pairing is by the code only. Set it before
+      Start (it is not changed while the server runs: TakesTickets is). }
+    property TicketCheck: TLinkTicketCheck read FTicketCheck write FTicketCheck;
+    { Tickets are taken now (False at first): the builder is in an account
+      of the link site. /info says so; /pair/ticket answers 404 while it
+      is False. May be changed at any time, from any thread. }
+    property TakesTickets: Boolean read GetTakesTickets write SetTakesTickets;
     { A program asks to pair: show the code. }
     property OnPairCode: TLinkPairCodeEvent read FOnPairCode write FOnPairCode;
     { A program was paired: keep the tokens (TokensText). }
@@ -293,6 +329,11 @@ type
     procedure PairAsk;
     { Sends the code shown: the token (also kept in Token). }
     function PairConfirm(const ACode: string): string;
+    { Pairs without a code: hands over ATicket, which the link site gave
+      this program for that builder (uLinkSite's TLinkSite.Ticket, asked
+      with the id of the builder's /info).
+      @returns(the token, also kept in Token) }
+    function PairTicket(const ATicket: string): string;
     { /space (the caller frees it). }
     function Space: TJSONObject;
     { /books (the caller frees it). }
@@ -711,6 +752,26 @@ begin
   end;
 end;
 
+function TLinkServer.GetTakesTickets: Boolean;
+begin
+  FLock.Enter;
+  try
+    Result := FTakesTickets;
+  finally
+    FLock.Leave;
+  end;
+end;
+
+procedure TLinkServer.SetTakesTickets(AValue: Boolean);
+begin
+  FLock.Enter;
+  try
+    FTakesTickets := AValue;
+  finally
+    FLock.Leave;
+  end;
+end;
+
 procedure TLinkServer.RefusePair;
 begin
   FLock.Enter;
@@ -918,6 +979,9 @@ var
   Part: TLinkPartStream;
   Folder, Why, BooksDir, AudioDir: string;
   Ended: Boolean;
+  Ticket, Named: string;
+  TicketOk: TLinkTicketCheck;
+  Good: Boolean;
 begin
   Doc := LowerCase(ARequestInfo.Document);
   Token := ARequestInfo.RawHeaders.Values['X-Link-Token'];
@@ -931,6 +995,8 @@ begin
       O.AddPair('name', FName);
       O.AddPair('id', FId);
       O.AddPair('paired', TJSONBool.Create(TokenOk(Token)));
+      // it takes a ticket of the link site in place of the code
+      O.AddPair('ticket', TJSONBool.Create(Assigned(FTicketCheck) and TakesTickets));
       SendJson(AResponseInfo, O);
       Exit;
     end;
@@ -1014,6 +1080,85 @@ begin
       begin
         SendError(AResponseInfo, 403, Why);
         Exit;
+      end;
+      if Assigned(FOnPaired) then
+        TThread.Queue(nil,
+          procedure
+          begin
+            if Assigned(FOnPaired) then
+              FOnPaired(Client, Token);
+          end);
+      O := TJSONObject.Create;
+      O.AddPair('ok', TJSONBool.Create(True));
+      O.AddPair('token', Token);
+      SendJson(AResponseInfo, O);
+      Exit;
+    end;
+    // pairing without the code: a ticket of the link site, which says
+    // whether the program is one of the same account's
+    if Doc = '/pair/ticket' then
+    begin
+      TicketOk := FTicketCheck;
+      if not Assigned(TicketOk) or not TakesTickets then
+      begin
+        SendError(AResponseInfo, 404, 'EpubBuilder takes no tickets: pair with the code');
+        Exit;
+      end;
+      Client := Trim(QueryValue(ARequestInfo, 'client'));
+      Ticket := Trim(QueryValue(ARequestInfo, 'ticket'));
+      // each ticket looked at is a call to the site: not without end
+      FLock.Enter;
+      try
+        if SecondsBetween(Now, FTicketSince) >= 60 then
+        begin
+          FTicketSince := Now;
+          FTicketWrong := 0;
+        end;
+        Ended := FTicketWrong >= LINK_TICKET_TRIES;
+      finally
+        FLock.Leave;
+      end;
+      if Ended then
+      begin
+        SendError(AResponseInfo, 429, 'too many tickets refused: wait a minute');
+        Exit;
+      end;
+      Why := '';
+      Named := '';
+      Good := False;
+      if Ticket <> '' then
+        try
+          Good := TicketOk(Ticket, Named, Why);
+        except
+          on E: Exception do
+          begin
+            Good := False;
+            Why := E.Message;
+          end;
+        end;
+      if not Good then
+      begin
+        FLock.Enter;
+        try
+          Inc(FTicketWrong);
+        finally
+          FLock.Leave;
+        end;
+        if Why = '' then
+          Why := 'the ticket is not good';
+        SendError(AResponseInfo, 403, Why);
+        Exit;
+      end;
+      if Client = '' then
+        Client := Named;
+      if Client = '' then
+        Client := ARequestInfo.RemoteIP;
+      Token := TGUID.NewGuid.ToString.Replace('{', '').Replace('}', '').Replace('-', '').ToLower;
+      FLock.Enter;
+      try
+        FTokens.Add(Token + '=' + Client);
+      finally
+        FLock.Leave;
       end;
       if Assigned(FOnPaired) then
         TThread.Queue(nil,
@@ -1475,6 +1620,23 @@ var
 begin
   O := PostJson('/pair/confirm?client=' + TNetEncoding.URL.Encode(FClient) + '&code=' +
     TNetEncoding.URL.Encode(Trim(ACode)));
+  try
+    Result := '';
+    O.TryGetValue<string>('token', Result);
+  finally
+    O.Free;
+  end;
+  if Result = '' then
+    raise ELinkError.Create('no token in the builder''s answer');
+  FToken := Result;
+end;
+
+function TLinkClient.PairTicket(const ATicket: string): string;
+var
+  O: TJSONObject;
+begin
+  O := PostJson('/pair/ticket?client=' + TNetEncoding.URL.Encode(FClient) + '&ticket=' +
+    TNetEncoding.URL.Encode(Trim(ATicket)));
   try
     Result := '';
     O.TryGetValue<string>('token', Result);

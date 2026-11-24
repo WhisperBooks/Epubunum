@@ -95,6 +95,7 @@ PROJECTS = [
          platforms=APP_PLATFORMS, default="Win64",
          units=[("uDebugLog", "..\\common\\uDebugLog.pas"), ("uMachine", "..\\common\\uMachine.pas"),
                 ("uEpubUnum", "..\\common\\uEpubUnum.pas"), ("uLink", "..\\common\\uLink.pas"),
+                ("uLinkSite", "..\\common\\uLinkSite.pas"),
                 ("uRoute", "src\\uRoute.pas"), ("uTransfers", "src\\uTransfers.pas")],
          forms=[("uManager", "src\\uManager.pas", "frmManager")],
          search="src", depends=[], prebuild=True, icon="BookManager_Icon.ico"),

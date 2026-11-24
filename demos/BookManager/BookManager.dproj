@@ -257,6 +257,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <DCCReference Include="..\common\uMachine.pas"/>
         <DCCReference Include="..\common\uEpubUnum.pas"/>
         <DCCReference Include="..\common\uLink.pas"/>
+        <DCCReference Include="..\common\uLinkSite.pas"/>
         <DCCReference Include="src\uRoute.pas"/>
         <DCCReference Include="src\uTransfers.pas"/>
         <DCCReference Include="src\uManager.pas">
