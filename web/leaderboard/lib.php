@@ -189,6 +189,19 @@ function lb_machine_facts(array $in): array
 }
 
 /**
+ * The memory of the device a run was on, in whole GB ('24 GB' of the
+ * 23.6 a card reports; '' when it was not sent).
+ */
+function lb_device_memory(array $row): string
+{
+    $mb = (int) ($row['device_memory_mb'] ?? 0);
+    if ($mb <= 0) {
+        return '';
+    }
+    return $mb < 1024 ? $mb . ' MB' : (int) round($mb / 1024) . ' GB';
+}
+
+/**
  * A machine in a few words, for the line under what a run ran on: the
  * model, the processor (when the device named is not it already), the
  * cores, an Apple chip's graphics cores and the memory - what is known
@@ -325,7 +338,8 @@ function lb_page(int $benchmarkId, string $whisper, int $first, int $rows): arra
     $q = lb_db()->prepare(
         'SELECT b.machine_id, b.score_ms, p.display_name, m.label, m.os, d.description AS device, d.backend,
                 m.model, m.cpu, m.memory_gb, m.cores, m.perf_cores, m.eff_cores, m.threads, m.gpu_cores,
-                r.words, r.words_matched, r.ran_at, r.verified, r.avg_watts, r.peak_watts, r.limit_watts
+                r.words, r.words_matched, r.ran_at, r.verified, r.avg_watts, r.peak_watts, r.limit_watts,
+                r.device_memory_mb
          FROM bests b
          JOIN machines m ON m.id = b.machine_id AND m.hidden = 0
          JOIN players p ON p.id = m.player_id AND p.banned = 0

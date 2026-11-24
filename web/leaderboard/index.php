@@ -236,7 +236,7 @@ header('X-Content-Type-Options: nosniff');
             <td class="num time"><?= lb_h(lb_score((int) $row['score_ms'])) ?></td>
             <td class="num wpm"><?= lb_h(wpm_text($row)) ?></td>
             <td class="num speed"><?= lb_h(speed_text($current, (int) $row['score_ms'])) ?></td>
-            <td class="device"><?= lb_h($row['device']) ?> <span><?= lb_h($row['backend']) ?></span><small><?= lb_h(lb_machine_text($row)) ?></small></td>
+            <td class="device"><?= lb_h($row['device']) ?> <span><?= lb_h($row['backend']) ?><?= lb_device_memory($row) !== '' ? ', ' . lb_h(lb_device_memory($row)) : '' ?></span><small><?= lb_h(lb_machine_text($row)) ?></small></td>
             <td class="os"><?= lb_h(lb_os($row['os'])) ?></td>
             <td class="num power"><?= lb_h(power_text($row)) ?></td>
           </tr>
@@ -252,7 +252,8 @@ header('X-Content-Type-Options: nosniff');
 <footer>
   <div class="wrap">
     <span>epubunum</span>
-    <span>Under what a run ran on is the computer itself: its model, processor cores, an Apple chip's
+    <span>After a graphics card's name is how it was used and its own memory.
+      Under what a run ran on is the computer itself: its model, processor cores, an Apple chip's
       graphics cores and its memory - "Unknown" where the program could not tell. Never its name.
       Scores are kept apart by the version of whisper.cpp that made them: a new version can be faster or
       slower on the same computer.

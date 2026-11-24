@@ -78,6 +78,9 @@ type
     PeakWatts: Integer;
     { The limit the card was held to, W (0 = not known). }
     LimitWatts: Integer;
+    { The memory of the device the run was on, MB, as whisper.cpp says it
+      (a graphics card's own; 0 = not known, or the processor). }
+    DeviceMemoryMb: Integer;
   end;
 
   { What the site said of a score. }
@@ -367,6 +370,8 @@ begin
     Body.AddPair('peak_watts', TJSONNumber.Create(AScore.PeakWatts));
   if AScore.LimitWatts > 0 then
     Body.AddPair('limit_watts', TJSONNumber.Create(AScore.LimitWatts));
+  if AScore.DeviceMemoryMb > 0 then
+    Body.AddPair('device_memory_mb', TJSONNumber.Create(AScore.DeviceMemoryMb));
   try
     Post(AClient, '/api/submit.php', Body, AStatus, Answer);
   except

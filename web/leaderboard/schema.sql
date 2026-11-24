@@ -109,6 +109,7 @@ CREATE TABLE runs (
   avg_watts      SMALLINT UNSIGNED NULL,       -- the card's draw: the MEDIAN
   peak_watts     SMALLINT UNSIGNED NULL,       -- (where it can be read; NULL when
   limit_watts    SMALLINT UNSIGNED NULL,       -- not known) and its limit
+  device_memory_mb INT UNSIGNED NULL,          -- the device's own memory, MB
   build          VARCHAR(40) NOT NULL,         -- '2026-11-23 02:34, 2ccbf89'
   whisper        VARCHAR(16) NOT NULL DEFAULT '1.9.5', -- whisper.cpp's version
   channel        VARCHAR(8) NOT NULL,          -- 'steam' or 'direct'

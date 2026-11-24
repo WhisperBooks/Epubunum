@@ -44,7 +44,7 @@ CREATE TABLE devices (id INTEGER PRIMARY KEY AUTOINCREMENT, description TEXT NOT
 CREATE TABLE runs (id INTEGER PRIMARY KEY AUTOINCREMENT, machine_id INTEGER NOT NULL REFERENCES machines(id),
   benchmark_id INTEGER NOT NULL REFERENCES benchmarks(id), device_id INTEGER NOT NULL REFERENCES devices(id),
   score_ms INTEGER NOT NULL, audio_ms INTEGER NOT NULL, words INTEGER NOT NULL, words_matched INTEGER NOT NULL,
-  avg_watts INTEGER, peak_watts INTEGER, limit_watts INTEGER,
+  avg_watts INTEGER, peak_watts INTEGER, limit_watts INTEGER, device_memory_mb INTEGER,
   build TEXT NOT NULL, whisper TEXT NOT NULL DEFAULT '1.9.5', channel TEXT NOT NULL, ran_at TEXT NOT NULL, received_at TEXT NOT NULL, sender_hash TEXT,
   verified INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL, reject_reason TEXT);
 CREATE TABLE bests (machine_id INTEGER NOT NULL REFERENCES machines(id),
@@ -208,11 +208,14 @@ def main():
         check("a machine that said nothing of itself is Unknown", c["rows"][0]["machine"] == "Unknown", c["rows"][0])
         st, a = run(base, mid[0], mid[1], 260000, machine_model="Mac mini", cpu="Apple M4", memory_gb=16, cores=10,
                     perf_cores=4, eff_cores=6, threads=10, gpu_cores=10, device="Apple M4")
-        st, a = run(base, mid[0], mid[1], 246000, device="Apple M4", avg_watts=48, limit_watts=50)
+        st, a = run(base, mid[0], mid[1], 246000, device="Apple M4", avg_watts=48, limit_watts=50,
+                    device_memory_mb=24166)
         st, c = call(base, "/api/board.php?benchmark=benchmark_long_fast&rows=7")
         check("a Mac's model, cores, graphics cores and memory; the chip is not said twice; a score without them "
               "leaves them", c["rows"][3]["machine"] == "Mac mini \u00b7 10 cores (4P + 6E) \u00b7 10-core GPU \u00b7 16 GB",
               c["rows"][3])
+        check("the device's own memory is kept with the run", c["rows"][3]["device_memory_mb"] == 24166 and
+              c["rows"][0]["device_memory_mb"] is None, c["rows"][3])
         st, a = run(base, last[0], last[1], 1700000, machine_model="ROG Ally RC71L", cpu="AMD Ryzen Z1 Extreme", cores=8,
                     threads=16, memory_gb=16, gpu_cores=0, perf_cores="x")
         st, c = call(base, "/api/board.php?benchmark=benchmark_long_fast&rows=7")
@@ -273,7 +276,7 @@ def main():
         print("page")
         html = urllib.request.urlopen(base + "/index.php?b=benchmark_long_fast&w=1.9.5", timeout=10).read().decode()
         check("the page lists the seven", html.count("<td class=\"place\">") == 7 and "0:01:59.437" in html and
-              "Player seven" in html and "94x" in html and "<td class=\"num wpm\">14,227</td>" in html and "48 W of 50" in html and
+              "Player seven" in html and "94x" in html and "<td class=\"num wpm\">14,227</td>" in html and "<span>Vulkan, 24 GB</span>" in html and "48 W of 50" in html and
               html.count("<td class=\"os\">Test OS</td>") == 6)
         con = sqlite3.connect(dbfile)
         con.execute("UPDATE players SET display_name = '<script>alert(1)</script>' WHERE id = 1")

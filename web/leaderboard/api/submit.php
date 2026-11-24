@@ -28,6 +28,9 @@
 //                                         what the card drew over the run
 //                                         and the limit it was held to, W
 //                                         (optional: where it can be read)
+//                  device_memory_mb       the memory of the device the run
+//                                         was on, MB (optional: a graphics
+//                                         card's own, as whisper.cpp says)
 // Answer (JSON):   ok true, status 'ok' | 'pending', improved, place,
 //                  count, best_ms, whisper, machine, run (place is 0
 //                  while the run is pending and the machine has no row on
@@ -90,6 +93,12 @@ try {
         $watts[] = ($w !== null && $w >= 1 && $w <= 2000) ? $w : null;
     }
 
+    // the memory of the device the run was on (a graphics card's own), MB
+    $deviceMemory = lb_int($in['device_memory_mb'] ?? null);
+    if ($deviceMemory === null || $deviceMemory < 64 || $deviceMemory > 4194304) {
+        $deviceMemory = null;
+    }
+
     // what must be there at all: without these nothing is kept
     if ($score === null || $audio === null || $words === null || $matched === null || $score <= 0 ||
         $score > 2000000000 || $audio > 2000000000 || $words > 100000000 || $matched > 100000000) {
@@ -142,12 +151,12 @@ try {
     }
 
     $db->prepare('INSERT INTO runs (machine_id, benchmark_id, device_id, score_ms, audio_ms, words, words_matched,
-                                    avg_watts, peak_watts, limit_watts,
+                                    avg_watts, peak_watts, limit_watts, device_memory_mb,
                                     build, whisper, channel, ran_at, received_at, sender_hash, verified,
                                     status, reject_reason)
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)')
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)')
        ->execute([$machineId, $benchmark['id'], $deviceId, $score, $audio, $words, $matched,
-                  $watts[0], $watts[1], $watts[2], $build, $whisper, $channel,
+                  $watts[0], $watts[1], $watts[2], $deviceMemory, $build, $whisper, $channel,
                   $ranAt, $now, $sender, $status, $reason]);
     $runId = (int) $db->lastInsertId();
 

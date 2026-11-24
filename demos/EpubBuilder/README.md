@@ -301,7 +301,9 @@ performance and efficiency cores, and its graphics cores) and the memory
 - as far as the system tells, and never the computer's or the user's
 name. The website shows them under what the run ran on (the model, then "10 cores
 (4P + 6E)", "10-core GPU", "16 GB", with a dot between them; "Unknown"
-when nothing could be told); Steam's board has the model after the device.
+when nothing could be told); Steam's board has the model after the device. A graphics card's
+own memory, as whisper.cpp reports it, goes with the run and stands after
+how the card was used ("Vulkan, 24 GB").
 The calibration and the build history follow: a model's calibration is
 of the encoder it was timed with (download a model's Core ML encoder
 later and its old calibration is put aside; the model is calibrated

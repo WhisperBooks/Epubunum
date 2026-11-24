@@ -82,6 +82,14 @@ Run the statement BEFORE uploading the PHP files that need it (the newer
     ADD COLUMN gpu_cores  SMALLINT UNSIGNED NULL AFTER threads;
   ```
 
+- 2026-11-24, zip 299 - the memory of the device a run was on (with
+  zip 298's, before the upload below). NOT RUN AGAINST MySQL.
+
+  ```sql
+  ALTER TABLE runs
+    ADD COLUMN device_memory_mb INT UNSIGNED NULL AFTER limit_watts;
+  ```
+
   Then upload `lib.php`, `index.php`, `api/submit.php`,
   `api/register.php` and `api/board.php` together. Every row says
   "Unknown" under its device until that machine's next score from a
@@ -152,7 +160,8 @@ left out = `1.9.5`), `channel` (`steam`, `direct`), `ran_at`
 it replaces the registration's), what the machine is - `machine_model`
 (`model` is whisper's model file), `cpu`, `memory_gb`, `cores`,
 `perf_cores`, `eff_cores`, `threads`, `gpu_cores`: each kept when given,
-left as it was when not - and `avg_watts`,
+left as it was when not -, `device_memory_mb` (the memory of the device
+the run was on, a graphics card's own) and `avg_watts`,
 `peak_watts`, `limit_watts` (what the card drew over the run - `avg_watts`
 is the MEDIAN of the readings since EpubBuilder's zip 276, the mean in the
 few runs before; the name stayed - and the limit it was held to; NVIDIA cards, and AMD's on Linux; a value outside 1 - 2000 is not

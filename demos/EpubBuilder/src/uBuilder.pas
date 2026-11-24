@@ -10197,7 +10197,7 @@ end;
 
 function TfrmBuilder.WebScore(AOption: Integer; const ASummary: TBuildSummary): TWebBoardScore;
 var
-  Text: string;
+  Text, Mem: string;
   Parts: TArray<string>;
   P: Integer;
 begin
@@ -10234,6 +10234,20 @@ begin
       Parts := Copy(Text, P + 3, MaxInt).Split([', ']);
       if Length(Parts) >= 2 then
         Result.Backend := Trim(Parts[1]);
+      // the device's memory is third: '22.7 of 23.6 GB free' - its whole,
+      // not what was free (owner, 2026-11-24: "There doesn't appear to be
+      // GPU memory size")
+      if Length(Parts) >= 3 then
+      begin
+        Mem := Parts[2];
+        P := Pos(' of ', Mem);
+        if P > 0 then
+          Delete(Mem, 1, P + 3);
+        P := Pos(' GB', Mem);
+        if P > 0 then
+          Result.DeviceMemoryMb := Round(StrToFloatDef(Trim(Copy(Mem, 1, P - 1)), 0, TFormatSettings.Invariant) *
+            1024);
+      end;
     end;
     if SameText(Result.Backend, 'MTL') then
       Result.Backend := 'Metal';

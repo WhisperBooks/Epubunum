@@ -73,6 +73,7 @@ try {
             'backend' => $row['backend'],
             'os' => lb_os($row['os']),
             'machine' => lb_machine_text($row),
+            'device_memory_mb' => $row['device_memory_mb'] === null ? null : (int) $row['device_memory_mb'],
             'avg_watts' => $row['avg_watts'] === null ? null : (int) $row['avg_watts'],
             'peak_watts' => $row['peak_watts'] === null ? null : (int) $row['peak_watts'],
             'limit_watts' => $row['limit_watts'] === null ? null : (int) $row['limit_watts'],

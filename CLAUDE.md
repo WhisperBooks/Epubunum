@@ -124,7 +124,7 @@ the map. Sessions 13 and earlier: their handovers follow.
 - Zips 284 - 286 (session 15): the link site in EpubBuilder - uLink's
   /pair/ticket, --activate, Settings > Account (the code in the window
   and in Big Picture). The owner deploys after 286.
-- Zips 290, 291, 293 - 298: Open in browser, the window without the log,
+- Zips 290, 291, 293 - 299: Open in browser, the window without the log,
   whisper.cpp's version in scores and calibrations (293 BEFORE or WITH
   the first build that ships 1.9.6's libraries).
 - Add here whatever else needs a build, and say so in the delivery.
@@ -1660,7 +1660,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 298 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
+Last number used: 299 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
 next-session notes, CLAUDE.md only).
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
@@ -4248,6 +4248,26 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 299 (on top of zip 298): the memory of the device a run was on
+Session 15, owner 2026-11-24 16:02: "There doesn't appear to be GPU
+memory size (unless its cos I've not run with new code yet)" - it was
+NOT in zip 298 (the machine's memory was; a card's own was not).
+PASCAL NOT COMPILED; the site tested. No .dproj. Files:
+demos/common/uWebBoard.pas; demos/EpubBuilder/src/uBuilder.pas,
+README.md; web/leaderboard/lib.php, index.php, schema.sql, README.md,
+api/submit.php, api/board.php; tools/test_leaderboard.py; CLAUDE.md.
+- It is the RUN's, not the machine's (a machine has several devices;
+  the same card is sold with different memory): runs.device_memory_mb
+  - ONE MORE ALTER (README; with zip 298's, before the upload).
+- The builder takes it from the device's text, where the backend is
+  taken from: '... (GPU, Vulkan, 22.7 of 23.6 GB free)' - the figure
+  after "of", x 1024 (WebScore; TWebBoardScore.DeviceMemoryMb; sent as
+  device_memory_mb when > 0). A run on the processor sends none.
+- The page: after the backend, "Vulkan, 24 GB" (whole GB of the 23.6
+  a card reports; under 1 GB in MB). board.php: device_memory_mb.
+- What whisper.cpp reports for graphics that share the system's
+  memory (a Deck, a Mac's Metal) is shown as it is - NOT SEEN.
 
 ## Zip 298 (on top of zip 297): which machine - model, cores, graphics cores, memory
 Session 15, owner 2026-11-24 15:50: "My Mac M4 now shows as macOS
