@@ -15,10 +15,19 @@ demos/EpubBuilder/EpubBuilder_Icon.ico and
 demos/BookManager/BookManager_Icon.ico (16, 24, 32, 48, 64, 128, 256 px),
 and, when given, a preview sheet of every size on light and dark grounds.
 
+Android (EpubReader, zip 322), in demos/EpubReader/android: the launcher
+icons LauncherIcon_36.png ... _192.png (the tile as it is: Android 7 and
+older), and the adaptive icon of Android 8 on as vector drawables -
+AdaptiveIcon_Background.xml (the navy), AdaptiveIcon_Foreground.xml (the
+book and the badge, inside the middle 66 of 108 dp that every launcher's
+mask leaves) and AdaptiveIcon_Monochrome.xml (the same in one colour:
+Android 13's themed icons). EpubReader.dproj names them.
+
 Drawn 4x larger and scaled down. Small sizes are simpler: no lines on the
 pages or spines at 24 px and below; at 16 px each badge has one bold sign.
 """
 import math
+import os
 import sys
 from PIL import Image, ImageDraw
 
@@ -204,6 +213,130 @@ ICONS = [
 ]
 
 
+# --- Android -----------------------------------------------------------
+
+ANDROID_FOLDER = 'demos/EpubReader/android'
+ANDROID_LAUNCHER = [36, 48, 72, 96, 144, 192]
+# an adaptive icon is 108 dp square; a launcher's mask (circle, squircle)
+# is sure to leave the middle 66. The tile's art is put in ART dp there.
+ADAPTIVE = 108
+ART = 58
+
+
+def hexcolor(c):
+    return '#FF%02X%02X%02X' % c[:3]
+
+
+class Vector:
+    """An Android vector drawable, drawn in fractions of the tile."""
+
+    def __init__(self):
+        self.paths = []
+        self.off = (ADAPTIVE - ART) / 2
+
+    def n(self, v):
+        return ('%.2f' % (self.off + v * ART)).rstrip('0').rstrip('.')
+
+    def poly(self, pts):
+        return 'M' + ' L'.join('%s,%s' % (self.n(x), self.n(y)) for x, y in pts) + ' Z'
+
+    def rect(self, x0, y0, x1, y1):
+        return self.poly([(x0, y0), (x1, y0), (x1, y1), (x0, y1)])
+
+    def disc(self, cx, cy, r):
+        rr = ('%.2f' % (r * ART)).rstrip('0').rstrip('.')
+        return 'M%s,%s A%s,%s 0 1,0 %s,%s A%s,%s 0 1,0 %s,%s Z' % (
+            self.n(cx - r), self.n(cy), rr, rr, self.n(cx + r), self.n(cy), rr, rr, self.n(cx - r), self.n(cy))
+
+    def add(self, data, color, even_odd=False):
+        self.paths.append((data, color, even_odd))
+
+    def xml(self):
+        out = ['<?xml version="1.0" encoding="utf-8"?>',
+               '<vector xmlns:android="http://schemas.android.com/apk/res/android"',
+               '    android:width="%ddp"' % ADAPTIVE,
+               '    android:height="%ddp"' % ADAPTIVE,
+               '    android:viewportWidth="%d"' % ADAPTIVE,
+               '    android:viewportHeight="%d">' % ADAPTIVE]
+        for data, color, even_odd in self.paths:
+            out.append('    <path')
+            out.append('        android:fillColor="%s"' % hexcolor(color))
+            if even_odd:
+                out.append('        android:fillType="evenOdd"')
+            out.append('        android:pathData="%s" />' % data)
+        out.append('</vector>')
+        return '\n'.join(out) + '\n'
+
+
+def reader_vector(mono):
+    """EpubReader's art (open_book, reader's page, badge) as a vector:
+    in its colours, or in one (mono) with the play sign cut out."""
+    v = Vector()
+    top, bottom = 0.16, 0.70
+    white = (255, 255, 255, 255)
+    left = [(0.12, top), (0.48, top + 0.03), (0.48, bottom + 0.03), (0.12, bottom)]
+    right = [(0.52, top + 0.03), (0.88, top), (0.88, bottom), (0.52, bottom + 0.03)]
+    r, ring = 0.20, 0.03
+    cx, cy = BADGE_X, BADGE_Y
+    t = r * 0.55
+    play = v.poly([(cx - t * 0.55, cy - t), (cx - t * 0.55, cy + t), (cx + t * 0.95, cy)])
+    if mono:
+        # one colour: the ring round the badge is a gap in the right page -
+        # the page's outer and inner edges down to the ring, and the
+        # ring's arc between them
+        v.add(v.poly(left), white)
+        rr = r + ring
+        y_out = cy - math.sqrt(rr * rr - (0.88 - cx) ** 2)
+        y_in = cy - math.sqrt(rr * rr - (0.52 - cx) ** 2)
+        arc = ('%.2f' % (rr * ART)).rstrip('0').rstrip('.')
+        v.add('M%s,%s L%s,%s L%s,%s A%s,%s 0 0,0 %s,%s Z' % (
+            v.n(0.52), v.n(top + 0.03), v.n(0.88), v.n(top), v.n(0.88), v.n(y_out), arc, arc, v.n(0.52),
+            v.n(y_in)), white)
+        v.add(v.disc(cx, cy, r) + ' ' + play, white, True)
+        return v.xml()
+    v.add(v.poly(left), CREAM)
+    v.add(v.poly(right), CREAM)
+    v.add(v.rect(0.48, top + 0.03, 0.52, bottom + 0.03), CREAM2)
+    for i in range(4):
+        y = top + 0.08 + i * 0.10
+        v.add(v.rect(0.18, y, 0.42, y + 0.035), GREY)
+    x0, x1, ptop = 0.58, 0.82, top + 0.03
+    for i in range(3):
+        y = ptop + 0.06 + i * 0.10
+        if i == 1:
+            v.add(v.rect(x0, y, x0 + 0.06, y + 0.035), GREY)
+            v.add(v.rect(x0 + 0.08, y - 0.01, x1, y + 0.045), AMBER)
+        else:
+            v.add(v.rect(x0, y, x1, y + 0.035), GREY)
+    v.add(v.disc(cx, cy, r + ring), NAVY)
+    v.add(v.disc(cx, cy, r), AMBER)
+    v.add(play, DARK)
+    return v.xml()
+
+
+def background_vector():
+    out = Vector()
+    out.add('M0,0 L%d,0 L%d,%d L0,%d Z' % (ADAPTIVE, ADAPTIVE, ADAPTIVE, ADAPTIVE), NAVY)
+    return out.xml()
+
+
+def android():
+    """EpubReader's Android icons (see the top)."""
+    global sizes_now
+    os.makedirs(ANDROID_FOLDER, exist_ok=True)
+    for s in ANDROID_LAUNCHER:
+        sizes_now = s
+        path = '%s/LauncherIcon_%d.png' % (ANDROID_FOLDER, s)
+        reader().save(path)
+        print('wrote', path)
+    for name, text in (('Background', background_vector()), ('Foreground', reader_vector(False)),
+                       ('Monochrome', reader_vector(True))):
+        path = '%s/AdaptiveIcon_%s.xml' % (ANDROID_FOLDER, name)
+        with open(path, 'w', encoding='ascii', newline='\n') as f:
+            f.write(text)
+        print('wrote', path)
+
+
 def render(fn):
     global sizes_now
     out = {}
@@ -221,6 +354,7 @@ def main(preview=None):
                        append_images=[imgs[s] for s in SIZES if s != 256])
         sets.append(imgs)
         print('wrote', path)
+    android()
     if preview:
         gap = 16
         row_w = sum(SIZES) + gap * (len(SIZES) + 1)

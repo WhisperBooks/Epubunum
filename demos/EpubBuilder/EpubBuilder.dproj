@@ -6,7 +6,7 @@
         <AppType>Application</AppType>
         <MainSource>EpubBuilder.dpr</MainSource>
         <Base>True</Base>
-        <Config Condition="'$(Config)'==''">Steam</Config>
+        <Config Condition="'$(Config)'==''">Release</Config>
         <Platform Condition="'$(Platform)'==''">Win64</Platform>
         <TargetedPlatforms>135298</TargetedPlatforms>
         <ProjectName Condition="'$(ProjectName)'==''">EpubBuilder</ProjectName>

@@ -142,6 +142,11 @@ the map. Sessions 13 and earlier: their handovers follow.
 - Zips 301 - 303 (machine facts, menu texts), 306 (Windows' P and E cores), 304 (Steam's overlay is
   given frames: BUILDER AND READER; a benchmark with and without
   Steam's frame counter to compare), 305 (Big Picture's menu stays).
+- Zips 311 - 314 (session 16; BUILT 2026-11-25 18:50, 314 seen
+  working on the Ally - not yet said for the other machines): the backend guard, ROCm left out
+  (no kernels for its chip; after it ended the program), the first
+  calibration's version - with TWhisper-34, its packages rebuilt
+  first.
 - Add here whatever else needs a build, and say so in the delivery.
 
 ### Not confirmed by the owner
@@ -202,6 +207,20 @@ the map. Sessions 13 and earlier: their handovers follow.
   every text that names Steam (the log's lines, the README), with
   the SDL3 pad fallback (parked above) - a non-Steam build must
   neither show nor call anything of Steam's.
+
+### Session 16 (2026-11-25 15:09 -) - the log
+- 15:09 the repository's address and "claude.md"; read (this handover,
+  the rules), a summary given. 16:35: "all zips built and tested"
+  (to 310); the IdeaPad and the Ally now run Windows as well. The
+  Ally's ROCm crash -> zip 311 + TWhisper-34; the IdeaPad's slowness
+  -> looked at, cause not found (both under "Zip 311").
+- TWhisper and whisper-dev clone without a key too
+  (github.com/WhisperBooks/TWhisper, .../whisper-dev; whisper.cpp
+  comes with `git submodule update --init --depth 1`).
+- NOT ANSWERED YET from session 15: Short Text, Fast Model's missing
+  1.9.6 score (it is on the board now: the 5090 0:27.7); the
+  calibration that did not come after a Release build had marked
+  1.9.6; the pass over LogLine; "Project" says PRIVATE.
 
 ### Next (the owner's word decides the order)
 1. AMD's power ON WINDOWS - when Windows is on the Steam Machine
@@ -1689,7 +1708,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 310 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
+Last number used: 322 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
 next-session notes, CLAUDE.md only).
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
@@ -4277,6 +4296,588 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 322 (on top of zip 321): EpubReader's Android icon (A .dproj IS IN THIS ZIP)
+Session 16, owner 2026-11-25 22:31: "Do android version of icon".
+NOT COMPILED, not deployed. Files: tools/make_icons.py,
+demos/EpubReader/android/ (NEW: LauncherIcon_36/48/72/96/144/192.png,
+AdaptiveIcon_Background.xml, _Foreground.xml, _Monochrome.xml),
+demos/EpubReader/EpubReader.dproj, demos/EpubReader/README.md,
+CLAUDE.md. NO PACKAGE REBUILD.
+- make_icons.py writes them with the .ico files (which come out byte
+  for byte as before). Launcher PNGs: the desktop's tile at Android's
+  six sizes. Adaptive icon (Android 8 on - what a Pixel shows): vector
+  drawables on a 108 dp square; the background is the tile's navy, the
+  foreground the book and the play badge drawn in the middle 58 dp so
+  that a round mask (66 dp safe) cuts nothing; monochrome (Android 13's
+  themed icons) the two pages and the badge in one colour, the ring
+  round the badge a gap. Looked at under a round mask here (rsvg).
+- THE .dproj: NOT PULLED FIRST - this session has no way to; it is zip
+  318's file (the owner's of 2026-11-25 21:57 with 318's change), and
+  only nine values in the '$(Base_Android64)' group changed:
+  Android_LauncherIcon36..192 and Android_AdaptiveIconMonochrome /
+  Foreground / Background now name android\... beside the project. The
+  Platform Condition line (Android64) is as it came. IF THE OWNER HAS
+  SAVED THE PROJECT SINCE 318, he keeps his file and sets the nine in
+  Project > Options > Application > Icons (Android 64-bit) instead.
+- ASSUMED, not seen: that Delphi 13 takes any Android vector drawable
+  in the three adaptive fields (its own FM_AdaptiveIcon_*.xml are
+  that). If deployment refuses them, the six PNGs still serve with
+  "adaptive icon" unticked.
+- NOT DONE: the splash (Android_VectorizedSplash*, still Delphi's
+  picture), the notification icons, the 32-bit Android group, and
+  icons for EpubBuilder / BookManager on Android (no such builds).
+
+## Zip 321 (on top of zip 320): Android - audio played inside the book (the freeze); the touch layout
+Session 16, owner 2026-11-25 22:28, with five screenshots and the two
+debug logs of the Pixel: "Audio was working - controls suck".
+NOT COMPILED. Files: demos/EpubReader/src/uMain.pas, src/uPlayer.pas,
+src/uPlayerAndroid.pas, demos/EpubReader/README.md, CLAUDE.md. No
+.dproj. NO PACKAGE REBUILD.
+- ZIP 320 WORKS on the Pixel 10a: the book in Books is in the library
+  with its cover, opens, plays, and the highlight follows the word. The
+  owner then copied six or seven transcribed books in to fill the library.
+- THE FREEZE ("EpubReader isn't responding", 22:27) WAS NOT THE LAYOUT -
+  my guess before the log was wrong. The log: "extracting OEBPS/audio/
+  Project_Hail_Mary.m4b" to "extracted, 924597510 bytes" took 9.1 s and
+  7.3 s, in the window's thread; Android offers to close an app after 5.
+  Taps made meanwhile were all acted on afterwards (clips 14, 14, 16, 18,
+  20 started within 8 ms).
+- FIX: TReaderPlayer.OpenPart(AFileName, AOffset, ASize) - @false in the
+  base class and so for FFmpeg's player. TAndroidReaderPlayer overrides
+  it: MediaPlayer.setDataSource(FileDescriptor, offset, length) on a
+  java.io.FileInputStream of the BOOK, closed once prepared. uMain's
+  AudioInBook finds a stored entry's data (its own read of the 30-byte
+  local header: Epub.Zip is not changed, so no package). OpenClipAudio
+  tries that first and extracts as before when it cannot (compressed
+  audio; the player says no; it raises). The log then says "playing ...
+  inside the book (N bytes at M), no copy". A book with DEFLATED audio
+  still freezes while it is copied: a thread for that is not written.
+- THE COPIES WERE NEVER DELETED on Android (FormClose does it; an app
+  there is ended by the system): 924 MB a run in .../files/tmp/
+  EpubReader-<guid>. FormCreate on Android now deletes every
+  EpubReader-* folder there.
+- THE TOUCH LAYOUT. TouchBuild (Android, iOS) and MenuLayout (that or
+  SteamBigPicture) in uMain. MenuLayout: no tool bar, no contents panel,
+  no menu bar - Big Picture's window, which had all of it already. On a
+  touch build BuildTouchBar adds layTouch at the foot: Menu, page back,
+  sentence back, Play, sentence on, page on (AddIconButton's buttons
+  moved there; they share the width). Menu = ShowPadMenu, whose rows
+  take taps already. By touch a tap on Text size / Speed steps up and
+  wraps (TouchMenuStep; 12 to 40, 0.5x to 1.5x) where a pad uses left /
+  right.
+- SAFE AREA: TForm.OnSafeAreaChanged (Delphi 13) and, once at FormShow,
+  IFMXWindowSafeAreaService.GetSafeAreaInsets set the form's Padding.
+  Logged: "safe area: the edges lose left .., top .., right .., bottom
+  ..". NOT KNOWN until the owner runs it: whether FMX pads the form
+  itself as well (the strip would then be twice as deep), and whether
+  the pad menu's shade (over the whole form) keeps inside it.
+- BACK (vkHardwareBack, FormKeyDown): out of the menu; book -> library;
+  library -> the open book; library with no book -> not taken, the
+  system leaves the app.
+- The window's Fill on a touch build is the page's colour in light mode
+  (behind the system's bars and the touch bar).
+- NOT DONE, known: dragging the page to scroll (TEpubView has the wheel
+  only - that is fmx/Epub.FMX.View.pas, a PACKAGE unit); the status
+  line (lblStatus is in the hidden tool bar, so FSoundNote is only in
+  the log); the status bar's clock stays white on the light page; the
+  Controls page of the menu lists a pad's buttons; opening the book
+  takes 4.5 s in the window's thread (read 2.4 s, building the view
+  2.1 s) - near Android's 5; the debug log's first lines say "unknown
+  64-bit" and an empty "Program:" on Android; tablets and landscape get
+  the same layout as a phone (the plan of 18 November kept the
+  desktop's there - to decide once seen).
+
+## Zip 320 (on top of zip 319): Android - the Books folder is in the library; read again when the app is back in front
+Session 16, owner 2026-11-25 22:17: "I copied a test book in there but
+there's no library just the text about where to place books" (and of
+the package name: "In a bit we'll give it a better package name").
+NOT COMPILED. Files: demos/EpubReader/src/uMain.pas, CLAUDE.md. No
+.dproj. NO PACKAGE REBUILD.
+- MY FAULT IN 319: the reader's LIBRARY (ShowLibrary) is the books
+  opened before (FRecent) plus EpubBuilder's output and the
+  TRANSCRIBED folder (ScanTranscribed) - NOT the Books folder, which
+  only the pad menu's "Open a book" list reads. On a desktop books come
+  in by File > Open; 319 told a phone's user to copy into Books, where
+  the library never looked. (A book copied into .../EpubUnum/
+  Transcribed would have shown.)
+- ScanTranscribed on Android and iOS also reads FBooksFolder: every
+  book there goes into the library.
+- Android does not end an app that is left: TfrmMain.AppEvent
+  (IFMXApplicationEventService, TApplicationEvent.BecameActive) shows
+  the library again when it is the view in front - books copied in
+  meanwhile appear without ending the app. The debug log: "app: in
+  front again". The empty library's text now ends "... - they show
+  here when you come back to EpubReader."
+- FMX.Platform is in uMain's interface uses (TApplicationEvent in the
+  form's declaration, under ANDROID).
+- THE PACKAGE NAME: the owner will choose one "in a bit" - it changes
+  the folder's path (Android/data/<package>/files/EpubUnum).
+
+## Zip 319 (on top of zip 318): Android - the folders where USB reaches them; the empty library says how
+Session 16, owner 2026-11-25 22:03: with zip 318's .dproj "It now
+deploys with a message about pressing File -> Open to play a book
+(which it can't of course)" - THE READER RUNS ON THE PIXEL 10a
+(Android 17). NOT COMPILED. Files: demos/common/uEpubUnum.pas,
+demos/EpubReader/src/uMain.pas, CLAUDE.md. No .dproj. NO PACKAGE
+REBUILD (uEpubUnum is a program's unit; EpubBuilder and BookManager
+use it too - nothing changes for them off Android).
+- ZIP 318's .dproj WORKS: the Android 64-bit base settings of the
+  blank project were what was missing.
+- uEpubUnum ON ANDROID: ConfigBase and EpubUnumDocsFolder are both
+  TPath.GetPublicPath - the app's own folder on the shared storage,
+  /storage/emulated/0/Android/data/com.embarcadero.EpubReader/files -
+  so everything is in ONE folder .../files/EpubUnum: Books,
+  Transcribed, Covers beside EpubReader.json and EpubReader-debug.log.
+  No permission is needed for it and a computer sees it over USB
+  (Android/data/com.embarcadero.EpubReader/files/EpubUnum). Before,
+  both were inside the app's private storage (TPath.GetDocumentsPath,
+  GetHomePath/.config), which no cable reaches. Removing the app
+  removes the folder.
+  NOT SEEN: that Windows shows Android/data of an Android 17 phone
+  over USB - if it does not, adb does (the command is in the
+  delivery).
+- THE EMPTY LIBRARY on Android: "No books yet. Connect the phone to a
+  computer by USB and copy books (.epub) into <the Books folder>, then
+  start EpubReader again." (the desktop's text is as it was).
+- THE PACKAGE NAME is still Delphi's default
+  com.embarcadero.EpubReader (VerInfo_Keys in the .dproj): to be the
+  owner's own before anything is published - and it is part of the
+  folder's path.
+- NEXT (step 2 goes on): what the window looks like on the phone (a
+  desktop layout: menu bar, tool bar, sizes) - a picture of it; then
+  touch (tap a word, swipe) and the phone layout; the library seeing
+  new books without a new start.
+
+## Zip 318 (on top of zip 317): EpubReader.dproj - the Android 64-bit settings of a project that deploys (A .dproj IS IN THIS ZIP)
+Session 16, owner 2026-11-25 21:40 - 21:57: EpubReader COMPILES for
+Android64 with zips 316 + 317 ("Compiled OK"); the Pixel 10a is seen
+by adb; the deployment fails: "[PAClient Error] Error: E8200
+...\Android64\Release\AndroidManifest-merged.xml:34: error: resource
+drawable/ic_launcher (aka com.embarcadero.EpubReader:drawable/
+ic_launcher) not found." Setting the six launcher icons in the
+options page: "Same issue"; "a test of blank fmx form and pressing F9
+- worked a charm". The owner sent his EpubReader.dproj, the blank
+project's (Project2.dproj) and the AndroidManifest.template.xml the
+IDE made. Files: demos/EpubReader/EpubReader.dproj, CLAUDE.md. NOT
+TRIED (no Delphi here). NO PACKAGE REBUILD.
+- WHAT DIFFERED: EpubReader's group "'$(Base_Android64)'!=''" held
+  three lines (VerInfo_Keys, BT_BuildType, VerInfo_IncludeVerInfo) -
+  gen_projects.py wrote the icons, splash images, notification icons
+  and EnabledSysJars for the 32-bit "Android" only. The blank
+  project's group has 31: those, the ADAPTIVE icon
+  (IncludeAndroid_AdaptiveIcon, Android_AdaptiveIconForeground /
+  Background / Monochrome), the vectorized splash and notification
+  icon, EnabledSysJars. The deployment classes of the two files are
+  the same.
+- THE .dproj OF THIS ZIP = THE OWNER'S OWN FILE OF 21:57 (his
+  <Platform Condition> Android64 and <Config Condition> Release AS
+  THEY CAME; Android64 True in <Platforms>) with: (1) the
+  Base_Android64 group replaced by the blank project's, less its
+  DCC_UsePackage line; (2) the six launcher icons the options page had
+  put in Cfg_2_Android64 taken out (the base group has them for every
+  configuration; VerInfo_Build and the three colours stay); (3) the 18
+  <DeployFile> rows that were for Android64 alone taken out - the IDE
+  writes them again from the options at the next deployment. The
+  UTF-8 BOM is there (the upload had lost it).
+- TO DO WITH IT: close the project; put the file in place; delete the
+  folder C:\src\epubunum\demos\EpubReader\Android64; open, build,
+  deploy. WHY the launcher PNGs alone did not satisfy the manifest was
+  NOT FOUND - if the same error comes back, the next thing to compare
+  is the Deployment page's rows for Android 64-bit in the two
+  projects.
+- gen_projects.py STILL WRITES NO Android64 GROUP: to do when the
+  Android build is settled (BookManager's .dproj has one).
+- KNOWN FROM THIS: uMain and the common units compile for Android64
+  without change - the conditions already in the sources were enough.
+
+## Zip 317 (on top of zip 316): step 2 begun - Android's sound player (uPlayerAndroid)
+Session 16, owner 2026-11-25 21:07: "Phone - Google Pixel 10a Android
+17 / TV - NVidia Shield TV - Android TV - P2897 - 9.2.4 shield TVOS /
+Delphi Android set up + tested with phone / Also have a FireTV (a
+few) for later". NOT COMPILED - AND NOT YET BUILDABLE AS A WHOLE: this
+is the player only; the reader has never been compiled for Android.
+Files: demos/EpubReader/src/uPlayerAndroid.pas (NEW),
+demos/EpubReader/src/uPlayer.pas, CLAUDE.md. No .dproj, no .dpr (the
+unit is found through the search path src). NO PACKAGE REBUILD for
+the desktop; FOR ANDROID the packages EpubUnum and EpubUnumFMX must be
+built for Android64 first (their .dproj have the platform).
+- THE TEST DEVICES: phone Google Pixel 10a, Android 17; TV NVIDIA
+  Shield TV (P2897, Shield Experience 9.2.4 = Android TV on Android
+  11, API 30); Fire TVs later; a Kindle Fire 8 last. Delphi's Android
+  tools are set up and a Delphi program has run on the phone.
+- uPlayerAndroid.TAndroidReaderPlayer: android.media.MediaPlayer
+  through the JNI bridge, with THIS unit's own imports
+  (JEpubMediaPlayer, JEpubPlaybackParams - not Androidapi.JNI.Media's,
+  whose methods differ between Delphi versions). Open = reset /
+  setDataSource(path) / prepare; Play = seekTo (API 26: SEEK_CLOSEST) +
+  start; the speed by PlaybackParams (API 23) ONLY WHILE PLAYING
+  (setting it starts a prepared player); PlayRange's end and the
+  file's end are seen when the reader asks Position / Ended (its play
+  timer) - a range ends a timer's step late at most; for 400 ms after
+  a seek Position answers the place asked for when the player still
+  says the old one. No OnCompletion / OnSeekComplete listeners yet
+  (they need Java listener objects): add them if the above is not
+  good enough on the phone.
+- uPlayer.ReaderPlayerCreate: ANDROID -> TAndroidReaderPlayer; IOS
+  still raises.
+- THE WAY ON (agreed order, step 2): the owner switches Android64 ON
+  for EpubReader in the IDE (the .dproj rule), builds, and sends the
+  compiler's messages - uMain and the common units have never met the
+  Android compiler; expected to need conditions: the .dpr's
+  FmxLinuxGtkGlobal / FmxWineCanvas / FmxSkiaCanvas (each guards
+  itself by MSWINDOWS / LINUX - should be empty there), uSteam /
+  uSteamPad (nothing outside STEAMBUILD), uQuitSignal (POSIX signals:
+  to be left out on a phone), WriteLn(ErrOutput ...) under POSIX,
+  RegisterOpenWith, TOpenDialog (does nothing on Android), the
+  library's folders (uEpubUnum: the app's own documents folder
+  there). Then: the debug log to logcat on Android (its file is
+  inside the app's private folder), books in by USB, the phone
+  layout and touch.
+- KNOWN: Delphi's Android compiler defines ANDROID and POSIX, NOT
+  LINUX (the RTL writes "Defined(LINUX) or Defined(ANDROID)"), so the
+  sources' {$IFDEF LINUX} parts are left out there as they should be
+  - FROM MEMORY, to be seen in the first build.
+
+## Zip 316 (on top of zip 315): the mobile and TV readers decided; step 1, the reader's sound behind one class
+Session 16, owner 2026-11-25 20:46: "can we do ios, android64 and
+their associated TV builds of reader / The control for TV is their
+respective remotes and for phone/tablet is touch / We can do external
+loading via USB on non-TV devices and via BookManager to their local
+storage is space is available / TV devices can obviously only stream
+- so we need the Sender for them (and optionally phones/tablets)".
+NOT COMPILED. Files: demos/EpubReader/src/uPlayer.pas (NEW),
+demos/EpubReader/src/uPlayerFFmpeg.pas (NEW),
+demos/EpubReader/src/uMain.pas, demos/EpubReader/README.md, CLAUDE.md.
+NO .dproj AND NO .dpr: the two new units are found through the
+project's search path (src) - add them to the project in the IDE if
+they are wanted in its list. NO PACKAGE REBUILD. EpubReader only.
+- DECIDED (20:54), over the plans of 2026-11-18 (mobile), 11-21 (Apple
+  TV) and 11-23 (BookServer) further down:
+  1. THE SENDER IS BookManager ("BookManager can also do streams etc -
+     we'll need a headless version later"): BookManager serves books
+     to the readers - whole, to a phone's or tablet's storage when
+     there is room, and as a STREAM (a chapter's text and timings, its
+     audio by range) to a TV, optionally to phones and tablets. So NO
+     separate BookServer program: what "BookServer" was to be is
+     BookManager, with a headless form LATER (its pairing through
+     link.epubunum.com stands).
+  2. TWO CODEBASES: Android AND iOS (phone, tablet) AND ANDROID TV from
+     the Delphi reader; ONLY the Apple TV is native Swift ("seems
+     sensible for only Apple TV to be a special case"). The open
+     question of 11-21 (iPhone / iPad from the Swift code) is CLOSED:
+     no.
+  3. THE ORDER ("OK"): (1) the player interface - THIS ZIP; (2) Android
+     phone / tablet: its player, touch, the phone layout; (3) Android
+     TV: the same build with a TV entry in its manifest, the remote's
+     keys onto the reader's pad actions (Up, Down, Left, Right, Play,
+     Back - the Big Picture interface); (4) BookManager sending and
+     streaming, the readers' receiving side; (5) iOS; (6) the Apple TV
+     app (Swift).
+  LOADING: phones and tablets by USB (the app's documents folder; the
+  system's "open with" for .epub) and from BookManager when space
+  allows; TVs stream only.
+  DEVICES (20:54): a phone and a TV are there to test on; a Kindle
+  Fire 8 "on request (but leave it til last)". WHICH phone, TV and
+  Android versions: ASKED.
+- STEP 1, NO CHANGE OF BEHAVIOUR MEANT: uPlayer.TReaderPlayer (Open,
+  Play, PlayRange, Pause, Resume, Position, Ended, LastError,
+  FileName, Description, Note, Speed) is what uMain holds in FPlayer;
+  ReaderPlayerCreate makes the platform's. uPlayerFFmpeg.
+  TFFmpegReaderPlayer owns TFFmpegLibrary and TFFmpegAudioPlayer and
+  hands every call on. uMain no longer uses FFmpeg.API / FFmpeg.Player
+  and has no FFFmpeg field; StartSound logs "sound: making the player"
+  and the description (FFmpeg's and the output's, two lines). On
+  Android / iOS ReaderPlayerCreate raises ("no sound player for this
+  platform yet") - the reader runs silent, as without FFmpeg - until
+  uPlayerAndroid / uPlayerIOS are written. uPlayerFFmpeg is not used
+  there, so FFmpegAPI is not needed to build the reader for a phone.
+- TO SEE on the desktop: the reader plays, pauses, changes speed and
+  highlights as before; the debug log's "sound:" lines.
+- NEXT, STEP 2 (Android): android.media.MediaPlayer through JNI
+  behind TReaderPlayer (PlaybackParams.setSpeed, getCurrentPosition);
+  what else of uMain is desktop only (the Steam units, uInhibit,
+  uQuitSignal, the registry's open-with, the GTK / Wine canvas units
+  in the .dpr) under conditions; Android64 switched on in
+  EpubReader.dproj BY THE OWNER in the IDE (the .dproj rule); the
+  phone layout.
+
+## Zip 315 (on top of zip 314): session 16's findings after 314; this file only
+Session 16, owner 2026-11-25 20:39: "OK, enough testing for today".
+CLAUDE.md ONLY - what the evening's logs showed after zip 314, so
+that it is not in the chat alone. NO PACKAGE REBUILD. No build needed.
+- ZIP 314 SEEN WORKING (the Ally, Windows, "Build: 2026-11-25 18:50",
+  a FIRST start with new settings, 18:54:08): "ROCm0 left out: ROCm
+  cannot run here (ROCm here is built for gfx1030 gfx1100 gfx1101
+  gfx1102 gfx1200 gfx1201, not for this graphics chip (gfx1103))" -
+  the names ARE in ggml-hip.dll in plain text. No end of the program.
+  Reading the library took about 0.7 s of the start (18:54:07.374 ->
+  08.053), on a machine where ROCm names a device only. OFFERED, NOT
+  ANSWERED: keep the answer in the settings by the file's date.
+- THAT RUN: calibration CPU 28.9x / 2.7x, Vulkan0 44.5x / 14.3x (base
+  / turbo), Vulkan0 chosen; the four benchmarks 1:32.139, 3:56.835,
+  6:01.088, 14:54.790; "Website leaderboard - ...: 6th of 9" four
+  times. THE ALLY HAS A WINDOWS ROW ON EVERY 1.9.6 BOARD ("AMD Radeon
+  Graphics", Vulkan, 10138 MB, 12 GB, no power figures - AMD's power
+  on Windows is not read yet): 37 % / 21 % / 32 % / 21 % slower than
+  its SteamOS row (1:07.480, 3:15.696, 4:34.481, 12:19.423). The fast
+  build ran at 32.0x against 44.5x calibrated; the detailed one as
+  estimated.
+- IF WINDOWS GOES ON THE STEAM MACHINE (asked 18:58): its chip is
+  gfx1102 - built for; 314 keeps ROCm0 and the calibration times it
+  against Vulkan0. NOT KNOWN: whether that machine's Windows driver
+  brings amdhip64_7.dll, and what the runtime calls the chip there
+  (the "left out" line would show it). Windows HIP has run on no
+  machine yet.
+- THE IDEAPAD, WITH ITS UBUNTU LOG (20:35; the build of 2026-11-24
+  22:25, calibration 23:53): TWO THINGS, NOT ONE.
+  (1) CUDA on the GTX 1650 is slower than Vulkan on the same card:
+  base, per 30 s window, whisper_print_timings - Ubuntu Vulkan encode
+  74 ms, decode 2.65 ms a token; Windows CUDA encode 255 ms, decode
+  3.45 ms; the card at 29 W in both. That is the fast benchmarks'
+  1.7x. GUESS, NOT CHECKED: half precision under CUDA on a GTX 16xx.
+  (2) Vulkan on the GTX 1650 under Windows: 2.4x / 0.3x (warm-up 10 s
+  / 60 - 70 s) against Ubuntu's 55.3x / 14.4x (warm-up 0.2 / 1.4 s).
+  THE REAL FAULT, CAUSE NOT FOUND; it is why turbo goes to the Iris Xe
+  there (5.7x) and base to CUDA. Drivers: Windows 621.40, Ubuntu
+  580.178.04. Windows on the IdeaPad and the Ally is build 26300 (an
+  Insider build). TO ASK FOR: the top of the debug log to the last
+  "device:" line, a build with 311 or later, under BOTH systems - the
+  "ggml_vulkan: 1 = NVIDIA GeForce GTX 1650 (...) | uma | fp16 | ..."
+  line of each; the same -> a benchmark forced onto Vulkan1 under
+  Windows for its timings.
+- Ubuntu's Linux depot has no CUDA device (CPU, Vulkan0 = Iris Xe,
+  Vulkan1 = GTX 1650): CUDA against Vulkan on Linux is not known.
+- A SPREADSHEET was made at the owner's word (19:30, a Claude Sheets
+  artifact, "ROG Ally benchmarks: SteamOS vs Windows (whisper.cpp
+  1.9.6)"): the boards as read at 19:26, not kept up to date.
+- OUR BOOKS ON A KINDLE (asked 18:43): the text yes (Send to Kindle
+  converts EPUB), the synced audio no - e-ink Kindles play no audio in
+  a book and Amazon takes no read-along books; a Fire tablet could,
+  through a reader of our own (Android).
+- STILL OPEN from this session: TWhisper's CLAUDE.md and HIP.md say the
+  place of the Ally's end "is not known" - it is the first computation
+  on ROCm0, not the loading (its next zip); the pass over LogLine;
+  "Project" says PRIVATE; whether 313's first-calibration fix was in
+  the 18:50 build (the run made a calibration and did not start
+  again).
+
+## Zip 314 (on top of zip 313): ROCm's chip against what ggml-hip is BUILT for (313's rocblas test was wrong)
+Session 16, owner 2026-11-25 18:30, three more logs of the Ally (the
+build of 17:44, which has 311 and 312, not 313): "rocblas has a
+kernel...". NOT COMPILED. Files: demos/EpubBuilder/src/uBuilder.pas,
+demos/EpubBuilder/README.md, CLAUDE.md. No .dproj. NO PACKAGE REBUILD.
+NEEDS A BUILD. REPLACES 313's RocmNoKernels (313's other part, the
+first calibration's version, stays).
+- 313's TEST WOULD NOT HAVE LEFT ROCm OUT: AMD's rocBLAS for Windows
+  brings kernel files for gfx1103 as well (the whole rocblas\library
+  is shipped), so "no kernels of that name" is false on the Ally. What
+  is missing is ggml-hip's OWN code for the chip
+  (WHISPER_DEV_HIP_TARGETS = gfx1030 gfx1100 gfx1101 gfx1102 gfx1200
+  gfx1201). The Linux launcher's rocblas test is right THERE because
+  whisper-dev's bundle_linux.cmake copies the kernels of those targets
+  only.
+- NEW: HipLibraryTargets(file) reads ggml-hip.dll / libggml-hip.so for
+  the names of its code bundle's entries ("...amdhsa--gfx1102" in plain
+  text, one per target; 1 MB at a time). RocmNotBuiltFor(Lib.LoadLog,
+  Why): each "Device ...: ..., gfxNNNN" line's target against that
+  list; ROCm devices named and NONE built for -> "ROCm0 left out: ROCm
+  cannot run here (ROCm here is built for gfx1030 gfx1100 ..., not for
+  this graphics chip (gfx1103))". The library is read only when ROCm
+  names a device (an AMD machine).
+  NOT SEEN: a ggml-hip.dll - the entry names are clang's offload
+  bundle's as known ("hipv4-amdgcn-amd-amdhsa--gfx...."); a COMPRESSED
+  bundle has none in plain text: then nothing is judged and 312's rule
+  (one end, then left out) is what is left. TO SEE in the Ally's log
+  with this zip: the "left out" line at the FIRST start with new
+  settings. If ROCm0 is still calibrated there: the names are not in
+  the file - say so, and whisper-dev writes the targets to a file
+  beside the library instead (its BUILD-INFO.txt has "HIP: targets").
+- ZIP 312 SEEN WORKING (18:23:33 and 18:23:44): "ROCm0 left out: ROCm
+  cannot run here (it ended the program when ggml-base.bin was timed
+  on ROCm0 at the last start; ...)", then "... in an earlier
+  calibration"; the calibration ran on CPU and Vulkan0 (gpu_device 1,
+  ROCm0 still in ggml's registry): base CPU 28.7x, Vulkan0 45.5x. The
+  start of 18:27 had new settings again (a third [Link] Id) and ended
+  on ROCm0 once more - what 312 alone cannot stop.
+- THE ALLY'S SLOW CPU (313's "to look at") WAS THE MACHINE, NOT
+  TWhisper-34: the same build timed base on the CPU at 28.7x (18:23)
+  and 30.2x (18:27), warm-up 0.5 s. The 6.3x / 5.9x of 17:56 / 17:59
+  came minutes after the Steam update. CLOSED.
+- 18:24:55 "whisper_full_with_state: failed to encode" on Vulkan0 with
+  turbo: the calibration was being CANCELLED (pad: Play at 18:24:54,
+  "Calibration cancelled") - not a fault.
+
+## Zip 313 (on top of zip 312): ROCm left out BEFORE it runs (its chip against the kernels); a first calibration no longer put aside
+Session 16, owner 2026-11-25 18:02, the Ally's logs of a build with
+zip 311 (17:56 and 17:59, "Build: 2026-11-25 17:44, 854f4fc"): "Crashed
+at Loading on Rocm.0 ib both versions". NOT COMPILED. Files:
+demos/EpubBuilder/src/uBuilder.pas, demos/EpubBuilder/src/
+uCalibration.pas, demos/EpubBuilder/README.md, CLAUDE.md. No .dproj.
+NO PACKAGE REBUILD. NEEDS A BUILD.
+- WHAT THE TWO LOGS SHOW: the same end as at 16:09 - NOT in the
+  loading (the backends load, three devices are listed, the
+  introduction is shown) but when base first RUNS on ROCm0 ("IM2COL
+  failed / ROCm error: device kernel image is invalid"). Each of the
+  two starts had NEW settings (the folder was deleted before both: two
+  [Link] Ids) and so no marker of an earlier end: nothing could have
+  left ROCm out, with or without zip 312. Whether that build had 312
+  is NOT KNOWN (311's lines are in it).
+- TWhisper-34 / ZIP 311 SEEN WORKING: "whisper.cpp load:" has each
+  backend loaded once by name, then ggml's own pass naming them again
+  WITHOUT a second registration (three devices, as before);
+  EpubBuilder-backends.txt is left empty.
+- WHAT 311's LINES GAVE: ggml names the chip when ROCm loads -
+  "ggml_cuda_init: found 1 ROCm devices (Total VRAM: 8590 MiB):" /
+  "  Device 0: AMD Radeon Graphics, gfx1103 (0x1103), VMM: no, Wave
+  Size: 32, VRAM: 8590 MiB". So Windows CAN know before the first end
+  (312 said it could not).
+- NEW: RocmNoKernels(Lib.LoadLog, Why) in FormCreate's test, between
+  RocmUnusable and RocmEndedProgram: every "Device ...: ..., gfxNNNN"
+  line's target is looked for under <program>\rocblas (a file or a
+  folder with the target in its name, any depth - what EpubBuilder.sh
+  does with find); when ROCm devices are named and NONE has kernels:
+  "ROCm0 left out: ROCm cannot run here (no ROCm kernels here for
+  gfx1103)". No rocblas folder, or no such line: not judged. NO END AT
+  ALL on the Ally then. 312's rule stays behind it.
+  RESTS ON: whisper-dev shipping rocBLAS's kernels for exactly the
+  targets ggml-hip is built for (WHISPER_DEV_HIP_TARGETS serves both).
+- A FAULT FOUND IN THE VERSION KEEPING (zips 293 - 297):
+  CalibrationForWhisper left at once when there was no settings file -
+  a FIRST START - and so wrote no [Calibration] Whisper=. The
+  calibration of that run was saved without it; the NEXT start read
+  "none written" as 1.9.5, put the new calibration aside as "Whisper
+  1.9.5 Calibration ..." and asked to calibrate again (the Ally: made
+  17:28, put aside 17:56 - its .ini shows it). EVERY new install lost
+  its first calibration at its second start. Now the version is
+  written also when the file is not there yet. A settings file already
+  in that state calibrates once more (and keeps 1.9.6's figures under
+  1.9.5's name - harmless, never brought back unless 1.9.5 returns).
+  PROBABLY PART OF session 15's "the Steam build went straight to the
+  menu / calibrated after the hand edit" - not followed further.
+- TO LOOK AT - THE ALLY'S CPU IN THESE TWO RUNS: base on the CPU 6.3x
+  and 5.9x (warm-up 2.6 s), against 30.0x / 28.4x / 30.2x (warm-up
+  0.5 s) in the three runs of the build before (16:09 with ROCm
+  loaded, 16:26 and 17:27 without). Same threads (16), same CPU
+  backend named (ggml-cpu-cascadelake.dll - the best there is in a
+  Windows build: zen4 is not built with MSVC). NOT EXPLAINED. Either
+  the machine (the two runs are three minutes apart, just after a
+  Steam update) or SOMETHING IN TWhisper-34's LOADING - nothing found
+  by reading. TO SETTLE: the CPU's line of a calibration with this
+  build on a machine whose figure is known (the 5090: base 21.1x; the
+  IdeaPad: 19.6x / 20.2x), and the Ally's once ROCm is left out. IF
+  THE CPU IS SLOW ONLY WITH THE NEW LOADING: back to
+  ggml_backend_load_all_from_path alone in TWhisper, at once.
+- DECIDED (17:35): an APU's graphics keeps the driver's name ("AMD
+  Radeon Graphics" on Windows) - "NO, it's an AGPU so same as CPU I
+  guess"; the machine line names the chip.
+- SETTLED (17:28, ggml-hip.dll renamed, new settings): the Ally's
+  Vulkan0 on Windows runs - base 43.2x, turbo 14.0x (CPU 30.2x / 2.8x),
+  chosen for both. The two ends recorded against Vulkan0 at 15:58 and
+  16:09 came with ROCm loaded in the same run.
+
+## Zip 312 (on top of zip 311): a ROCm device that ended the program is left out altogether
+Session 16, owner 2026-11-25 17:17, the Ally's Windows logs
+(EpubBuilder-debug.log.old of 16:09, the .ini, the calibration and
+diagnostics logs). NOT COMPILED. Files:
+demos/EpubBuilder/src/uBuilder.pas, demos/EpubBuilder/README.md,
+CLAUDE.md. No .dproj. NO PACKAGE REBUILD (TWhisper-34 as for 311).
+NEEDS A BUILD, with 311.
+- WHAT THE ALLY'S LOG SHOWS - 311's guess WAS WRONG: nothing ends in
+  the LOADING. ggml-hip loads and lists "ROCm0 - AMD Radeon Graphics
+  (integrated GPU, ROCm, 8.2 of 8.4 GB free)"; the program ends when
+  the first model RUNS on it (16:09:38, base, the warm-up):
+  "ggml_cuda_compute_forward: IM2COL failed / ROCm error: device
+  kernel image is invalid / current device: 0, in function
+  ggml_cuda_compute_forward at .../ggml-cuda.cu:3065" - ggml-hip has
+  no kernels for gfx1103, and ggml aborts. So TWhisper-34's guard file
+  does NOT catch the Ally's case (it stays for a backend that ends the
+  program while loading - none seen yet). TWhisper's CLAUDE.md and
+  HIP.md still say "where is not known": CORRECT THEM IN ITS NEXT ZIP.
+- THE CALIBRATION'S MARKER did its work (16:26: "EpubBuilder ended
+  during the last calibration, while ggml-base.bin was timed on
+  ROCm0") - but pair by pair: one end for base, one more for turbo,
+  and ROCm0 stayed in the device list for a build.
+- NEW: RocmEndedProgram (after SettingsFile): the marker file of the
+  last run names a ROCm device, or [Calibration crashes] has a ROCm
+  key -> FormCreate leaves the ROCm devices out exactly as for
+  RocmUnusable ("ROCm0 left out: ROCm cannot run here (it ended the
+  program when ggml-base.bin was timed on ROCm0 at the last start;
+  Settings > Calibrate, then a new start, tries it again)"). ONE end
+  on such a machine. The marker is read there without being deleted:
+  CheckCalibrationAtStart still files it.
+- NOT EXPLAINED - THE ALLY'S VULKAN: [Calibration crashes] has
+  Vulkan0@ggml-base.bin=15:58 and Vulkan0@ggml-large-v3-turbo.bin=16:09
+  BEFORE ROCm0@ggml-base.bin=16:26. The marker is written just before
+  a pair and deleted after it (read: uCalibration, the loop over
+  FDevices), and the order is CPU, ROCm0, Vulkan0 - so in the first
+  two runs ROCm0 was got past (failed without ending the program?)
+  and the program ended on Vulkan0, and in the third it ended on
+  ROCm0. Those two runs' logs are gone. EITHER Vulkan on this chip
+  ends the program after ROCm has been tried in the same run, OR the
+  Ally's Windows Vulkan driver fails by itself. The same chip's Vulkan
+  works under SteamOS (the boards). AS IT IS the Ally on Windows is
+  CPU ONLY (base 28.4x, turbo 2.7x; the calibration of 16:26 "not
+  timed" Vulkan0 for both models). TO SETTLE: ggml-hip.dll still
+  renamed, Settings > Calibrate (it forgets the list and times Vulkan0
+  again); if the program ends, EpubBuilder-debug.log.old's last lines.
+- NOT DONE: knowing BEFORE the first end that ROCm cannot run on a
+  Windows machine (Linux: EpubBuilder.sh reads the chip's target from
+  /sys/class/kfd; Windows has nothing like it without a list of
+  chips, and ggml does not pass on HIP's gcnArchName).
+
+## Zip 311 (on top of 854f4fc "1.9.6 updated" = zips to 310 pushed): a backend that ends the program is left out (NEEDS TWhisper-34)
+Session 16, owner 2026-11-25 16:35: "Ally now has Windows as well. It
+has an AMD chip but no HIP. It appears to have tried loading the hip
+driver and crashed on several attampts. Renaming ggml-hip.dll got it
+working but the driver should not case the app to crash". Two ways
+offered (1: one backend at a time with a guard file - the program ends
+ONCE; 2: a child process tries it first - never); 16:44 "Yes do (1)".
+NOT COMPILED. Files: demos/EpubBuilder/src/uBuilder.pas,
+demos/EpubBuilder/README.md, CLAUDE.md. No .dproj. NEEDS A BUILD (add
+to the list at the top). TWhisper-34 FIRST (PACKAGE REBUILD there).
+- THE WORK IS IN TWhisper-34 (its CLAUDE.md, "Backend guard"):
+  TWhisperLib loads the backends one at a time in ggml's order, each
+  named in a guard file first; a start that finds a name there leaves
+  that backend out; an error the program survives does the same
+  without ending it.
+- HERE: FormCreate calls WhisperSetBackendGuard(<settings>
+  -backends.txt) (BACKEND_GUARD_SUFFIX) before TWhisperLib.Load; each
+  line of Lib.LoadLog goes to the debug log as "whisper.cpp load: ..."
+  (ggml's own lines about its backends were in NO log until now);
+  Lib.BackendsLeftOut goes through WindowLine. The device list is
+  shorter then, so the calibration's Devices key differs and it asks
+  to calibrate again - right.
+- WHY THE ALLY: Windows' AMD driver brings amdhip64_7.dll, so
+  ggml-hip.dll loads on every AMD chip; the Z1 Extreme (gfx1103) is not
+  a HIP target. RocmUnusable and EpubBuilder.sh look at Linux's files
+  only. WHERE IT ENDED WAS NOT SEEN (no log of such a start) - if the
+  Ally's start still ends more than once with 311, the end is NOT in
+  the loading: send EpubBuilder-debug.log.old (its last lines).
+- TO SEE (Ally, Windows): ggml-hip.dll back under its name; start (it
+  ends - once); start again: the message line says "AMD ROCm
+  (ggml-hip) is left out ...", the devices are CPU and Vulkan0.
+- A new graphics driver: delete EpubBuilder-backends.txt to try again
+  (README). NOT DONE: doing that by itself when the driver's version
+  changes; part 2 (the child process).
+- THE IDEAPAD ON WINDOWS (owner 16:35: "a LOT slower"; its logs 16:44):
+  the four 1.9.6 boards have it twice - Ubuntu 26.04, GTX 1650, Vulkan
+  0:58.4 / 3:36.3 / 4:13.7 / 13:21.9 (Short Fast / Short Detailed / Long
+  Fast / Long Detailed); Windows 11 1:37.3 (CUDA) / 9:24.7 (Iris Xe,
+  Vulkan) / 7:04.9 (CUDA) / 33:55.4 (Iris Xe). Its calibration (twice,
+  10:43 and 15:00, the same within 3 %): base CPU 19.6x, CUDA0 34.1x,
+  Vulkan0 = Iris Xe 26.4x, Vulkan1 = GTX 1650 2.4x; turbo 1.5x / 3.3x /
+  5.7x / 0.3x (Vulkan1's warm-up 60 - 70 s). So the program chose
+  rightly from what it measured; THE GTX 1650 ITSELF IS SLOW UNDER
+  WINDOWS - Vulkan 18x (base) and about 45x (turbo) slower than the
+  same card's Vulkan on Linux (45x / 14x real time in the long builds),
+  CUDA 3.3x on turbo against Linux Vulkan's 14x. CAUSE NOT FOUND: the
+  debug log had none of ggml's lines about the Vulkan devices (311
+  writes them). The first guess (Optimus hiding the card from Vulkan)
+  was WRONG: Vulkan1 is listed. TO ASK FOR: NVIDIA's driver version on
+  both systems; the "whisper.cpp load:" lines of a 311 build on it.
+- The boards are read per version: board.php?benchmark=...&whisper=1.9.6
+  (without whisper= the answer is 1.9.5's).
 
 ## Zip 310 (on top of zip 309): the website says "24 GB VRAM"
 Session 15, owner 2026-11-24 21:50: "When quoting GPU RAM size it

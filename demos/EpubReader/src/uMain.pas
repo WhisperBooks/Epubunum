@@ -3,8 +3,9 @@
   highlighted as they are read.)
 
   The book component (EpubUnum1), the view (View1) and their events are
-  set up in uMain.fmx. The sound is FFmpegAPI's TFFmpegAudioPlayer
-  (TFFMpegAPI, installed separately): the book's audio file streamed by
+  set up in uMain.fmx. The sound is uPlayer's TReaderPlayer; on a desktop
+  that is FFmpegAPI's TFFmpegAudioPlayer (uPlayerFFmpeg; TFFMpegAPI,
+  installed separately): the book's audio file streamed by
   FFmpeg to the platform's output (WASAPI, PulseAudio), and its clock - the
   sound really being heard - picks the clip to highlight. No FFmpeg: the
   book still reads, without sound.
@@ -31,13 +32,14 @@ interface
 
 uses
   System.SysUtils, System.Types, System.UITypes, System.Classes, System.IOUtils, System.Math,
-  FMX.Types, FMX.Controls, FMX.Forms, FMX.Graphics, FMX.Dialogs, FMX.StdCtrls, FMX.Layouts,
+  FMX.Types, FMX.Controls, FMX.Forms, FMX.Graphics, FMX.Dialogs, FMX.StdCtrls, FMX.Layouts, FMX.Platform,
   FMX.ListBox, FMX.Controls.Presentation, FMX.Objects, FMX.Menus, FMX.Edit, System.JSON,
   // TJSONArray's inline getters expand only with it (H2443)
   System.Generics.Collections,
   Epub.Zip, Epub.Layout, Epub.Book, Epub.Components, Epub.FMX, Epub.FMX.View, uDebugLog,
-  // sound: DCUs of TFFMpegAPI's runtime package FFmpegAPI
-  FFmpeg.API, FFmpeg.Player,
+  // sound: the platform's player behind one class (the desktop's is
+  // uPlayerFFmpeg: DCUs of TFFMpegAPI's runtime package FFmpegAPI)
+  uPlayer,
   // the game pad and its menu (fields of the form)
   uSteamPad, uPadMenu,
   // Linux: the window brought back after the screen saver (a field)
@@ -80,6 +82,19 @@ type
     { Sets up the temporary audio folder; opens a book named on the
       command line. }
     procedure FormCreate(Sender: TObject);
+    { The part of the window clear of the system's bars and the screen's
+      cut-outs changed (a phone, a tablet): the window's contents keep
+      inside it. AInsets is what each edge loses. }
+    procedure FormSafeAreaChanged(Sender: TObject; const AInsets: TRectF);
+    { The touch bar's width changed: its buttons share it evenly. }
+    procedure layTouchResized(Sender: TObject);
+    { Touch bar: the menu (the pad's: Library, Contents, Text size ...),
+      or away with it. }
+    procedure btnTouchMenuClick(Sender: TObject);
+    { Touch bar: a page back. }
+    procedure btnTouchPageBackClick(Sender: TObject);
+    { Touch bar: a page on. }
+    procedure btnTouchPageOnClick(Sender: TObject);
     { An exception nothing handled: into the debug log with the library it
       happened in (DebugLogException), then shown as before. }
     procedure AppException(Sender: TObject; E: Exception);
@@ -90,6 +105,11 @@ type
     procedure FormActivated(Sender: TObject);
     { The window is not active any more: logged (FRedraw). }
     procedure FormDeactivated(Sender: TObject);
+    {$IFDEF ANDROID}
+    { Android: the app is in front again (it is not ended when left) - the
+      library looks for books copied in meanwhile. }
+    function AppEvent(AAppEvent: TApplicationEvent; AContext: TObject): Boolean;
+    {$ENDIF}
     { Stops the audio and removes the temporary files. }
     procedure FormClose(Sender: TObject; var Action: TCloseAction);
     { Keys: P, Ctrl+O, Ctrl+Plus / Ctrl+Minus, D, L (Learn to read), R (say
@@ -157,6 +177,13 @@ type
     btnNextClip: TButton;
     { Next document of the reading order. }
     btnNext: TButton;
+    { The touch bar at the foot of the window (nil on a desktop): Menu,
+      page back, sentence back, Play, sentence on, page on. Zip 321. }
+    layTouch: TLayout;
+    { The touch bar's buttons, left to right. }
+    FTouchButtons: TArray<TButton>;
+    { The touch bar's Play / pause, sentence back and sentence on. }
+    btnTouchPlay, btnTouchPrevClip, btnTouchNextClip: TButton;
     { Smaller text. }
     btnSmaller: TButton;
     { Larger text. }
@@ -213,10 +240,9 @@ type
     FUnitLayout: TEpubDocLayout;
     { Document of FUnitLayout, -1 = none. }
     FUnitDoc: Integer;
-    { FFmpeg (nil when its libraries are not found: no sound). }
-    FFFmpeg: TFFmpegLibrary;
-    { The sound (nil without FFmpeg). }
-    FPlayer: TFFmpegAudioPlayer;
+    { The sound (uPlayer: FFmpeg on a desktop; nil when there is none -
+      FFmpeg's libraries not found, or no player for the platform yet). }
+    FPlayer: TReaderPlayer;
     { Why there is no sound / it is silent ('' when all is well). }
     FSoundNote: string;
     { What RegisterOpenWith did at start-up, shown until a book opens. }
@@ -409,6 +435,12 @@ type
     procedure UpdateControls;
     { Makes the tool bar's buttons. }
     procedure BuildToolBar;
+    { Makes the touch bar (a phone, a tablet). }
+    procedure BuildTouchBar;
+    { A tap on Text size or Speed in the menu, where there is no left /
+      right: one step up, and from the top round to the bottom. AIndex is
+      MENU_SIZE or MENU_SPEED. }
+    procedure TouchMenuStep(AIndex: Integer);
     { An icon button (Sprite3D's way: a TPath in a TButton). }
     function AddIconButton(const AIcon, AHint: string; AOnClick: TNotifyEvent): TButton;
     { A text button. }
@@ -417,7 +449,7 @@ type
     procedure IconButtonApplyStyle(Sender: TObject);
     { Shows AIcon on button AButton. }
     procedure SetIcon(AButton: TButton; const AIcon: string);
-    { Loads FFmpeg and the sound output (FSoundNote says what is missing). }
+    { Makes the sound player (FSoundNote says what is missing). }
     procedure StartSound;
     { Makes the chapter list (FChapterWord / Toc / Doc). }
     procedure BuildChapters;
@@ -658,8 +690,22 @@ const
   ICON_LAST = 'M4 6v12l6-6z M10 6v12l6-6z M17 6h2v12h-2z';
   { Dark mode: a crescent moon. }
   ICON_DARK = 'M15 3C10 3 6 7 6 12s4 9 9 9c-3-2-5-5-5-9s2-7 5-9z';
+  { The menu: three lines. }
+  ICON_MENU = 'M4 6h16v2H4z M4 11h16v2H4z M4 16h16v2H4z';
+  { A page back: an arrow head left. }
+  ICON_PAGE_BACK = 'M15 5l2 2-5 5 5 5-2 2-7-7z';
+  { A page on: an arrow head right. }
+  ICON_PAGE_ON = 'M9 5l7 7-7 7-2-2 5-5-5-5z';
   { Icon box, px. }
   ICON_SIZE = 24;
+  { The touch bar's height (Android's least for something touched is 48). }
+  TOUCH_BAR_HEIGHT = 56;
+  { Space round each of the touch bar's buttons. }
+  TOUCH_BUTTON_GAP = 3;
+  { Text size on a phone: a tap on the menu's row goes up to this ... }
+  TOUCH_SIZE_MAX = 40;
+  { ... and then round to this. }
+  TOUCH_SIZE_MIN = 12;
   { Slowest speed: FFmpegAPI's player (one atempo filter) goes down to 0.5. }
   SPEED_MIN = 0.5;
   { Fastest speed (owner: 2x "sounds silly"; the player goes to 2). }
@@ -727,6 +773,76 @@ const
   BUTTON_WIDTH = 36;
   { Longest extension kept for an extracted audio file, the dot included. }
   MAX_AUDIO_EXTENSION = 8;
+
+{ @true in a build for a phone, a tablet or a TV box (Android, iOS): no
+  menu bar, no mouse, a screen that may be narrow and tall. }
+function TouchBuild: Boolean;
+begin
+  {$IF Defined(ANDROID) or Defined(IOS)}
+  Result := True;
+  {$ELSE}
+  Result := False;
+  {$ENDIF}
+end;
+
+{ @true where the window is the page alone and the pad's menu has the
+  rest (Library, Contents, Text size ...): Steam's Big Picture, and a
+  phone or tablet - no tool bar across the top, no contents panel beside
+  the page. Zip 321: on a phone held upright the contents panel left the
+  page one word wide. }
+function MenuLayout: Boolean;
+begin
+  Result := SteamBigPicture or TouchBuild;
+end;
+
+{ Where entry AName of AZip lies in the book's file, when it is there as
+  it is (stored: EpubBuilder's and most books' audio) - a player that can
+  play a part of a file needs no copy of it.
+  @param(AOffset  the first byte of the entry's data in the file)
+  @param(ASize  its length, bytes)
+  @returns(@false when the entry is compressed, encrypted or not there,
+    the archive is not a file, or its header cannot be read) }
+function AudioInBook(AZip: TEpubZipReader; const AName: string; out AOffset, ASize: Int64): Boolean;
+const
+  LOCAL_HEADER = 30;
+  LOCAL_SIGNATURE = $04034B50;
+var
+  I: Integer;
+  E: TEpubZipEntry;
+  F: TFileStream;
+  H: array[0..LOCAL_HEADER - 1] of Byte;
+begin
+  Result := False;
+  AOffset := 0;
+  ASize := 0;
+  if (AZip = nil) or (AZip.FileName = '') then
+    Exit;
+  I := AZip.IndexOf(AName);
+  if I < 0 then
+    Exit;
+  E := AZip.Entries[I];
+  if (E.Method <> 0) or ((E.Flags and 1) <> 0) or (E.CompressedSize <> E.Size) or (E.Size <= 0) then
+    Exit;
+  try
+    F := TFileStream.Create(AZip.FileName, fmOpenRead or fmShareDenyNone);
+    try
+      F.Position := E.LocalOffset;
+      if F.Read(H, LOCAL_HEADER) <> LOCAL_HEADER then
+        Exit;
+      if (H[0] or (H[1] shl 8) or (H[2] shl 16) or (Cardinal(H[3]) shl 24)) <> LOCAL_SIGNATURE then
+        Exit;
+      // after the header: the name and the extra field, then the data
+      AOffset := E.LocalOffset + LOCAL_HEADER + (H[26] or (H[27] shl 8)) + (H[28] or (H[29] shl 8));
+      ASize := E.Size;
+      Result := AOffset + ASize <= F.Size;
+    finally
+      F.Free;
+    end;
+  except
+    // not readable: the caller extracts, and says why if that fails too
+    Result := False;
+  end;
+end;
 
 { The extension of APath (a path inside a book) for the extracted copy:
   '.mp3', '.m4a', ... when it is a dot and a few ASCII letters or digits,
@@ -878,26 +994,116 @@ begin
   lblStatus.Position.X := layTop.ChildrenCount * 1000;   // after the buttons
 end;
 
+procedure TfrmMain.BuildTouchBar;
+
+  { A button of the bar: AddIconButton's, moved from the tool bar. }
+  function Add(const AIcon: string; AOnClick: TNotifyEvent): TButton;
+  begin
+    Result := AddIconButton(AIcon, '', AOnClick);
+    Result.Align := TAlignLayout.None;
+    Result.Parent := layTouch;
+    Result.Position.X := Length(FTouchButtons) * 1000;
+    Result.Align := TAlignLayout.Left;
+    Result.Margins.Rect := TRectF.Create(TOUCH_BUTTON_GAP, TOUCH_BUTTON_GAP + 1, TOUCH_BUTTON_GAP,
+      TOUCH_BUTTON_GAP + 1);
+    Result.ShowHint := False;
+    FTouchButtons := FTouchButtons + [Result];
+  end;
+
+begin
+  layTouch := TLayout.Create(Self);
+  layTouch.Parent := Self;
+  layTouch.Align := TAlignLayout.Bottom;
+  layTouch.Height := TOUCH_BAR_HEIGHT;
+  Add(ICON_MENU, btnTouchMenuClick);
+  Add(ICON_PAGE_BACK, btnTouchPageBackClick);
+  btnTouchPrevClip := Add(ICON_PREVIOUS, btnPrevClipClick);
+  btnTouchPlay := Add(ICON_PLAY, btnPlayClick);
+  btnTouchNextClip := Add(ICON_NEXT, btnNextClipClick);
+  Add(ICON_PAGE_ON, btnTouchPageOnClick);
+  layTouch.OnResized := layTouchResized;
+  layTouchResized(nil);
+end;
+
+procedure TfrmMain.layTouchResized(Sender: TObject);
+var
+  I: Integer;
+  W: Single;
+begin
+  if (layTouch = nil) or (Length(FTouchButtons) = 0) then
+    Exit;
+  W := layTouch.Width / Length(FTouchButtons) - 2 * TOUCH_BUTTON_GAP;
+  if W < BUTTON_WIDTH then
+    W := BUTTON_WIDTH;
+  for I := 0 to High(FTouchButtons) do
+    FTouchButtons[I].Width := W;
+end;
+
+procedure TfrmMain.btnTouchMenuClick(Sender: TObject);
+begin
+  if FPadMenu = nil then
+    Exit;
+  if FPadMenu.Showing then
+    FPadMenu.Hide
+  else
+    ShowPadMenu;
+end;
+
+procedure TfrmMain.btnTouchPageBackClick(Sender: TObject);
+begin
+  if (EpubUnum1.Book <> nil) and not LibraryShowing then
+    View1.Page(False);
+end;
+
+procedure TfrmMain.btnTouchPageOnClick(Sender: TObject);
+begin
+  if (EpubUnum1.Book <> nil) and not LibraryShowing then
+    View1.Page(True);
+end;
+
+procedure TfrmMain.TouchMenuStep(AIndex: Integer);
+begin
+  case AIndex of
+    MENU_SIZE:
+      if View1.FontSize >= TOUCH_SIZE_MAX then
+        View1.FontSize := TOUCH_SIZE_MIN
+      else
+        View1.FontSize := View1.FontSize + SIZE_STEP;
+    MENU_SPEED:
+      if tbSpeed.Value >= SPEED_MAX - SPEED_STEP / 2 then
+        tbSpeed.Value := SPEED_MIN
+      else
+        tbSpeed.Value := tbSpeed.Value + SPEED_STEP;
+  else
+    Exit;
+  end;
+  FPadMenu.SetValue(AIndex, PadMenuValue(AIndex));
+end;
+
+procedure TfrmMain.FormSafeAreaChanged(Sender: TObject; const AInsets: TRectF);
+begin
+  DebugLog(Format('safe area: the edges lose left %.0f, top %.0f, right %.0f, bottom %.0f', [AInsets.Left,
+    AInsets.Top, AInsets.Right, AInsets.Bottom]));
+  Padding.Rect := AInsets;
+end;
+
 procedure TfrmMain.StartSound;
 begin
-  DebugLog('sound: loading FFmpeg');
+  DebugLog('sound: making the player');
   try
-    // any FFmpeg 8 build - GPL or LGPL (owner): the licence is shown
-    FFFmpeg := TFFmpegLibrary.Create('');
-    DebugLog('sound: ' + FFFmpeg.Description);
-    FPlayer := TFFmpegAudioPlayer.Create(FFFmpeg);
-    FSoundNote := FPlayer.OutputNote;
-    DebugLog('sound output: ' + FPlayer.Output.Description);
-    {$IFDEF POSIX}
-    WriteLn(ErrOutput, FFFmpeg.Description);
-    WriteLn(ErrOutput, 'Sound output: ', FPlayer.Output.Description);
+    // the platform's player (uPlayer): on a desktop any FFmpeg 8 build -
+    // GPL or LGPL (owner): the licence is in its description
+    FPlayer := ReaderPlayerCreate;
+    FSoundNote := FPlayer.Note;
+    DebugLog('sound: ' + FPlayer.Description);
+    {$IF Defined(POSIX) and not Defined(ANDROID) and not Defined(IOS)}
+    WriteLn(ErrOutput, FPlayer.Description);
     {$ENDIF}
   except
     on E: Exception do
     begin
       DebugLog('sound: none - ' + E.Message);
       FreeAndNil(FPlayer);
-      FreeAndNil(FFFmpeg);
       FSoundNote := 'No sound: ' + E.Message;
     end;
   end;
@@ -1301,7 +1507,7 @@ begin
   mnuMain := TMainMenu.Create(Self);
   // Big Picture: no menu bar - the menu is not put on the form (its items
   // are still made: code uses them); keys and the tool bar do the rest
-  if not SteamBigPicture then
+  if not MenuLayout then
     mnuMain.Parent := Self;
   Bar := mnuMain;
   {$ENDIF}
@@ -1660,13 +1866,33 @@ begin
   lblLibrary.TextSettings.FontColor := View1.TextColor;
   lblLibrary.TextSettings.HorzAlign := TTextAlign.Center;
   lblLibrary.TextSettings.VertAlign := TTextAlign.Center;
+  {$IFDEF ANDROID}
+  // no menu and no file dialog on a phone: books come in over USB (and
+  // from BookManager later)
+  lblLibrary.Text := 'No books yet. Connect the phone to a computer by USB and copy books (.epub) into ' +
+    BooksFolderDefault + ' - they show here when you come back to EpubReader.';
+  {$ELSE}
   lblLibrary.Text := 'No books yet: File > Open... (Ctrl+O) to read one.';
+  {$ENDIF}
   lblLibrary.HitTest := False;
   tmLibrary := TTimer.Create(Self);
   tmLibrary.Enabled := False;
   tmLibrary.Interval := 1;
   tmLibrary.OnTimer := tmLibraryTimer;
 end;
+
+{$IFDEF ANDROID}
+function TfrmMain.AppEvent(AAppEvent: TApplicationEvent; AContext: TObject): Boolean;
+begin
+  Result := False;
+  if AAppEvent = TApplicationEvent.BecameActive then
+  begin
+    DebugLog('app: in front again');
+    if LibraryShowing then
+      ShowLibrary;
+  end;
+end;
+{$ENDIF}
 
 function TfrmMain.LibraryShowing: Boolean;
 begin
@@ -1744,8 +1970,8 @@ begin
   if recCoverSel <> nil then
     recCoverSel.Visible := False;
   // the contents panel back, left of the page as before (not in Big
-  // Picture: the pad's menu has the contents)
-  if not SteamBigPicture then
+  // Picture or on a phone: the menu has the contents)
+  if not MenuLayout then
   begin
     lbToc.Visible := True;
     Splitter1.Visible := True;
@@ -2262,10 +2488,19 @@ begin
 end;
 
 procedure TfrmMain.FormShow(Sender: TObject);
+{$IF Defined(ANDROID) or Defined(IOS)}
+var
+  SafeArea: IFMXWindowSafeAreaService;
+{$ENDIF}
 begin
   if FScreenLogged then
     Exit;
   FScreenLogged := True;
+  {$IF Defined(ANDROID) or Defined(IOS)}
+  // the safe area as it is now (OnSafeAreaChanged tells of changes only)
+  if TPlatformServices.Current.SupportsPlatformService(IFMXWindowSafeAreaService, SafeArea) then
+    FormSafeAreaChanged(Self, SafeArea.GetSafeAreaInsets(Self));
+  {$ENDIF}
   // once the window is on its display (big-screen work, 2026-11-17: the
   // numbers from every machine first)
   TThread.ForceQueue(nil,
@@ -2279,6 +2514,10 @@ procedure TfrmMain.FormCreate(Sender: TObject);
 var
   Line, Moved: string;
   OK: Boolean;
+  {$IFDEF ANDROID}
+  AppEvents: IFMXApplicationEventService;
+  Old: string;
+  {$ENDIF}
 begin
   // the folders shared with EpubBuilder: what was in EpubReader's own
   // moved in, once - before the log and the settings are opened there
@@ -2291,6 +2530,11 @@ begin
   // a crash in a library (Steam Deck, 2026-11-17): logged with where it was
   Application.OnException := AppException;
   OnShow := FormShow;
+  {$IF Defined(ANDROID) or Defined(IOS)}
+  // clear of the status and navigation bars (Android 15 on draws the
+  // window under them)
+  OnSafeAreaChanged := FormSafeAreaChanged;
+  {$ENDIF}
   OnActivate := FormActivated;
   OnDeactivate := FormDeactivated;
   FRedraw := TWindowRedraw.Create(Self);
@@ -2329,6 +2573,12 @@ begin
   BuildMenu;
   BuildLibrary;
   StartSound;
+  {$IFDEF ANDROID}
+  // leaving an app does not end it there: back in front, the library is
+  // read again (books copied in over USB)
+  if TPlatformServices.Current.SupportsPlatformService(IFMXApplicationEventService, AppEvents) then
+    AppEvents.SetApplicationEventHandler(AppEvent);
+  {$ENDIF}
   DebugLog('FMX canvas in use: ' + FmxCanvasClassName);
   // Linux only: fontconfig's (macOS and Windows find their fonts without it)
   {$IFDEF LINUX}
@@ -2338,6 +2588,21 @@ begin
   // two readers shared - and deleted - one folder)
   FAudioFolder := System.IOUtils.TPath.Combine(System.IOUtils.TPath.GetTempPath,
     'EpubReader-' + System.IOUtils.TPath.GetGUIDFileName);
+  {$IFDEF ANDROID}
+  // An app there is ended by the system, not closed: FormClose never
+  // emptied the folders of earlier runs (a 900 MB copy of a book's audio
+  // each, 2026-11-25). One reader runs at a time there, so all of them go.
+  try
+    for Old in TDirectory.GetDirectories(System.IOUtils.TPath.GetTempPath, 'EpubReader-*') do
+    begin
+      TDirectory.Delete(Old, True);
+      DebugLog('audio: an earlier run''s copies deleted - ' + Old);
+    end;
+  except
+    on E: Exception do
+      DebugLog('audio: an earlier run''s copies not deleted - ' + E.Message);
+  end;
+  {$ENDIF}
   // which canvas FMX really draws the form with (GDI+, Direct2D, Skia ...)
   // and what the Wine / Proton units decided - stderr, as TSteamAPI's demos
   {$IFDEF POSIX}
@@ -2386,12 +2651,20 @@ begin
   StartPad;
   // Big Picture: the pad and its menu do it all - no tool bar, no
   // contents panel (owner, 2026-11-18; the menu bar is left off already)
-  if SteamBigPicture then
+  // A phone or tablet (zip 321): the same, with a bar of six buttons at
+  // the foot for what is used all the time; its Menu button is the way in.
+  if MenuLayout then
   begin
     layTop.Visible := False;
     lbToc.Visible := False;
     Splitter1.Visible := False;
-    DebugLog('Big Picture: no tool bar or contents panel - the pad''s menu (Start, or Esc) has them');
+    if TouchBuild then
+    begin
+      BuildTouchBar;
+      DebugLog('touch: no tool bar or contents panel - the bar at the foot, and its menu, have them');
+    end
+    else
+      DebugLog('Big Picture: no tool bar or contents panel - the pad''s menu (Start, or Esc) has them');
   end;
   UpdateControls;
   DebugLog('window ready');
@@ -2853,6 +3126,11 @@ begin
   if (Length(Folders) = 0) or not SameFileName(ExcludeTrailingPathDelimiter(ExpandFileName(Folders[0])),
     ExcludeTrailingPathDelimiter(ExpandFileName(Name))) then
     Folders := Folders + [Name];
+  {$IF Defined(ANDROID) or Defined(IOS)}
+  // a phone has no File > Open: every book of the Books folder is in the
+  // library as well (copied in over USB, or sent by BookManager)
+  Folders := Folders + [FBooksFolder];
+  {$ENDIF}
   Found := nil;
   Times := nil;
   for I := 0 to High(Folders) do
@@ -3103,8 +3381,12 @@ begin
       if (EpubUnum1.Book <> nil) and not LibraryShowing then
         ShowContentsMenu;
     MENU_SIZE, MENU_SPEED:
-      // a value: left / right change it; choosing it closes the menu
-      FPadMenu.Hide;
+      // a value: left / right change it; choosing it closes the menu.
+      // By touch there is no left / right: a tap is a step
+      if TouchBuild then
+        TouchMenuStep(AIndex)
+      else
+        FPadMenu.Hide;
     MENU_DARK:
       begin
         btnDarkClick(nil);
@@ -3242,7 +3524,6 @@ begin
   FreeAndNil(FUnitLayout);
   FreeAndNil(FPlayer);
   DebugLog('closing: sound player freed');
-  FreeAndNil(FFFmpeg);
   try
     if TDirectory.Exists(FAudioFolder) then
       TDirectory.Delete(FAudioFolder, True);
@@ -3274,6 +3555,22 @@ begin
   // typing in the find box is text, not the reader's keys (P, D, L, R ...)
   if (edFind <> nil) and edFind.IsFocused then
     Exit;
+  // Android's Back: out of the menu; from the library to the open book;
+  // from the book to the library. Not taken in the library with no book
+  // open: the system then leaves the app, as Back does everywhere
+  if Key = vkHardwareBack then
+  begin
+    if ((FPadMenu <> nil) and FPadMenu.Showing) or (LibraryShowing and (EpubUnum1.Book <> nil)) then
+      Key := vkEscape
+    else if (EpubUnum1.Book <> nil) and not LibraryShowing then
+    begin
+      ShowLibrary;
+      Key := 0;
+      Exit;
+    end
+    else
+      Exit;
+  end;
   // the pad's menu with the keyboard too: arrows, Enter, Esc
   if (FPadMenu <> nil) and FPadMenu.Showing then
   begin
@@ -4099,6 +4396,8 @@ var
   C: TEpubClip;
   Target: string;
   I, First: Integer;
+  Offset, Size: Int64;
+  InBook: Boolean;
 begin
   DebugLog(Format('clip %d: opening its audio', [AClip]));
   Result := False;
@@ -4109,32 +4408,54 @@ begin
   try
     if C.AudioPath <> FAudioPath then
     begin
-      // FFmpeg streams a file: the book's audio is extracted once
-      // The file name is made HERE, never from the path inside the book:
-      // that path is the book's to choose, and one with backslashes and
-      // '..', or an absolute one (which System.IOUtils.TPath.Combine returns as it is),
-      // wrote the book's bytes anywhere on the disk. It is
-      // <book number>-<first clip of this audio file><extension>, so a
-      // second book never finds the first one's file under its own name.
-      First := AClip;
-      for I := 0 to AClip do
-        if B.Clips[I].AudioPath = C.AudioPath then
-        begin
-          First := I;
-          Break;
+      // A player that plays a part of a file (Android's) plays the audio
+      // where it lies in the book: no copy. Zip 321 - copying a 900 MB
+      // m4b took the phone nine seconds in the window's thread, and
+      // Android offered to close the app ("isn't responding").
+      InBook := False;
+      if AudioInBook(B.Zip, C.AudioPath, Offset, Size) then
+        try
+          InBook := FPlayer.OpenPart(B.Zip.FileName, Offset, Size);
+          if InBook then
+            DebugLog(Format('clip %d: playing %s inside the book (%d bytes at %d), no copy', [AClip, C.AudioPath,
+              Size, Offset]));
+        except
+          on E: Exception do
+          begin
+            // the copy is tried instead
+            InBook := False;
+            DebugLog(Format('clip %d: not played inside the book - %s', [AClip, E.Message]));
+          end;
         end;
-      Target := System.IOUtils.TPath.Combine(FAudioFolder, Format('%d-%d%s', [EpubUnum1.BookSerial, First,
-        SafeAudioExtension(C.AudioPath)]));
-      if not TFile.Exists(Target) then
+      if not InBook then
       begin
-        ForceDirectories(FAudioFolder);
-        DebugLog(Format('clip %d: extracting %s to %s', [AClip, C.AudioPath, Target]));
-        B.Zip.Extract(C.AudioPath, Target);
-        DebugLog(Format('clip %d: extracted, %d bytes', [AClip, TFile.GetSize(Target)]));
+        // FFmpeg streams a file: the book's audio is extracted once
+        // The file name is made HERE, never from the path inside the book:
+        // that path is the book's to choose, and one with backslashes and
+        // '..', or an absolute one (which System.IOUtils.TPath.Combine returns as it is),
+        // wrote the book's bytes anywhere on the disk. It is
+        // <book number>-<first clip of this audio file><extension>, so a
+        // second book never finds the first one's file under its own name.
+        First := AClip;
+        for I := 0 to AClip do
+          if B.Clips[I].AudioPath = C.AudioPath then
+          begin
+            First := I;
+            Break;
+          end;
+        Target := System.IOUtils.TPath.Combine(FAudioFolder, Format('%d-%d%s', [EpubUnum1.BookSerial, First,
+          SafeAudioExtension(C.AudioPath)]));
+        if not TFile.Exists(Target) then
+        begin
+          ForceDirectories(FAudioFolder);
+          DebugLog(Format('clip %d: extracting %s to %s', [AClip, C.AudioPath, Target]));
+          B.Zip.Extract(C.AudioPath, Target);
+          DebugLog(Format('clip %d: extracted, %d bytes', [AClip, TFile.GetSize(Target)]));
+        end;
+        DebugLog(Format('clip %d: opening it in the player', [AClip]));
+        FPlayer.Open(Target);
+        DebugLog(Format('clip %d: open', [AClip]));
       end;
-      DebugLog(Format('clip %d: opening it in the player', [AClip]));
-      FPlayer.Open(Target);
-      DebugLog(Format('clip %d: open', [AClip]));
       FAudioPath := C.AudioPath;
     end;
     Result := True;
@@ -4307,6 +4628,12 @@ begin
   begin
     Fill.Kind := TBrushKind.Solid;
     Fill.Color := DARK_PANEL;
+  end
+  else if TouchBuild then
+  begin
+    // behind the system's bars and the touch bar: the page's colour
+    Fill.Kind := TBrushKind.Solid;
+    Fill.Color := View1.BackgroundColor;
   end
   else
     Fill.Kind := TBrushKind.None;
@@ -4694,7 +5021,20 @@ begin
     SetIcon(btnPlay, ICON_PAUSE)
   else
     SetIcon(btnPlay, ICON_PLAY);
-  if LibraryShowing then
+  // the touch bar's three follow the tool bar's
+  if btnTouchPlay <> nil then
+  begin
+    btnTouchPlay.Enabled := btnPlay.Enabled;
+    btnTouchPrevClip.Enabled := btnPlay.Enabled;
+    btnTouchNextClip.Enabled := btnPlay.Enabled;
+    if FPlaying then
+      SetIcon(btnTouchPlay, ICON_PAUSE)
+    else
+      SetIcon(btnTouchPlay, ICON_PLAY);
+  end;
+  if LibraryShowing and TouchBuild then
+    S := 'Library - tap a cover to read'
+  else if LibraryShowing then
     S := 'Library - click a cover to read (Esc: back to the open book)'
   else if B = nil then
     S := 'No book open'

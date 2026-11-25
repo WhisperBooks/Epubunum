@@ -280,18 +280,18 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\OSXARM64\licences\FFmpeg-COPYING.LGPLv2.1">
-            <RemoteDir>EpubBuilder.app\Contents\Resources\licences\</RemoteDir>
-            <RemoteName>FFmpeg-COPYING.LGPLv2.1</RemoteName>
+        <DeployFile Include="..\..\redistributable_bin\OSXARM64\libavcodec.dylib">
+            <RemoteDir>EpubBuilder.app\Contents\Frameworks\</RemoteDir>
+            <RemoteName>libavcodec.dylib</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\OSXARM64\libavcodec.dylib">
-            <RemoteDir>EpubBuilder.app\Contents\Frameworks\</RemoteDir>
-            <RemoteName>libavcodec.dylib</RemoteName>
+        <DeployFile Include="..\..\redistributable_bin\OSXARM64\licences\FFmpeg-COPYING.LGPLv2.1">
+            <RemoteDir>EpubBuilder.app\Contents\Resources\licences\</RemoteDir>
+            <RemoteName>FFmpeg-COPYING.LGPLv2.1</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
@@ -402,18 +402,18 @@
     <ItemGroup Condition="'$(Platform)'=='iOSSimARM64'"/>
     <ItemGroup Condition="'$(Platform)'=='Win64x'"/>
     <ItemGroup Condition="'$(Platform)'=='Linux64'">
-        <DeployFile Include="..\..\redistributable_bin\Linux64\libavutil.so.60">
-            <RemoteDir>EpubBuilder\</RemoteDir>
-            <RemoteName>libavutil.so.60</RemoteName>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\FFmpeg-BUILD-INFO.txt">
+            <RemoteDir>EpubBuilder\licences\</RemoteDir>
+            <RemoteName>FFmpeg-BUILD-INFO.txt</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\Linux64\licences\FFmpeg-BUILD-INFO.txt">
-            <RemoteDir>EpubBuilder\licences\</RemoteDir>
-            <RemoteName>FFmpeg-BUILD-INFO.txt</RemoteName>
+        <DeployFile Include="..\..\redistributable_bin\Linux64\libavutil.so.60">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libavutil.so.60</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
@@ -700,9 +700,9 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="..\EpubReader\steaminput\controllers\reader_controller_triton.vdf">
-            <RemoteDir>EpubBuilder\steaminput\controllers\</RemoteDir>
-            <RemoteName>reader_controller_triton.vdf</RemoteName>
+        <DeployFile Include="..\..\redistributable_bin\steam\linux64\libsteam_api.so" Condition="'$(Config)'=='Steam'">
+            <RemoteDir>EpubBuilder\</RemoteDir>
+            <RemoteName>libsteam_api.so</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>
@@ -718,9 +718,9 @@
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
         </DeployFile>
-        <DeployFile Include="..\..\redistributable_bin\steam\linux64\libsteam_api.so" Condition="'$(Config)'=='Steam'">
-            <RemoteDir>EpubBuilder\</RemoteDir>
-            <RemoteName>libsteam_api.so</RemoteName>
+        <DeployFile Include="..\EpubReader\steaminput\controllers\reader_controller_triton.vdf">
+            <RemoteDir>EpubBuilder\steaminput\controllers\</RemoteDir>
+            <RemoteName>reader_controller_triton.vdf</RemoteName>
             <DeployClass>File</DeployClass>
             <Operation>0</Operation>
             <LocalCommand/>

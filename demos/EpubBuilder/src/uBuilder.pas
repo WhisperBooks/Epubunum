@@ -1940,6 +1940,167 @@ begin
   Result := AWhy <> '';
 end;
 
+{ The targets ggml's HIP library holds code for, read from the library
+  file itself: its GPU code is a bundle with one entry per target, each
+  named in plain text ('hipv4-amdgcn-amd-amdhsa--gfx1102'). Space
+  separated, each once; a family's generic code as 'gfx11*'; a name may
+  carry one digit too many (see inside) - compare beginnings. '' when
+  the file is not there, cannot be read or names none (a bundle that is
+  compressed: not judged then).
+  @param(AFileName  ggml-hip.dll / libggml-hip.so with its folder)
+  @returns(the targets: 'gfx1030 gfx1100 ...') }
+function HipLibraryTargets(const AFileName: string): string;
+const
+  MARK: AnsiString = 'amdhsa--gfx';
+  CHUNK = 1 shl 20;
+  KEEP = 64;
+var
+  Stream: TFileStream;
+  Buf: TBytes;
+  Have, Got, I, J, K, Last: Integer;
+  Hit: Boolean;
+  Target: string;
+begin
+  Result := '';
+  if not FileExists(AFileName) then
+    Exit;
+  try
+    Stream := TFileStream.Create(AFileName, fmOpenRead or fmShareDenyNone);
+    try
+      SetLength(Buf, CHUNK + KEEP);
+      Have := 0;
+      repeat
+        Got := Stream.Read(Buf[Have], CHUNK);
+        Inc(Have, Got);
+        // a name may lie across two reads: the last KEEP bytes are looked
+        // at again with the next ones - and for themselves at the end
+        if Got > 0 then
+          Last := Have - KEEP
+        else
+          Last := Have - Length(MARK);
+        I := 0;
+        while I <= Last do
+        begin
+          Hit := Buf[I] = Byte(MARK[1]);
+          if Hit then
+            for J := 2 to Length(MARK) do
+              if Buf[I + J - 1] <> Byte(MARK[J]) then
+              begin
+                Hit := False;
+                Break;
+              end;
+          if Hit then
+          begin
+            // 'gfx' and up to four hexadecimal digits (gfx90c, gfx1102):
+            // the name's length is not in reach here and a byte after it
+            // may look like one more digit - so the caller compares the
+            // beginnings. 'gfx11-generic' (every chip of a family) is
+            // given as 'gfx11*'
+            Target := 'gfx';
+            K := I + Length(MARK);
+            while (K < Have) and (Length(Target) < 7) and
+              (Buf[K] in [Ord('0')..Ord('9'), Ord('a')..Ord('f')]) do
+            begin
+              Target := Target + Char(Buf[K]);
+              Inc(K);
+            end;
+            if (K < Have) and (Buf[K] = Ord('-')) then
+              Target := Target + '*';
+            if Pos(' ' + Target + ' ', ' ' + Result + ' ') = 0 then
+              Result := Trim(Result + ' ' + Target);
+          end;
+          Inc(I);
+        end;
+        if Have > KEEP then
+        begin
+          Move(Buf[Have - KEEP], Buf[0], KEEP);
+          Have := KEEP;
+        end;
+      until Got = 0;
+    finally
+      Stream.Free;
+    end;
+  except
+    // not readable: not judged
+    Result := '';
+  end;
+end;
+
+{ ROCm lists a device its library holds no code for: ggml says each ROCm
+  device's target when the backend loads ("Device 0: AMD Radeon Graphics,
+  gfx1103 (0x1103), ..." - TWhisperLib.LoadLog), and ggml's HIP library
+  beside the program names the targets it was built for
+  (HipLibraryTargets). The first computation on such a device ends the
+  program ("ROCm error: device kernel image is invalid"; the ROG Ally on
+  Windows, 2026-11-25) - so ROCm is left out BEFORE anything runs on it.
+  NOT rocBLAS's kernel files: AMD's rocBLAS for Windows has them for
+  gfx1103 too (owner, 18:30: "rocblas has a kernel...") - it is ggml's
+  own code that is missing. Not judged when no line names a target or
+  the library names none.
+  @param(ALoadLog  the library's load log)
+  @param(AWhy  why, for the log)
+  @returns(the answer) }
+function RocmNotBuiltFor(ALoadLog: TStrings; out AWhy: string): Boolean;
+const
+  HEX_DIGITS = ['0'..'9', 'a'..'f'];
+  {$ifdef MSWINDOWS}
+  HIP_LIBRARY = 'ggml-hip.dll';
+  {$else}
+  HIP_LIBRARY = 'libggml-hip.so';
+  {$endif}
+var
+  I, P, Q: Integer;
+  Line, Gfx, Built, Missing, One: string;
+  Any, Found: Boolean;
+begin
+  AWhy := '';
+  Result := False;
+  if ALoadLog = nil then
+    Exit;
+  Any := False;
+  Found := False;
+  Missing := '';
+  Built := '';
+  for I := 0 to ALoadLog.Count - 1 do
+  begin
+    Line := ALoadLog[I];
+    // "  Device 0: AMD Radeon Graphics, gfx1103 (0x1103), VMM: no, ..."
+    if Pos('Device ', Line) = 0 then
+      Continue;
+    P := Pos(', gfx', Line);
+    if P = 0 then
+      Continue;
+    Inc(P, 2);
+    Q := P + 3;
+    while (Q <= Length(Line)) and CharInSet(Line[Q], HEX_DIGITS) do
+      Inc(Q);
+    Gfx := Copy(Line, P, Q - P);
+    if Length(Gfx) < 6 then
+      Continue;
+    if not Any then
+    begin
+      // the library is read once, and only when ROCm names a device
+      Built := HipLibraryTargets(TPath.Combine(ExtractFileDir(ParamStr(0)), HIP_LIBRARY));
+      if Built = '' then
+        Exit;
+      Any := True;
+    end;
+    // built for it: a name that begins with the chip's, or a family's
+    // ('gfx11*') that the chip's begins with
+    for One in Built.Split([' '], TStringSplitOptions.ExcludeEmpty) do
+      if StartsStr(Gfx, One) or (EndsStr('*', One) and StartsStr(Copy(One, 1, Length(One) - 1), Gfx)) then
+        Found := True;
+    if not Found and (Pos(Gfx, Missing) = 0) then
+      Missing := Missing + ' ' + Gfx;
+  end;
+  // off only when no ROCm device here is one the library was built for
+  if Any and not Found then
+  begin
+    AWhy := Format('ROCm here is built for %s, not for this graphics chip (%s)', [Built, Trim(Missing)]);
+    Result := True;
+  end;
+end;
+
 { A ROCm (HIP) device. }
 function IsRocmDevice(const ADevice: TWhisperDevice): Boolean;
 begin
@@ -1962,6 +2123,10 @@ const
   { Written before each calibration pair, deleted after it: found at
     start-up, the program ended during that pair. Beside the settings. }
   CALIBRATION_MARKER_SUFFIX = '-calibrating.txt';
+  { TWhisper's guard file for the backends (WhisperSetBackendGuard): the
+    backend being loaded and the ones left out because they ended the
+    program. Beside the settings; deleting it tries them all again. }
+  BACKEND_GUARD_SUFFIX = '-backends.txt';
   { The note of an end from outside (uQuitSignal), beside the settings. }
   QUIT_NOTE_SUFFIX = '-ended.txt';
   { The calibration's lines, beside the settings. }
@@ -2031,6 +2196,62 @@ function SettingsFile: string;
 begin
   // the folder shared with EpubReader (uEpubUnum; owner, 2026-11-20)
   Result := TPath.Combine(EpubUnumConfigFolder, 'EpubBuilder.ini');
+end;
+
+{ A ROCm device ended the program while a model was timed on it: the
+  calibration's marker of the last run (not yet moved into the settings
+  when the devices are listed), or the settings' list of such ends. ROCm
+  is then left out altogether - one end, not one for every model and
+  then one in a build (the ROG Ally on Windows, 2026-11-25: AMD's driver
+  brings ROCm's runtime, ROCm0 is listed, and the first computation ends
+  the program with "device kernel image is invalid" - the library has no
+  kernels for gfx1103). Settings > Calibrate forgets the list; the start
+  after it lists ROCm again.
+  @param(AWhy  why, for the log)
+  @returns(the answer) }
+function RocmEndedProgram(out AWhy: string): Boolean;
+var
+  Crashes: TStringList;
+  I, P: Integer;
+  Marker, Text: string;
+begin
+  AWhy := '';
+  Marker := ChangeFileExt(SettingsFile, CALIBRATION_MARKER_SUFFIX);
+  try
+    if FileExists(Marker) then
+    begin
+      // model, a tab, device
+      Text := Trim(TFile.ReadAllText(Marker, TEncoding.UTF8));
+      P := Pos(#9, Text);
+      if (P > 0) and StartsText('ROCm', Copy(Text, P + 1, MaxInt)) then
+        AWhy := Format('it ended the program when %s was timed on %s at the last start',
+          [Copy(Text, 1, P - 1), Copy(Text, P + 1, MaxInt)]);
+    end;
+  except
+    // the marker not readable: the settings' list decides
+    AWhy := '';
+  end;
+  if AWhy = '' then
+  begin
+    Crashes := CalibrationCrashes(SettingsFile);
+    try
+      for I := 0 to Crashes.Count - 1 do
+      begin
+        P := Pos(#9, Crashes[I]);
+        if (P > 0) and StartsText('ROCm', Copy(Crashes[I], P + 1, MaxInt)) then
+        begin
+          AWhy := Format('it ended the program when %s was timed on %s in an earlier calibration',
+            [Copy(Crashes[I], 1, P - 1), Copy(Crashes[I], P + 1, MaxInt)]);
+          Break;
+        end;
+      end;
+    finally
+      Crashes.Free;
+    end;
+  end;
+  if AWhy <> '' then
+    AWhy := AWhy + '; Settings > Calibrate, then a new start, tries it again';
+  Result := AWhy <> '';
 end;
 
 const
@@ -3546,8 +3767,19 @@ begin
     LogLine('DIAGNOSTIC SWITCHES: ' + BuildDiagnostics + ' - builds of this run are for measuring: slower or ' +
       'less accurate words, no transcript kept, not in the build history. Start without them to build books.');
   try
-    DebugLog('whisper.cpp: loading');
+    // a backend's library can end the program while it loads (the Ally on
+    // Windows: AMD's driver brings ROCm's runtime, the chip cannot run it):
+    // TWhisper notes each backend in this file first, and the next start
+    // leaves out the one that was being loaded
+    WhisperSetBackendGuard(ChangeFileExt(SettingsFile, BACKEND_GUARD_SUFFIX));
+    DebugLog('whisper.cpp: loading (backends noted in ' + WhisperBackendGuard + ')');
     Lib := TWhisperLib.Load;
+    // what was loaded and what was not, with ggml's own lines
+    for I := 0 to Lib.LoadLog.Count - 1 do
+      DebugLog('whisper.cpp load: ' + Lib.LoadLog[I]);
+    // a backend left out: the person is told
+    for I := 0 to Lib.BackendsLeftOut.Count - 1 do
+      WindowLine(Lib.BackendsLeftOut[I]);
     // whisper.cpp's and ggml's own lines (every level), as they are written
     Lib.AddLogListener(WhisperLog);
     FDevices := Lib.SelectableDevices;
@@ -3561,7 +3793,7 @@ begin
       BoolToStr(TDirectory.Exists('/sys/class/kfd/kfd/topology/nodes'), True)]));
     // ROCm on a GPU it cannot run on: its devices left out of the list,
     // the calibration and "Default" (the launcher may not have hidden them)
-    if RocmUnusable(Why) then
+    if RocmUnusable(Why) or RocmNotBuiltFor(Lib.LoadLog, Why) or RocmEndedProgram(Why) then
     begin
       Kept := nil;
       for I := 0 to High(FDevices) do

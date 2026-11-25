@@ -9,6 +9,10 @@
   @unorderedList(
     @item(@bold(Documents/EpubUnum): Books, Audio, Transcribed, Covers,
       Queues - EpubBuilder's books in and out, EpubReader's books.)
+    @item(@bold(On Android) both are ONE folder, EpubUnum in the app's
+      own folder on the shared storage (Android/data/<package>/files/
+      EpubUnum): Books and the rest beside the settings and the logs,
+      where a computer reaches them over USB.)
     @item(@bold(The settings folder) (Windows %APPDATA%\EpubUnum, macOS
       ~/Library/Application Support/EpubUnum, Linux $XDG_CONFIG_HOME
       (else ~/.config)/EpubUnum): EpubBuilder.ini, EpubReader.json, the
@@ -72,6 +76,11 @@ function ConfigBase: string;
 begin
   {$IF Defined(MSWINDOWS)}
   Result := TPath.GetHomePath;   // %APPDATA% (Roaming)
+  {$ELSEIF Defined(ANDROID)}
+  // the app's own folder on the shared storage (Android/data/<package>/
+  // files): needs no permission, and a computer sees it over USB - the
+  // settings and the logs can be fetched, books can be put in
+  Result := TPath.GetPublicPath;
   {$ELSEIF Defined(MACOS)}
   Result := TPath.Combine(TPath.GetHomePath, 'Library/Application Support');
   {$ELSE}
@@ -93,7 +102,13 @@ end;
 
 function EpubUnumDocsFolder: string;
 begin
+  {$IFDEF ANDROID}
+  // beside the settings (ConfigBase): TPath.GetDocumentsPath is inside the
+  // app's private storage there, which no cable reaches
+  Result := TPath.Combine(TPath.GetPublicPath, EPUBUNUM_NAME);
+  {$ELSE}
   Result := TPath.Combine(TPath.GetDocumentsPath, EPUBUNUM_NAME);
+  {$ENDIF}
 end;
 
 function EpubUnumFolder(const AName: string): string;

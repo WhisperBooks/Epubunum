@@ -648,8 +648,13 @@ var
 begin
   Result := False;
   ARestored := False;
-  if (AVersion = '') or not FileExists(AIniFile) then
+  if AVersion = '' then
     Exit;
+  // no settings yet (a first start): the version is written all the same.
+  // Left out, the calibration made in that run had none, and the next
+  // start took it for WHISPER_VERSION_FIRST's and put it aside (the Ally,
+  // 2026-11-25 17:56, after a calibration at 17:28 with new settings)
+  ForceDirectories(ExtractFilePath(AIniFile));
   // a model's section: 'Calibration <file>'; one put aside: 'Whisper
   // <version> Calibration <file>'
   Model := CAL_SECTION + ' ';

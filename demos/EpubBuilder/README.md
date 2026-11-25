@@ -701,6 +701,37 @@ own lines, each written to the file at once. When the builder disappears
 without a message (a library crashed), the last lines say what it was
 doing. The previous run's log is kept as `EpubBuilder-debug.log.old`.
 
+### A graphics backend that ends the program
+
+A backend's library (CUDA, ROCm, Vulkan) can end the whole program while
+it is loaded: on Windows AMD's graphics driver brings ROCm's runtime to
+chips ROCm cannot run on (a ROG Ally). The builder writes each backend's
+name into `EpubBuilder-backends.txt`, next to the settings, before it
+loads it. When a start ends there, the next start leaves that backend
+out, says so in the message line ("AMD ROCm (ggml-hip) is left out ...")
+and uses the other devices - the program ends once, not every time. The
+backend is tried again when its library file changes (a new version of
+the builder); after a new graphics driver, delete
+`EpubBuilder-backends.txt` to have it tried again. The debug log's
+"whisper.cpp load:" lines say what was loaded and what was not.
+
+A backend can also load, list its device and end the program only when a
+model first runs on it - that is what ROCm does on a ROG Ally under
+Windows ("ROCm error: device kernel image is invalid" is the debug
+log's last line). Two things stop that:
+
+- ROCm says which chip each of its devices is when it loads
+  ("Device 0: AMD Radeon Graphics, gfx1103"), and ggml's ROCm library
+  (`ggml-hip.dll`, `libggml-hip.so`) names the chips it holds code for.
+  When the chip is not among them, ROCm is left out before anything
+  runs on it (the log: "ROCm0 left out: ROCm cannot run here (ROCm here
+  is built for gfx1030 gfx1100 ..., not for this graphics chip
+  (gfx1103))") and Vulkan is used.
+- The calibration notes each model and device before it times them, so
+  the start after an end knows. For a ROCm device that is enough to
+  leave ROCm out altogether from then on ("... (it ended the program
+  when ...)"); **Settings > Calibrate** and a new start try it again.
+
 ### Diagnostics (what makes a model slow here)
 
 **Settings > Diagnostics (this model)...** - in Big Picture, **Diagnostics

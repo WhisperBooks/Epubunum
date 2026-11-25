@@ -301,9 +301,49 @@ TSteamAPI's launcher with one addition (below, FreeType):
   (before GTK loads the runtime's). Started without the script, inside the
   runtime, the reader crashes as before.
 
+## Android (phone and tablet)
+
+A build for Android 64-bit (zips 317 to 321; first run on a Pixel 10a,
+Android 17). What differs from a desktop:
+
+- **Books** are copied over USB into
+  `Android/data/com.embarcadero.EpubReader/files/EpubUnum/Books` on the
+  phone; every book there is in the library, and the library is read
+  again when you come back to the app. The debug log
+  (`EpubReader-debug.log`) is in `EpubUnum` beside `Books`.
+- **The window** is the page alone, as in Steam's Big Picture: no tool bar
+  across the top and no contents panel beside the page. It keeps clear of
+  the status and navigation bars.
+- **A bar of six buttons at the foot:** Menu, a page back, a sentence
+  back, Play / pause, a sentence on, a page on.
+- **Menu** is the pad's menu, used by touch: Library, Open a book,
+  Contents, Text size, Speed, Dark mode, Learn to read. A tap on Text size
+  or Speed is one step up, and from the top it goes round to the bottom.
+  A tap beside the menu closes it.
+- **Back** (the system's) leaves the menu; from a book goes to the
+  library; from the library goes back to the open book, or with no book
+  open leaves the app.
+- **Tap a word** to read from there. Dragging the page with a finger does
+  not scroll it yet: the page buttons do, and the page follows the sound.
+- **Sound** is Android's own player (no FFmpeg). A book's audio is played
+  where it lies inside the book, with no copy made, when it is stored
+  there uncompressed - as EpubBuilder's books have it. Compressed audio is
+  copied out first, and the app does not answer while that is done.
+
+### Its icon
+
+`tools/make_icons.py` writes the Android icons into `android/` beside the
+project: `LauncherIcon_36.png` to `_192.png`, and the adaptive icon's
+three vector drawables (`AdaptiveIcon_Background.xml`, `_Foreground.xml`,
+`_Monochrome.xml`). `EpubReader.dproj` names them for Android 64-bit. The
+picture shown while the app starts is still Delphi's.
+
 ## Sound
 
-The book's audio is played by FFmpegAPI's `TFFmpegAudioPlayer`: FFmpeg
+The reader plays through one class, `TReaderPlayer` (`src/uPlayer.pas`),
+so that a phone or a TV box can have a player of its own later. On a
+desktop that class is `src/uPlayerFFmpeg.pas`:
+the book's audio is played by FFmpegAPI's `TFFmpegAudioPlayer`: FFmpeg
 streams the audio file (extracted from the book once) to the platform's
 output - WASAPI on Windows, PulseAudio / PipeWire on Linux and SteamOS - and
 the player's clock (the sound really being heard) picks the sentence to
