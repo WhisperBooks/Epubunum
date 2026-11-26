@@ -170,6 +170,22 @@ const
 
 type
 
+  { Where the time of the last @link(TEpubBook.DocumentLayout) went, ms
+    (zip 338: EpubReader's log - a long document took 0.4 s on a phone,
+    not in the view's laying out). }
+  TEpubLayoutTimes = record
+    { Document number. }
+    Doc: Integer;
+    { Its text from the archive (unzipped, decoded). }
+    ReadMs: Int64;
+    { Parsed (XML). }
+    ParseMs: Int64;
+    { Its style sheets (read and parsed the first time, kept after). }
+    StyleMs: Int64;
+    { The walk that makes the blocks and words. }
+    WalkMs: Int64;
+  end;
+
   { An EPUB book. }
   TEpubBook = class
   private
@@ -185,6 +201,10 @@ type
     FTitle: string;
     { Backing field of @link(Creators). }
     FCreators: TStringList;
+    { Backing field of @link(Subjects). }
+    FSubjects: TStringList;
+    { Backing field of @link(CreatorFileAs). }
+    FCreatorFileAs: string;
     { Backing field of @link(Language). }
     FLanguage: string;
     { Backing field of @link(Identifier). }
@@ -230,6 +250,8 @@ type
     FSheets: TStringList;
     { Backing field of @link(FromIndex). }
     FFromIndex: Boolean;
+    { Backing field of @link(LastLayoutTimes). }
+    FLastLayoutTimes: TEpubLayoutTimes;
     { A number made from the size and CRC of every file in the archive: an
       index is this book's only when it carries the same one. }
     function IndexStamp: Cardinal;
@@ -369,6 +391,13 @@ type
     property Title: string read FTitle;
     { Authors (creators), in order. }
     property Creators: TStringList read FCreators;
+    { The first author's name as it is sorted ('Asimov, Isaac'): its
+      file-as (an opf:file-as attribute, or an EPUB 3 meta refining it),
+      '' when the book gives none. }
+    property CreatorFileAs: string read FCreatorFileAs;
+    { The subjects (dc:subject, often a genre: 'Science Fiction',
+      'FICTION / Fantasy / Epic'), in order; empty when none. }
+    property Subjects: TStringList read FSubjects;
     { Language code ('en', 'en-GB'). }
     property Language: string read FLanguage;
     { The unique identifier (ISBN, UUID, ...). }
@@ -408,6 +437,8 @@ type
     { The clips and the text came from an index (@link(CreateIndexed)),
       not from the book's XML. }
     property FromIndex: Boolean read FFromIndex;
+    { Where the time of the last @link(DocumentLayout) went. }
+    property LastLayoutTimes: TEpubLayoutTimes read FLastLayoutTimes;
   end;
 
 { A SMIL clock value in seconds: '1:02:03.5', '02:03.5', '12.5s', '500ms',
@@ -1061,6 +1092,7 @@ procedure TEpubBook.OpenFile(const AFileName: string; AWithOverlays: Boolean; AI
 begin
   FFileName := AFileName;
   FCreators := TStringList.Create;
+  FSubjects := TStringList.Create;
   FSheets := TStringList.Create;
   FSheets.OwnsObjects := True;
   FActiveClass := DEFAULT_ACTIVE_CLASS;
@@ -1087,6 +1119,7 @@ begin
     FIdIndex[I].Free;
   FZip.Free;
   FCreators.Free;
+  FSubjects.Free;
   FSheets.Free;
   inherited;
 end;
@@ -1148,7 +1181,7 @@ var
   List: TEpubXmlNodeArray;
   I, K: Integer;
   Item: TEpubItem;
-  NcxId, NavPath, CoverId, Prop: string;
+  NcxId, NavPath, CoverId, Prop, CreatorId: string;
 begin
   if not FZip.Exists('META-INF/container.xml') then
     raise EEpubError.CreateFmt('%s is not an EPUB (no META-INF/container.xml)', [FFileName]);
@@ -1180,6 +1213,18 @@ begin
       List := Meta.FindAll('creator');
       for I := 0 to High(List) do
         FCreators.Add(Trim(List[I].InnerText));
+      // the first author's sort form: EPUB 2's attribute here, EPUB 3's
+      // meta (refines its id) below
+      CreatorId := '';
+      if Length(List) > 0 then
+      begin
+        FCreatorFileAs := Trim(List[0].Attr('file-as'));
+        CreatorId := List[0].Attr('id');
+      end;
+      List := Meta.FindAll('subject');
+      for I := 0 to High(List) do
+        if Trim(List[I].InnerText) <> '' then
+          FSubjects.Add(Trim(List[I].InnerText));
       N := Meta.Child('language');
       if N <> nil then
         FLanguage := Trim(N.InnerText);
@@ -1200,6 +1245,9 @@ begin
           CoverId := List[I].Attr('content')
         else if List[I].Attr('name') = EPUB_WRITER_META then
           FWrittenBy := Trim(List[I].Attr('content'))
+        else if (Prop = 'file-as') and (FCreatorFileAs = '') and (CreatorId <> '') and
+          (List[I].Attr('refines') = '#' + CreatorId) then
+          FCreatorFileAs := Trim(List[I].InnerText)
         else if (Prop = 'media:active-class') then
           FActiveClass := Trim(List[I].InnerText)
         else if (Prop = 'media:duration') and (List[I].Attr('refines') = '') then
@@ -1808,17 +1856,43 @@ begin
   end;
 end;
 
+{ A millisecond clock (the times of DocumentLayout). }
+function TicksMs: Int64;
+begin
+  {$ifdef FPC}
+  Result := Int64(GetTickCount64);
+  {$else}
+  Result := Int64(TThread.GetTickCount64);
+  {$endif}
+end;
+
 function TEpubBook.DocumentLayout(ADoc: Integer): TEpubDocLayout;
 var
   D: TEpubXmlDoc;
   Body: TEpubXmlNode;
+  Text: string;
+  Sheet: TEpubStyleSheet;
+  T0, T1, T2, T3: Int64;
 begin
-  D := ParseDocument(ADoc);
+  // ParseDocument's work in two steps, each timed (LastLayoutTimes)
+  FLastLayoutTimes := Default(TEpubLayoutTimes);
+  FLastLayoutTimes.Doc := ADoc;
+  T0 := TicksMs;
+  Text := FZip.ReadText(FDocuments[ADoc].Path);
+  T1 := TicksMs;
+  D := TEpubXmlDoc.Create(Text, True);
   try
+    T2 := TicksMs;
     Body := D.Root.Find('body');
     if Body = nil then
       Body := D.Root;
-    Result := TEpubDocLayout.Create(Body, FDocuments[ADoc].Path, StyleSheetOf(ADoc, D), True);
+    Sheet := StyleSheetOf(ADoc, D);
+    T3 := TicksMs;
+    Result := TEpubDocLayout.Create(Body, FDocuments[ADoc].Path, Sheet, True);
+    FLastLayoutTimes.ReadMs := T1 - T0;
+    FLastLayoutTimes.ParseMs := T2 - T1;
+    FLastLayoutTimes.StyleMs := T3 - T2;
+    FLastLayoutTimes.WalkMs := TicksMs - T3;
   finally
     D.Free;
   end;

@@ -148,7 +148,16 @@ Link it to a `TEpubUnum` (`Epub` property), call `ShowDocument` or
 narration; `OnWordClick` gives the word under a click. Text size, line
 height, paragraph spacing, page margin and colours are properties. It lays out
 each block with Skia's paragraph engine (`TSkParagraph`) and draws the
-highlight from the paragraph's range rectangles. `ShowProgress` adds a
+highlight from the paragraph's range rectangles. Only the blocks near the
+view are laid out - the rest of the document is estimated and laid out as
+it comes near, without the text on the screen moving - so a long chapter
+shows its first page as fast as a short one; `ContentHeight` is therefore
+an estimate until the whole document has been seen, and `LaidOutBlocks`
+says how many blocks are laid out so far. Scrolled on past an end of
+the document (a drag, the wheel, keys, `Page`, `ScrollBy`), the view
+calls `OnEdge`, and the program shows the next or the previous document
+(EpubReader: the whole book can be scrolled through without the sound).
+`ShowProgress` adds a
 strip under the text with how far through the book the view is
 (`Progress`, by words - the text size does not change it).
 `ChapterBreaks` (book word indexes) draws a short centred rule, with room

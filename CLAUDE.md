@@ -83,7 +83,8 @@ sites and the boards still stands.
   TWICE at every start (FormCreate, then "app: in front again").
 
 ### NEXT (the owner, 01:03: "Continue tomorrow")
-1. LAZY LAYOUT in fmx/Epub.FMX.View.pas - the one thing left between
+1. LAZY LAYOUT in fmx/Epub.FMX.View.pas - WRITTEN IN ZIP 337 (session
+   17, NOT COMPILED; see its section). As it was asked: - the one thing left between
    Night Watch and half a second, offered at 01:00 and put off to a
    fresh session by me ("the riskiest change I'd have written blind").
    LayoutItems makes a Skia paragraph for EVERY block of the document
@@ -103,9 +104,8 @@ sites and the boards still stands.
    Kindle Fire 8 last.
 
 ### Open, the owner's to decide or answer
-- THE PACKAGE NAME is still com.embarcadero.EpubReader ("In a bit
-  we'll give it a better package name") - it changes the folder's path
-  on the phone.
+- THE PACKAGE NAME: com.epubunum.reader from zip 340 (session 17) - the
+  phone's folder is Android/data/com.epubunum.reader/files/EpubUnum.
 - A BATCH OF NEW BOOKS is ordered by FILE NAME in the library (331):
   my choice, he has not said.
 - DRAGGING THE PAGE now works with the mouse on a desktop too (327):
@@ -1871,7 +1871,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 336 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
+Last number used: 340 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
 next-session notes, CLAUDE.md only).
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
@@ -4459,6 +4459,200 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 340 (on top of zip 339): package name com.epubunum.reader; the library's order (A .dproj IS IN THIS ZIP)
+Session 17, owner 13:14: "lets change the package name (everywhere it's
+needed) to com.epubunum.reader. There should also be sort options in the
+menu to allow sorting by title, authour, year of publication and
+category/genre (the last may be for later if it requires user input).
+I'll off-load the current test library before we change package name
+then reload it when new name set."
+NOT COMPILED. Files: demos/EpubReader/EpubReader.dproj, lib/Epub.Book.pas,
+demos/EpubReader/src/uMain.pas, demos/EpubReader/README.md, CLAUDE.md.
+PACKAGE REBUILD NEEDED (lib/ changed).
+- THE PACKAGE NAME: EpubReader.dproj (pulled first: 7f102d1 was still the
+  last push) - VerInfo_Keys package=com.epubunum.reader in Base_Android
+  and Base_Android64 (was com.embarcadero.$(MSBuildProjectName)), and
+  CFBundleIdentifier=com.epubunum.reader in Base_iOSDevice64 and
+  Base_iOSSimARM64 (was $(MSBuildProjectName)). NOT changed: macOS's
+  CFBundleIdentifier (a desktop app), the label (EpubReader), the
+  Windows ProgramID, the other projects' .dproj (none deploys to Android),
+  the manifest template (%package%; FMXNativeActivity is Delphi's class).
+  No code names the package: the folders come from the system. On the
+  phone the new name is A NEW APP beside the old one, with its own
+  Android/data/com.epubunum.reader/files/EpubUnum (Books, index, covers,
+  settings, log) - uninstalling the old one deletes its folder (the
+  owner off-loads his books first).
+- THE LIBRARY'S ORDER: Recent (as before), Title, Author, Year, Genre -
+  the touch / pad menu's new row "Library order" (MENU_SORT = 3; the
+  rows after it moved down one: CONTENTS 4 ... EXIT 11; a tap or Select
+  is the next order, left / right on a pad step; the menu is shown again
+  over the library made again), and on a desktop File > Library order
+  (checked items). Kept in the settings ("librarySort"). THE BOOK READ
+  LAST STAYS FIRST (the large cover) in every order - my choice, to ask.
+  Title without case and a leading The / A / An; Author by the first
+  author's sort form; Year oldest first, then author, title; Genre by
+  name, then author, title; a book without that detail last; ties as
+  last opened.
+- THE DETAILS: lib - TEpubBook.Subjects (dc:subject, in order) and
+  CreatorFileAs (the first creator's opf:file-as, or an EPUB 3 meta
+  property="file-as" refining its id). Reader - TRecentBook.Author,
+  AuthorSort (file-as, else made: "Isaac Asimov" -> "Asimov, Isaac", Jr.
+  / Sr. / II / III / IV kept with the surname, a name with a comma as it
+  is), Year (the first four digits in a row of dc:date - OFTEN THE
+  EDITION'S, not the first printing's), Genre (the first subject); saved
+  in the settings' recent entries (meta, author, authorSort, year,
+  genre). Filled when a book is scanned in (AddScanned) and when it is
+  remembered (RememberBook); books from before (Meta false) are read
+  once, their packages only, when an order other than Recent is shown
+  (EnsureLibraryMeta; log "library: the details of N book(s) read for
+  the order (T ms)"). A desktop shows title - author (year) - genre over
+  a cover.
+- OWNER ASKED (13:18): "Books require an ISBN - are we able to use that
+  to help with metadata lookups?" ANSWERED, NOT DONE: the book's
+  identifier is often an ISBN but EPUB requires only a unique id (a
+  UUID, an ASIN); lib reads only the first dc:identifier. Open Library
+  (no key) by ISBN gives the work's first publication year and
+  subjects. OFFERED: the lookup in EpubBuilder / BookManager when a book
+  is made or added, written into the book's package (the reader stays
+  offline and every reader gets it); a lookup in the reader only as a
+  fallback. A genre of the user's own (no subject, or not liked) later.
+
+## Zip 339 (on top of zip 338): scrolling on into the next document
+Session 17, owner 13:01: "If a book opens on the foreword you can scroll
+thru it with a finger but when you hit the boundary to the next section /
+chapter you have to play the last little bit of the foreword to get to
+the next piece of text ... The user should be able to scroll thru the
+entire book without audio if they desire."
+NOT COMPILED. Files: fmx/Epub.FMX.View.pas, demos/EpubReader/src/
+uMain.pas, README.md, CLAUDE.md. No .dproj, no .fmx. PACKAGE REBUILD
+NEEDED (the view).
+- WHY: the view shows one document and every scroll stopped at its ends;
+  only the sound (a clip in the next document) moved on. The "<" ">"
+  page buttons, wheel, keys and pad stopped there too.
+- VIEW: TEpubView.ScrollBy(ADelta) - every scroll by the user goes
+  through it (a drag by each move now, not from where it went down; the
+  wheel, Up / Down, Page Up / Down / Space, Page, the reader's "<" ">"
+  and pad). At an end, going on past it adds up (FOverscroll); at
+  EDGE_PULL_LINES = 1.5 lines, OnEdge(Sender, AForward). A page or a
+  wheel step crosses at once, a line key in two presses, a finger after a
+  pull of a line and a half - and the drag goes on in the new document.
+  ShowDocument(ADoc, AAtEnd) shows a document from its end (scrolling
+  back). Not before the first paint of a document (its height unknown).
+  ScrollPos itself still stops at the ends; Home / End stay in the
+  document. FPressScroll is gone (the drag goes by its moves).
+- READER: View1Edge (set in FormCreate, not in the .fmx - the IDE's form
+  loads with an older package too) shows the next / previous LINEAR
+  document (a foreword, a title page, a chapter - with or without
+  words), the previous one from its end, and syncs the contents. Log:
+  "scrolled on: document N, from its start" / "scrolled back: document
+  N, from its end". Paused: a jump made before (FSeekClip) is dropped, so
+  Play starts with the document shown (its first clip; a tapped word
+  plays from there). PLAYING: the sound goes on, and at its next clip
+  the page goes back to it - as when scrolling away inside a document.
+- TO SEE: a book opened on its foreword - drag on past its end (a line
+  and a half of pull) into chapter 1 and back up into the foreword
+  (lands at its end); ">" at a document's end; Play after scrolling into
+  another document (starts there).
+
+## Zip 338 (on top of zip 337): where a document's 0.4 s goes - a log line
+Session 17. NOT COMPILED. Files: lib/Epub.Book.pas, demos/EpubReader/src/
+uMain.pas, CLAUDE.md. No .dproj. PACKAGE REBUILD NEEDED (lib/ changed).
+- ZIP 337 ON THE PIXEL (owner's logs, 12:38 and 12:51, unplugged = no
+  debugger): the lazy layout WORKS - Night Watch's document 4 opens with
+  13 - 23 of 1236 blocks laid out, 69 - 72 after a minute of reading -
+  but "go to clip N: laying out" to "shown" is STILL 0.39 - 0.42 s
+  (Stars My Destination's 1362-block document 0.43 s, at a chapter
+  change while playing: the page waits, the sound goes on; a 15-block
+  document 27 ms). So the 0.48 s of session 16 was NOT Skia's: it is
+  TEpubBook.DocumentLayout - the document's XHTML unzipped, parsed, its
+  CSS, the walk that makes the blocks - about 0.3 ms a block, every
+  time a document is shown (the index holds the words, not the blocks).
+- NOW: DocumentLayout times its four steps (TEpubLayoutTimes,
+  TEpubBook.LastLayoutTimes; a ms clock: TThread.GetTickCount64, FPC
+  GetTickCount64), and EpubReader logs them when the view takes a new
+  document (View1DocumentChange): "document N: its layout made in T ms -
+  unzipped R, parsed P, style sheets S, blocks W (B blocks)". The view's
+  own part is from that line to "shown".
+- THEN (by what the line shows): the document's layout made in the open
+  thread (it knows the document it was left at) and the NEXT document's
+  made ahead while playing; or the blocks kept in the index. NOTE: the
+  book's zip reader is not for two threads at once.
+- ANSWERED (session 16's question): the 4-second pauses were the
+  debugger - unplugged, the library is up in 0.3 s and each cover 4 - 8
+  ms.
+- ALSO SEEN (Ender's Shadow, 12:42): a block's CSS left margin of a few
+  em is used in full - about 160 px of a 950 px column on the phone.
+  OFFERED: at most 1.5 em when the column is narrow (under ~30 em).
+- OWNER ASKED (12:49): a link from the phone's storage root to the Books
+  folder. NOT POSSIBLE (shared storage takes no symlinks, an app cannot
+  write at its top, Android/data is hidden from other apps since Android
+  11). OFFERED: "Open with EpubReader" for an .epub tapped in Files or
+  Downloads (copied into Books), and "Add books..." with Android's
+  picker; not "All files access" (Play restricts it).
+
+## Session 17's other notes (no zip)
+- 08:33, THE FIRST DESKTOP BUILD SINCE ZIP 314 (7f102d1 = zip 336, Win64
+  Debug): it compiles and works - library, open, play, chapters, back to
+  word 1001. Seen in it, QUEUED by the owner ("after" zip 337):
+  (a) "library: layout" 50 times in a row (recLibraryResized), 4 ms each,
+  at every open and at 08:30:33 - the size and cause to be logged first;
+  (b) the desktop copies the audio out of the book at the first Play
+  (885 MB in 1.69 s, 965 MB in 1.84 s, into Temp): uPlayerFFmpeg has no
+  OpenPart - FFmpeg's "subfile" protocol could play the entry inside the
+  book. The desktop still opens a book in the window's thread (1.3 - 1.7
+  s): index and thread are the touch build's (unchanged).
+- 11:47, Embarcadero's TZipFile security patch (path traversal, links on
+  POSIX; Extract / ExtractAll): only EpubBuilder's Core ML encoder unpack
+  (uModels.pas, TZipFile.ExtractZipFile, macOS) uses TZipFile; the
+  reader and lib use Epub.Zip and write only names they make. The owner
+  INSTALLED THE PATCH (12:02); EpubBuilder for macOS to be rebuilt.
+  Unpacking with Epub.Zip instead was offered and not wanted.
+
+## Zip 337 (on top of 7f102d1 = zip 336 pushed): lazy layout - only what is near the view is laid out
+Session 17, owner 2026-11-26 08:23: "1" = item 1 of session 16's Next
+(the lazy layout in fmx/Epub.FMX.View.pas).
+NOT COMPILED. Files: fmx/Epub.FMX.View.pas, demos/EpubReader/src/
+uMain.pas (three log lines), README.md, CLAUDE.md. No .dproj. PACKAGE
+REBUILD NEEDED (Epub.FMX.View is in EpubUnumFMX).
+- WHAT IT WAS: LayoutItems made a Skia paragraph (and decoded every
+  picture) for EVERY block of a document before its first page - 0.48
+  s of each opening of Night Watch's 1236-block document on the Pixel.
+- NOW: LayoutItems makes ONE ITEM PER BLOCK (item index = block index;
+  ItemOfBlock's search is gone) with an ESTIMATED height (its
+  characters at half an em, in lines of its runs' size; a picture 0.6
+  of the column's width, at most the picture limit) and places them.
+  Paragraphs and pictures are made only where they are needed:
+  MeasureView (Draw: the view, half a view above, half below) and
+  PlaceBlock (WordLine, ScrollToWord, ShowFragment, ShowPreview: the
+  block and a view and a half each side - so a smooth scroll from the
+  view to the word ends where it should). The real heights of the
+  paragraphs laid out correct the estimates of the rest (GuessScale,
+  their sum over the estimates' sum, 0.25 - 4).
+- THE TEXT ON THE SCREEN DOES NOT MOVE when items are laid out above it:
+  MeasureSpan keeps the item at the top of the view and how far into it,
+  and moves FScroll with it - and a smooth scroll's target and a drag's
+  start by the same amount; a view at the document's end stays at the
+  end. Items laid out are never laid out again until the width, font,
+  colours or chapter breaks change.
+- A CHANGE OF BEHAVIOUR: a new width or font (Relayout, Resize) keeps
+  the BLOCK at the top of the view and the share of it scrolled past;
+  before, the pixel position was kept (the text jumped).
+- ContentHeight, the scroll position's limits and Progress are
+  estimates for what has not been laid out (Progress is by height
+  inside a document, as before); they settle as the document is read.
+  The End key goes to the estimated end and stays at the real one.
+- LOG: "go to clip N: shown (B blocks, L laid out)", the same for
+  "restore word" and "clip N" (TEpubView.LaidOutBlocks).
+- TO SEE (phone, then a desktop): Night Watch's "laying out" to "shown"
+  - was 0.48 s, expected a few hundredths; L a few dozen of 1236.
+  Then: read along over several pages (the highlight's line stays in
+  the middle, no jumps), drag up from the middle of a chapter (no jump
+  when blocks above are laid out), Home / End, a chapter from the
+  contents (ShowFragment), the text size changed mid-chapter (the same
+  paragraph stays at the top), a book with pictures in its text.
+- NOT DONE: laying out the rest while idle (so that ContentHeight and
+  Progress become exact without reading on) - offered.
 
 ## Zip 336 (on top of zip 335): session 16's handover; this file only
 Owner, 2026-11-26 01:03: "Continue tomorrow. write a claude.hd session

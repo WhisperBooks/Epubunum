@@ -136,7 +136,7 @@ this is needed only when the controls change.
 | Start / Menu | the menu | the menu | close |
 | Select / View | the library | back to the book | the library |
 
-The menu: Back to the book, Open a book, Library, Contents, Text size,
+The menu: Back to the book, Open a book, Library, Library order, Contents, Text size,
 Speed, Dark mode, Learn to read, Controls, Exit. Controls lists what each control
 does, with Steam's own pictures of the buttons of the pad in hand (the
 names, without Steam). Esc on the page opens the menu with the keyboard
@@ -307,7 +307,7 @@ A build for Android 64-bit (zips 317 to 321; first run on a Pixel 10a,
 Android 17). What differs from a desktop:
 
 - **Books** are copied over USB into
-  `Android/data/com.embarcadero.EpubReader/files/EpubUnum/Books` on the
+  `Android/data/com.epubunum.reader/files/EpubUnum/Books` on the
   phone; every book there is in the library, and the library is read
   again when you come back to the app. The debug log
   (`EpubReader-debug.log`) is in `EpubUnum` beside `Books`.
@@ -317,8 +317,9 @@ Android 17). What differs from a desktop:
 - **A bar of six buttons at the foot:** Menu, a page back, a sentence
   back, Play / pause, a sentence on, a page on.
 - **Menu** is the pad's menu, used by touch: Library, Open a book,
-  Contents, Text size, Speed, Dark mode, Learn to read. A tap on Text size
-  or Speed is one step up, and from the top it goes round to the bottom.
+  Library order, Contents, Text size, Speed, Dark mode, Learn to read. A
+  tap on Text size or Speed is one step up, and from the top it goes round
+  to the bottom; a tap on Library order is the next order.
   A tap beside the menu closes it.
 - **Back** (the system's) leaves the menu; from a book goes to the
   library; from the library goes back to the open book, or with no book
@@ -327,8 +328,13 @@ Android 17). What differs from a desktop:
   held sideways the covers are smaller and more go across. Books copied in
   since last time are read one at a time while the library shows ("Reading
   new books: 3 of 7"), each cover appearing as it is done. A tapped book
-  says "Opening ..." while it is read. The books are in the order read,
-  the last one large; the place in the book and the library are saved
+  says "Opening ..." while it is read. The book read last is first and
+  large; the others are in the order read, or by **Library order** (the
+  menu; on a desktop File > Library order): title (without a leading The /
+  A / An), author (by surname - the book's own sort form when it has one),
+  year (of the book's date, which is often the edition's, not the first
+  printing's) or genre (the book's first subject). A book without that
+  detail goes last. The place in the book and the library are saved
   whenever the app is left.
 - **Tap a word** to read from there. **Drag the page** with a finger to
   scroll it (it stops with the finger; while a book is being read aloud

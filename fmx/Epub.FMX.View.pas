@@ -28,14 +28,22 @@ uses
 type
   { A word was clicked; AWord indexes the book's Words. }
   TEpubWordEvent = procedure(Sender: TObject; AWord: Integer) of object;
+  { The page was scrolled on past an end of its document (zip 339): past
+    the end when AForward, past the start otherwise. The handler shows
+    the next or the previous document, or nothing. }
+  TEpubEdgeEvent = procedure(Sender: TObject; AForward: Boolean) of object;
 
-  { One laid-out block of the shown document. }
+  { One block of the shown document, laid out or (until it comes near the
+    view) estimated. }
   TEpubViewItem = record
-    { The block (index into the layout's Blocks). }
+    { The block (index into the layout's Blocks; the same as the item's
+      own index). }
     Block: Integer;
-    { Its paragraph (nil for a picture or a rule). }
+    { Its paragraph (nil for a picture or a rule, and until it is laid
+      out). }
     Paragraph: ISkParagraph;
-    { Its picture (nil when none or unreadable). }
+    { Its picture (nil when none or unreadable, and until it is laid
+      out). }
     Image: ISkImage;
     { Characters put in front of the block's text (the first-line indent). }
     Offset: Integer;
@@ -45,13 +53,27 @@ type
     Top: Single;
     { Width, px. }
     Width: Single;
-    { Height, px. }
+    { Height, px: the real one when @link(Measured), an estimate before
+      (0 = not shown: an unreadable picture). }
     Height: Single;
     { A chapter break is drawn above it: the rule's middle, px from the
       document's top (0 = none). }
     RuleY: Single;
+    { Laid out: Paragraph or Image made and Height real (zip 337 - before,
+      every block of a document was laid out before its first page). }
+    Measured: Boolean;
+    { Its estimated height, px, before the view's correction (see
+      TEpubView.GuessScale); unused once Measured. }
+    Guess: Single;
+    { Room above it, px (a heading's). }
+    SpaceAbove: Single;
+    { Room below it, px (left out when its height is 0). }
+    SpaceBelow: Single;
+    { An audiobook's chapter starts at it (ChapterBreaks): a rule above it,
+      except at the very top. }
+    BreakAbove: Boolean;
   end;
-  { The laid-out blocks. }
+  { The blocks of the shown document, one item per block. }
   TEpubViewItemArray = array of TEpubViewItem;
 
   { Shows one document of a book, scrollable, with a word highlight. }
@@ -66,10 +88,17 @@ type
     FLayout: TEpubDocLayout;
     { The component's BookSerial when FLayout was made. }
     FLayoutSerial: Integer;
-    { The laid-out blocks. }
+    { The document's blocks, laid out near the view, estimated elsewhere. }
     FItems: TEpubViewItemArray;
     { Width the items were laid out for (-1 = lay out again). }
     FLaidOutWidth: Single;
+    { Items laid out since the last LayoutItems. }
+    FMeasuredCount: Integer;
+    { The estimates and the real heights of the paragraphs laid out so far
+      (they correct the estimates of the rest: GuessScale). }
+    FMeasuredGuess, FMeasuredReal: Double;
+    { The tallest a picture is drawn, px (fixed when the items are made). }
+    FImageMax: Single;
     { Height of the whole document, px. }
     FContentHeight: Single;
     { Backing field of @link(ScrollPos). }
@@ -87,8 +116,14 @@ type
     { It has moved far enough since to be a drag: the page follows it, and
       letting go is no click on a word. }
     FDragging: Boolean;
-    { Where it went down (Y), and the scroll position then. }
-    FPressY, FPressScroll: Single;
+    { Where it went down (Y). }
+    FPressY: Single;
+    { Where the drag was at its last move (Y): each move scrolls by the
+      difference (ScrollBy - so a drag can go on past an end). }
+    FDragY: Single;
+    { How far the user has scrolled on past an end, px (+ the end, - the
+      start; 0 = not at one): at EDGE_PULL_LINES lines, OnEdge. }
+    FOverscroll: Single;
     { Moves FScroll towards FScrollTarget a step per tick (nil until the
       first smooth scroll). }
     FScrollTimer: TTimer;
@@ -133,6 +168,8 @@ type
     FOnWordClick: TEpubWordEvent;
     { Backing field of @link(OnDocumentChange). }
     FOnDocumentChange: TNotifyEvent;
+    { Backing field of @link(OnEdge). }
+    FOnEdge: TEpubEdgeEvent;
     { Links to a book component. }
     procedure SetEpub(const AValue: TCustomEpub);
     { Font size; lays out again. }
@@ -164,8 +201,39 @@ type
     { True when FLayout is of the book that is open now (the component may
       have opened another one since). }
     function LayoutCurrent: Boolean;
-    { Lays the items out for AWidth px. }
+    { Makes the items for AWidth px - every block ESTIMATED, none laid out
+      (that happens near the view: MeasureView, PlaceBlock). A document
+      laid out before at another width or font keeps the block at the top
+      of the view there. }
     procedure LayoutItems(AWidth: Single);
+    { The estimated height of a text block, px, before GuessScale: its
+      characters at half an em each, in lines of its size. }
+    function GuessHeight(const ABlock: TEpubBlock; AWidth: Single): Single;
+    { The real height of the paragraphs laid out over their estimates
+      (1 until one is; kept between 0.25 and 4). }
+    function GuessScale: Single;
+    { Every item's top from the heights (real or estimated), and
+      FContentHeight. }
+    procedure PlaceItems;
+    { Lays item AIndex out: its paragraph or picture, its real height. }
+    procedure MeasureItem(AIndex: Integer);
+    { Lays out every item not laid out yet between ATop and ABottom (px
+      from the document's top), then places the items again so that what
+      is at the top of the view stays there (the scroll position, a smooth
+      scroll's target moves with it (a drag goes by its moves); a view at the
+      document's end stays at the end).
+      @returns(True when one was laid out - the tops changed, so call
+      again until False) }
+    function MeasureSpan(ATop, ABottom: Single): Boolean;
+    { Lays out what is in the view, half a view above it and half below. }
+    procedure MeasureView;
+    { Lays out block ABlock and a view and a half above and below it (so a
+      smooth scroll to it from the view ends where it should).
+      @returns(its item, -1 when there is none or it has no height) }
+    function PlaceBlock(ABlock: Integer): Integer;
+    { The first item that ends at AY or below it (px from the document's
+      top; the last item when none does), -1 when there are none. }
+    function ItemAtY(AY: Single): Integer;
     { The typefaces the paragraphs use: FontFamily (regular, bold, italic,
       bold italic) and MonoFamily, each looked up ONCE and registered with
       a font provider under the view's own family names. Without it every
@@ -183,8 +251,6 @@ type
     function NewParagraphStyle(AAlign: TSkTextAlign): ISkParagraphStyle;
     { The Skia paragraph of block ABlock, AWidth px wide. }
     function MakeParagraph(const ABlock: TEpubBlock; AWidth: Single; out AOffset: Integer): ISkParagraph;
-    { The item showing block ABlock, -1 when none. }
-    function ItemOfBlock(ABlock: Integer): Integer;
     { Lays out again (font or size change). }
     procedure Relayout;
     { Height of the progress strip at the bottom, px (0 when not shown). }
@@ -225,8 +291,10 @@ type
     constructor Create(AOwner: TComponent); override;
     { Frees the layout. }
     destructor Destroy; override;
-    { Shows document ADoc (index into the book's Documents) from the top. }
-    procedure ShowDocument(ADoc: Integer);
+    { Shows document ADoc (index into the book's Documents) from the top,
+      or with AAtEnd from its end (scrolling back into it from the next:
+      zip 339). }
+    procedure ShowDocument(ADoc: Integer; AAtEnd: Boolean = False);
     { Shows document ADoc of a book whose text has NOT been read
       (TEpubBook.CreateHeader) - that one document is parsed and laid out,
       nothing else of the book: a page on the screen at once while the
@@ -251,8 +319,14 @@ type
     procedure ScrollToWord(AWord: Integer; ACenter: Boolean = False);
     { The word at a point of the view (book index), -1 when none. }
     function WordAt(X, Y: Single): Integer;
-    { Scrolls one screen down (True) or up. }
+    { Scrolls one screen down (True) or up - on past an end of the
+      document as ScrollBy does. }
     procedure Page(ADown: Boolean);
+    { Scrolls by ADelta px (+ down) as the user does - the wheel, keys,
+      Page, a drag, a pad: at an end of the document, going on past it by
+      EDGE_PULL_LINES lines in all calls OnEdge (the next or the previous
+      document). ScrollPos stops at the ends. }
+    procedure ScrollBy(ADelta: Single);
     { Clears the view (no document). }
     procedure Clear;
     { The shown document, -1 when none. }
@@ -264,10 +338,15 @@ type
     { Dragging the page up or down scrolls it - a finger on a phone, the
       left button elsewhere (default True; zip 327). A press and release
       in one place is still a click on a word. The page stops with the
-      finger: there is no gliding on. }
+      finger: there is no gliding on. Pulled on past an end of the
+      document, it goes into the next or the previous one (OnEdge). }
     property DragScroll: Boolean read FDragScroll write FDragScroll;
-    { Height of the whole document, px. }
+    { Height of the whole document, px - ESTIMATED for the parts not laid
+      out yet (zip 337), so it changes as the document is read. }
     property ContentHeight: Single read FContentHeight;
+    { Blocks of the shown document laid out so far (the rest are
+      estimates), for the log. }
+    property LaidOutBlocks: Integer read FMeasuredCount;
     { How far through the book the view is, 0 .. 1 (-1 when nothing is
       shown): the words of the documents before this one plus the share
       of this one's words above the top of the view (by height); 1 at the
@@ -321,6 +400,11 @@ type
     property OnWordClick: TEpubWordEvent read FOnWordClick write FOnWordClick;
     { Another document is shown. }
     property OnDocumentChange: TNotifyEvent read FOnDocumentChange write FOnDocumentChange;
+    { The user scrolled on past an end of the document (ScrollBy): show
+      the next or the previous one. Without a handler the page stops at
+      the ends (before zip 339 it always did - the next document came only
+      with the sound). }
+    property OnEdge: TEpubEdgeEvent read FOnEdge write FOnEdge;
     { Tab order (Align, Size, Visible, Enabled, ... are published by
       TSkCustomControl). }
     property TabOrder;
@@ -342,8 +426,21 @@ const
   MONO_FAMILY = 'EpubView Mono';
   { Pictures are never taller than this part of the view. }
   IMAGE_MAX_VIEW = 0.85;
+  { A picture's estimated height before it is read, as a share of the
+    column's width. }
+  IMAGE_GUESS = 0.6;
+  { The average character's width, em (the estimates; corrected by the
+    paragraphs laid out). }
+  CHAR_EM = 0.5;
+  { At most this many rounds of laying out for one place (each can move
+    the tops; two are usual). }
+  MEASURE_PASSES = 8;
   { Wheel notches to lines. }
   WHEEL_LINES = 3;
+  { Lines scrolled on past an end of a document before OnEdge (a pull a
+    page or wheel step makes at once, a line key in two presses, a drag in
+    a line and a half). }
+  EDGE_PULL_LINES = 1.5;
   { One wheel notch. }
   WHEEL_DELTA = 120;
 
@@ -542,7 +639,7 @@ begin
   Blk := B.BlockOfWord(FLayout, FDocument, AWord);
   if Blk < 0 then
     Exit;
-  K := ItemOfBlock(Blk);
+  K := PlaceBlock(Blk);
   if (K < 0) or (FItems[K].Paragraph = nil) then
     Exit;
   Block := FLayout.Blocks[Blk];
@@ -608,8 +705,8 @@ begin
       for I := 0 to High(Block.Words) do
         if Block.Words[I].Word = ALocalWord then
         begin
-          K := ItemOfBlock(Blk);
-          if (K >= 0) and (K <= High(FItems)) then
+          K := PlaceBlock(Blk);
+          if K >= 0 then
           begin
             // the word's line in the middle, as ScrollToWord centres it
             Middle := FItems[K].Top + FItems[K].Height / 2;
@@ -644,7 +741,7 @@ begin
   ClearHighlight;
 end;
 
-procedure TEpubView.ShowDocument(ADoc: Integer);
+procedure TEpubView.ShowDocument(ADoc: Integer; AAtEnd: Boolean);
 var
   B: TEpubBook;
 begin
@@ -671,6 +768,15 @@ begin
   end;
   StopScrolling;
   FScroll := 0;
+  FOverscroll := 0;
+  if AAtEnd and (Width > 2 * FPageMargin) then
+  begin
+    // its end: the items made now (estimated - the end is laid out when
+    // it is drawn, and a view at the end stays there: MeasureSpan)
+    if not SameValue(FLaidOutWidth, Width) then
+      LayoutItems(Width);
+    FScroll := Max(0, FContentHeight - TextHeight);
+  end;
   Redraw;
 end;
 
@@ -686,7 +792,7 @@ begin
     Exit;
   if FLaidOutWidth <> Width then
     LayoutItems(Width);
-  K := ItemOfBlock(FLayout.Ids[I].Block);
+  K := PlaceBlock(FLayout.Ids[I].Block);
   if K >= 0 then
     ScrollPos := FItems[K].Top - FPageMargin;
 end;
@@ -722,7 +828,9 @@ begin
     Exit;
   if FLaidOutWidth <> Width then
     LayoutItems(Width);
-  K := ItemOfBlock(Blk);
+  // laid out with the view and a half round it: the word's top is real,
+  // and so is the way to it from the view for a smooth scroll
+  K := PlaceBlock(Blk);
   if K < 0 then
     Exit;
   // reading along: the word's line in the middle, scrolled smoothly
@@ -749,19 +857,255 @@ begin
   if Step < FFontSize then
     Step := FFontSize;
   if ADown then
-    ScrollPos := FScroll + Step
+    ScrollBy(Step)
   else
-    ScrollPos := FScroll - Step;
+    ScrollBy(-Step);
 end;
 
-function TEpubView.ItemOfBlock(ABlock: Integer): Integer;
+procedure TEpubView.ScrollBy(ADelta: Single);
+var
+  Target, Limit, Excess: Single;
+begin
+  // not laid out yet (a document just shown, before its first paint):
+  // its height is not known, so no end to go past
+  if FLaidOutWidth < 0 then
+  begin
+    ScrollPos := FScroll + ADelta;
+    Exit;
+  end;
+  Limit := Max(0, FContentHeight - TextHeight);
+  Target := FScroll + ADelta;
+  Excess := 0;
+  if Target > Limit then
+    Excess := Target - Limit
+  else if Target < 0 then
+    Excess := Target;
+  ScrollPos := Target;
+  if Excess = 0 then
+  begin
+    FOverscroll := 0;
+    Exit;
+  end;
+  // on past an end: added up (a pull the other way starts again)
+  if (FOverscroll <> 0) and ((Excess > 0) <> (FOverscroll > 0)) then
+    FOverscroll := 0;
+  FOverscroll := FOverscroll + Excess;
+  if Abs(FOverscroll) < FFontSize * FLineHeight * EDGE_PULL_LINES then
+    Exit;
+  FOverscroll := 0;
+  if not FPreview and (FLayout <> nil) and Assigned(FOnEdge) then
+    FOnEdge(Self, Excess > 0);
+end;
+
+function TEpubView.ItemAtY(AY: Single): Integer;
+var
+  Lo, Hi, Mid: Integer;
+begin
+  // the items' bottoms never go down: a binary search
+  Lo := 0;
+  Hi := High(FItems);
+  if Hi < 0 then
+    Exit(-1);
+  while Lo < Hi do
+  begin
+    Mid := (Lo + Hi) div 2;
+    if FItems[Mid].Top + FItems[Mid].Height < AY then
+      Lo := Mid + 1
+    else
+      Hi := Mid;
+  end;
+  Result := Lo;
+end;
+
+function TEpubView.GuessHeight(const ABlock: TEpubBlock; AWidth: Single): Single;
+var
+  R, Chars, Breaks, Lines: Integer;
+  SizeSum, Size: Double;
+  C: Char;
+begin
+  // the runs' size, averaged over their characters
+  SizeSum := 0;
+  Chars := 0;
+  for R := 0 to High(ABlock.Runs) do
+  begin
+    SizeSum := SizeSum + ABlock.Runs[R].Size * ABlock.Runs[R].Length;
+    Inc(Chars, ABlock.Runs[R].Length);
+  end;
+  if Chars > 0 then
+    Size := SizeSum / Chars
+  else
+    Size := 1;
+  if Size <= 0 then
+    Size := 1;
+  Breaks := 0;
+  for C in ABlock.Text do
+    if C = #10 then
+      Inc(Breaks);
+  // an em space of indent is two average characters
+  Chars := Length(ABlock.Text) + 2 * Max(0, Round(ABlock.TextIndent));
+  Lines := Breaks + Max(1, Ceil(Chars * FFontSize * Size * CHAR_EM / Max(1, AWidth)));
+  Result := Lines * FFontSize * Size * FLineHeight;
+end;
+
+function TEpubView.GuessScale: Single;
+begin
+  if FMeasuredGuess > 0 then
+    Result := EnsureRange(FMeasuredReal / FMeasuredGuess, 0.25, 4)
+  else
+    Result := 1;
+end;
+
+procedure TEpubView.PlaceItems;
 var
   I: Integer;
+  Y, Scale: Single;
 begin
+  Scale := GuessScale;
+  Y := FPageMargin;
   for I := 0 to High(FItems) do
-    if FItems[I].Block = ABlock then
-      Exit(I);
+  begin
+    Y := Y + FItems[I].SpaceAbove;
+    // a chapter break (an audiobook's chapter): a rule in a gap above
+    FItems[I].RuleY := 0;
+    if FItems[I].BreakAbove and (Y > FPageMargin) then
+    begin
+      FItems[I].RuleY := Y + FFontSize * FLineHeight;
+      Y := Y + 2 * FFontSize * FLineHeight;
+    end;
+    if not FItems[I].Measured then
+      FItems[I].Height := FItems[I].Guess * Scale;
+    FItems[I].Top := Y;
+    if FItems[I].Height > 0 then
+      Y := Y + FItems[I].Height + FItems[I].SpaceBelow;
+  end;
+  FContentHeight := Y + FPageMargin;
+end;
+
+procedure TEpubView.MeasureItem(AIndex: Integer);
+var
+  B: TEpubBook;
+  Blk: TEpubBlock;
+  Off: Integer;
+  Scale, W: Single;
+  Bytes: TBytes;
+begin
+  if FItems[AIndex].Measured then
+    Exit;
+  FItems[AIndex].Measured := True;
+  Inc(FMeasuredCount);
+  B := Book;
+  Blk := FLayout.Blocks[FItems[AIndex].Block];
+  case Blk.Kind of
+    ebkImage:
+      begin
+        FItems[AIndex].Image := nil;
+        if B <> nil then
+          try
+            if B.Zip.Exists(Blk.ImagePath) then
+            begin
+              Bytes := B.ReadResource(Blk.ImagePath);
+              FItems[AIndex].Image := TSkImage.MakeFromEncoded(Bytes);   // nil for SVG etc.
+            end;
+          except
+            // a damaged or unreadable entry (CRC, ZIP method, too large):
+            // no picture, and the rest of the document is still laid out.
+            // Raised from here it left Draw with the items half made.
+            on E: Exception do
+              FItems[AIndex].Image := nil;
+          end;
+        if FItems[AIndex].Image <> nil then
+        begin
+          // centred in the column the item was given
+          W := FItems[AIndex].Width;
+          Scale := Min(W / FItems[AIndex].Image.Width, FImageMax / FItems[AIndex].Image.Height);
+          Scale := Min(Scale, 2);
+          FItems[AIndex].Width := FItems[AIndex].Image.Width * Scale;
+          FItems[AIndex].Height := FItems[AIndex].Image.Height * Scale;
+          FItems[AIndex].X := FItems[AIndex].X + (W - FItems[AIndex].Width) / 2;
+        end
+        else
+          FItems[AIndex].Height := 0;
+      end;
+    ebkRule:
+      FItems[AIndex].Height := FFontSize;
+  else
+    FItems[AIndex].Paragraph := MakeParagraph(Blk, FItems[AIndex].Width, Off);
+    FItems[AIndex].Offset := Off;
+    FItems[AIndex].Height := FItems[AIndex].Paragraph.Height;
+    FMeasuredGuess := FMeasuredGuess + FItems[AIndex].Guess;
+    FMeasuredReal := FMeasuredReal + FItems[AIndex].Height;
+  end;
+end;
+
+function TEpubView.MeasureSpan(ATop, ABottom: Single): Boolean;
+var
+  I, Anchor: Integer;
+  AnchorOffset, Old: Single;
+  AtEnd: Boolean;
+begin
+  Result := False;
+  Anchor := -1;
+  AnchorOffset := 0;
+  AtEnd := False;
+  I := ItemAtY(ATop);
+  if I < 0 then
+    Exit;
+  while (I <= High(FItems)) and (FItems[I].Top <= ABottom) do
+  begin
+    if not FItems[I].Measured then
+    begin
+      if not Result then
+      begin
+        // before anything changes: what is at the top of the view, and
+        // whether the view is at the document's end
+        Anchor := ItemAtY(FScroll);
+        AnchorOffset := FScroll - FItems[Anchor].Top;
+        AtEnd := (FScroll > 0) and (FScroll >= FContentHeight - TextHeight - 1);
+        Result := True;
+      end;
+      MeasureItem(I);
+    end;
+    Inc(I);
+  end;
+  if not Result then
+    Exit;
+  PlaceItems;
+  // the text on the screen does not move: the scroll position follows it,
+  // and with it a smooth scroll's target (a drag goes by its moves)
+  Old := FScroll;
+  if AtEnd then
+    FScroll := FContentHeight - TextHeight
+  else
+    FScroll := FItems[Anchor].Top + AnchorOffset;
+  FScroll := Max(0, Min(FScroll, FContentHeight - TextHeight));
+  FScrollTarget := FScrollTarget + (FScroll - Old);
+end;
+
+procedure TEpubView.MeasureView;
+var
+  N: Integer;
+begin
+  N := 0;
+  while (N < MEASURE_PASSES) and MeasureSpan(FScroll - TextHeight / 2, FScroll + TextHeight * 1.5) do
+    Inc(N);
+end;
+
+function TEpubView.PlaceBlock(ABlock: Integer): Integer;
+var
+  N: Integer;
+begin
   Result := -1;
+  if (ABlock < 0) or (ABlock > High(FItems)) then
+    Exit;
+  N := 0;
+  while (N < MEASURE_PASSES) and MeasureSpan(FItems[ABlock].Top - TextHeight * 1.5,
+    FItems[ABlock].Top + FItems[ABlock].Height + TextHeight * 1.5) do
+    Inc(N);
+  // itself at least, whatever the rounds left
+  if not FItems[ABlock].Measured then
+    MeasureSpan(FItems[ABlock].Top, FItems[ABlock].Top);
+  if FItems[ABlock].Height > 0 then
+    Result := ABlock;
 end;
 
 function TEpubView.Fonts: ISkTypefaceFontProvider;
@@ -896,24 +1240,37 @@ end;
 
 procedure TEpubView.LayoutItems(AWidth: Single);
 var
-  B: TEpubBook;
-  I, N, Off: Integer;
+  I, AnchorBlock: Integer;
+  AnchorShare: Single;
   Blk: TEpubBlock;
-  Y, X, W, Scale, MaxH: Single;
+  X, W: Single;
   Item: TEpubViewItem;
-  Bytes: TBytes;
 begin
+  // the same document laid out before (another width or font): the block
+  // at the top of the view, and how far into it, are kept
+  AnchorBlock := -1;
+  AnchorShare := 0;
+  if (FLayout <> nil) and (Length(FItems) = FLayout.BlockCount) then
+  begin
+    AnchorBlock := ItemAtY(FScroll);
+    if (AnchorBlock >= 0) and (FItems[AnchorBlock].Height > 0) then
+      AnchorShare := EnsureRange((FScroll - FItems[AnchorBlock].Top) / FItems[AnchorBlock].Height, 0, 1);
+  end;
   FItems := nil;
   FLaidOutWidth := AWidth;
   FContentHeight := 0;
-  B := Book;
-  if (B = nil) or (FLayout = nil) or (AWidth <= 2 * FPageMargin) then
+  FMeasuredCount := 0;
+  FMeasuredGuess := 0;
+  FMeasuredReal := 0;
+  if (Book = nil) or (FLayout = nil) or (AWidth <= 2 * FPageMargin) then
     Exit;
+  FImageMax := Max(Height * IMAGE_MAX_VIEW, FFontSize * 4);
+  // every block estimated - none laid out: Skia's paragraphs are made
+  // where the view is (MeasureView, PlaceBlock). Laying out a whole
+  // document first was 0.48 s of every opening of Night Watch's 1236
+  // blocks on the phone (session 16).
   SetLength(FItems, FLayout.BlockCount);
-  N := 0;
-  Y := FPageMargin;
-  MaxH := Max(Height * IMAGE_MAX_VIEW, FFontSize * 4);
-  for I := 0 to FLayout.BlockCount - 1 do
+  for I := 0 to High(FItems) do
   begin
     Blk := FLayout.Blocks[I];
     Item := Default(TEpubViewItem);
@@ -925,65 +1282,36 @@ begin
       X := FPageMargin;
       W := AWidth - 2 * FPageMargin;
     end;
-    if Blk.Kind = ebkHeading then
-      Y := Y + FFontSize * FParagraphSpacing;   // room above a heading
-    // a chapter break (an audiobook's chapter): a rule in a gap above
-    if (Y > FPageMargin) and BreakBefore(I) then
-    begin
-      Item.RuleY := Y + FFontSize * FLineHeight;
-      Y := Y + 2 * FFontSize * FLineHeight;
-    end;
     Item.X := X;
-    Item.Top := Y;
     Item.Width := W;
-    case Blk.Kind of
-      ebkImage:
-        begin
-          Item.Image := nil;
-          try
-            if B.Zip.Exists(Blk.ImagePath) then
-            begin
-              Bytes := B.ReadResource(Blk.ImagePath);
-              Item.Image := TSkImage.MakeFromEncoded(Bytes);   // nil for SVG etc.
-            end;
-          except
-            // a damaged or unreadable entry (CRC, ZIP method, too large):
-            // no picture, and the rest of the document is still laid out.
-            // Raised from here it left Draw with the items half made.
-            on E: Exception do
-              Item.Image := nil;
-          end;
-          if Item.Image <> nil then
-          begin
-            Scale := Min(W / Item.Image.Width, MaxH / Item.Image.Height);
-            Scale := Min(Scale, 2);
-            Item.Width := Item.Image.Width * Scale;
-            Item.Height := Item.Image.Height * Scale;
-            Item.X := X + (W - Item.Width) / 2;
-          end
-          else
-            Item.Height := 0;
-        end;
-      ebkRule:
-        Item.Height := FFontSize;
+    if Blk.Kind = ebkHeading then
+      Item.SpaceAbove := FFontSize * FParagraphSpacing;   // room above a heading
+    Item.BreakAbove := BreakBefore(I);
+    if (Blk.TextIndent > 0) and (Blk.Kind = ebkParagraph) then
+      Item.SpaceBelow := FFontSize * FParagraphSpacing / 3
     else
-      Item.Paragraph := MakeParagraph(Blk, W, Off);
-      Item.Offset := Off;
-      Item.Height := Item.Paragraph.Height;
+      Item.SpaceBelow := FFontSize * FParagraphSpacing;
+    case Blk.Kind of
+      ebkRule:
+        begin
+          // nothing to make: laid out as it is
+          Item.Height := FFontSize;
+          Item.Measured := True;
+          Inc(FMeasuredCount);
+        end;
+      ebkImage:
+        Item.Guess := Min(W * IMAGE_GUESS, FImageMax);
+    else
+      Item.Guess := GuessHeight(Blk, W);
     end;
-    if Item.Height > 0 then
-    begin
-      FItems[N] := Item;
-      Inc(N);
-      Y := Y + Item.Height;
-      if (Blk.TextIndent > 0) and (Blk.Kind = ebkParagraph) then
-        Y := Y + FFontSize * FParagraphSpacing / 3
-      else
-        Y := Y + FFontSize * FParagraphSpacing;
-    end;
+    FItems[I] := Item;
   end;
-  SetLength(FItems, N);
-  FContentHeight := Y + FPageMargin;
+  PlaceItems;
+  if AnchorBlock > High(FItems) then
+    AnchorBlock := -1;
+  if AnchorBlock >= 0 then
+    FScroll := Max(0, Min(FItems[AnchorBlock].Top + AnchorShare * FItems[AnchorBlock].Height,
+      FContentHeight - TextHeight));
 end;
 
 procedure TEpubView.Resize;
@@ -1020,17 +1348,23 @@ begin
     LayoutItems(ADest.Width);
     FScroll := Max(0, Min(FScroll, FContentHeight - TextRect.Height));
   end;
+  // what is about to be seen is laid out (it may move FScroll: the text on
+  // the screen stays where it was)
+  MeasureView;
   if FShowProgress then
     DrawFooter(ACanvas, RectF(ADest.Left, TextRect.Bottom, ADest.Right, ADest.Bottom));
   ACanvas.Save;
   try
     ACanvas.ClipRect(TextRect);
-    for I := 0 to High(FItems) do
+    for I := Max(0, ItemAtY(FScroll)) to High(FItems) do
     begin
       Item := FItems[I];
       Top := ADest.Top + Item.Top - FScroll;
       if Top > TextRect.Bottom then
         Break;
+      // not laid out (only past the rounds MeasureView allows) or no height
+      if not Item.Measured or (Item.Height <= 0) then
+        Continue;
       if Top + Item.Height < ADest.Top then
         Continue;
       Blk := FLayout.Blocks[Item.Block];
@@ -1247,10 +1581,13 @@ begin
   if Y > TextHeight then
     Exit;
   DocY := Y + FScroll;
-  for I := 0 to High(FItems) do
+  for I := Max(0, ItemAtY(DocY)) to High(FItems) do
   begin
     Item := FItems[I];
-    if (DocY < Item.Top) or (DocY > Item.Top + Item.Height) or (Item.Paragraph = nil) then
+    if Item.Top > DocY then
+      Break;
+    // a paragraph not laid out is not on the screen either
+    if (DocY > Item.Top + Item.Height) or (Item.Height <= 0) or (Item.Paragraph = nil) then
       Continue;
     P := Item.Paragraph.GetGlyphPositionAtCoordinate(X - Item.X, DocY - Item.Top).Position - Item.Offset;
     Blk := FLayout.Blocks[Item.Block];
@@ -1266,7 +1603,7 @@ begin
   inherited;
   if Handled then
     Exit;
-  ScrollPos := FScroll - WheelDelta / WHEEL_DELTA * WHEEL_LINES * FFontSize * FLineHeight;
+  ScrollBy(-WheelDelta / WHEEL_DELTA * WHEEL_LINES * FFontSize * FLineHeight);
   Handled := True;
 end;
 
@@ -1274,9 +1611,9 @@ procedure TEpubView.KeyDown(var Key: Word; var KeyChar: WideChar; Shift: TShiftS
 begin
   case Key of
     vkDown:
-      ScrollPos := FScroll + FFontSize * FLineHeight;
+      ScrollBy(FFontSize * FLineHeight);
     vkUp:
-      ScrollPos := FScroll - FFontSize * FLineHeight;
+      ScrollBy(-FFontSize * FLineHeight);
     vkNext:
       Page(True);
     vkPrior:
@@ -1306,7 +1643,6 @@ begin
   FPressed := True;
   FDragging := False;
   FPressY := Y;
-  FPressScroll := FScroll;
 end;
 
 procedure TEpubView.MouseMove(Shift: TShiftState; X, Y: Single);
@@ -1318,9 +1654,17 @@ begin
   if not (FPressed and FDragScroll) then
     Exit;
   if not FDragging and (Abs(Y - FPressY) > DRAG_SLOP) then
+  begin
     FDragging := True;
+    FDragY := FPressY;
+  end;
   if FDragging then
-    ScrollPos := FPressScroll - (Y - FPressY);
+  begin
+    // by the move since the last one: past an end of the document the
+    // finger pulls on into the next (OnEdge), and the drag goes on there
+    ScrollBy(FDragY - Y);
+    FDragY := Y;
+  end;
 end;
 
 procedure TEpubView.DoMouseLeave;

@@ -50,12 +50,30 @@ uses
   uCovers, uCoverPick;
 
 type
+  { The library's order (zip 340): as last opened, or by a book's details.
+    The book read last stays first (the large cover) in every order. }
+  TLibrarySort = (lsRecent, lsTitle, lsAuthor, lsYear, lsGenre);
+
   { A book in the Recently Opened list, with where its reader left off. }
   TRecentBook = record
     { The EPUB file. }
     FileName: string;
     { Its title (the menu shows it). }
     Title: string;
+    { Its authors, as the book names them ('Isaac Asimov'). }
+    Author: string;
+    { The first author as sorted ('Asimov, Isaac'): the book's file-as,
+      else made from the name. }
+    AuthorSort: string;
+    { The year of its date (dc:date - often the edition's, not the first
+      printing's), 0 = none. }
+    Year: Integer;
+    { Its first subject (dc:subject - often a genre), '' = none. }
+    Genre: string;
+    { Author, AuthorSort, Year and Genre have been read (books of the
+      library from before zip 340 have not: read when an order needs
+      them). }
+    Meta: Boolean;
     { The word the reader was at (index into the book's Words), -1 = the
       start. }
     Word: Integer;
@@ -167,6 +185,9 @@ type
     procedure View1WordClick(Sender: TObject; AWord: Integer);
     { Another document is shown. }
     procedure View1DocumentChange(Sender: TObject);
+    { The page was scrolled on past an end of its document: the next or
+      the previous document of the reading order is shown (zip 339). }
+    procedure View1Edge(Sender: TObject; AForward: Boolean);
     { Follows the audio. }
     procedure tmPlayTimer(Sender: TObject);
   private
@@ -221,6 +242,10 @@ type
     btnDark: TButton;
     { Dark mode is on. }
     FDark: Boolean;
+    { The library's order (Menu > Library order; saved). }
+    FLibrarySort: TLibrarySort;
+    { File > Library order's items (the desktop's menu). }
+    miSort: array[TLibrarySort] of TMenuItem;
     { Chapters in reading order: their first word in Book.Words. }
     FChapterWord: TArray<Integer>;
     { Chapters: their entry in Book.Toc (-1 = a document, no contents). }
@@ -602,6 +627,21 @@ type
     { Takes a book that is in the library more than once out of it but for
       its first entry (zip 325 put books in two and three times). }
     procedure DropDoubleBooks;
+    { Fills R's Author, AuthorSort, Year and Genre from ABook (open, or its
+      package only). }
+    procedure SetBookMeta(var R: TRecentBook; ABook: TEpubBook);
+    { Reads the details of the library's books that do not have them yet
+      (their packages only; books from before zip 340), when the order
+      needs them. }
+    procedure EnsureLibraryMeta;
+    { The library's books in the order shown (indexes into FRecent): the
+      one read last first, the others by FLibrarySort. }
+    function LibraryOrder: TArray<Integer>;
+    { Puts the library in order ASort, keeps it, shows it again when it is
+      on the screen. }
+    procedure SetLibrarySort(ASort: TLibrarySort);
+    { File > Library order > an order (Tag = TLibrarySort). }
+    procedure miSortClick(Sender: TObject);
     { Cover AIndex (of FRecent) was clicked or tapped: back to the open
       book when it is that one, else it is opened. }
     procedure CoverChosen(AIndex: Integer);
@@ -728,22 +768,28 @@ const
   MENU_OPEN = 1;
   { The library. }
   MENU_LIBRARY = 2;
+  { The library's order (a tap, or left / right, steps through them). }
+  MENU_SORT = 3;
   { The contents. }
-  MENU_CONTENTS = 3;
+  MENU_CONTENTS = 4;
   { Text size (left / right). }
-  MENU_SIZE = 4;
+  MENU_SIZE = 5;
   { Speed (left / right). }
-  MENU_SPEED = 5;
+  MENU_SPEED = 6;
   { Dark mode. }
-  MENU_DARK = 6;
+  MENU_DARK = 7;
   { Learn to read. }
-  MENU_LEARN = 7;
+  MENU_LEARN = 8;
   { The pad's controls. }
-  MENU_CONTROLS = 8;
+  MENU_CONTROLS = 9;
   { The open book's cover (thumbnails to choose from). }
-  MENU_COVER = 9;
+  MENU_COVER = 10;
   { Exit. }
-  MENU_EXIT = 10;
+  MENU_EXIT = 11;
+  { The library's orders, as the menus name them. }
+  LIBRARY_SORT_NAMES: array[TLibrarySort] of string = ('Recent', 'Title', 'Author', 'Year', 'Genre');
+  { ... and as the settings file keeps them. }
+  LIBRARY_SORT_KEYS: array[TLibrarySort] of string = ('recent', 'title', 'author', 'year', 'genre');
   { FMenuMode: the main menu. }
   MODE_MAIN = 0;
   { The contents. }
@@ -1658,7 +1704,8 @@ procedure TfrmMain.BuildMenu;
   end;
 
 var
-  M: TMenuItem;
+  M, S: TMenuItem;
+  Sort: TLibrarySort;
   Bar: TFmxObject;
   {$IFDEF MSWINDOWS}
   G: TMenuItem;
@@ -1684,6 +1731,13 @@ begin
   M := Item(Bar, '&File', nil);
   Item(M, '&Open...'#9'Ctrl+O', btnOpenClick);
   Item(M, 'Li&brary', miLibraryClick);
+  S := Item(M, 'Library &order', nil);
+  for Sort := Low(TLibrarySort) to High(TLibrarySort) do
+  begin
+    miSort[Sort] := Item(S, '&' + LIBRARY_SORT_NAMES[Sort], miSortClick);
+    miSort[Sort].Tag := Ord(Sort);
+    miSort[Sort].IsChecked := Sort = FLibrarySort;
+  end;
   miRecent := Item(M, '&Recently Opened', nil);
   // a debugging aid: only with "debug": true in the settings file
   miNotes := Item(M, 'Go to &Footnote', nil);
@@ -2106,10 +2160,11 @@ end;
 
 procedure TfrmMain.ShowLibrary;
 var
-  I: Integer;
+  I, K: Integer;
   Img: TImage;
   F: string;
   Tick: Cardinal;
+  Order: TArray<Integer>;
 begin
   DebugLog('library: showing');
   // the book stops (paused: Play resumes it once back on the page), and the
@@ -2125,8 +2180,14 @@ begin
   for I := 0 to High(FCoverImages) do
     FCoverImages[I].Free;
   FCoverImages := nil;
-  for I := 0 to High(FRecent) do
+  // in the chosen order (the book read last first); the covers' Tag is
+  // still the index in FRecent
+  if FLibrarySort <> lsRecent then
+    EnsureLibraryMeta;
+  Order := LibraryOrder;
+  for K := 0 to High(Order) do
   begin
+    I := Order[K];
     Tick := TThread.GetTickCount;
     EnsureCover(FRecent[I].FileName, nil, FRecent[I].Title);
     // one cover held the window for four seconds at two starts
@@ -2147,6 +2208,13 @@ begin
     Img.Hint := FRecent[I].Title;
     if Img.Hint = '' then
       Img.Hint := ExtractFileName(FRecent[I].FileName);
+    // what the orders go by (a desktop shows it over the cover)
+    if FRecent[I].Author <> '' then
+      Img.Hint := Img.Hint + ' - ' + FRecent[I].Author;
+    if FRecent[I].Year > 0 then
+      Img.Hint := Img.Hint + Format(' (%d)', [FRecent[I].Year]);
+    if FRecent[I].Genre <> '' then
+      Img.Hint := Img.Hint + ' - ' + FRecent[I].Genre;
     Img.ShowHint := True;
     Img.OnClick := CoverClick;
     F := CoverFile(FRecent[I].FileName);
@@ -2399,6 +2467,203 @@ begin
     end;
 end;
 
+{ AName as sorted: 'Isaac Asimov' -> 'Asimov, Isaac' (a name with a
+  comma is taken as it is; Jr., Sr., II, III stay with the surname). }
+function AuthorSortOf(const AName: string): string;
+var
+  Words: TArray<string>;
+  Last, Rest, Tail: string;
+  N, I: Integer;
+begin
+  Result := Trim(AName);
+  if (Result = '') or (Pos(',', Result) > 0) then
+    Exit;
+  Words := Result.Split([' '], TStringSplitOptions.ExcludeEmpty);
+  N := Length(Words);
+  if N < 2 then
+    Exit;
+  Last := Words[N - 1];
+  Tail := UpperCase(Last.TrimRight(['.', ',']));
+  if (N > 2) and ((Tail = 'JR') or (Tail = 'SR') or (Tail = 'II') or (Tail = 'III') or (Tail = 'IV')) then
+  begin
+    Dec(N);
+    Last := Words[N - 1] + ' ' + Last;
+  end;
+  Rest := '';
+  for I := 0 to N - 2 do
+    if Rest = '' then
+      Rest := Words[I]
+    else
+      Rest := Rest + ' ' + Words[I];
+  Result := Last + ', ' + Rest;
+end;
+
+{ The year in a dc:date ('1951', '2012-03-01', 'March 1951'): its first
+  four digits in a row, 0 when none. }
+function YearOf(const ADate: string): Integer;
+var
+  I: Integer;
+begin
+  for I := 1 to Length(ADate) - 3 do
+    if CharInSet(ADate[I], ['0'..'9']) and CharInSet(ADate[I + 1], ['0'..'9']) and
+      CharInSet(ADate[I + 2], ['0'..'9']) and CharInSet(ADate[I + 3], ['0'..'9']) then
+      Exit(StrToIntDef(Copy(ADate, I, 4), 0));
+  Result := 0;
+end;
+
+{ Two sort keys, an empty one after anything (a book without that detail
+  goes last), else without case. }
+function CompareSortKeys(const X, Y: string): Integer;
+begin
+  if (X = '') <> (Y = '') then
+    Exit(Ord(X = '') - Ord(Y = ''));
+  Result := CompareText(X, Y);
+end;
+
+{ A title as sorted: without case, and without a leading The / A / An. }
+function TitleSortOf(const ATitle: string): string;
+begin
+  Result := LowerCase(Trim(ATitle));
+  if Result.StartsWith('the ') then
+    Result := Copy(Result, 5, MaxInt)
+  else if Result.StartsWith('an ') then
+    Result := Copy(Result, 4, MaxInt)
+  else if Result.StartsWith('a ') then
+    Result := Copy(Result, 3, MaxInt);
+end;
+
+procedure TfrmMain.SetBookMeta(var R: TRecentBook; ABook: TEpubBook);
+var
+  I: Integer;
+begin
+  R.Author := '';
+  for I := 0 to ABook.Creators.Count - 1 do
+    if R.Author = '' then
+      R.Author := ABook.Creators[I]
+    else
+      R.Author := R.Author + ', ' + ABook.Creators[I];
+  if ABook.CreatorFileAs <> '' then
+    R.AuthorSort := ABook.CreatorFileAs
+  else if ABook.Creators.Count > 0 then
+    R.AuthorSort := AuthorSortOf(ABook.Creators[0])
+  else
+    R.AuthorSort := '';
+  R.Year := YearOf(ABook.Date);
+  if ABook.Subjects.Count > 0 then
+    R.Genre := ABook.Subjects[0]
+  else
+    R.Genre := '';
+  R.Meta := True;
+end;
+
+procedure TfrmMain.EnsureLibraryMeta;
+var
+  I, N: Integer;
+  Tick: Cardinal;
+  Book: TEpubBook;
+begin
+  N := 0;
+  Tick := TThread.GetTickCount;
+  for I := 0 to High(FRecent) do
+    if not FRecent[I].Meta and FileExists(FRecent[I].FileName) then
+    begin
+      Book := nil;
+      try
+        try
+          Book := TEpubBook.CreateHeader(FRecent[I].FileName);
+          SetBookMeta(FRecent[I], Book);
+          Inc(N);
+        except
+          on E: Exception do
+          begin
+            DebugLog('library: ' + FRecent[I].FileName + ' - its details not read: ' + E.Message);
+            // not tried again at every showing
+            FRecent[I].Meta := True;
+          end;
+        end;
+      finally
+        Book.Free;
+      end;
+    end;
+  if N = 0 then
+    Exit;
+  DebugLog(Format('library: the details of %d book(s) read for the order (%d ms)', [N,
+    TThread.GetTickCount - Tick]));
+  SaveSettings;
+end;
+
+function TfrmMain.LibraryOrder: TArray<Integer>;
+var
+  I: Integer;
+  Rest: TArray<Integer>;
+begin
+  SetLength(Result, Length(FRecent));
+  for I := 0 to High(Result) do
+    Result[I] := I;
+  if (FLibrarySort = lsRecent) or (Length(Result) < 3) then
+    Exit;
+  // the book read last stays first (its large cover): the rest in order
+  Rest := Copy(Result, 1, MaxInt);
+  TArray.Sort<Integer>(Rest, TComparer<Integer>.Construct(
+    function(const A, B: Integer): Integer
+    var
+      RA, RB: TRecentBook;
+      TA, TB: string;
+    begin
+      RA := FRecent[A];
+      RB := FRecent[B];
+      TA := RA.Title;
+      if TA = '' then
+        TA := ExtractFileName(RA.FileName);
+      TB := RB.Title;
+      if TB = '' then
+        TB := ExtractFileName(RB.FileName);
+      Result := 0;
+      case FLibrarySort of
+        lsAuthor:
+          Result := CompareSortKeys(RA.AuthorSort, RB.AuthorSort);
+        lsYear:
+          if (RA.Year = 0) <> (RB.Year = 0) then
+            Result := Ord(RA.Year = 0) - Ord(RB.Year = 0)
+          else
+            Result := RA.Year - RB.Year;
+        lsGenre:
+          Result := CompareSortKeys(RA.Genre, RB.Genre);
+      end;
+      // then by author (a year's or a genre's books), then by title
+      if (Result = 0) and (FLibrarySort in [lsYear, lsGenre]) then
+        Result := CompareSortKeys(RA.AuthorSort, RB.AuthorSort);
+      if Result = 0 then
+        Result := CompareText(TitleSortOf(TA), TitleSortOf(TB));
+      // the same: as last opened
+      if Result = 0 then
+        Result := A - B;
+    end));
+  for I := 0 to High(Rest) do
+    Result[I + 1] := Rest[I];
+end;
+
+procedure TfrmMain.SetLibrarySort(ASort: TLibrarySort);
+var
+  Sort: TLibrarySort;
+begin
+  FLibrarySort := ASort;
+  DebugLog('library: in order of ' + LIBRARY_SORT_KEYS[ASort]);
+  for Sort := Low(TLibrarySort) to High(TLibrarySort) do
+    if miSort[Sort] <> nil then
+      miSort[Sort].IsChecked := Sort = FLibrarySort;
+  SaveSettings;
+  // shown again in the new order (not while a book is being opened)
+  if LibraryShowing and not FOpening then
+    ShowLibrary;
+end;
+
+procedure TfrmMain.miSortClick(Sender: TObject);
+begin
+  if Sender is TMenuItem then
+    SetLibrarySort(TLibrarySort(TMenuItem(Sender).Tag));
+end;
+
 procedure TfrmMain.DropDoubleBooks;
 var
   I, J, N: Integer;
@@ -2424,6 +2689,7 @@ begin
   // never twice
   if RecentIndex(AFileName) >= 0 then
     Exit;
+  R := Default(TRecentBook);
   R.FileName := AFileName;
   R.Title := '';
   R.Word := -1;
@@ -2437,6 +2703,7 @@ begin
       // of every word as well, 2.3 s for a long book
       Book := TEpubBook.CreateHeader(AFileName);
       R.Title := Book.Title;
+      SetBookMeta(R, Book);
       // its cover while it is open (ShowLibrary would open it once more)
       EnsureCover(AFileName, Book, R.Title);
     except
@@ -2753,8 +3020,10 @@ var
 begin
   if (FBookFile = '') or (EpubUnum1.Book = nil) then
     Exit;
+  R := Default(TRecentBook);
   R.FileName := FBookFile;
   R.Title := EpubUnum1.Book.Title;
+  SetBookMeta(R, EpubUnum1.Book);
   R.Word := ReadingWord;
   R.Doc := -1;
   R.DocWord := -1;
@@ -2801,7 +3070,7 @@ begin
     DebugLog(Format('restore word %d (document %d): laying out', [AWord, B.Words[AWord].Document]));
     View1.ShowDocument(B.Words[AWord].Document);
     View1.ScrollToWord(AWord, True);
-    DebugLog(Format('restore word %d: shown (%d blocks)', [AWord, LayoutBlocks]));
+    DebugLog(Format('restore word %d: shown (%d blocks, %d laid out)', [AWord, LayoutBlocks, View1.LaidOutBlocks]));
     SyncToc(AWord);
     UpdateControls;
   end;
@@ -2816,6 +3085,7 @@ var
   Size, Speed: Double;
   R: TRecentBook;
   Folder: string;
+  Sort: TLibrarySort;
 begin
   FBooksFolder := BooksFolderDefault;
   if not FileExists(SettingsFile) then
@@ -2828,6 +3098,10 @@ begin
       O := TJSONObject(V);
       O.TryGetValue<Boolean>('dark', FDark);
       O.TryGetValue<Boolean>('debug', FDebug);
+      if O.TryGetValue<string>('librarySort', Folder) then
+        for Sort := Low(TLibrarySort) to High(TLibrarySort) do
+          if SameText(Folder, LIBRARY_SORT_KEYS[Sort]) then
+            FLibrarySort := Sort;
       // another books folder, put in the settings by hand (not written)
       if O.TryGetValue<string>('booksFolder', Folder) and (Folder <> '') then
         FBooksFolder := Folder;
@@ -2846,6 +3120,7 @@ begin
           if (A.Items[I] is TJSONObject) and (Length(FRecent) < LIBRARY_MAX) then
           begin
             E := TJSONObject(A.Items[I]);
+            R := Default(TRecentBook);
             R.FileName := '';
             R.Title := '';
             R.Word := -1;
@@ -2856,6 +3131,11 @@ begin
             E.TryGetValue<Integer>('word', R.Word);
             E.TryGetValue<Integer>('doc', R.Doc);
             E.TryGetValue<Integer>('docWord', R.DocWord);
+            E.TryGetValue<Boolean>('meta', R.Meta);
+            E.TryGetValue<string>('author', R.Author);
+            E.TryGetValue<string>('authorSort', R.AuthorSort);
+            E.TryGetValue<Integer>('year', R.Year);
+            E.TryGetValue<string>('genre', R.Genre);
             if R.FileName <> '' then
               FRecent := FRecent + [R];
           end;
@@ -2867,6 +3147,9 @@ begin
   end;
   ApplyTheme;
   miDark.IsChecked := FDark;
+  for Sort := Low(TLibrarySort) to High(TLibrarySort) do
+    if miSort[Sort] <> nil then
+      miSort[Sort].IsChecked := Sort = FLibrarySort;
   miNotes.Visible := FDebug;
   BuildRecentMenu;   // recreates the OS menu
 end;
@@ -2883,6 +3166,7 @@ begin
     // written every time, so it can be found and set by hand
     O.AddPair('debug', TJSONBool.Create(FDebug));
     O.AddPair('textSize', TJSONNumber.Create(View1.FontSize));
+    O.AddPair('librarySort', LIBRARY_SORT_KEYS[FLibrarySort]);
     O.AddPair('speed', TJSONNumber.Create(FPendingSpeed));
     A := TJSONArray.Create;
     O.AddPair('recent', A);
@@ -2894,6 +3178,11 @@ begin
       E.AddPair('word', TJSONNumber.Create(FRecent[I].Word));
       E.AddPair('doc', TJSONNumber.Create(FRecent[I].Doc));
       E.AddPair('docWord', TJSONNumber.Create(FRecent[I].DocWord));
+      E.AddPair('meta', TJSONBool.Create(FRecent[I].Meta));
+      E.AddPair('author', FRecent[I].Author);
+      E.AddPair('authorSort', FRecent[I].AuthorSort);
+      E.AddPair('year', TJSONNumber.Create(FRecent[I].Year));
+      E.AddPair('genre', FRecent[I].Genre);
       A.AddElement(E);
     end;
     A := TJSONArray.Create;
@@ -2991,6 +3280,9 @@ begin
   lbToc.OnApplyStyleLookup := TocApplyStyle;
   // how far through the book, under the text
   View1.ShowProgress := True;
+  // scrolled on past a document's end: the next one (set here, not in the
+  // form file: the IDE's form loads with an older package too)
+  View1.OnEdge := View1Edge;
   // EPUBREADER_FONT=<family>: the text in that font family instead of
   // Skia's default (testing font lookup speed on Linux, 2026-11-16)
   if GetEnvironmentVariable('EPUBREADER_FONT') <> '' then
@@ -3201,7 +3493,7 @@ begin
     // the right stick scrolls the page (up is positive)
     if (Abs(Y) > PAD_STICK_DEAD) and not FPadMenu.Showing and not LibraryShowing and
       (EpubUnum1.Book <> nil) then
-      View1.ScrollPos := View1.ScrollPos - Y * PAD_SCROLL_SPEED * (Now_ - FPadTick) / 1000;
+      View1.ScrollBy(-Y * PAD_SCROLL_SPEED * (Now_ - FPadTick) / 1000);
   except
     on E: Exception do
       DebugLog('pad: ' + E.ClassName + ': ' + E.Message);
@@ -3281,8 +3573,8 @@ begin
     Exit;
   end;
   case AButton of
-    PAD_UP: View1.ScrollPos := View1.ScrollPos - 3 * View1.FontSize;
-    PAD_DOWN: View1.ScrollPos := View1.ScrollPos + 3 * View1.FontSize;
+    PAD_UP: View1.ScrollBy(-3 * View1.FontSize);
+    PAD_DOWN: View1.ScrollBy(3 * View1.FontSize);
     PAD_LEFT: View1.Page(False);
     PAD_RIGHT: View1.Page(True);
     PAD_PLAY: btnPlayClick(nil);
@@ -3322,6 +3614,7 @@ begin
     MENU_SPEED: Result := Format('%s  %s  %s', [#$2039, lblSpeed.Text, #$203A]);
     MENU_DARK: Result := ON_OFF[FDark];
     MENU_LEARN: Result := ON_OFF[FLearn];
+    MENU_SORT: Result := Format('%s  %s  %s', [#$2039, LIBRARY_SORT_NAMES[FLibrarySort], #$203A]);
   else
     Result := '';
   end;
@@ -3384,8 +3677,8 @@ end;
 
 procedure TfrmMain.ShowPadMenu;
 const
-  TEXTS: array[MENU_RESUME..MENU_EXIT] of string = ('Back to the book', 'Open a book', 'Library', 'Contents',
-    'Text size',
+  TEXTS: array[MENU_RESUME..MENU_EXIT] of string = ('Back to the book', 'Open a book', 'Library',
+    'Library order', 'Contents', 'Text size',
     'Speed', 'Dark mode', 'Learn to read', 'Controls', 'Cover of this book', 'Exit');
 var
   Items: TArray<TPadMenuItem>;
@@ -3832,6 +4125,18 @@ begin
         if not LibraryShowing then
           ShowLibrary;
       end;
+    MENU_SORT:
+      begin
+        // a tap (or Select) is a step - the menu stays, the library behind
+        // it is in the new order
+        if FLibrarySort = High(TLibrarySort) then
+          SetLibrarySort(Low(TLibrarySort))
+        else
+          SetLibrarySort(Succ(FLibrarySort));
+        // the library made again is in front: the menu over it again
+        ShowPadMenu;
+        FPadMenu.Move(MENU_SORT);
+      end;
     MENU_CONTENTS:
       if (EpubUnum1.Book <> nil) and not LibraryShowing then
         ShowContentsMenu;
@@ -3891,6 +4196,15 @@ begin
         btnLargerClick(nil);
     MENU_SPEED:
       tbSpeed.Value := tbSpeed.Value + ADelta * SPEED_STEP;
+    MENU_SORT:
+      begin
+        SetLibrarySort(TLibrarySort((Ord(FLibrarySort) + ADelta + Ord(High(TLibrarySort)) + 1) mod
+          (Ord(High(TLibrarySort)) + 1)));
+        // the library made again is in front: the menu over it again
+        ShowPadMenu;
+        FPadMenu.Move(MENU_SORT);
+        Exit;
+      end;
   else
     Exit;
   end;
@@ -4968,7 +5282,7 @@ begin
     View1.ScrollToWord(FClipFirst[AClip], True);
     SyncToc(FClipFirst[AClip]);
   end;
-  DebugLog(Format('go to clip %d: shown (%d blocks)', [AClip, LayoutBlocks]));
+  DebugLog(Format('go to clip %d: shown (%d blocks, %d laid out)', [AClip, LayoutBlocks, View1.LaidOutBlocks]));
   UpdateControls;
 end;
 
@@ -5740,8 +6054,56 @@ begin
     StartClip(C);
 end;
 
-procedure TfrmMain.View1DocumentChange(Sender: TObject);
+procedure TfrmMain.View1Edge(Sender: TObject; AForward: Boolean);
+var
+  B: TEpubBook;
+  D, Step: Integer;
 begin
+  B := EpubUnum1.Book;
+  if (B = nil) or LibraryShowing or (View1.Document < 0) then
+    Exit;
+  // the next (or previous) document of the reading order - a foreword,
+  // a part's title page, a chapter: all of the book can be read by
+  // scrolling, without the sound (owner, 2026-11-26: the page stopped at
+  // the end of a foreword until its last words were played)
+  if AForward then
+    Step := 1
+  else
+    Step := -1;
+  D := View1.Document;
+  repeat
+    Inc(D, Step);
+  until (D < 0) or (D > High(B.Documents)) or B.Documents[D].Linear;
+  if (D < 0) or (D > High(B.Documents)) then
+    Exit;
+  if AForward then
+    DebugLog(Format('scrolled on: document %d, from its start', [D]))
+  else
+    DebugLog(Format('scrolled back: document %d, from its end', [D]));
+  // paused: Play starts with what is shown now, not with a jump made
+  // before (playing, the sound goes on and the page follows it again)
+  if not FPlaying then
+    FSeekClip := -1;
+  View1.ShowDocument(D, not AForward);
+  if B.Documents[D].WordCount > 0 then
+    SyncToc(B.Documents[D].FirstWord);
+end;
+
+procedure TfrmMain.View1DocumentChange(Sender: TObject);
+var
+  B: TEpubBook;
+  T: TEpubLayoutTimes;
+begin
+  // where the time of the document's layout went (zip 338): the view's
+  // own laying out comes after this line, up to "shown"
+  B := EpubUnum1.Book;
+  if B <> nil then
+  begin
+    T := B.LastLayoutTimes;
+    DebugLog(Format('document %d: its layout made in %d ms - unzipped %d, parsed %d, style sheets %d, blocks %d ' +
+      '(%d blocks)', [T.Doc, T.ReadMs + T.ParseMs + T.StyleMs + T.WalkMs, T.ReadMs, T.ParseMs, T.StyleMs, T.WalkMs,
+      LayoutBlocks]));
+  end;
   UpdateControls;
 end;
 
@@ -5776,7 +6138,7 @@ begin
       SyncToc(FClipFirst[C]);
     end;
     if FClip = C then
-      DebugLog(Format('clip %d: shown (%d blocks)', [C, LayoutBlocks]));
+      DebugLog(Format('clip %d: shown (%d blocks, %d laid out)', [C, LayoutBlocks, View1.LaidOutBlocks]));
     UpdateControls;
   end;
   if FPlayer.LastError <> '' then
