@@ -323,8 +323,27 @@ Android 17). What differs from a desktop:
 - **Back** (the system's) leaves the menu; from a book goes to the
   library; from the library goes back to the open book, or with no book
   open leaves the app.
-- **Tap a word** to read from there. Dragging the page with a finger does
-  not scroll it yet: the page buttons do, and the page follows the sound.
+- **The library** fills the window's width and scrolls with a finger;
+  held sideways the covers are smaller and more go across. Books copied in
+  since last time are read one at a time while the library shows ("Reading
+  new books: 3 of 7"), each cover appearing as it is done. A tapped book
+  says "Opening ..." while it is read. The books are in the order read,
+  the last one large; the place in the book and the library are saved
+  whenever the app is left.
+- **Tap a word** to read from there. **Drag the page** with a finger to
+  scroll it (it stops with the finger; while a book is being read aloud
+  the page goes back to the word being spoken).
+- **A book's index:** the first time a book is opened its words and
+  timings are written to `EpubUnum/index/<name>.euix` (packed: about 25
+  bytes a word); later openings read that and not the book's XML. An index that
+  no longer fits its book is made again; deleting the `index` folder
+  costs only time.
+- **A staged open:** a book that has no index yet shows the page you
+  left it at straight away, from its package and that one chapter; the
+  rest of the book is read behind it and Play comes on when it is there.
+  A book never opened shows its first page.
+- **A book is opened in a thread:** the window stays alive while a long
+  book is read, the library saying "Opening ...".
 - **Sound** is Android's own player (no FFmpeg). A book's audio is played
   where it lies inside the book, with no copy made, when it is stored
   there uncompressed - as EpubBuilder's books have it. Compressed audio is
@@ -335,8 +354,9 @@ Android 17). What differs from a desktop:
 `tools/make_icons.py` writes the Android icons into `android/` beside the
 project: `LauncherIcon_36.png` to `_192.png`, and the adaptive icon's
 three vector drawables (`AdaptiveIcon_Background.xml`, `_Foreground.xml`,
-`_Monochrome.xml`). `EpubReader.dproj` names them for Android 64-bit. The
-picture shown while the app starts is still Delphi's.
+`_Monochrome.xml`), and the picture shown while the app starts
+(`Splash.xml`, `SplashV31.xml` and a `...Dark.xml` of each: the whole icon
+on its navy tile). `EpubReader.dproj` names them for Android 64-bit.
 
 ## Sound
 

@@ -69,6 +69,13 @@ type
       @raises(EEpubError when it cannot be opened - @link(Active) := True
         reports through OnOpenFailed instead.) }
     procedure Open;
+    { Makes ABook the open book - one opened elsewhere, in a thread, so
+      that the window is not held while a long book is read (zip 327).
+      Call it from the thread the component is used in. The book open
+      before is closed; ABook is the component's from now on (it frees
+      it); @link(FileName) becomes the book's; OnOpen follows. Nil only
+      closes. }
+    procedure Adopt(ABook: TEpubBook);
     { Closes the book. }
     procedure Close;
     { The open book (nil when closed). }
@@ -168,6 +175,24 @@ begin
   if FFileName = '' then
     raise EEpubError.Create('No FileName set');
   FBook := TEpubBook.Create(FFileName);
+  Inc(FBookSerial);
+  FActive := True;
+  if Assigned(FOnOpen) then
+    try
+      FOnOpen(Self);
+    except
+      on E: Exception do
+        ShowHandlerException(E);
+    end;
+end;
+
+procedure TCustomEpub.Adopt(ABook: TEpubBook);
+begin
+  Close;
+  if ABook = nil then
+    Exit;
+  FBook := ABook;
+  FFileName := ABook.FileName;
   Inc(FBookSerial);
   FActive := True;
   if Assigned(FOnOpen) then

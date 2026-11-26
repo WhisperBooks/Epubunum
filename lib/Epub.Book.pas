@@ -228,6 +228,15 @@ type
     FClipsOrdered: Boolean;
     { Style sheets by document path (TEpubStyleSheet objects, owned). }
     FSheets: TStringList;
+    { Backing field of @link(FromIndex). }
+    FFromIndex: Boolean;
+    { A number made from the size and CRC of every file in the archive: an
+      index is this book's only when it carries the same one. }
+    function IndexStamp: Cardinal;
+    { Takes clips, words and ids from an index (SaveIndex's); False, and
+      nothing kept, when it is not this book's, of another version or
+      damaged. }
+    function LoadIndex(AIndex: TStream): Boolean;
     { Refuses a copy-protected book. }
     procedure CheckProtection;
     { Reads META-INF/container.xml and the package document. }
@@ -265,11 +274,41 @@ type
     function StyleSheetOf(ADoc: Integer; ADocXml: TEpubXmlDoc): TEpubStyleSheet;
     { Parses document ADoc; the caller frees the result. }
     function ParseDocument(ADoc: Integer): TEpubXmlDoc;
+    { The work of the constructors: opens the archive, refuses a copy
+      protected book, reads the package and, with AWithOverlays, the media
+      overlays and the audio chapters - the clips, words and ids from
+      AIndex when that is given and is this book's. }
+    procedure OpenFile(const AFileName: string; AWithOverlays: Boolean; AIndex: TStream = nil);
   public
     { Opens AFileName and reads its package, contents and media overlays.
       @raises(EEpubError when it is not an EPUB, is damaged or is copy
         protected.) }
     constructor Create(const AFileName: string);
+    { Opens AFileName for what a list of books shows - @link(Title),
+      @link(Creators), @link(CoverPath) and the files (@link(ReadResource))
+      - and reads its package only: NOT the media overlays (@link(Clips)
+      stays empty) and not the audio chapters. A book of 150,000 timed
+      words opens in a small part of the time Create takes (EpubReader's
+      library on a phone, zip 324: 2.3 s a book for its title).
+      @raises(EEpubError as Create.) }
+    constructor CreateHeader(const AFileName: string);
+    { Opens AFileName as Create does, taking the media overlays' clips and
+      the whole text (@link(Words), every document's ids) from AIndex -
+      what @link(SaveIndex) wrote for this book at an earlier opening -
+      and not from the book's XML: a long book opens in a fraction of
+      the time (zip 330). When AIndex is not this book's (the book
+      changed, another version, damaged) it is ignored and the book is
+      read as Create reads it; @link(FromIndex) says which.
+      @param(AIndex  the index, read from its position on; a stream in
+        memory is much the fastest)
+      @raises(EEpubError as Create - never because of the index.) }
+    constructor CreateIndexed(const AFileName: string; AIndex: TStream);
+    { Writes this book's index to AStream: its clips, words and ids as
+      numbers and text, with a stamp of the book it is of. Reads the text
+      first (LoadText). For this program on this kind of machine: it is a
+      cache, made again when it does not fit, not a file to pass on.
+      Packed (varints, differences, UTF-8): 20 to 25 bytes a word. }
+    procedure SaveIndex(AStream: TStream);
     { Closes the book. }
     destructor Destroy; override;
     { Reads the text of every document into @link(Words) (done on first use
@@ -366,6 +405,9 @@ type
       for any other book. A book made so already has its synced audio:
       building one from it again is a copy of a copy. }
     property WrittenBy: string read FWrittenBy;
+    { The clips and the text came from an index (@link(CreateIndexed)),
+      not from the book's XML. }
+    property FromIndex: Boolean read FFromIndex;
   end;
 
 { A SMIL clock value in seconds: '1:02:03.5', '02:03.5', '12.5s', '500ms',
@@ -462,6 +504,561 @@ end;
 constructor TEpubBook.Create(const AFileName: string);
 begin
   inherited Create;
+  OpenFile(AFileName, True);
+end;
+
+constructor TEpubBook.CreateHeader(const AFileName: string);
+begin
+  inherited Create;
+  OpenFile(AFileName, False);
+end;
+
+constructor TEpubBook.CreateIndexed(const AFileName: string; AIndex: TStream);
+begin
+  inherited Create;
+  OpenFile(AFileName, True, AIndex);
+end;
+
+const
+  { An index file starts and ends with these four bytes: 'EUIX'. }
+  INDEX_MAGIC: array[0..3] of Byte = ($45, $55, $49, $58);
+  { Changed whenever what SaveIndex writes changes: older files are not
+    read. 1 (zip 330) was fixed-size numbers and texts as they lie in
+    memory, 107 bytes a word; 2 (zip 334) is the packed form below,
+    25 bytes a word; 3 (zip 335) writes a clip's text id as the number of
+    that id in its document where it is one of them. }
+  INDEX_VERSION = 3;
+  { No text in an index is longer than this (bytes): a larger length is a
+    damaged file. }
+  INDEX_MAX_TEXT = 1 shl 20;
+  { A clip's times are kept as whole milliseconds when every one of the
+    book's is one to this (seconds); else as they are. }
+  INDEX_TIME_EXACT = 1E-7;
+
+{ THE INDEX, version 2 (owner, 2026-11-26: "Smaller usually = hard to
+  read as a human but fast"). Every number is a varint (7 bits a byte,
+  low first, the top bit = more follow); a number that can be negative is
+  zigzagged first (0, -1, 1, -2 ... as 0, 1, 2, 3 ...). A text is its
+  length in bytes and its UTF-8. And almost nothing is written as itself:
+  - an id (a document's ids, a clip's text id) as how many characters it
+    shares with the one before, and the rest: 'w000123' then 'w000124' is
+    6 and '4';
+  - a word's id index, an id's first word, a clip's document and its
+    begin, as the difference from the one before (mostly 0 or 1); an id's
+    last word and its block, a clip's end, as the difference from its own
+    first word or begin;
+  - a clip's two paths as numbers into a list of the few there are;
+  - a clip's text id, which nearly always IS one of its document's ids,
+    as that id's number (a difference again, mostly 1) - and read back it
+    is the same string as the document's, not a second copy: a hundred
+    thousand strings fewer to make (version 2 was a quarter of the size
+    of version 1 and SLOWER to read, 0.6 s against 0.35 s for Night
+    Watch on the Pixel: the time is in making strings, not in reading
+    bytes);
+  - a clip's times as whole milliseconds (when the book's are).
+  About 25 bytes a word where version 1 took 107. }
+
+function TEpubBook.IndexStamp: Cardinal;
+var
+  I: Integer;
+begin
+  Result := Cardinal(Length(FZip.Entries));
+  for I := 0 to High(FZip.Entries) do
+    Result := ((Result shl 5) or (Result shr 27)) xor FZip.Entries[I].Crc xor
+      Cardinal(FZip.Entries[I].Size and $FFFFFFFF);
+end;
+
+procedure TEpubBook.SaveIndex(AStream: TStream);
+var
+  Buf: TBytes;
+  Len: Integer;
+  I, K, Prev: Integer;
+  Paths: TStringList;
+  Last: string;
+  Millis: Boolean;
+  B, E, PrevEnd, D: Int64;
+  Stamp: Cardinal;
+  IdDoc, IdAt: Integer;
+
+  { Room for ACount more bytes. }
+  procedure Need(ACount: Integer);
+  begin
+    if Len + ACount > Length(Buf) then
+      SetLength(Buf, (Len + ACount) * 2 + 65536);
+  end;
+
+  { A number, 0 or more. }
+  procedure PutU(AValue: UInt64);
+  begin
+    Need(10);
+    while AValue >= $80 do
+    begin
+      Buf[Len] := Byte(AValue and $7F) or $80;
+      Inc(Len);
+      AValue := AValue shr 7;
+    end;
+    Buf[Len] := Byte(AValue);
+    Inc(Len);
+  end;
+
+  { A number that can be negative. }
+  procedure PutS(AValue: Int64);
+  begin
+    if AValue >= 0 then
+      PutU(UInt64(AValue) shl 1)
+    else
+      PutU((UInt64(-(AValue + 1)) shl 1) or 1);
+  end;
+
+  { Bytes as they are. }
+  procedure PutRaw(const AData; ACount: Integer);
+  begin
+    Need(ACount);
+    Move(AData, Buf[Len], ACount);
+    Inc(Len, ACount);
+  end;
+
+  { A text. }
+  procedure PutText(const AText: string);
+  var
+    U: TBytes;
+  begin
+    U := EpubUtf8Bytes(AText);
+    PutU(Length(U));
+    if Length(U) > 0 then
+      PutRaw(U[0], Length(U));
+  end;
+
+  { An id: what it shares with the one before (Last), and the rest. }
+  procedure PutId(const AId: string);
+  var
+    N: Integer;
+  begin
+    N := 0;
+    while (N < Length(AId)) and (N < Length(Last)) and (AId[N + 1] = Last[N + 1]) do
+      Inc(N);
+    {$ifdef FPC}
+    // the string is UTF-8 there: not cut inside a character
+    while (N > 0) and (N < Length(AId)) and ((Ord(AId[N + 1]) and $C0) = $80) do
+      Dec(N);
+    {$endif}
+    PutU(N);
+    PutText(Copy(AId, N + 1, MaxInt));
+    Last := AId;
+  end;
+
+  { The number of APath in Paths (added when new). }
+  function PathIndex(const APath: string): Integer;
+  begin
+    Result := Paths.IndexOf(APath);
+    if Result < 0 then
+      Result := Paths.Add(APath);
+  end;
+
+begin
+  LoadText;
+  Buf := nil;
+  Len := 0;
+  PutRaw(INDEX_MAGIC, SizeOf(INDEX_MAGIC));
+  PutU(INDEX_VERSION);
+  Stamp := IndexStamp;
+  PutU(Stamp);
+  // the documents: their words and ids
+  PutU(Length(FDocuments));
+  for I := 0 to High(FDocuments) do
+  begin
+    PutU(FDocuments[I].FirstWord);
+    PutU(FDocuments[I].WordCount);
+    PutU(Length(FDocuments[I].Ids));
+    Last := '';
+    Prev := FDocuments[I].FirstWord;
+    for K := 0 to High(FDocuments[I].Ids) do
+    begin
+      PutId(FDocuments[I].Ids[K].Id);
+      PutS(Int64(FDocuments[I].Ids[K].FirstWord) - Prev);
+      PutS(Int64(FDocuments[I].Ids[K].LastWord) - FDocuments[I].Ids[K].FirstWord);
+      PutS(Int64(FDocuments[I].Ids[K].BlockFirst) - FDocuments[I].Ids[K].FirstWord);
+      PutS(Int64(FDocuments[I].Ids[K].BlockLast) - FDocuments[I].Ids[K].BlockFirst);
+      if FDocuments[I].Ids[K].FirstWord >= 0 then
+        Prev := FDocuments[I].Ids[K].FirstWord;
+    end;
+  end;
+  // the words (each one's document follows from the documents' ranges)
+  PutU(FWordCount);
+  Prev := -1;
+  for I := 0 to FWordCount - 1 do
+  begin
+    PutText(FWords[I].Text);
+    PutS(Int64(FWords[I].IdIndex) - Prev);
+    Prev := FWords[I].IdIndex;
+    PutU(Ord(FWords[I].Role));
+  end;
+  // the clips; their paths (a few, each used by thousands) once
+  Paths := TStringList.Create;
+  try
+    Paths.CaseSensitive := True;
+    for I := 0 to High(FClips) do
+    begin
+      PathIndex(FClips[I].TextPath);
+      PathIndex(FClips[I].AudioPath);
+    end;
+    PutU(Paths.Count);
+    for I := 0 to Paths.Count - 1 do
+      PutText(Paths[I]);
+    // whole milliseconds, when the book's times are
+    Millis := True;
+    for I := 0 to High(FClips) do
+      if (Abs(FClips[I].ClipBegin - Round(FClips[I].ClipBegin * 1000) / 1000) > INDEX_TIME_EXACT) or
+        (Abs(FClips[I].ClipEnd - Round(FClips[I].ClipEnd * 1000) / 1000) > INDEX_TIME_EXACT) then
+      begin
+        Millis := False;
+        Break;
+      end;
+    PutU(Length(FClips));
+    PutU(Ord(Millis));
+    Last := '';
+    Prev := 0;
+    PrevEnd := 0;
+    IdDoc := -2;
+    IdAt := -1;
+    for I := 0 to High(FClips) do
+    begin
+      PutS(Int64(FClips[I].Document) - Prev);
+      Prev := FClips[I].Document;
+      PutU(PathIndex(FClips[I].TextPath));
+      // the id's number in its document (looked for from the last one
+      // on: clips and ids run in the same order), else the id itself
+      if FClips[I].Document <> IdDoc then
+      begin
+        IdDoc := FClips[I].Document;
+        IdAt := -1;
+      end;
+      K := -1;
+      if IdDoc >= 0 then
+      begin
+        K := IdAt + 1;
+        while (K <= High(FDocuments[IdDoc].Ids)) and (FDocuments[IdDoc].Ids[K].Id <> FClips[I].TextId) do
+          Inc(K);
+        if K > High(FDocuments[IdDoc].Ids) then
+        begin
+          K := 0;
+          while (K <= IdAt) and (K <= High(FDocuments[IdDoc].Ids)) and
+            (FDocuments[IdDoc].Ids[K].Id <> FClips[I].TextId) do
+            Inc(K);
+          if (K > IdAt) or (K > High(FDocuments[IdDoc].Ids)) then
+            K := -1;
+        end;
+      end;
+      if K >= 0 then
+      begin
+        // odd: a number (its difference from the last, zigzagged, in the
+        // bits above)
+        D := Int64(K) - IdAt;
+        if D >= 0 then
+          PutU((UInt64(D) shl 2) or 1)
+        else
+          PutU((UInt64(-(D + 1)) shl 2) or 3);
+        IdAt := K;
+      end
+      else
+      begin
+        // 0: the id follows
+        PutU(0);
+        PutId(FClips[I].TextId);
+      end;
+      PutU(PathIndex(FClips[I].AudioPath));
+      if Millis then
+      begin
+        B := Round(FClips[I].ClipBegin * 1000);
+        E := Round(FClips[I].ClipEnd * 1000);
+        PutS(B - PrevEnd);
+        PutS(E - B);
+        PrevEnd := E;
+      end
+      else
+      begin
+        PutRaw(FClips[I].ClipBegin, SizeOf(Double));
+        PutRaw(FClips[I].ClipEnd, SizeOf(Double));
+      end;
+    end;
+  finally
+    Paths.Free;
+  end;
+  PutRaw(INDEX_MAGIC, SizeOf(INDEX_MAGIC));
+  if Len > 0 then
+    AStream.WriteBuffer(Buf[0], Len);
+end;
+
+function TEpubBook.LoadIndex(AIndex: TStream): Boolean;
+var
+  Buf: TBytes;
+  Pos, Size: Integer;
+  I, K, N, P, Prev, Role: Integer;
+  Paths: array of string;
+  Last: string;
+  Millis: Boolean;
+  B, E, PrevEnd: Int64;
+  U: UInt64;
+  IdDoc, IdAt: Integer;
+
+  { ACount more bytes are there.
+    @raises(EEpubError when not: the file is cut short) }
+  procedure Have(ACount: Integer);
+  begin
+    if (ACount < 0) or (Pos + ACount > Size) then
+      raise EEpubError.Create('index: cut short');
+  end;
+
+  { A number, 0 or more. }
+  function GetU: UInt64;
+  var
+    Shift: Integer;
+    C: Byte;
+  begin
+    // one byte, as nearly every number is
+    if (Pos < Size) and (Buf[Pos] < $80) then
+    begin
+      Result := Buf[Pos];
+      Inc(Pos);
+      Exit;
+    end;
+    Result := 0;
+    Shift := 0;
+    repeat
+      Have(1);
+      C := Buf[Pos];
+      Inc(Pos);
+      Result := Result or (UInt64(C and $7F) shl Shift);
+      Inc(Shift, 7);
+    until (C < $80) or (Shift > 63);
+  end;
+
+  { A number that can be negative. }
+  function GetS: Int64;
+  var
+    U: UInt64;
+  begin
+    U := GetU;
+    if (U and 1) = 0 then
+      Result := Int64(U shr 1)
+    else
+      Result := -Int64(U shr 1) - 1;
+  end;
+
+  { A count or an index: a number from 0 to AMax.
+    @raises(EEpubError when it is not) }
+  function GetN(AMax: Int64): Integer;
+  var
+    U: UInt64;
+  begin
+    U := GetU;
+    if (AMax < 0) or (U > UInt64(AMax)) then
+      raise EEpubError.Create('index: a number out of its range');
+    Result := Integer(U);
+  end;
+
+  { A text. Plain ASCII (nearly all of a book in English) is widened here;
+    anything else goes through the UTF-8 decoder. }
+  function GetText: string;
+  var
+    L, J: Integer;
+    Plain: Boolean;
+  begin
+    L := GetN(INDEX_MAX_TEXT);
+    Have(L);
+    Plain := True;
+    for J := Pos to Pos + L - 1 do
+      if Buf[J] >= $80 then
+      begin
+        Plain := False;
+        Break;
+      end;
+    if Plain then
+    begin
+      SetLength(Result, L);
+      for J := 1 to L do
+        Result[J] := Char(Buf[Pos + J - 1]);
+    end
+    else
+      Result := EpubBytesText(Copy(Buf, Pos, L));
+    Inc(Pos, L);
+  end;
+
+  { An id: the start of the one before (Last), and the rest. }
+  function GetId: string;
+  var
+    Shared, L, J: Integer;
+    Plain: Boolean;
+  begin
+    Shared := GetN(Length(Last));
+    L := GetN(INDEX_MAX_TEXT);
+    Have(L);
+    Plain := True;
+    for J := Pos to Pos + L - 1 do
+      if Buf[J] >= $80 then
+      begin
+        Plain := False;
+        Break;
+      end;
+    if Plain then
+    begin
+      // one string made, filled in place: the start of the last one and
+      // the bytes that follow
+      SetLength(Result, Shared + L);
+      for J := 1 to Shared do
+        Result[J] := Last[J];
+      for J := 1 to L do
+        Result[Shared + J] := Char(Buf[Pos + J - 1]);
+    end
+    else
+      Result := Copy(Last, 1, Shared) + EpubBytesText(Copy(Buf, Pos, L));
+    Inc(Pos, L);
+    Last := Result;
+  end;
+
+  { The four bytes of INDEX_MAGIC are next. }
+  function GetMagic: Boolean;
+  begin
+    Have(SizeOf(INDEX_MAGIC));
+    Result := CompareMem(@Buf[Pos], @INDEX_MAGIC[0], SizeOf(INDEX_MAGIC));
+    Inc(Pos, SizeOf(INDEX_MAGIC));
+  end;
+
+begin
+  Result := False;
+  try
+    // the whole of it into memory: read byte by byte from there
+    Size := AIndex.Size - AIndex.Position;
+    SetLength(Buf, Size);
+    if Size > 0 then
+      AIndex.ReadBuffer(Buf[0], Size);
+    Pos := 0;
+    if not GetMagic or (GetU <> INDEX_VERSION) or (GetU <> IndexStamp) or
+      (GetU <> UInt64(Length(FDocuments))) then
+      Exit;
+    for I := 0 to High(FDocuments) do
+    begin
+      FDocuments[I].FirstWord := GetN(MaxInt);
+      FDocuments[I].WordCount := GetN(MaxInt);
+      N := GetN(Size);
+      SetLength(FDocuments[I].Ids, N);
+      Last := '';
+      Prev := FDocuments[I].FirstWord;
+      for K := 0 to N - 1 do
+      begin
+        FDocuments[I].Ids[K].Id := GetId;
+        FDocuments[I].Ids[K].FirstWord := Integer(Prev + GetS);
+        FDocuments[I].Ids[K].LastWord := Integer(FDocuments[I].Ids[K].FirstWord + GetS);
+        FDocuments[I].Ids[K].BlockFirst := Integer(FDocuments[I].Ids[K].FirstWord + GetS);
+        FDocuments[I].Ids[K].BlockLast := Integer(FDocuments[I].Ids[K].BlockFirst + GetS);
+        if FDocuments[I].Ids[K].FirstWord >= 0 then
+          Prev := FDocuments[I].Ids[K].FirstWord;
+      end;
+    end;
+    N := GetN(Size);
+    SetLength(FWords, N);
+    FWordCount := N;
+    Prev := -1;
+    for I := 0 to N - 1 do
+    begin
+      FWords[I].Text := GetText;
+      Prev := Integer(Prev + GetS);
+      FWords[I].IdIndex := Prev;
+      Role := GetN(Ord(High(TEpubWordRole)));
+      FWords[I].Role := TEpubWordRole(Role);
+      FWords[I].Document := -1;
+    end;
+    // each word's document, from the documents' ranges
+    for I := 0 to High(FDocuments) do
+    begin
+      if Int64(FDocuments[I].FirstWord) + FDocuments[I].WordCount > N then
+        raise EEpubError.Create('index: a document past the last word');
+      for K := FDocuments[I].FirstWord to FDocuments[I].FirstWord + FDocuments[I].WordCount - 1 do
+        FWords[K].Document := I;
+    end;
+    N := GetN(Size);
+    SetLength(Paths, N);
+    for I := 0 to N - 1 do
+      Paths[I] := GetText;
+    N := GetN(Size);
+    Millis := GetN(1) = 1;
+    SetLength(FClips, N);
+    Last := '';
+    Prev := 0;
+    PrevEnd := 0;
+    IdDoc := -2;
+    IdAt := -1;
+    for I := 0 to N - 1 do
+    begin
+      Prev := Integer(Prev + GetS);
+      if (Prev < -1) or (Prev > High(FDocuments)) then
+        raise EEpubError.Create('index: a clip of no document');
+      FClips[I].Document := Prev;
+      P := GetN(High(Paths));
+      FClips[I].TextPath := Paths[P];
+      if Prev <> IdDoc then
+      begin
+        IdDoc := Prev;
+        IdAt := -1;
+      end;
+      U := GetU;
+      if U = 0 then
+        FClips[I].TextId := GetId
+      else
+      begin
+        // the document's own string, not a copy of it
+        if (U and 2) = 0 then
+          IdAt := Integer(IdAt + Int64(U shr 2))
+        else
+          IdAt := Integer(IdAt - Int64(U shr 2) - 1);
+        if (IdDoc < 0) or (IdAt < 0) or (IdAt > High(FDocuments[IdDoc].Ids)) then
+          raise EEpubError.Create('index: a clip of no id');
+        FClips[I].TextId := FDocuments[IdDoc].Ids[IdAt].Id;
+      end;
+      P := GetN(High(Paths));
+      FClips[I].AudioPath := Paths[P];
+      if Millis then
+      begin
+        B := PrevEnd + GetS;
+        E := B + GetS;
+        FClips[I].ClipBegin := B / 1000;
+        FClips[I].ClipEnd := E / 1000;
+        PrevEnd := E;
+      end
+      else
+      begin
+        Have(2 * SizeOf(Double));
+        Move(Buf[Pos], FClips[I].ClipBegin, SizeOf(Double));
+        Move(Buf[Pos + SizeOf(Double)], FClips[I].ClipEnd, SizeOf(Double));
+        Inc(Pos, 2 * SizeOf(Double));
+      end;
+    end;
+    if not GetMagic then
+      raise EEpubError.Create('index: no end');
+    FTextLoaded := True;
+    CheckClipOrder;
+    Result := True;
+  except
+    // damaged or cut short: as if there were none
+    Result := False;
+  end;
+  if not Result then
+  begin
+    FClips := nil;
+    FWords := nil;
+    FWordCount := 0;
+    FTextLoaded := False;
+    for I := 0 to High(FDocuments) do
+    begin
+      FDocuments[I].FirstWord := 0;
+      FDocuments[I].WordCount := 0;
+      FDocuments[I].Ids := nil;
+    end;
+  end;
+end;
+
+procedure TEpubBook.OpenFile(const AFileName: string; AWithOverlays: Boolean; AIndex: TStream);
+begin
   FFileName := AFileName;
   FCreators := TStringList.Create;
   FSheets := TStringList.Create;
@@ -470,8 +1067,13 @@ begin
   FZip := TEpubZipReader.Create(AFileName);
   CheckProtection;
   ReadPackage;
-  ReadOverlays;
-  ReadAudioChapters;
+  if AWithOverlays then
+  begin
+    FFromIndex := (AIndex <> nil) and LoadIndex(AIndex);
+    if not FFromIndex then
+      ReadOverlays;
+    ReadAudioChapters;
+  end;
   // written by TEpubWriter before the meta existed (zips 40 - 44)
   if (FWrittenBy = '') and (ItemOf(EPUB_AUDIO_CHAPTERS_ID) >= 0) then
     FWrittenBy := 'EpubUnum';

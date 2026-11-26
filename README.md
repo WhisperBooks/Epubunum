@@ -44,6 +44,11 @@ overlays the same way and would draw the layout model with its own view.
 
 ```pascal
 Book := TEpubBook.Create('book.epub');      // EEpubError when not an EPUB / protected
+// or, for a list of books (title, creators, cover; no timings, much faster):
+// Book := TEpubBook.CreateHeader('book.epub');
+// or, to open a long book quickly a second time: Book.SaveIndex(Stream) once,
+// then TEpubBook.CreateIndexed('book.epub', Stream) - words and clips come from
+// the index, not from the book's XML (Book.FromIndex says whether it fitted)
 try
   WriteLn(Book.Title, ' by ', Book.Creators.CommaText);
   for I := 0 to High(Book.Toc) do            // contents

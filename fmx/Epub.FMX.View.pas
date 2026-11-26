@@ -76,6 +76,19 @@ type
     FScroll: Single;
     { Where a smooth scroll is going (@link(ScrollToWord) with ACenter). }
     FScrollTarget: Single;
+    { Backing field of @link(DragScroll). }
+    FDragScroll: Boolean;
+    { The document on show came from @link(ShowPreview): the book's words
+      are not numbered (and must not be asked for - that reads the whole
+      book). }
+    FPreview: Boolean;
+    { The button (or a finger) is down on the view. }
+    FPressed: Boolean;
+    { It has moved far enough since to be a drag: the page follows it, and
+      letting go is no click on a word. }
+    FDragging: Boolean;
+    { Where it went down (Y), and the scroll position then. }
+    FPressY, FPressScroll: Single;
     { Moves FScroll towards FScrollTarget a step per tick (nil until the
       first smooth scroll). }
     FScrollTimer: TTimer;
@@ -196,7 +209,14 @@ type
     procedure MouseWheel(Shift: TShiftState; WheelDelta: Integer; var Handled: Boolean); override;
     { Up / Down, Page Up / Page Down / Space, Home / End. }
     procedure KeyDown(var Key: Word; var KeyChar: WideChar; Shift: TShiftState); override;
-    { A click on a word raises OnWordClick. }
+    { Remembers where a drag would start (@link(DragScroll)). }
+    procedure MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Single); override;
+    { A drag: the page follows the finger or the mouse. }
+    procedure MouseMove(Shift: TShiftState; X, Y: Single); override;
+    { The pointer left with the button down: no drag goes on. }
+    procedure DoMouseLeave; override;
+    { A click on a word raises OnWordClick - not when letting go ends a
+      drag. }
     procedure MouseUp(Button: TMouseButton; Shift: TShiftState; X, Y: Single); override;
     { Forgets a freed book component. }
     procedure Notification(AComponent: TComponent; Operation: TOperation); override;
@@ -207,6 +227,15 @@ type
     destructor Destroy; override;
     { Shows document ADoc (index into the book's Documents) from the top. }
     procedure ShowDocument(ADoc: Integer);
+    { Shows document ADoc of a book whose text has NOT been read
+      (TEpubBook.CreateHeader) - that one document is parsed and laid out,
+      nothing else of the book: a page on the screen at once while the
+      whole book is read elsewhere (zip 332). ALocalWord: a word of the
+      document (0 = its first) to have in the middle of the view; -1 = the
+      top. A picture to look at: no highlight, no clicks on words, no
+      progress strip, and notes only where the document itself marks
+      them. @link(ShowDocument) or @link(Clear) ends it. }
+    procedure ShowPreview(ADoc, ALocalWord: Integer);
     { Shows document ADoc at the element with id AId ('' = the top). }
     procedure ShowFragment(ADoc: Integer; const AId: string);
     { Highlights words AFirst..ALast (indexes into the book's Words); -1 =
@@ -232,6 +261,11 @@ type
     property Layout: TEpubDocLayout read FLayout;
     { Scroll position, px from the top. }
     property ScrollPos: Single read FScroll write SetScrollPos;
+    { Dragging the page up or down scrolls it - a finger on a phone, the
+      left button elsewhere (default True; zip 327). A press and release
+      in one place is still a click on a word. The page stops with the
+      finger: there is no gliding on. }
+    property DragScroll: Boolean read FDragScroll write FDragScroll;
     { Height of the whole document, px. }
     property ContentHeight: Single read FContentHeight;
     { How far through the book the view is, 0 .. 1 (-1 when nothing is
@@ -335,6 +369,7 @@ begin
   FHighlightColor := $FFFFE08A;
   FLinkColor := $FF1A5FB4;
   FNoteColor := $FFEDE6D6;           // a shade darker than the paper
+  FDragScroll := True;
 end;
 
 destructor TEpubView.Destroy;
@@ -540,8 +575,65 @@ begin
   Redraw;
 end;
 
+procedure TEpubView.ShowPreview(ADoc, ALocalWord: Integer);
+var
+  B: TEpubBook;
+  Blk, I, K, S: Integer;
+  Block: TEpubBlock;
+  Boxes: TArray<TSkTextBox>;
+  Middle: Single;
+begin
+  B := Book;
+  if (B = nil) or (ADoc < 0) or (ADoc > High(B.Documents)) then
+  begin
+    Clear;
+    Exit;
+  end;
+  StopScrolling;
+  ClearHighlight;
+  FreeAndNil(FLayout);
+  FItems := nil;
+  FPreview := True;
+  FLayout := B.DocumentLayout(ADoc);
+  FLayoutSerial := FEpub.BookSerial;
+  FDocument := ADoc;
+  FLaidOutWidth := -1;
+  FScroll := 0;
+  if ALocalWord >= 0 then
+  begin
+    LayoutItems(Width);
+    for Blk := 0 to FLayout.BlockCount - 1 do
+    begin
+      Block := FLayout.Blocks[Blk];
+      for I := 0 to High(Block.Words) do
+        if Block.Words[I].Word = ALocalWord then
+        begin
+          K := ItemOfBlock(Blk);
+          if (K >= 0) and (K <= High(FItems)) then
+          begin
+            // the word's line in the middle, as ScrollToWord centres it
+            Middle := FItems[K].Top + FItems[K].Height / 2;
+            if FItems[K].Paragraph <> nil then
+            begin
+              S := Block.Words[I].Start + FItems[K].Offset;
+              Boxes := FItems[K].Paragraph.GetRectsForRange(S, S + Max(1, Block.Words[I].Length),
+                TSkRectHeightStyle.Max, TSkRectWidthStyle.Tight);
+              if Length(Boxes) > 0 then
+                Middle := FItems[K].Top + Boxes[0].Rect.Top + Boxes[0].Rect.Height / 2;
+            end;
+            FScroll := Max(0, Min(Middle - TextHeight / 2, FContentHeight - TextHeight));
+          end;
+          Redraw;
+          Exit;
+        end;
+    end;
+  end;
+  Redraw;
+end;
+
 procedure TEpubView.Clear;
 begin
+  FPreview := False;
   StopScrolling;
   FreeAndNil(FLayout);
   FItems := nil;
@@ -562,6 +654,7 @@ begin
     Clear;
     Exit;
   end;
+  FPreview := False;
   B.LoadText;   // word numbering of the book (highlights use it)
   // also when the document number is the same but the book is another one:
   // the layout kept was the first book's text
@@ -955,7 +1048,10 @@ begin
       end;
       // a note (footnote, endnote, aside - marked so, or the target of a
       // footnote marker's link: the book's word roles): its own background
-      if (TAlphaColorRec(FNoteColor).A > 0) and ((Blk.Role = ewrNote) or ((Length(Blk.Words) > 0) and
+      // (a preview has only the document's own marks: the book's words
+      // are not read)
+      if (TAlphaColorRec(FNoteColor).A > 0) and ((Blk.Role = ewrNote) or (not FPreview and
+        (Length(Blk.Words) > 0) and
         (B.Words[Blk.Words[0].Word + B.Documents[FDocument].FirstWord].Role = ewrNote))) then
       begin
         Paint.Style := TSkPaintStyle.Fill;
@@ -1082,6 +1178,9 @@ begin
   B := Book;
   if (B = nil) or not LayoutCurrent or (FDocument < 0) or (FDocument > High(B.Documents)) then
     Exit;
+  // a preview: how far through the book is not known yet
+  if FPreview then
+    Exit;
   Total := B.WordCount;
   if Total = 0 then
     Exit;
@@ -1199,11 +1298,53 @@ begin
   KeyChar := #0;
 end;
 
+procedure TEpubView.MouseDown(Button: TMouseButton; Shift: TShiftState; X, Y: Single);
+begin
+  inherited;
+  if Button <> TMouseButton.mbLeft then
+    Exit;
+  FPressed := True;
+  FDragging := False;
+  FPressY := Y;
+  FPressScroll := FScroll;
+end;
+
+procedure TEpubView.MouseMove(Shift: TShiftState; X, Y: Single);
+const
+  { Moved this far, px, a press is a drag (less is an unsteady click). }
+  DRAG_SLOP = 8;
+begin
+  inherited;
+  if not (FPressed and FDragScroll) then
+    Exit;
+  if not FDragging and (Abs(Y - FPressY) > DRAG_SLOP) then
+    FDragging := True;
+  if FDragging then
+    ScrollPos := FPressScroll - (Y - FPressY);
+end;
+
+procedure TEpubView.DoMouseLeave;
+begin
+  inherited;
+  FPressed := False;
+  FDragging := False;
+end;
+
 procedure TEpubView.MouseUp(Button: TMouseButton; Shift: TShiftState; X, Y: Single);
 var
   W: Integer;
+  Dragged: Boolean;
 begin
   inherited;
+  Dragged := FDragging;
+  if Button = TMouseButton.mbLeft then
+  begin
+    FPressed := False;
+    FDragging := False;
+  end;
+  // letting go after a drag is not a click on the word under it
+  if Dragged then
+    Exit;
   if (Button <> TMouseButton.mbLeft) or not Assigned(FOnWordClick) then
     Exit;
   W := WordAt(X, Y);

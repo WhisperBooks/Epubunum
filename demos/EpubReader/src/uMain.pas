@@ -59,6 +59,10 @@ type
     { The word the reader was at (index into the book's Words), -1 = the
       start. }
     Word: Integer;
+    { The same place without the book's word numbers: the document
+      (index into Documents) and the word in it, -1 = not known. A page
+      can be shown from these before the whole book is read (zip 332). }
+    Doc, DocWord: Integer;
   end;
 
   { The reader's main form. }
@@ -269,6 +273,43 @@ type
     { The library's covers (Tag = index in FRecent; the first, the
       current book, is drawn large). }
     FCoverImages: TArray<TImage>;
+    { A phone or tablet: the covers are in this box, which a finger
+      scrolls (nil on a desktop: they are in recLibrary). Zip 323. }
+    FLibScroll: TVertScrollBox;
+    { A line at the library's foot: "Reading new books: 3 of 7",
+      "Opening <title> ..." (hidden when there is nothing to say). }
+    lblLibNote: TLabel;
+    { New books found by ScanTranscribed and not read yet (a touch build
+      reads them one at a time, the library showing meanwhile). }
+    FScanQueue: TArray<string>;
+    { How many books that scan found in all. }
+    FScanTotal: Integer;
+    { The books of FScanQueue read so far, in the order they will show:
+      they go into FRecent together when the last one has been read, so
+      that the library on the screen changes once and not at every book
+      (zip 331). }
+    FScanDone: TArray<TRecentBook>;
+    { Reads the next book of FScanQueue. }
+    tmScan: TTimer;
+    { Where the finger went down in FLibScroll (a tap is a press and a
+      release near each other; a drag scrolls). }
+    FTapAt: TPointF;
+    { A touch build: a book is being read in a thread (OpenBook) and is
+      not open yet. }
+    FOpening: Boolean;
+    { The staged open (a touch build, zip 332): a second book component
+      and view, over the page, that show ONE document of a book whose
+      package only has been read, while OpenBook's thread reads the rest. }
+    FPreviewEpub: TEpubUnum;
+    { The view of the staged open's page (child of View1, hidden when
+      there is none). }
+    FPreviewView: TEpubView;
+    { FClipFirst and FClipLast were filled by OpenBook's thread for the
+      book about to be adopted: EpubUnum1Open does not work them out again. }
+    FClipsReady: Boolean;
+    { Counts OpenBook's calls: a thread's book is taken only when no other
+      book was asked for meanwhile. }
+    FOpenTicket: Integer;
     { Opens the clicked cover's book once the click is over. }
     tmLibrary: TTimer;
     { The book tmLibrary opens (index in FRecent). }
@@ -305,8 +346,9 @@ type
     miGpu: array[0..2] of TMenuItem;
     { The cover chooser (thumbnails; uCoverPick). }
     FCoverPick: TCoverPicker;
-    { Recently opened books, the latest first (at most RECENT_MAX), with
-      their reading positions. }
+    { The library: the books opened or found, the latest read first (at
+      most LIBRARY_MAX), with their reading positions. File > Recently
+      Opened lists the first RECENT_MAX of them. }
     FRecent: TArray<TRecentBook>;
     { The books of EpubBuilder's output folder the library has seen (file
       names, lower case - as RecentIndex matches): ScanTranscribed adds a
@@ -433,6 +475,15 @@ type
     function ClipOfWord(AWord: Integer): Integer;
     { Enables the buttons and writes the status. }
     procedure UpdateControls;
+    { The chapters as BuildChapters left them at the last opening of this
+      book, from the file beside its index - only for a book that came
+      from its index (it is the same book then) and when the file is not
+      older than the index.
+      @returns(@false when they have to be built) }
+    function LoadChapters: Boolean;
+    { Keeps what BuildChapters made, beside the book's index (nothing when
+      the book has no index). }
+    procedure SaveChapters;
     { Makes the tool bar's buttons. }
     procedure BuildToolBar;
     { Makes the touch bar (a phone, a tablet). }
@@ -528,6 +579,38 @@ type
     procedure miLibraryClick(Sender: TObject);
     { Opens book FLibraryOpen. }
     procedure tmLibraryTimer(Sender: TObject);
+    { The staged open: OpenBook's thread has read the package of the book
+      (AHeader, ours to keep or free) - its page is shown at once.
+      ADoc and AWord: the place kept from last time (-1: the first
+      document of the reading order, its top). }
+    procedure PreviewReady(AHeader: TEpubBook; ADoc, AWord, ATicket: Integer);
+    { The staged open's page goes (the real one is there, or there is
+      none). }
+    procedure HidePreview;
+    { A touch build: the thread of OpenBook has read AFileName - ABook
+      (with its text), or nil and why not in AError. ATicket is
+      FOpenTicket as it was when the thread was started. }
+    procedure OpenDone(const AFileName: string; ABook: TEpubBook; const AError: string; ATicket: Integer;
+      const AClipFirst, AClipLast: TArray<Integer>);
+    { Reads one book of FScanQueue into the library and shows it; after the
+      last one the settings are saved. }
+    procedure tmScanTimer(Sender: TObject);
+    { One new book into the library: its title read from it, put after the
+      book read last - or, with AHold, kept in FScanDone until the whole
+      batch has been read (a touch build: the library changes once). }
+    procedure AddScanned(const AFileName: string; AHold: Boolean = False);
+    { Takes a book that is in the library more than once out of it but for
+      its first entry (zip 325 put books in two and three times). }
+    procedure DropDoubleBooks;
+    { Cover AIndex (of FRecent) was clicked or tapped: back to the open
+      book when it is that one, else it is opened. }
+    procedure CoverChosen(AIndex: Integer);
+    { The finger down in the touch library. }
+    procedure LibScrollMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
+    { The finger up in the touch library: a tap on a cover chooses it. }
+    procedure LibScrollMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
+    { Shows AText at the library's foot ('' = hides the line). }
+    procedure LibraryNote(const AText: string);
     { File > Exit. }
     procedure miExitClick(Sender: TObject);
     { Makes the find bar (hidden). }
@@ -698,6 +781,21 @@ const
   ICON_PAGE_ON = 'M9 5l7 7-7 7-2-2 5-5-5-5z';
   { Icon box, px. }
   ICON_SIZE = 24;
+  { The touch library: a cover is about this wide (the columns come from
+    the window's width). }
+  TOUCH_COVER_WIDTH = 130;
+  { A finger that moved less than this between down and up tapped. }
+  TAP_SLOP = 12;
+  { A cover that takes longer than this, ms, is told of in the log. }
+  SLOW_COVER_MS = 100;
+  { The line at the library's foot, its height. }
+  LIB_NOTE_HEIGHT = 30;
+  { A touch build: the window is drawn once more before a book is opened
+    (the library says "Opening ..."), ms. }
+  TOUCH_OPEN_DELAY = 120;
+  { A touch build: between two new books read into the library, ms - the
+    window is drawn in it. }
+  SCAN_STEP_MS = 60;
   { The touch bar's height (Android's least for something touched is 48). }
   TOUCH_BAR_HEIGHT = 56;
   { Space round each of the touch bar's buttons. }
@@ -765,8 +863,12 @@ const
   LEARN_BAR_DARK = $FF1E5A2C;
   { Learn to read, dark mode: highlight (light text stays readable). }
   LEARN_HIGHLIGHT_DARK = $FF2F6E3C;
-  { Books kept in File > Recently Opened. }
+  { Books shown in File > Recently Opened: the first of the library's. }
   RECENT_MAX = 10;
+  { Books kept in the library (FRecent). It was RECENT_MAX until zip 325:
+    the library grew out of the recent list, and ten was all a phone's
+    library could hold (owner: "seems very low"). }
+  LIBRARY_MAX = 1000;
   { Added to the window title in Learn to read. }
   LEARN_TITLE = ' - LEARN TO READ';
   { Button width, px. }
@@ -1161,6 +1263,73 @@ begin
     THashMD5.GetHashString(LowerCase(ExtractFileName(ABookFile))) + '.png');
 end;
 
+{ The index of book ABookFile (TEpubBook.SaveIndex: its words and clips
+  ready to read, so that it is not parsed again at every opening):
+  index\<MD5 of the file name>.euix beside the settings file. By the file
+  NAME, as the covers; the index itself knows whether it is still this
+  book's. }
+function BookIndexFile(const ABookFile: string): string;
+begin
+  Result := System.IOUtils.TPath.Combine(System.IOUtils.TPath.Combine(ExtractFilePath(SettingsFile), 'index'),
+    THashMD5.GetHashString(LowerCase(ExtractFileName(ABookFile))) + '.euix');
+end;
+
+{ Opens ABookFile in full, with its text - from its index when it has one
+  that fits, else from the book, writing the index for next time. Touches
+  nothing of the window: for a thread.
+  @param(ANote  what was done, for the debug log)
+  @returns(the book; the caller frees it)
+  @raises(Exception as TEpubBook.Create) }
+function OpenBookIndexed(const ABookFile: string; out ANote: string): TEpubBook;
+var
+  IndexFile: string;
+  M: TMemoryStream;
+begin
+  Result := nil;
+  ANote := '';
+  IndexFile := BookIndexFile(ABookFile);
+  M := TMemoryStream.Create;
+  try
+    try
+      if FileExists(IndexFile) then
+      begin
+        M.LoadFromFile(IndexFile);
+        M.Position := 0;
+        Result := TEpubBook.CreateIndexed(ABookFile, M);
+        if Result.FromIndex then
+          ANote := Format('open: from its index (%d bytes) - the book''s XML was not read', [M.Size])
+        else
+          ANote := 'open: its index does not fit (the book changed, or another version) - read in full';
+      end
+      else
+        Result := TEpubBook.Create(ABookFile);
+      Result.LoadText;
+      if not Result.FromIndex then
+        try
+          M.Clear;
+          Result.SaveIndex(M);
+          ForceDirectories(ExtractFilePath(IndexFile));
+          M.SaveToFile(IndexFile);
+          if ANote = '' then
+            ANote := 'open: read in full';
+          ANote := ANote + Format('; index written for next time (%d bytes)', [M.Size]);
+        except
+          on E: Exception do
+          begin
+            // no index: the book opens as slowly next time
+            System.SysUtils.DeleteFile(IndexFile);
+            ANote := ANote + '; index NOT written - ' + E.Message;
+          end;
+        end;
+    except
+      FreeAndNil(Result);
+      raise;
+    end;
+  finally
+    M.Free;
+  end;
+end;
+
 { Writes a made cover to AFile: ATitle and AAuthor on a colour of the
   title's own (the same title always gets the same colour). }
 procedure SaveTextCover(const AFile, ATitle, AAuthor: string);
@@ -1336,7 +1505,8 @@ begin
       ForceDirectories(ExtractFilePath(F));
       if (ABook = nil) and FileExists(ABookFile) then
         try
-          Own := TEpubBook.Create(ABookFile);
+          // the package only: a cover needs no timings (zip 324)
+          Own := TEpubBook.CreateHeader(ABookFile);
           ABook := Own;
         except
           // not readable now: a made cover from what the list knows
@@ -1732,7 +1902,7 @@ var
 begin
   while miRecent.ItemsCount > 0 do
     miRecent.Items[0].Free;
-  for I := 0 to High(FRecent) do
+  for I := 0 to Min(High(FRecent), RECENT_MAX - 1) do
   begin
     M := TMenuItem.Create(Self);
     M.Parent := miRecent;
@@ -1879,6 +2049,30 @@ begin
   tmLibrary.Enabled := False;
   tmLibrary.Interval := 1;
   tmLibrary.OnTimer := tmLibraryTimer;
+  // what is going on, at the foot
+  lblLibNote := TLabel.Create(Self);
+  lblLibNote.Parent := recLibrary;
+  lblLibNote.Align := TAlignLayout.Bottom;
+  lblLibNote.Height := LIB_NOTE_HEIGHT;
+  lblLibNote.StyledSettings := lblLibNote.StyledSettings - [TStyledSetting.FontColor, TStyledSetting.Size];
+  lblLibNote.TextSettings.Font.Size := 14;
+  lblLibNote.TextSettings.HorzAlign := TTextAlign.Center;
+  lblLibNote.HitTest := False;
+  lblLibNote.Visible := False;
+  tmScan := TTimer.Create(Self);
+  tmScan.Enabled := False;
+  tmScan.Interval := SCAN_STEP_MS;
+  tmScan.OnTimer := tmScanTimer;
+  if TouchBuild then
+  begin
+    // the covers fill the width and a finger scrolls them
+    FLibScroll := TVertScrollBox.Create(Self);
+    FLibScroll.Parent := recLibrary;
+    FLibScroll.Align := TAlignLayout.Client;
+    FLibScroll.OnMouseDown := LibScrollMouseDown;
+    FLibScroll.OnMouseUp := LibScrollMouseUp;
+    tmLibrary.Interval := TOUCH_OPEN_DELAY;
+  end;
 end;
 
 {$IFDEF ANDROID}
@@ -1888,8 +2082,19 @@ begin
   if AAppEvent = TApplicationEvent.BecameActive then
   begin
     DebugLog('app: in front again');
-    if LibraryShowing then
+    if LibraryShowing and not tmLibrary.Enabled and not FOpening then
       ShowLibrary;
+  end
+  else if AAppEvent in [TApplicationEvent.WillBecomeInactive, TApplicationEvent.EnteredBackground] then
+  begin
+    // The system ends an app that is not in front without closing it
+    // (FormClose never runs): the place in the book and the library are
+    // kept whenever the app is left. Zip 323 - until now nothing was
+    // kept on a phone at all, so every start read every book again and
+    // the library was in the folder's order, not the order read.
+    RememberBook;
+    SaveSettings;
+    DebugLog('app: left - place and settings saved');
   end;
 end;
 {$ENDIF}
@@ -1904,6 +2109,7 @@ var
   I: Integer;
   Img: TImage;
   F: string;
+  Tick: Cardinal;
 begin
   DebugLog('library: showing');
   // the book stops (paused: Play resumes it once back on the page), and the
@@ -1913,6 +2119,7 @@ begin
   Splitter1.Visible := False;
   // the open book first, with where it is
   RememberBook;
+  DropDoubleBooks;
   // EpubBuilder's books not seen before: into the library
   ScanTranscribed;
   for I := 0 to High(FCoverImages) do
@@ -1920,11 +2127,21 @@ begin
   FCoverImages := nil;
   for I := 0 to High(FRecent) do
   begin
+    Tick := TThread.GetTickCount;
     EnsureCover(FRecent[I].FileName, nil, FRecent[I].Title);
+    // one cover held the window for four seconds at two starts
+    // (2026-11-26, a different book each time): which part, next time
+    if TThread.GetTickCount - Tick > SLOW_COVER_MS then
+      DebugLog(Format('library: SLOW - making sure of that cover took %d ms', [TThread.GetTickCount - Tick]));
     Img := TImage.Create(Self);
-    Img.Parent := recLibrary;
+    if FLibScroll <> nil then
+      Img.Parent := FLibScroll
+    else
+      Img.Parent := recLibrary;
     Img.WrapMode := TImageWrapMode.Fit;
-    Img.HitTest := True;
+    // in the touch library the box under the covers takes the finger: a
+    // drag scrolls, a tap is found there (LibScrollMouseUp)
+    Img.HitTest := FLibScroll = nil;
     Img.Cursor := crHandPoint;
     Img.Tag := I;
     Img.Hint := FRecent[I].Title;
@@ -1933,6 +2150,7 @@ begin
     Img.ShowHint := True;
     Img.OnClick := CoverClick;
     F := CoverFile(FRecent[I].FileName);
+    Tick := TThread.GetTickCount;
     if FileExists(F) then
       try
         Img.Bitmap.LoadFromFile(F);
@@ -1940,14 +2158,20 @@ begin
         // a damaged cache file: made again next time
         System.SysUtils.DeleteFile(F);
       end;
+    if TThread.GetTickCount - Tick > SLOW_COVER_MS then
+      DebugLog(Format('library: SLOW - loading that cover''s picture took %d ms (%s)', [TThread.GetTickCount - Tick,
+        F]));
     // a book no longer there: faint (a click takes it off the list)
     if not FileExists(FRecent[I].FileName) then
       Img.Opacity := 0.35;
     FCoverImages := FCoverImages + [Img];
   end;
-  lblLibrary.Visible := Length(FRecent) = 0;
+  lblLibrary.Visible := (Length(FRecent) = 0) and (Length(FScanQueue) = 0);
   recLibrary.Fill.Color := View1.BackgroundColor;
   lblLibrary.TextSettings.FontColor := View1.TextColor;
+  lblLibNote.TextSettings.FontColor := View1.TextColor;
+  if Length(FScanQueue) = 0 then
+    LibraryNote('');
   recLibrary.Visible := True;
   recLibrary.BringToFront;
   // the pad's choice: none until the pad moves it
@@ -2002,6 +2226,30 @@ begin
     Exit;
   AreaW := recLibrary.Width;
   AreaH := recLibrary.Height;
+  if lblLibNote.Visible then
+    AreaH := AreaH - LIB_NOTE_HEIGHT;
+  if FLibScroll <> nil then
+  begin
+    // A phone or tablet (zip 323; owner: "needs to adapt to screen
+    // width"): the columns come from the width, the rows scroll. The
+    // large cover is never taller than the window, so on a screen held
+    // sideways the covers are smaller and more of them go across.
+    Cols := Max(3, Trunc(AreaW / TOUCH_COVER_WIDTH));
+    W := (AreaW - (Cols + 1) * COVER_GAP) / Cols;
+    BestW := ((AreaH - 3 * COVER_GAP) / 2) / COVER_ASPECT;
+    if (BestW > 1) and (W > BestW) then
+    begin
+      W := BestW;
+      Cols := Max(3, Trunc((AreaW - COVER_GAP) / (W + COVER_GAP)));
+    end;
+    if W <= 1 then
+      Exit;
+    TileH := W * COVER_ASPECT;
+    X0 := (AreaW - (Cols * W + (Cols - 1) * COVER_GAP)) / 2;
+    Y0 := COVER_GAP;
+  end
+  else
+  begin
   // the column count that gives the largest tiles
   BestW := 0;
   BestCols := 2;
@@ -2026,6 +2274,7 @@ begin
   // the grid centred both ways
   X0 := (AreaW - (Cols * W + (Cols - 1) * COVER_GAP)) / 2;
   Y0 := (AreaH - (Rows * TileH + (Rows - 1) * COVER_GAP)) / 2;
+  end;
   // the current book: 2 x 2 tiles
   FCoverImages[0].SetBounds(X0, Y0, 2 * W + COVER_GAP, 2 * TileH + COVER_GAP);
   // the others: beside it in the first two rows, then full rows
@@ -2065,7 +2314,16 @@ var
   I: Integer;
 begin
   I := (Sender as TImage).Tag;
-  if (I < 0) or (I > High(FRecent)) then
+  CoverChosen(I);
+end;
+
+procedure TfrmMain.CoverChosen(AIndex: Integer);
+var
+  I: Integer;
+  Name: string;
+begin
+  I := AIndex;
+  if (I < 0) or (I > High(FRecent)) or tmLibrary.Enabled or FOpening then
     Exit;
   // the open book: back to it, where it was
   if (EpubUnum1.Book <> nil) and (FBookFile <> '') and
@@ -2077,6 +2335,20 @@ begin
   // opened from a timer: the click must not free its own image (the book
   // opening ends in HideLibrary)
   FLibraryOpen := I;
+  if TouchBuild then
+  begin
+    // Reading a book takes seconds in which nothing moves (owner,
+    // 2026-11-25: "this also needs disguising"): the other covers fade
+    // and the foot says what is being done; the timer leaves the window
+    // time to be drawn so before the book is read.
+    for I := 0 to High(FCoverImages) do
+      if FCoverImages[I].Tag <> AIndex then
+        FCoverImages[I].Opacity := 0.25;
+    Name := FRecent[AIndex].Title;
+    if Name = '' then
+      Name := ChangeFileExt(ExtractFileName(FRecent[AIndex].FileName), '');
+    LibraryNote('Opening ' + Name + ' ...');
+  end;
   tmLibrary.Enabled := True;
 end;
 
@@ -2084,6 +2356,148 @@ procedure TfrmMain.tmLibraryTimer(Sender: TObject);
 begin
   tmLibrary.Enabled := False;
   OpenRecent(FLibraryOpen);
+  // not opened and not being opened (the library still shows): as it was
+  if TouchBuild and LibraryShowing and not FOpening then
+    ShowLibrary;
+end;
+
+procedure TfrmMain.LibraryNote(const AText: string);
+var
+  Was: Boolean;
+begin
+  if lblLibNote = nil then
+    Exit;
+  Was := lblLibNote.Visible;
+  lblLibNote.Text := AText;
+  lblLibNote.Visible := AText <> '';
+  if lblLibNote.Visible then
+    lblLibNote.BringToFront;
+  // the covers keep clear of the line
+  if (Was <> lblLibNote.Visible) and (FLibScroll = nil) then
+    LayoutLibrary;
+end;
+
+procedure TfrmMain.LibScrollMouseDown(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
+begin
+  FTapAt := PointF(X, Y);
+end;
+
+procedure TfrmMain.LibScrollMouseUp(Sender: TObject; Button: TMouseButton; Shift: TShiftState; X, Y: Single);
+var
+  I: Integer;
+  P: TPointF;
+begin
+  if (Abs(X - FTapAt.X) > TAP_SLOP) or (Abs(Y - FTapAt.Y) > TAP_SLOP) then
+    Exit;
+  // the covers' places are the scrolled content's
+  P := PointF(X + FLibScroll.ViewportPosition.X, Y + FLibScroll.ViewportPosition.Y);
+  for I := 0 to High(FCoverImages) do
+    if FCoverImages[I].BoundsRect.Contains(P) then
+    begin
+      CoverChosen(FCoverImages[I].Tag);
+      Exit;
+    end;
+end;
+
+procedure TfrmMain.DropDoubleBooks;
+var
+  I, J, N: Integer;
+begin
+  N := 0;
+  for I := High(FRecent) downto 1 do
+    for J := 0 to I - 1 do
+      if SameFileName(ExtractFileName(FRecent[J].FileName), ExtractFileName(FRecent[I].FileName)) then
+      begin
+        Delete(FRecent, I, 1);
+        Inc(N);
+        Break;
+      end;
+  if N > 0 then
+    DebugLog(Format('library: %d double(s) taken out', [N]));
+end;
+
+procedure TfrmMain.AddScanned(const AFileName: string; AHold: Boolean);
+var
+  R: TRecentBook;
+  Book: TEpubBook;
+begin
+  // never twice
+  if RecentIndex(AFileName) >= 0 then
+    Exit;
+  R.FileName := AFileName;
+  R.Title := '';
+  R.Word := -1;
+  R.Doc := -1;
+  R.DocWord := -1;
+  // its title (the book opened without its text)
+  Book := nil;
+  try
+    try
+      // the package only (CreateHeader, zip 324): Create read the timing
+      // of every word as well, 2.3 s for a long book
+      Book := TEpubBook.CreateHeader(AFileName);
+      R.Title := Book.Title;
+      // its cover while it is open (ShowLibrary would open it once more)
+      EnsureCover(AFileName, Book, R.Title);
+    except
+      on E: Exception do
+        DebugLog('library: ' + AFileName + ' not read: ' + E.Message);
+    end;
+  finally
+    Book.Free;
+  end;
+  if AHold then
+  begin
+    FScanDone := FScanDone + [R];
+    DebugLog('library: read, to be added with its batch - ' + AFileName);
+    Exit;
+  end;
+  // after the book read last (the library shows it large), else first
+  Insert(R, FRecent, Min(1, Length(FRecent)));
+  if Length(FRecent) > LIBRARY_MAX then
+    SetLength(FRecent, LIBRARY_MAX);
+  DebugLog('library: added from EpubBuilder''s output - ' + AFileName);
+end;
+
+procedure TfrmMain.tmScanTimer(Sender: TObject);
+var
+  Name: string;
+  I, At: Integer;
+begin
+  tmScan.Enabled := False;
+  if Length(FScanQueue) = 0 then
+    Exit;
+  Name := FScanQueue[0];
+  Delete(FScanQueue, 0, 1);
+  // read, but not shown yet: the library on the screen stays as it is
+  // until the whole batch is in (owner, 2026-11-25: "the screen changing
+  // constantly ... visible order change only happens once")
+  AddScanned(Name, True);
+  if Length(FScanQueue) > 0 then
+  begin
+    LibraryNote(Format('Reading new books: %d of %d', [FScanTotal - Length(FScanQueue) + 1, FScanTotal]));
+    tmScan.Enabled := True;
+    Exit;
+  end;
+  // the batch, in its order, after the book read last
+  At := Min(1, Length(FRecent));
+  for I := 0 to High(FScanDone) do
+    if RecentIndex(FScanDone[I].FileName) < 0 then
+    begin
+      Insert(FScanDone[I], FRecent, At);
+      Inc(At);
+    end;
+  DebugLog(Format('library: %d new book(s) read and added', [Length(FScanDone)]));
+  FScanDone := nil;
+  if Length(FRecent) > LIBRARY_MAX then
+    SetLength(FRecent, LIBRARY_MAX);
+  BuildRecentMenu;
+  LibraryNote('');
+  // kept now: an app on a phone is ended without being closed
+  SaveSettings;
+  // the one change on the screen (not while a book is being opened)
+  if LibraryShowing and not tmLibrary.Enabled and not FOpening then
+    ShowLibrary;
 end;
 
 procedure TfrmMain.miLibraryClick(Sender: TObject);
@@ -2342,12 +2756,22 @@ begin
   R.FileName := FBookFile;
   R.Title := EpubUnum1.Book.Title;
   R.Word := ReadingWord;
+  R.Doc := -1;
+  R.DocWord := -1;
+  if (R.Word >= 0) and (R.Word < EpubUnum1.Book.WordCount) then
+  begin
+    R.Doc := EpubUnum1.Book.Words[R.Word].Document;
+    if (R.Doc >= 0) and (R.Doc <= High(EpubUnum1.Book.Documents)) then
+      R.DocWord := R.Word - EpubUnum1.Book.Documents[R.Doc].FirstWord
+    else
+      R.Doc := -1;
+  end;
   I := RecentIndex(FBookFile);
   if I >= 0 then
     Delete(FRecent, I, 1);
   Insert(R, FRecent, 0);
-  if Length(FRecent) > RECENT_MAX then
-    SetLength(FRecent, RECENT_MAX);
+  if Length(FRecent) > LIBRARY_MAX then
+    SetLength(FRecent, LIBRARY_MAX);
   BuildRecentMenu;
 end;
 
@@ -2419,15 +2843,19 @@ begin
       FRecent := nil;
       if O.TryGetValue<TJSONArray>('recent', A) then
         for I := 0 to A.Count - 1 do
-          if (A.Items[I] is TJSONObject) and (Length(FRecent) < RECENT_MAX) then
+          if (A.Items[I] is TJSONObject) and (Length(FRecent) < LIBRARY_MAX) then
           begin
             E := TJSONObject(A.Items[I]);
             R.FileName := '';
             R.Title := '';
             R.Word := -1;
+            R.Doc := -1;
+            R.DocWord := -1;
             E.TryGetValue<string>('file', R.FileName);
             E.TryGetValue<string>('title', R.Title);
             E.TryGetValue<Integer>('word', R.Word);
+            E.TryGetValue<Integer>('doc', R.Doc);
+            E.TryGetValue<Integer>('docWord', R.DocWord);
             if R.FileName <> '' then
               FRecent := FRecent + [R];
           end;
@@ -2464,6 +2892,8 @@ begin
       E.AddPair('file', FRecent[I].FileName);
       E.AddPair('title', FRecent[I].Title);
       E.AddPair('word', TJSONNumber.Create(FRecent[I].Word));
+      E.AddPair('doc', TJSONNumber.Create(FRecent[I].Doc));
+      E.AddPair('docWord', TJSONNumber.Create(FRecent[I].DocWord));
       A.AddElement(E);
     end;
     A := TJSONArray.Create;
@@ -3108,11 +3538,9 @@ const
 var
   Folders, Files, Found: TArray<string>;
   Times: TArray<TDateTime>;
-  I, J, K, At: Integer;
+  I, J, K: Integer;
   Name, T: string;
   D: TDateTime;
-  R: TRecentBook;
-  Book: TEpubBook;
   Have: Boolean;
 begin
   Result := 0;
@@ -3148,11 +3576,35 @@ begin
           Have := True;
           Break;
         end;
-      if Have then
+      // "Seen" keeps a book the user took off the list from coming back.
+      // On a phone the library IS the folder, and nothing takes a book
+      // off but the old limit of ten: a book there and not in the
+      // library goes in (zip 325).
+      if Have and not TouchBuild then
         Continue;
-      FSeen := FSeen + [Name];
+      if not Have then
+        FSeen := FSeen + [Name];
       // already in the library (opened from elsewhere)
       if RecentIndex(Files[J]) >= 0 then
+        Continue;
+      // or waiting to be read into it. MY FAULT IN 325 (zip 328): with
+      // "seen" no longer stopping it on a phone, every showing of the
+      // library - one after each book read - queued the waiting books
+      // again, and each came in two or three times
+      Have := False;
+      for K := 0 to High(FScanQueue) do
+        if SameFileName(ExtractFileName(FScanQueue[K]), ExtractFileName(Files[J])) then
+        begin
+          Have := True;
+          Break;
+        end;
+      for K := 0 to High(FScanDone) do
+        if SameFileName(ExtractFileName(FScanDone[K].FileName), ExtractFileName(Files[J])) then
+        begin
+          Have := True;
+          Break;
+        end;
+      if Have then
         Continue;
       Found := Found + [Files[J]];
       Times := Times + [TFile.GetLastWriteTime(Files[J])];
@@ -3180,32 +3632,35 @@ begin
       end
       else
         Break;
-  // after the book read last (the library shows it large), else first
-  At := Min(1, Length(FRecent));
+  if TouchBuild then
+  begin
+    // A phone: one at a time from a timer, the library showing meanwhile
+    // (zip 323: seven new books were ten seconds of a window that did
+    // nothing - the owner thought it had hung). Result is 0: none is in
+    // yet.
+    // A batch copied to a phone has no order worth showing in its files'
+    // times: by name (zip 331; the owner saw a "random-looking order").
+    for I := 1 to High(Found) do
+      for J := I downto 1 do
+        if CompareText(ExtractFileName(Found[J - 1]), ExtractFileName(Found[J])) > 0 then
+        begin
+          T := Found[J - 1];
+          Found[J - 1] := Found[J];
+          Found[J] := T;
+        end
+        else
+          Break;
+    FScanQueue := FScanQueue + Found;
+    FScanTotal := Length(FScanQueue) + Length(FScanDone);
+    LibraryNote(Format('Reading new books: %d of %d', [Length(FScanDone) + 1, FScanTotal]));
+    tmScan.Enabled := True;
+    Exit;
+  end;
   for K := 0 to High(Found) do
   begin
-    R.FileName := Found[K];
-    R.Title := '';
-    R.Word := -1;
-    // its title (the book opened without its text)
-    Book := nil;
-    try
-      try
-        Book := TEpubBook.Create(Found[K]);
-        R.Title := Book.Title;
-      except
-        on E: Exception do
-          DebugLog('library: ' + Found[K] + ' not read: ' + E.Message);
-      end;
-    finally
-      Book.Free;
-    end;
-    Insert(R, FRecent, At);
+    AddScanned(Found[K]);
     Inc(Result);
-    DebugLog('library: added from EpubBuilder''s output - ' + Found[K]);
   end;
-  if Length(FRecent) > RECENT_MAX then
-    SetLength(FRecent, RECENT_MAX);
   BuildRecentMenu;
 end;
 
@@ -3700,6 +4155,10 @@ begin
 end;
 
 procedure TfrmMain.OpenBook(const AFileName: string);
+var
+  Ticket, PDoc, PWord, K: Integer;
+  Name: string;
+  Staged: Boolean;
 begin
   DebugLog('open: ' + AFileName);
   StopPlaying;
@@ -3725,8 +4184,188 @@ begin
   FChapterTitle := nil;
   FTocIsChapters := False;
   EpubUnum1.Active := False;
+  if TouchBuild then
+  begin
+    // A phone (zip 327): the book is read in a thread - 4.5 s for a long
+    // one, in which Android offers to close an app that does not answer -
+    // and OpenDone makes it the open book. The window stays alive: the
+    // library says "Opening ..." (CoverChosen), or the page is empty.
+    Inc(FOpenTicket);
+    FOpening := True;
+    Ticket := FOpenTicket;
+    Name := AFileName;
+    View1.Clear;
+    HidePreview;
+    // THE STAGED OPEN (zip 332): a book with no index yet takes seconds
+    // to read - its package is read first (milliseconds) and the page it
+    // was left at shown from that alone; the rest follows behind it. With
+    // an index the whole book is there in a moment, and no stage is
+    // needed.
+    Staged := not FileExists(BookIndexFile(AFileName));
+    PDoc := -1;
+    PWord := -1;
+    K := RecentIndex(AFileName);
+    if (K >= 0) and (FRecent[K].Doc >= 0) then
+    begin
+      PDoc := FRecent[K].Doc;
+      PWord := FRecent[K].DocWord;
+    end;
+    UpdateControls;
+    TThread.CreateAnonymousThread(
+      procedure
+      var
+        Book: TEpubBook;
+        Err: string;
+        CF, CL: TArray<Integer>;
+        C, F, L: Integer;
+        Note: string;
+        Header: TEpubBook;
+      begin
+        Book := nil;
+        Err := '';
+        Note := '';
+        if Staged then
+          try
+            Header := TEpubBook.CreateHeader(Name);
+            TThread.Queue(nil,
+              procedure
+              begin
+                PreviewReady(Header, PDoc, PWord, Ticket);
+              end);
+          except
+            // no page first: the whole book says what is wrong with it
+            Header := nil;
+          end;
+        try
+          // with its words (the reader needs them at once) - from the
+          // book's index when it has one (zip 330)
+          Book := OpenBookIndexed(Name, Note);
+          // and each clip's words (zip 329: 0.1 s less in the window's
+          // thread)
+          SetLength(CF, Length(Book.Clips));
+          SetLength(CL, Length(Book.Clips));
+          for C := 0 to High(CF) do
+            if Book.ClipWords(C, F, L) then
+            begin
+              CF[C] := F;
+              CL[C] := L;
+            end
+            else
+            begin
+              CF[C] := -1;
+              CL[C] := -1;
+            end;
+        except
+          on E: Exception do
+          begin
+            Err := E.Message;
+            FreeAndNil(Book);
+          end;
+        end;
+        TThread.Queue(nil,
+          procedure
+          begin
+            if Note <> '' then
+              DebugLog(Note);
+            OpenDone(Name, Book, Err, Ticket, CF, CL);
+          end);
+      end).Start;
+    Exit;
+  end;
   EpubUnum1.FileName := AFileName;
   EpubUnum1.Active := True;   // OnOpen or OnOpenFailed follows
+  UpdateControls;
+end;
+
+procedure TfrmMain.PreviewReady(AHeader: TEpubBook; ADoc, AWord, ATicket: Integer);
+var
+  I: Integer;
+begin
+  // too late (the whole book is there) or for a book no longer wanted
+  if (ATicket <> FOpenTicket) or not FOpening then
+  begin
+    AHeader.Free;
+    Exit;
+  end;
+  if FPreviewView = nil then
+  begin
+    FPreviewEpub := TEpubUnum.Create(Self);
+    FPreviewView := TEpubView.Create(Self);
+    FPreviewView.Parent := View1;
+    FPreviewView.Align := TAlignLayout.Client;
+    FPreviewView.HitTest := False;
+    FPreviewView.Epub := FPreviewEpub;
+  end;
+  // the page's look
+  FPreviewView.FontFamily := View1.FontFamily;
+  FPreviewView.FontSize := View1.FontSize;
+  FPreviewView.LineHeight := View1.LineHeight;
+  FPreviewView.Justify := View1.Justify;
+  FPreviewView.ParagraphSpacing := View1.ParagraphSpacing;
+  FPreviewView.PageMargin := View1.PageMargin;
+  FPreviewView.ShowProgress := View1.ShowProgress;
+  FPreviewView.TextColor := View1.TextColor;
+  FPreviewView.BackgroundColor := View1.BackgroundColor;
+  FPreviewView.LinkColor := View1.LinkColor;
+  FPreviewView.NoteColor := View1.NoteColor;
+  FPreviewEpub.Adopt(AHeader);   // the component frees it
+  // no place kept: the first document of the reading order
+  if (ADoc < 0) or (ADoc > High(AHeader.Documents)) then
+  begin
+    ADoc := 0;
+    AWord := -1;
+    for I := 0 to High(AHeader.Documents) do
+      if AHeader.Documents[I].Linear then
+      begin
+        ADoc := I;
+        Break;
+      end;
+  end;
+  // the library (it says "Opening ...") makes way for the page
+  HideLibrary;
+  FPreviewView.Visible := True;
+  FPreviewView.BringToFront;
+  FPreviewView.ShowPreview(ADoc, AWord);
+  DebugLog(Format('open: a page shown from the package alone (document %d, word %d of it) - the book is ' +
+    'still being read', [ADoc, AWord]));
+end;
+
+procedure TfrmMain.HidePreview;
+begin
+  if FPreviewView = nil then
+    Exit;
+  FPreviewView.Visible := False;
+  FPreviewView.Clear;
+  FPreviewEpub.Close;
+end;
+
+procedure TfrmMain.OpenDone(const AFileName: string; ABook: TEpubBook; const AError: string; ATicket: Integer;
+  const AClipFirst, AClipLast: TArray<Integer>);
+begin
+  if ATicket <> FOpenTicket then
+  begin
+    // another book was asked for meanwhile: this one is not wanted
+    DebugLog('open: ' + AFileName + ' read, but another book was asked for - dropped');
+    ABook.Free;
+    Exit;
+  end;
+  FOpening := False;
+  if ABook = nil then
+  begin
+    HidePreview;
+    EpubUnum1OpenFailed(EpubUnum1, AError);
+    // back to the library (its covers were faded for "Opening ...", or
+    // the staged page had taken its place)
+    ShowLibrary;
+    Exit;
+  end;
+  DebugLog('open: read in its thread');
+  FClipFirst := AClipFirst;
+  FClipLast := AClipLast;
+  FClipsReady := True;
+  EpubUnum1.Adopt(ABook);   // OnOpen follows
+  // the real page is laid out at the same place: the staged one goes
+  HidePreview;
   UpdateControls;
 end;
 
@@ -3743,7 +4382,7 @@ var
   I, F, L, First: Integer;
   DocWords: TArray<Integer>;
   Ws: TEpubWordArray;
-  K, Big: Integer;
+  K, Big, Back: Integer;
 begin
   DebugLog('open: read, building the view');
   DebugLog(Format('book: %d documents, %d words, %d clips', [Length(EpubUnum1.Book.Documents),
@@ -3778,20 +4417,38 @@ begin
   if FDark then
     ApplyTheme;   // the new items' text colour
   B.LoadText;
-  SetLength(FClipFirst, Length(B.Clips));
-  SetLength(FClipLast, Length(B.Clips));
-  for I := 0 to High(B.Clips) do
-    if B.ClipWords(I, F, L) then
-    begin
-      FClipFirst[I] := F;
-      FClipLast[I] := L;
-    end
-    else
-    begin
-      FClipFirst[I] := -1;
-      FClipLast[I] := -1;
-    end;
-  BuildChapters;
+  // each clip's words - done already when the book was read in a thread
+  // (OpenBook, zip 329)
+  if not FClipsReady or (Length(FClipFirst) <> Length(B.Clips)) then
+  begin
+    SetLength(FClipFirst, Length(B.Clips));
+    SetLength(FClipLast, Length(B.Clips));
+    for I := 0 to High(B.Clips) do
+      if B.ClipWords(I, F, L) then
+      begin
+        FClipFirst[I] := F;
+        FClipLast[I] := L;
+      end
+      else
+      begin
+        FClipFirst[I] := -1;
+        FClipLast[I] := -1;
+      end;
+  end;
+  FClipsReady := False;
+  DebugLog('open: the clips'' words known');
+  // The chapters: kept from the last opening when the book came from its
+  // index (zip 333). Working them out lays out every document a chapter
+  // mark falls in - 1.5 s of Night Watch's 2.4 s on the Pixel, in the
+  // window's thread, and all of it the XML the index had saved reading.
+  if LoadChapters then
+    DebugLog(Format('open: %d chapters from last time', [Length(FChapterWord)]))
+  else
+  begin
+    BuildChapters;
+    SaveChapters;
+    DebugLog('open: chapters built');
+  end;
   if FTocIsChapters then
   begin
     // the contents list holds no chapters that are read: the chapters
@@ -3808,6 +4465,7 @@ begin
       ApplyTheme;
   end;
   BuildNotesMenu;
+  DebugLog('open: notes menu built');
   // the first linear document with words
   First := 0;
   for I := 0 to High(B.Documents) do
@@ -3816,7 +4474,19 @@ begin
       First := I;
       Break;
     end;
-  View1.ShowDocument(First);
+  // A book read before goes back to where it was left - and its first
+  // document was laid out here first, only to be dropped (zip 329; part
+  // of 0.8 s on the Pixel). Now the first document is laid out only when
+  // there is no place to go back to.
+  I := RecentIndex(EpubUnum1.FileName);
+  Back := -1;
+  if (I >= 0) and (FRecent[I].Word >= 0) and (FRecent[I].Word < B.WordCount) then
+    Back := FRecent[I].Word;
+  if Back < 0 then
+  begin
+    View1.ShowDocument(First);
+    DebugLog('open: the first document laid out');
+  end;
   // this book now: first in Recently Opened, and back where it was left
   FBookFile := ExpandFileName(EpubUnum1.FileName);
   // its cover for the library (made once, cached)
@@ -3824,11 +4494,10 @@ begin
   // each step logged: the Steam Deck crash comes after the cover (2026-11-17)
   DebugLog('open: cover done, hiding the library');
   HideLibrary;
-  I := RecentIndex(FBookFile);
-  if (I >= 0) and (FRecent[I].Word >= 0) then
+  if Back >= 0 then
   begin
-    DebugLog(Format('open: back to word %d (lays the page out)', [FRecent[I].Word]));
-    RestoreWord(FRecent[I].Word);
+    DebugLog(Format('open: back to word %d (lays the page out)', [Back]));
+    RestoreWord(Back);
   end;
   DebugLog('open: remembering the book');
   RememberBook;
@@ -3876,6 +4545,141 @@ begin
     end;
   View1.ShowFragment(B.Toc[I].Document, B.Toc[I].Fragment);
   UpdateControls;
+end;
+
+{ The file the chapters of ABookFile are kept in: beside its index. }
+function BookChaptersFile(const ABookFile: string): string;
+begin
+  Result := ChangeFileExt(BookIndexFile(ABookFile), '.chapters.json');
+end;
+
+function TfrmMain.LoadChapters: Boolean;
+var
+  B: TEpubBook;
+  F, Ix: string;
+  V: TJSONValue;
+  O, E: TJSONObject;
+  A: TJSONArray;
+  I, N, W, T, D: Integer;
+  Title: string;
+  Words, Tocs, Docs, Breaks: TArray<Integer>;
+  Titles: TArray<string>;
+begin
+  Result := False;
+  B := EpubUnum1.Book;
+  if (B = nil) or not B.FromIndex then
+    Exit;
+  F := BookChaptersFile(EpubUnum1.FileName);
+  Ix := BookIndexFile(EpubUnum1.FileName);
+  V := nil;
+  try
+    try
+      if not FileExists(F) or not FileExists(Ix) or (TFile.GetLastWriteTime(F) < TFile.GetLastWriteTime(Ix)) then
+        Exit;
+      V := TJSONObject.ParseJSONValue(TFile.ReadAllText(F, TEncoding.UTF8));
+      if not (V is TJSONObject) then
+        Exit;
+      O := TJSONObject(V);
+      // of this book as it is now
+      if (O.GetValue<Integer>('version', 0) <> 1) or (O.GetValue<Integer>('words', -1) <> B.WordCount) or
+        (O.GetValue<Integer>('clips', -1) <> Length(B.Clips)) or
+        (O.GetValue<Integer>('contents', -1) <> Length(B.Toc)) then
+        Exit;
+      if not O.TryGetValue<TJSONArray>('chapters', A) then
+        Exit;
+      N := A.Count;
+      SetLength(Words, N);
+      SetLength(Tocs, N);
+      SetLength(Docs, N);
+      SetLength(Titles, N);
+      for I := 0 to N - 1 do
+      begin
+        if not (A.Items[I] is TJSONObject) then
+          Exit;
+        E := TJSONObject(A.Items[I]);
+        W := E.GetValue<Integer>('word', -1);
+        T := E.GetValue<Integer>('toc', -1);
+        D := E.GetValue<Integer>('doc', -1);
+        Title := E.GetValue<string>('title', '');
+        if (W < 0) or (W >= B.WordCount) or (T < -1) or (T > High(B.Toc)) or (D < 0) or
+          (D > High(B.Documents)) then
+          Exit;
+        Words[I] := W;
+        Tocs[I] := T;
+        Docs[I] := D;
+        Titles[I] := Title;
+      end;
+      Breaks := nil;
+      if O.TryGetValue<TJSONArray>('breaks', A) then
+        for I := 0 to A.Count - 1 do
+          Breaks := Breaks + [A.Items[I].GetValue<Integer>];
+      FChapterWord := Words;
+      FChapterToc := Tocs;
+      FChapterDoc := Docs;
+      FChapterTitle := Titles;
+      FTocIsChapters := O.GetValue<Boolean>('tocIsChapters', False);
+      FChapterSource := O.GetValue<string>('source', '');
+      View1.ChapterBreaks := Breaks;
+      Result := True;
+    except
+      on Ex: Exception do
+      begin
+        // not readable: built again
+        DebugLog('chapters: the kept ones not read - ' + Ex.Message);
+        Result := False;
+      end;
+    end;
+  finally
+    V.Free;
+  end;
+end;
+
+procedure TfrmMain.SaveChapters;
+var
+  B: TEpubBook;
+  F: string;
+  O, E: TJSONObject;
+  A: TJSONArray;
+  I: Integer;
+  Breaks: TArray<Integer>;
+begin
+  B := EpubUnum1.Book;
+  if (B = nil) or not FileExists(BookIndexFile(EpubUnum1.FileName)) then
+    Exit;
+  F := BookChaptersFile(EpubUnum1.FileName);
+  O := TJSONObject.Create;
+  try
+    try
+      O.AddPair('version', TJSONNumber.Create(1));
+      O.AddPair('words', TJSONNumber.Create(B.WordCount));
+      O.AddPair('clips', TJSONNumber.Create(Length(B.Clips)));
+      O.AddPair('contents', TJSONNumber.Create(Length(B.Toc)));
+      O.AddPair('tocIsChapters', TJSONBool.Create(FTocIsChapters));
+      O.AddPair('source', FChapterSource);
+      A := TJSONArray.Create;
+      O.AddPair('chapters', A);
+      for I := 0 to High(FChapterWord) do
+      begin
+        E := TJSONObject.Create;
+        E.AddPair('word', TJSONNumber.Create(FChapterWord[I]));
+        E.AddPair('toc', TJSONNumber.Create(FChapterToc[I]));
+        E.AddPair('doc', TJSONNumber.Create(FChapterDoc[I]));
+        E.AddPair('title', FChapterTitle[I]);
+        A.AddElement(E);
+      end;
+      A := TJSONArray.Create;
+      O.AddPair('breaks', A);
+      Breaks := View1.ChapterBreaks;
+      for I := 0 to High(Breaks) do
+        A.Add(Breaks[I]);
+      TFile.WriteAllText(F, O.ToJSON, TEncoding.UTF8);
+    except
+      on Ex: Exception do
+        DebugLog('chapters: not kept - ' + Ex.Message);
+    end;
+  finally
+    O.Free;
+  end;
 end;
 
 procedure TfrmMain.BuildChapters;

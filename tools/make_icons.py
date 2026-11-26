@@ -21,7 +21,13 @@ older), and the adaptive icon of Android 8 on as vector drawables -
 AdaptiveIcon_Background.xml (the navy), AdaptiveIcon_Foreground.xml (the
 book and the badge, inside the middle 66 of 108 dp that every launcher's
 mask leaves) and AdaptiveIcon_Monochrome.xml (the same in one colour:
-Android 13's themed icons). EpubReader.dproj names them.
+Android 13's themed icons); and the picture shown while the app starts
+(zip 326) - Splash.xml (the whole icon, 144 dp: before Android 12) and
+SplashV31.xml (the same inside the circle Android 12 on shows it in),
+each with a ...Dark.xml for the dark theme (the same picture: the navy
+tile stands on white and on black; a file each because the project has
+a setting each).
+EpubReader.dproj names them.
 
 Drawn 4x larger and scaled down. Small sizes are simpler: no lines on the
 pages or spines at 24 px and below; at 16 px each badge has one bold sign.
@@ -230,12 +236,30 @@ def hexcolor(c):
 class Vector:
     """An Android vector drawable, drawn in fractions of the tile."""
 
-    def __init__(self):
+    def __init__(self, viewport=ADAPTIVE, art=ART):
+        """The tile's art art units wide in the middle of a viewport
+        square."""
         self.paths = []
-        self.off = (ADAPTIVE - ART) / 2
+        self.viewport = viewport
+        self.art = art
+        self.off = (viewport - art) / 2
+
+    def num(self, v):
+        return ('%.2f' % v).rstrip('0').rstrip('.')
 
     def n(self, v):
-        return ('%.2f' % (self.off + v * ART)).rstrip('0').rstrip('.')
+        return self.num(self.off + v * self.art)
+
+    def tile(self):
+        """The navy rounded tile, as tile() draws it."""
+        x0, y0, x1, y1, r = 0.04, 0.04, 0.96, 0.96, 0.18
+        rr = self.num(r * self.art)
+        arc = ' A%s,%s 0 0,1 ' % (rr, rr)
+        n = self.n
+        return ('M%s,%s L%s,%s' % (n(x0 + r), n(y0), n(x1 - r), n(y0)) + arc + '%s,%s' % (n(x1), n(y0 + r)) +
+                ' L%s,%s' % (n(x1), n(y1 - r)) + arc + '%s,%s' % (n(x1 - r), n(y1)) +
+                ' L%s,%s' % (n(x0 + r), n(y1)) + arc + '%s,%s' % (n(x0), n(y1 - r)) +
+                ' L%s,%s' % (n(x0), n(y0 + r)) + arc + '%s,%s Z' % (n(x0 + r), n(y0)))
 
     def poly(self, pts):
         return 'M' + ' L'.join('%s,%s' % (self.n(x), self.n(y)) for x, y in pts) + ' Z'
@@ -244,7 +268,7 @@ class Vector:
         return self.poly([(x0, y0), (x1, y0), (x1, y1), (x0, y1)])
 
     def disc(self, cx, cy, r):
-        rr = ('%.2f' % (r * ART)).rstrip('0').rstrip('.')
+        rr = self.num(r * self.art)
         return 'M%s,%s A%s,%s 0 1,0 %s,%s A%s,%s 0 1,0 %s,%s Z' % (
             self.n(cx - r), self.n(cy), rr, rr, self.n(cx + r), self.n(cy), rr, rr, self.n(cx - r), self.n(cy))
 
@@ -254,10 +278,10 @@ class Vector:
     def xml(self):
         out = ['<?xml version="1.0" encoding="utf-8"?>',
                '<vector xmlns:android="http://schemas.android.com/apk/res/android"',
-               '    android:width="%ddp"' % ADAPTIVE,
-               '    android:height="%ddp"' % ADAPTIVE,
-               '    android:viewportWidth="%d"' % ADAPTIVE,
-               '    android:viewportHeight="%d">' % ADAPTIVE]
+               '    android:width="%ddp"' % self.viewport,
+               '    android:height="%ddp"' % self.viewport,
+               '    android:viewportWidth="%d"' % self.viewport,
+               '    android:viewportHeight="%d">' % self.viewport]
         for data, color, even_odd in self.paths:
             out.append('    <path')
             out.append('        android:fillColor="%s"' % hexcolor(color))
@@ -268,10 +292,12 @@ class Vector:
         return '\n'.join(out) + '\n'
 
 
-def reader_vector(mono):
+def reader_vector(mono, v=None):
     """EpubReader's art (open_book, reader's page, badge) as a vector:
-    in its colours, or in one (mono) with the play sign cut out."""
-    v = Vector()
+    in its colours, or in one (mono) with the play sign cut out. v: the
+    vector to draw on (the adaptive icon's when None)."""
+    if v is None:
+        v = Vector()
     top, bottom = 0.16, 0.70
     white = (255, 255, 255, 255)
     left = [(0.12, top), (0.48, top + 0.03), (0.48, bottom + 0.03), (0.12, bottom)]
@@ -288,7 +314,7 @@ def reader_vector(mono):
         rr = r + ring
         y_out = cy - math.sqrt(rr * rr - (0.88 - cx) ** 2)
         y_in = cy - math.sqrt(rr * rr - (0.52 - cx) ** 2)
-        arc = ('%.2f' % (rr * ART)).rstrip('0').rstrip('.')
+        arc = v.num(rr * v.art)
         v.add('M%s,%s L%s,%s L%s,%s A%s,%s 0 0,0 %s,%s Z' % (
             v.n(0.52), v.n(top + 0.03), v.n(0.88), v.n(top), v.n(0.88), v.n(y_out), arc, arc, v.n(0.52),
             v.n(y_in)), white)
@@ -320,6 +346,21 @@ def background_vector():
     return out.xml()
 
 
+# the picture shown while the app starts: the whole icon, tile and all.
+# Before Android 12 it is drawn at its own size in the middle of the
+# screen; from 12 on the system shows it in a circle 2/3 of its width, so
+# the tile is drawn inside that.
+SPLASH = 144
+SPLASH_V31 = 108
+SPLASH_V31_TILE = 56
+
+
+def splash_vector(viewport, art):
+    v = Vector(viewport, art)
+    v.add(v.tile(), NAVY)
+    return reader_vector(False, v)
+
+
 def android():
     """EpubReader's Android icons (see the top)."""
     global sizes_now
@@ -329,9 +370,14 @@ def android():
         path = '%s/LauncherIcon_%d.png' % (ANDROID_FOLDER, s)
         reader().save(path)
         print('wrote', path)
-    for name, text in (('Background', background_vector()), ('Foreground', reader_vector(False)),
-                       ('Monochrome', reader_vector(True))):
-        path = '%s/AdaptiveIcon_%s.xml' % (ANDROID_FOLDER, name)
+    for name, text in (('AdaptiveIcon_Background', background_vector()),
+                       ('AdaptiveIcon_Foreground', reader_vector(False)),
+                       ('AdaptiveIcon_Monochrome', reader_vector(True)),
+                       ('Splash', splash_vector(SPLASH, SPLASH)),
+                       ('SplashDark', splash_vector(SPLASH, SPLASH)),
+                       ('SplashV31', splash_vector(SPLASH_V31, SPLASH_V31_TILE)),
+                       ('SplashV31Dark', splash_vector(SPLASH_V31, SPLASH_V31_TILE))):
+        path = '%s/%s.xml' % (ANDROID_FOLDER, name)
         with open(path, 'w', encoding='ascii', newline='\n') as f:
             f.write(text)
         print('wrote', path)

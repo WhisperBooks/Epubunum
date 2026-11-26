@@ -1708,7 +1708,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 322 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
+Last number used: 335 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
 next-session notes, CLAUDE.md only).
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
@@ -4296,6 +4296,453 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 335 (on top of zip 334): index version 3 - a clip's id is its document's own string; the decoder makes one string an id, not three
+Session 16, two logs of zip 334 on the Pixel (00:53), and the owner at
+00:48: "Savings in size will also benefit TV devices with limited
+persistant storage".
+NOT COMPILED. Files: lib/Epub.Book.pas, demos/EpubReader/src/uMain.pas,
+CLAUDE.md. No .dproj. PACKAGE REBUILD NEEDED (Epub.Book).
+- MEASURED, version 2: Night Watch 12,142,100 -> 2,787,930 bytes (24.5
+  a word), The Stars My Destination 7,494,142 -> 1,736,307, Foundation
+  and Empire 7,639,578 -> 1,822,894. A quarter of the size, as said.
+- AND SLOWER TO READ, which I had said it would not be: Night Watch
+  0.61 s (version 1: 0.33 to 0.53), Stars 0.27 and 0.38 (0.21). One
+  reading each. The owner's rule (smaller = fast) holds for the bytes;
+  the time here is in MAKING STRINGS - about 340,000 for Night Watch
+  (a word, an id and a clip's id for every word) - and version 2's
+  GetId made three for each id (the shared start, the rest, the two
+  joined).
+- VERSION 3: a clip's text id is written as the number of that id in
+  its document (a difference, mostly +1; the id itself only when it is
+  not one of them) and read back it IS the document's string - no
+  string made for a clip at all, a third of them gone. GetId fills one
+  string in place. GetU answers a one-byte number without a call.
+  EXPECTED, NOT MEASURED: smaller again (perhaps 20 bytes a word) and
+  faster than version 1. Version 2 files are made again by themselves.
+- FOR THE TV STEP (owner): the index and the cover are all a streamed
+  book leaves on a TV. To do there: a size limit on EpubUnum/index and
+  covers with the book opened longest ago dropped first; BookManager
+  building the index and sending it ahead of the stream, so that a TV
+  never parses a book's XML. If 20 bytes a word is still much: for
+  books EpubBuilder made the ids follow a pattern and need not be kept.
+- A FOUR-SECOND COVER, twice now, each at the FIRST start after a new
+  build was put on the phone and at a different book (00:31 The Stars
+  My Destination 3.76 s, 00:50 Prelude to Foundation 4.02 s), in
+  ShowLibrary, the window held. Not understood: both covers had been
+  shown before. ShowLibrary now logs "library: SLOW - making sure of
+  that cover took N ms" or "... loading that cover's picture took N
+  ms" for anything over 100 ms; the next such start says which.
+- STILL: the layout of a whole document before its first page (0.5 s,
+  Night Watch).
+
+## Zip 334 (on top of zip 333): the index packed - version 2 (varints, differences, UTF-8)
+Session 16, owner 2026-11-26 00:40, of the 12 MB index: "this implies
+the data is not being saved effieciently. Smaller usually = hard to
+read as a human but fast". Two logs with it.
+NOT COMPILED (no FPC build of lib/ here). Files: lib/Epub.Book.pas,
+demos/EpubReader/README.md, CLAUDE.md. No .dproj. PACKAGE REBUILD
+NEEDED (Epub.Book changed; its interface only in a comment).
+- ZIPS 332 AND 333 WORK (the build of 00:30). Tap to page, from the
+  index and the kept chapters: The Stars My Destination 0.30 s,
+  Foundation and Empire 0.32 s, Night Watch 0.87 s (index 0.35, the
+  layout of its 1236-block document 0.47). THE STAGED OPEN: a page 74 ms
+  after the tap ("a page shown from the package alone"), the book 3.2 s
+  behind it.
+- WHERE VERSION 1'S 107 BYTES A WORD WENT: a word 4 + 2 a character +
+  4 + 4; an id (one a word) 4 + 2 a character + 16; a clip (one a word)
+  4 + 4 + its id again + 4 + 16.
+- VERSION 2 (the comment above IndexStamp is the format's description):
+  every number a varint, signed ones zigzagged; texts as UTF-8; ids
+  front-coded against the one before; a word's id index, an id's first
+  word, a clip's document and begin as differences from the one before;
+  last word, block and clip end as differences from their own start;
+  clip times as whole milliseconds when every time of the book is one
+  to 1E-7 s (else the doubles as they are). SaveIndex builds it in
+  memory and writes once; LoadIndex reads the whole of it into memory
+  and decodes from there (plain ASCII widened by hand, anything else
+  through EpubBytesText). EXPECTED, NOT MEASURED: about 25 bytes a
+  word (Night Watch near 3 MB) and a faster load than 0.33 s.
+- Version 1 files do not pass the version check: each book is read in
+  full once more and its index and chapters (older than the new index)
+  are made again. Nothing to delete by hand.
+- A clip time read back is milliseconds / 1000 - the same number to a
+  rounding of the last bit as the XML's, not promised bit for bit.
+- SEEN IN THE LOG, NOT FIXED: at the start of 00:31 ONE cover held the
+  window for 3.76 s (EnsureCover in ShowLibrary for a book whose cover
+  was not cached - a very large picture, presumably); covers belong in
+  the scan's step or a thread. And LEFT from 333: the layout of a
+  whole document before its first page.
+
+## Zip 333 (on top of zip 332): a book's chapters kept beside its index (BuildChapters was 1.5 s of an indexed open)
+Session 16, owner 2026-11-26 00:16: "Closing app and re-opening same
+book still takes time", with two logs.
+NOT COMPILED. Files: demos/EpubReader/src/uMain.pas, CLAUDE.md. No
+.dproj. NO PACKAGE REBUILD.
+- ZIPS 329 TO 332 COMPILE AND RUN (the build of 00:12). THE INDEX WORKS:
+  "open: from its index (12142100 bytes)" - Night Watch, 113,836 words,
+  112,772 clips: 0.33 s where the XML took about 2 s. 12 MB is 107
+  bytes a word, not the 40 I guessed (the clips' ids and the documents'
+  ids are most of it).
+- MEASURED, Night Watch from its index, tap to page 2.38 s: index
+  0.33 s; clips' words 0.004 s (the thread did them); BuildChapters
+  1.52 s; notes menu 0.008 s; laying out document 4 (1236 blocks)
+  0.51 s. So what the owner still waited for was BuildChapters and the
+  layout, both in the window's thread.
+- WHY BuildChapters IS SLOW THERE: the audiobook's 75 marks are each
+  moved to the start of their paragraph through WordBlock, which lays
+  out (parses) the mark's whole document - every narrated document's
+  XML once more.
+- THIS ZIP: LoadChapters / SaveChapters keep FChapterWord / Toc / Doc /
+  Title, FTocIsChapters, FChapterSource and the view's ChapterBreaks in
+  index/<md5>.chapters.json. Used only when the book came from its
+  index, the file is not older than the index, and its word, clip and
+  contents counts are the book's. Else BuildChapters as before, and
+  kept. The log: "open: N chapters from last time".
+- LEFT: THE LAYOUT, 0.5 s for a document of 1236 blocks (Pratchett has
+  no chapters as documents; document 6 has 31,851 words).
+  TEpubView.LayoutItems makes a Skia paragraph for EVERY block of the
+  document before the first page is drawn. Laying out only what is
+  near the page (heights of the rest estimated, corrected as they are
+  reached) is the next step for speed - in fmx/Epub.FMX.View.pas, a
+  package unit; it also decides how long the staged page takes. And the
+  first opening still builds the chapters in the window's thread.
+- A book WITH an index still skips the staged page (332).
+
+## Zip 332 (on top of zip 331): the staged open - a page from the package alone while the book is read (TEpubView.ShowPreview)
+Session 16, owner 2026-11-26 00:02: "OK - proper staged open".
+NOT COMPILED. Files: fmx/Epub.FMX.View.pas,
+demos/EpubReader/src/uMain.pas, demos/EpubReader/README.md, CLAUDE.md.
+No .dproj. PACKAGE REBUILD NEEDED (Epub.FMX.View's interface; EpubUnum
+itself is unchanged by this zip).
+- THE WAY CHOSEN, and why: the book's word numbers stay as they are
+  (through the whole book). What is staged is the SCREEN: a second
+  component and view (FPreviewEpub, FPreviewView - made in code, child
+  of View1) show one document of a TEpubBook.CreateHeader book while
+  the thread reads the real one; OpenDone adopts the real book, the
+  real view lays the same place out, HidePreview. Nothing of the open
+  book's state exists half-made, which is what made the other way (a
+  book usable before its words are counted) a rewrite of lib, view and
+  reader at once.
+- TEpubView.ShowPreview(ADoc, ALocalWord): DocumentLayout of that
+  document only, the word's line centred as ScrollToWord centres it; no
+  LoadText. FPreview keeps Draw from asking for B.Words (the linked-
+  note shading) and Progress from asking for WordCount - both would
+  read the whole book. ShowDocument and Clear end it.
+- THE PLACE WITHOUT WORD NUMBERS: TRecentBook.Doc / DocWord (the
+  document and the word in it), set by RememberBook, kept in
+  EpubReader.json as "doc" / "docWord". Entries from before this zip
+  have none until their book has been open once more: their staged
+  page is the first document, and the real page then goes to the place.
+- WHEN: a touch build, and only for a book with no index file yet (with
+  one the whole book is there in a moment). OpenBook's thread:
+  CreateHeader -> queue PreviewReady -> OpenBookIndexed -> queue
+  OpenDone. PreviewReady drops a header that comes too late or for
+  another book (FOpenTicket, FOpening). It hides the library.
+- The staged page takes no touches (HitTest off) and Play is off until
+  the book is there. A failed open goes back to the library.
+- The log: "open: a page shown from the package alone (document D,
+  word W of it) - the book is still being read".
+- NOT KNOWN until run: whether the two pages are laid out alike enough
+  that the change from one to the other is not seen (same width, font
+  and centring are used); how long the staged page takes (one document
+  parsed and laid out in the window's thread).
+
+## Zip 331 (on top of zip 330): new books change the library on the screen once, not at every book
+Session 16, owner 2026-11-25 23:57: "When opening app after adding more
+books they all appeared in random-looking order with the screen
+changing constantly while looking at the new ones. There should be a
+cache of the books visible at start of the library last run. Update
+then redisplay so visible order change only happens once."
+NOT COMPILED. Files: demos/EpubReader/src/uMain.pas, CLAUDE.md. No
+.dproj. NO PACKAGE REBUILD (330's still stands if not done).
+- The library at start IS last run's (FRecent from EpubReader.json,
+  since 323). What changed it was 323's own disguise: ShowLibrary after
+  every book read.
+- Touch build: tmScanTimer reads each new book into FScanDone
+  (AddScanned with AHold) and shows nothing but the foot's "Reading new
+  books: 3 of 18"; after the last one the batch goes into FRecent in
+  one block after the book read last, the settings are saved and the
+  library is shown ONCE. ScanTranscribed also leaves out a book that is
+  in FScanDone.
+- ORDER OF A BATCH on a touch build: by file name (it was by the files'
+  times, oldest first with each put at the front - arbitrary for files
+  copied together). My choice, not the owner's words: to him.
+- A desktop is as before.
+
+## Zip 330 (on top of zip 329): a book's index - TEpubBook.SaveIndex / CreateIndexed; the phone opens from it
+Session 16, owner 2026-11-25 23:45: "I was going to suggest a machine
+readable cache anyway so yeah (2) first / I've now got 30 books".
+NOT COMPILED (no FPC build of lib/ here). Files: lib/Epub.Book.pas,
+demos/EpubReader/src/uMain.pas, demos/EpubReader/README.md, README.md,
+CLAUDE.md. No .dproj. PACKAGE REBUILD NEEDED (Epub.Book's interface).
+- WHAT IS KEPT: everything Create + LoadText get from XML and nothing
+  else - FClips (ReadOverlays) and FWords, each document's FirstWord /
+  WordCount / Ids (LoadText, MarkLinkedNotes' roles in the words). The
+  package (ReadPackage) and the audio chapters file are read from the
+  book as always: milliseconds. Style sheets and layouts are made on
+  use as before.
+- THE FILE: 'EUIX', version (INDEX_VERSION = 1), SizeOf(Char), a stamp
+  (IndexStamp: the size and CRC of every archive entry, from the zip's
+  directory - any change to the book changes it), the documents with
+  their ids, the words (text, IdIndex, Role; the document follows from
+  the ranges), the clips' paths once, the clips, 'EUIX'. Texts are
+  written as they are in memory, so a Delphi index (2-byte Char) is not
+  an FPC one (1): SizeOf(Char) is checked. A cache, not a format.
+- CreateIndexed(AFileName, AIndex) never fails because of the index:
+  LoadIndex answers False for a wrong magic / version / stamp / document
+  count or anything damaged (all it had set is undone) and the book is
+  read as Create reads it. FromIndex says which happened.
+- EpubReader: OpenBookIndexed (a plain function, for the thread) reads
+  EpubUnum/index/<MD5 of the file name>.euix through a TMemoryStream,
+  and writes it after a full read. TOUCH BUILD ONLY for now - the
+  desktop opens through TCustomEpub.Open as ever; to move over once
+  this is seen working (Steam Deck would gain most).
+- The log: "open: from its index (N bytes) - the book's XML was not
+  read", or "open: read in full; index written for next time (N
+  bytes)", or "... does not fit ...".
+- EXPECTED, NOT MEASURED: the thread's 1.9 s to a few tenths. SIZE, NOT
+  MEASURED: about 40 bytes a word - perhaps 3 MB for Foundation and
+  Empire, 6 MB for Project Hail Mary; 30 books perhaps 100 MB on the
+  phone. If that is too much: texts as UTF-8, clip ids as numbers.
+- NOT DONE: the index made when the book is first SEEN (the library's
+  scan) so that even the first opening is fast; EpubBuilder writing it
+  into the book; ClipWords' result and the chapters kept too (the
+  0.8 s after the read - zip 329's log lines say what it is).
+- 30 BOOKS in the library: nobody has looked at how ShowLibrary does
+  with them (every cover's picture loaded at every showing).
+
+## Zip 329 (on top of zip 328): opening a book - no first layout that is dropped, clips' words in the thread, the steps timed
+Session 16, owner 2026-11-25 23:31: "The Kindle android app can open a
+book and display text in under a second. Why are we 1/5th the speed or
+worse?"; two logs (Debug, Release) at 23:38; "y" at 23:40 to: the
+cheap step first, then the staged open.
+NOT COMPILED. Files: demos/EpubReader/src/uMain.pas, CLAUDE.md. No
+.dproj. NO PACKAGE REBUILD.
+- ZIPS 324 TO 328 COMPILE AND RUN on the Pixel (after the packages were
+  built for Android64 - "Unit not found: Epub.Zip" at 23:24 was that):
+  the book is read in its thread, audio plays inside the book, twelve
+  books each once, start to library 0.25 s.
+- MEASURED, Foundation and Empire (74,856 words, 73,252 clips), tap to
+  page: Debug 3.11 s, Release 2.83 s. The thread's read 2.08 / 1.92 s;
+  clips' words 0.16 / 0.10 s; "chapters: building" to the cover line
+  0.85 / 0.77 s (BuildChapters, BuildNotesMenu, ShowDocument(First) -
+  not yet told apart); back to the place 0.03 s. I HAD TOLD THE OWNER
+  Debug was "noticeably slower": it is 9 %, and the packages may have
+  been Release in both runs (their project's Config Condition is).
+- WHY NOT KINDLE'S SECOND (told the owner): we read every document's
+  text and every SMIL before page one; the reader's word numbers run
+  through the whole book (saved place, highlight, clips), so nothing
+  works until all is counted. Kindle opens the header and one section
+  of a format made with its position tables in it.
+- THIS ZIP: EpubUnum1Open lays the first document out only when the
+  book has no saved place (it was laid out and then dropped for the
+  saved one); OpenBook's thread works out each clip's words and
+  OpenDone hands them over (FClipsReady); the log now has "open: the
+  clips' words known", "open: chapters built", "open: notes menu
+  built", "open: the first document laid out" - the next log tells the
+  0.8 s apart.
+- THE STAGED OPEN IS NOT IN THIS ZIP and is not a small change: it
+  needs word numbers that do not depend on the whole book (a place
+  kept as document + word in it; TEpubView showing a document before
+  LoadText; clips and chapters arriving later), or a saved index a book
+  (per-document word counts, the clip table in binary) so that the
+  numbers are known at once. To design with the owner before writing:
+  lib/Epub.Book.pas, fmx/Epub.FMX.View.pas and the reader all change.
+
+## Zip 328 (on top of zip 327): the library showed a book two and three times (my fault in 325)
+Session 16, owner 2026-11-25 23:20, a screenshot of the library held
+sideways: Death's End three times, another cover twice - "I only have
+one copy...". (The same screenshot: zip 323's width layout works - six
+columns, the large cover the window's height.)
+NOT COMPILED. Files: demos/EpubReader/src/uMain.pas, CLAUDE.md. No
+.dproj. NO PACKAGE REBUILD.
+- CAUSE: 325 let a touch build take a book whose name is in "seen" when
+  it is not in the library. A book WAITING in FScanQueue is in neither,
+  and ShowLibrary (which scans) runs after every book read - so the
+  waiting books were queued again each time.
+- ScanTranscribed leaves out a book that is in FScanQueue; AddScanned
+  adds nothing that RecentIndex finds; DropDoubleBooks (in ShowLibrary)
+  takes the doubles already saved in EpubReader.json out, keeping each
+  book's first entry. The log: "library: N double(s) taken out".
+- The library matches books by FILE NAME without its folder
+  (RecentIndex): two different books with one file name in two folders
+  are one book to it. As before; noted.
+
+## Zip 327 (on top of zip 326): a finger scrolls the page (TEpubView.DragScroll); a phone opens a book in a thread (TCustomEpub.Adopt)
+Session 16, owner 2026-11-25 23:12: "Then do the remaining other
+fixes" - the two left of the list given him at 23:08.
+NOT COMPILED. Files: fmx/Epub.FMX.View.pas, lib/Epub.Components.pas,
+demos/EpubReader/src/uMain.pas, demos/EpubReader/README.md, CLAUDE.md.
+No .dproj. PACKAGE REBUILD NEEDED (both units' interfaces).
+- TEpubView.DragScroll (public, default True, ALL platforms): MouseDown
+  notes Y and the scroll position; MouseMove past 8 px is a drag and
+  sets ScrollPos; MouseUp after a drag raises no OnWordClick;
+  DoMouseLeave ends it. No gliding on after the finger lifts. A desktop
+  gets it too (the left button) - say if that is not wanted there.
+  While a book plays, the page still goes to each spoken word, so a
+  drag is undone at the next clip: NOT SOLVED.
+- TCustomEpub.Adopt(ABook): a book made elsewhere becomes the open one
+  (Close, FBook, FFileName from the book, serial, OnOpen).
+- EpubReader, TOUCH BUILD ONLY: OpenBook starts an anonymous thread
+  that does TEpubBook.Create and LoadText, then queues OpenDone, which
+  adopts the book (EpubUnum1Open runs as before) or reports the error
+  (EpubUnum1OpenFailed; the library shown again). FOpenTicket drops a
+  book when another was asked for meanwhile; FOpening keeps the
+  library from being rebuilt and covers from being tapped meanwhile.
+  A desktop opens in the window's thread as before.
+- NOT KNOWN: whether TEpubBook.Create / LoadText touch anything that is
+  not safe off the window's thread (read as pure - zip, XML, CSS; not
+  proved), with the library's CreateHeader possibly running at the same
+  time on other files. What is still in the window's thread after the
+  thread: EpubUnum1Open's ClipWords over every clip, BuildChapters, the
+  first layout - the log's times between "open: read in its thread" and
+  "open: done" say how much.
+- Opened from Menu > Open a book the page is empty while the thread
+  reads, with nothing saying so (the status line is in the hidden tool
+  bar).
+- STILL OPEN on the phone: the status bar's white clock on the light
+  page; the debug log's "unknown 64-bit" / empty "Program:"; the
+  menu's Controls page (a pad's buttons); compressed audio is copied
+  out in the window's thread; a book with hundreds of covers.
+
+## Zip 326 (on top of zip 325): Android - our own picture while the app starts (A .dproj IS IN THIS ZIP)
+Session 16, owner 2026-11-25 23:12: "it's also got the default delphi
+loading screen - replace it with one of our own. Then do the remaining
+other fixes" (those: zip 327).
+NOT COMPILED, not deployed. Files: tools/make_icons.py,
+demos/EpubReader/android/Splash.xml, SplashDark.xml, SplashV31.xml,
+SplashV31Dark.xml (NEW), demos/EpubReader/EpubReader.dproj,
+demos/EpubReader/README.md, CLAUDE.md. NO PACKAGE REBUILD.
+- Delphi deploys four vector drawables, each as splash_vector.xml
+  (EpubReader.deployproj): Android_VectorizedSplash, ...Dark, ...V31,
+  ...V31Dark. Ours, from make_icons.py: the whole icon - navy tile,
+  book, badge. Splash / SplashDark: 144 dp, drawn at that size in the
+  middle of the screen (before Android 12). SplashV31 / V31Dark: the
+  tile 56 of 108 in the middle, because Android 12 on shows the picture
+  in a circle 2/3 of its width (the Pixel is this case). Dark = the
+  same picture; a file each because the project has a setting each.
+  Looked at here (rsvg), the V31 one under a round mask.
+- THE .dproj: fetched first (origin/main still fc108fe = the working
+  copy's); four values in the '$(Base_Android64)' group changed,
+  Config Condition Debug and Platform Condition Android64 as they came.
+- NOT KNOWN: the colour BEHIND the picture is Delphi's style's (white,
+  or black in the dark theme), not ours - a colours / styles file of
+  the project decides it; to look at once seen on the phone. The PNG
+  splash images (Android_SplashImage*) are still Delphi's: used only
+  when the vector splash is off.
+
+## Zip 325 (on top of zip 324): the library holds 1000 books, not 10
+Session 16, owner 2026-11-25 23:08 of 323 + 324 on the Pixel: "OK, much
+nicer" (both WORK); 23:09: "why 10 book limit - seems very low".
+NOT COMPILED. Files: demos/EpubReader/src/uMain.pas, CLAUDE.md. No
+.dproj. NO PACKAGE REBUILD.
+- WHY IT WAS 10: the library view was built on File > Recently Opened's
+  list (FRecent, RECENT_MAX). Nobody chose ten for a library.
+- LIBRARY_MAX = 1000 is FRecent's size now (AddScanned, RememberBook,
+  LoadSettings); RECENT_MAX = 10 is only how many of them
+  BuildRecentMenu lists. All platforms.
+- A touch build takes a book of its folders that is not in the library
+  even when its name is in "seen": the books the old limit pushed out
+  come back at the next start or return to the app. A desktop keeps
+  "seen" as it was (a book cleared from the list stays off).
+- NOT LOOKED AT: ShowLibrary makes a TImage with its picture for every
+  book - fine for dozens, not thought through for hundreds.
+
+## Zip 324 (on top of zip 323): TEpubBook.CreateHeader - a book's title and cover without its timings
+Session 16, owner 2026-11-25 23:01: "Is this threaded? Does it stream
+from the epub (zip file)?" - answered: no thread but the system's sound
+player; the audio is played inside the EPUB on Android (321), the text
+is read whole at Open, and the library read the WHOLE book for a title.
+Offered the light read first; owner 23:03: "OK, lets see".
+NOT COMPILED (no FPC build of lib/ here either). Files:
+lib/Epub.Book.pas, demos/EpubReader/src/uMain.pas, README.md,
+CLAUDE.md. No .dproj. PACKAGE REBUILD NEEDED (Epub.Book's interface).
+- TEpubBook.Create did CheckProtection, ReadPackage, ReadOverlays (every
+  SMIL: 148,889 clips in Project Hail Mary) and ReadAudioChapters; the
+  text was lazy already. Both constructors now call the private
+  OpenFile(AFileName, AWithOverlays); CreateHeader passes False - Title,
+  Creators, CoverPath, ReadResource work, Clips is empty. A copy
+  protected book is refused by both.
+- EpubReader uses CreateHeader where it opened a book for the library:
+  AddScanned (the title) and EnsureCover (a cover not cached). Expected,
+  NOT MEASURED: a small part of the 2.3 s a book. The debug log's times
+  between "library: added ..." lines say.
+- Opening a book to READ it is unchanged (EpubUnum1 > TEpubBook.Create):
+  4.5 s in the window's thread on the Pixel, "Opening ..." shown (323).
+  A thread for it is the next step if the owner wants it.
+- STILL TO THE OWNER: RECENT_MAX = 10 is the phone library's size (he
+  added five books to seven at 22:57 - two drop out).
+
+## Zip 323 (on top of fc108fe = zip 322): Android - the library: no ten seconds, the order read, the width; "Opening ..."
+Session 16, owner 2026-11-25 22:49, four screenshots of zip 321 on the
+Pixel: "There is an appreciable delay while loading the Library (up to
+10 secs). The first time I ran it I though it had hung - we need to
+hide / remove this delay / The library in landscape leaves too much
+ampty space - needs to adapt to screen width / There is also a pause
+while loading a book, this also needs disguising. / The library should
+be in most-recently read order".
+NOT COMPILED. Files: demos/EpubReader/src/uMain.pas,
+demos/EpubReader/README.md, CLAUDE.md. No .dproj. NO PACKAGE REBUILD.
+- ZIPS 321 AND 322 WORK on the Pixel (screenshots): the window is clear
+  of the system's bars with no double gap, the touch bar is there and
+  its Play turns to Pause, the page is the full width upright and
+  sideways, sound plays (no freeze reported).
+- ONE CAUSE FOR TWO OF THE FOUR: SaveSettings ran in FormClose only, and
+  Android ends an app without closing it. So NOTHING was ever kept on
+  the phone: every start found every book new (TEpubBook.Create for its
+  title, 2.3 s each in the window's thread, then once more for a cover
+  not yet cached), and the library was in the order found, not read.
+  Now TfrmMain.AppEvent saves place and settings on WillBecomeInactive
+  and EnteredBackground ("app: left - place and settings saved"), and
+  the scan saves when it has read its books. With that the order is
+  the order read (RememberBook puts the book at the front, as on a
+  desktop) and a start reads no book at all.
+- NEW BOOKS ARE READ ONE AT A TIME on a touch build: ScanTranscribed
+  puts them in FScanQueue and tmScan (60 ms) reads one a step
+  (AddScanned - the old loop's body, now also making the cover from the
+  book it has open), showing the library after each; the foot says
+  "Reading new books: 3 of 7" (lblLibNote, LibraryNote). A desktop reads
+  them in the loop as before. Each step still holds the window's thread
+  for the 2.3 s of one book.
+- THE WIDTH: on a touch build the covers are in FLibScroll (a
+  TVertScrollBox in recLibrary). Columns = width / 130, at least 3; the
+  tile is never so tall that the large cover (2 x 2) is taller than the
+  window, so sideways the covers are smaller and more go across (about
+  7 on the Pixel). Rows scroll. A desktop keeps the fit-everything
+  layout.
+- TAPS THERE: the covers have HitTest off; FLibScroll's OnMouseDown /
+  OnMouseUp find a tap (moved less than 12) and the cover under it
+  (CoverChosen, which CoverClick calls too). NOT KNOWN until run:
+  whether the box's events come for a touch on its content. If a tap
+  does nothing, Menu > Open a book still opens books.
+- "OPENING ...": on a touch build CoverChosen fades the other covers,
+  says "Opening <title> ..." at the foot and opens 120 ms later
+  (tmLibrary), so that it is drawn first. The book is still read in the
+  window's thread (4.5 s for Project Hail Mary): disguised, not removed.
+- OPEN, found while here: RECENT_MAX is 10 and the phone's library IS
+  the recent list - an eleventh book pushes the oldest out, and FSeen
+  then keeps it out. To the owner. Also still open from 321: a finger
+  does not scroll the page; reading books and opening one belong in a
+  thread.
+
+## Synced with fc108fe "Reader Droid" (2026-11-25 22:38); goes out with zip 323
+Owner: "sync + check - note Debug for dproj android64". This session
+can fetch the repository now. Every file of zips 311 to 322 is in the
+commit byte for byte; both check scripts say 0 problems on it.
+- THE OWNER'S, to go back as they came: demos/EpubReader/
+  EpubReader.dproj has Config Condition DEBUG and Platform Condition
+  Android64 (it was Release in zips 318 and 322), and Delphi saved it
+  with 322's nine icon values in it. packages/EpubUnum.dproj and
+  EpubUnumFMX.dproj have Platform Condition Android64 (and no
+  ProjectName line); demos/EpubBuilder/EpubBuilder.dproj has Config
+  Condition Release.
+- NEW IN THE REPOSITORY, the owner's: demos/EpubReader/
+  AndroidManifest.template.xml (Delphi's; requestLegacyExternalStorage,
+  one LAUNCHER category - the TV step adds LEANBACK_LAUNCHER there) and
+  the changed EpubReader.deployproj / EpubBuilder.deployproj.
+- The working copy of this session is fc108fe; zips from 323 on are
+  made against it.
 
 ## Zip 322 (on top of zip 321): EpubReader's Android icon (A .dproj IS IN THIS ZIP)
 Session 16, owner 2026-11-25 22:31: "Do android version of icon".
