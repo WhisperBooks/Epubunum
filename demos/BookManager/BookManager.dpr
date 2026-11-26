@@ -13,6 +13,7 @@ uses
   System.StartUpCopy,
   FMX.Forms,
   uDebugLog in '..\common\uDebugLog.pas',
+  uVersion in '..\common\uVersion.pas',
   uMachine in '..\common\uMachine.pas',
   // the folders shared with EpubBuilder and EpubReader (Documents/EpubUnum)
   uEpubUnum in '..\common\uEpubUnum.pas',

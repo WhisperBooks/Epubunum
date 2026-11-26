@@ -4,7 +4,353 @@ Read README.md first, then this file. Keep both up to date with every change.
 The rules follow TWhisper's and TFFMpegAPI's CLAUDE.md (same owner, same
 conventions); where this file is silent, theirs apply.
 
-## Handover - READ THIS FIRST (latest: session 16, 2026-11-26 01:03)
+## Handover - READ THIS FIRST (latest: session 17, 2026-11-26 20:02)
+
+Written at the owner's request (20:02: "Tomorrow probably / Write session
+handover in claude.md"). Session 17 ran from 2026-11-26 08:23 to 20:02:
+zips 337 - 372 (372 = this handover: CLAUDE.md and uVersion.pas only).
+Each zip has its own section further down ("Zip 371" first, newest
+first), with the owner's words and what was measured; "Session 17's
+other notes (no zip)" sits under zip 338. Session 16's handover follows;
+what it says of the packages, the phone's folders and the plan's order
+still stands.
+
+### Where it stands (2026-11-26 20:02)
+- THE REPOSITORY: the owner's last push is f6c0de8 "Reader Droid bronze
+  master" = zips to 340. The working copy = f6c0de8 + zips 341 - 372,
+  uncommitted (25 files changed; new: demos/EpubReader/src/uBookImport.pas,
+  demos/EpubReader/src/uLicences.pas, demos/common/uVersion.pas). Pull
+  before touching a .dproj. Never commit or push, never offer to.
+- BUILT AND RUN BY THE OWNER: everything to zip 371. EpubReader 0.0.371
+  on the Pixel 10a (Release, outside the IDE, built 19:57); BookManager
+  0.0.371 on MONSTER (Win64 Release, 19:51). The last test (20:00)
+  passed: BookManager closed, the phone's link panel closed by itself
+  0.8 s after the POST /bye.
+- EPUBBUILDER HAS NOT BEEN BUILT since uLink changed (zips 354 - 371):
+  its next build is the test that its pairing and sending to BookManager
+  still work as before.
+- THE PHONE RUNS RELEASE BUILDS (owner 18:21): signed with another key
+  than the IDE's debug builds - going back means an uninstall, which
+  wipes the app's Books, its pairing and its settings (told).
+- A STALE BUILD ON THE PHONE looks like a bug: at 19:53 BookManager 371
+  talked to EpubReader 369 ("no such call: /bye"). The log's second line
+  ("Version: 0.0.N") is the first thing to read.
+- VERSION 0.0.372 (this zip). Every zip: VERSION_BUILD = its number =
+  "Last number used" (project_check.py).
+
+### What session 17 made
+1. THE READER'S SPEED AND SCROLLING (337 - 339, 351): the lazy layout
+   (only the blocks near the view are laid out, the rest estimated);
+   DocumentLayout timed (338: Night Watch's 0.4 s is unzip / parse /
+   blocks, not Skia); scrolling on into the next and previous document
+   without the sound (339); a document's layout kept beside the index
+   and read back (351).
+2. THE PACKAGE NAME com.epubunum.reader (340) and the library's order
+   (title, author, year; genre later) (340).
+3. BOOKS ON THE PHONE WITHOUT A PC (341 - 350): "No books yet" offers the
+   link or a books folder; a folder chosen once (Documents, the SD card)
+   is read in place through Android's tree and its handle - no copying
+   (346 - 350); the book's audio through the same hook (350).
+4. VERSIONS major.minor.build, About and Licences (343 - 344); the touch
+   menus as buttons (345).
+5. READING (352 - 353): a flick glides (fling); the phrase / sentence
+   being read highlighted, with the word over it and "so far" options,
+   in three menu rows (Highlight, Highlight type All / Trailing,
+   Highlight word).
+6. THE LINK, BOOKMANAGER -> PHONE (354 - 371) - see below.
+
+### How the link works now (the TV step will reuse it)
+- THE PHONE STARTS IT: "Get books from BookManager" (the main menu, the
+  start / "No books yet" menu, the Folders menu). It runs ONLY while its
+  panel is open: TLinkServer on TCP 47821, TLinkFinder on UDP 47820
+  (answers BookManager's beacon directly), the screen kept on, the
+  low-latency Wi-Fi lock (API 29+). It stops at Cancel, Done, leaving
+  the app, or BookManager's goodbye. Done is dim until something
+  happens; Cancel goes back where the panel was opened from.
+- BOOKMANAGER: the "Send to phone" tab; a beacon every 2 s; it asks to
+  pair by itself when the chosen phone is heard unpaired (the 6-digit
+  code shows on the phone, typed in BookManager); /books + /space every
+  20 s; EPUBs one at a time (/upload/check, /upload, header X-Link-Batch
+  'n/m'); the queue HELD while the phone's link is off, resumed when it
+  is back; each book's state and MB/s in the list and the bar; on closing,
+  POST /bye to the chosen phone, then a "bye" broadcast (twice, every
+  network, every phone heard directly).
+- ON THE PHONE: books go to the app's own Books folder
+  (Android/data/com.epubunum.reader/files/EpubUnum/Books), 500 MiB kept
+  free; a progress line per book ('Receiving "x", book n of m - p %');
+  .part files of a cut-off transfer deleted at the next link.
+- PAIRINGS PERSIST: the phone's linkId / linkTokens in its settings;
+  BookManager's [Paired] and [Manager] Id in its ini.
+
+### Standing rules from session 17 (also in their zips' sections)
+- A TThread.Queue CLOSURE copies everything it uses into ITS OWN locals
+  first (360): never a field of an object that may be freed before it
+  runs, and never a captured variable another closure of the same method
+  also uses - a captured variable is shared by all of them (370, 371).
+- VERSIONS (343): see Deliveries.
+- THE PACKAGE REBUILD BANNER, exactly (rule of 2026-11-15; missed in 352
+  and the owner did not rebuild: "That was annoying").
+
+### Measured (the owner's runs, 2026-11-26)
+- 14 books, 9.5 GB, in about 12 min; ~10 - 15 MB/s a book (PC 1 Gbit
+  wired, the Pixel on 650 Mbps Wi-Fi). 1 MiB buffers changed nothing.
+  PARKED: "fast enough, don't need the speed" (19:38).
+- FINDING EACH OTHER: usually 1 - 3 s. ~60 s (57 - 62 s) in some runs,
+  seen most on a freshly built BookManager.exe; reopening it = instant.
+  The last case (20:00): the phone's link started 19:58:27, BookManager
+  first reached it 19:59:29 (no BookManager log of that run). Windows
+  (Defender / the firewall's first sight of a new .exe) is suspected,
+  NOT PROVED; the test with a Defender exclusion was offered, not done.
+- A cut-off transfer resumes; holds and resumes across Cancel / Done;
+  .part files are cleaned up; pairing survives restarts of both.
+- The first cover at the first start after installing 371 took 3.9 s
+  ("library: SLOW"); the others a few ms. Once - watch for it.
+
+### NEXT (owner, 20:02: "Tomorrow probably")
+1. ANDROID TV on the Shield (P2897, Shield Experience 9.2.4 = Android
+   11, API 30) - the owner's order (16:27): "Once that's done - TV
+   (which needs TV remote)". STORE OR STREAM - BOTH (owner, 20:09: "TV
+   Boxes tend to have minimal storage as standard. You can increase the
+   storage for android devices but not ios. while I do have free space
+   and can add some I'm not sure whats available. Therefore both things
+   can be true"): a TV keeps books in its own storage over the link, as
+   the phone does, WHERE THERE IS ROOM (/space, the reserve), and
+   streams from BookManager where there is not; an Apple TV (no added
+   storage) will mostly stream. So the TV's first step can reuse the
+   phone's link unchanged (receive and read locally) while streaming is
+   built beside it. Not yet decided: who chooses per book (BookManager
+   by the free space, or the user), and what the TV drops when full
+   (session 16's note: index and covers first, the book opened longest
+   ago). Then, from
+   zip 316 / 317's sections: the remote's keys (D-pad, Select / Enter,
+   Back, Play / Pause, the media keys) onto the pad's actions (uSteamPad,
+   uPadMenu); LEANBACK_LAUNCHER and a banner in the owner's
+   demos/EpubReader/AndroidManifest.template.xml; uses-feature
+   touchscreen and leanback both required="false" (one APK for phone
+   and TV); a ten-foot layout (no touch bar; focus always visible).
+   Small things the link will meet there: BookManager calls every
+   EpubReader a "phone" ("Send to phone"); PhoneName gives
+   MANUFACTURER + MODEL ("NVIDIA SHIELD Android TV").
+2. Then the plan's order (session 16's handover): BookManager streaming
+   / a headless BookManager -> iOS -> Apple TV -> Fire TVs -> Kindle
+   Fire 8.
+3. FROM THE STORYTELLER COMPARISON (owner 20:20: "all relevant points";
+   see "Looked at" below), not ordered yet:
+   - INTEROP TEST: a Storyteller readaloud opened in EpubReader (and
+     ours in Storyteller's reader) - both write EPUB 3 media overlays,
+     so it is a cheap check of our reading of the standard.
+   - PLACE SYNC between devices - the gap: Storyteller's reader resumes
+     where another device stopped (on the server's network only).
+     BookManager already links every device: it is the natural keeper
+     of each book's place (phone <-> TV <-> desktop <-> Deck).
+   - A SPEED COMPARISON on the same book: Storyteller says 1 - 4 hours a
+     book on modern hardware; EpubBuilder's figure for the same book to
+     be measured.
+
+### Looked at (owner's questions, 20:11 - 20:20)
+- PLEX (owner 20:11: "One thing worth looking into is whether Plex can
+  stream epub"): NO. Plex has no book library type; EPUB / ebook support
+  has been a feature request since 2012 - 2013 ("PLEXREADER: Comics,
+  Books, PDFs" on forums.plex.tv, still open). Audiobooks only as a
+  "music" library, no chapters inside one file - people use Prologue
+  (iOS) and similar. Our books (audio inside the EPUB, text + timings +
+  sound together) would be one unknown file to it: at most a file store,
+  which BookManager already does better. Plex's SHAPE is the model: one
+  server on the PC, every device in the house finding it, the library
+  browsed from the TV. Jellyfin and Emby have book libraries (Jellyfin a
+  basic web EPUB viewer) - no synced audio either.
+- STORYTELLER (storyteller-platform.dev; owner 20:15: "how do we compare
+  with"): THE SAME IDEA - a DRM-free EPUB + its audiobook (MP3 / MP4 /
+  M4A / M4B or ZIPs of them) -> Whisper transcription (the author on
+  Hacker News) + forced alignment -> an EPUB 3 with media overlays
+  ("readaloud"), readable in any reader that plays them.
+  THEIRS: a self-hosted SERVER (Docker required; web interface, watch
+  folders, logins), CUDA / ROCm, 1 - 4 h a book, a "turbo" mode that
+  trades accuracy (drift, skipped text, short chapters skipped);
+  Storyteller Reader on iOS and Android (v2 apps coming) plus a web
+  reader; books downloaded for offline (the app in front - no
+  background downloads); place sync on the server's network; no TV
+  mentioned; donations (Open Collective) - licence and price NOT FOUND
+  in what was read.
+  OURS: EpubBuilder a desktop app, no server (Windows / macOS / Linux;
+  Vulkan, CUDA, ROCm, Metal, Core ML); MOBI import too; A CLIP PER WORD;
+  the audio inside the book; readers on the desktop, Steam Deck and
+  Android, iOS planned, the TV next; BookManager over the LAN with
+  pairing; free reader + EpubBuilder a paid DLC on Steam.
+  WORD OR SENTENCE (found 20:49): Storyteller's books have highlighted
+  BY SENTENCE (its author's write-up "Automating immersive reading",
+  smoores.dev: the reader app "highlighting each sentence as it's
+  narrated"); a new CTC-based aligner (v3, 2026) adds WORD timings - a
+  Hacker News post: "each sentence (and/or word, with this new
+  algorithm!)". So word-level is NO LONGER a lasting difference. Ours
+  already offers both at reading time (zips 352 - 353: word, phrase,
+  sentence, the word over it).
+  INTEROP, FIRST HALF PASSED (owner 20:35 - 20:37): Storyteller's
+  Android app found Forward the Foundation (EpubBuilder's) in a folder,
+  COPIED it into its own storage (ours reads in place - 346), and plays
+  it "word tracked" - from OUR clips (a media-overlay reader highlights
+  what each clip points to; ours point to words). The second half (a
+  Storyteller-aligned book in EpubReader) needs their server.
+  THEIR ALIGNMENT (owner 20:49: "their alignment"; the author's post
+  smoores.dev/post/automating_immersive_reading/, read 20:5x):
+  - OLD: Whisper-based (the 1 - 4 h a book of their docs).
+  - NEW (v3 beta, "--ctc" in their stalign tool): MMS (Massively
+    Multilingual Speech - a Wav2Vec 2.0 encoder with a CTC head; romanized
+    output, ~31 tokens) gives character probabilities every 20 ms. A
+    greedy decode (no reference) -> both texts normalised (lower case, no
+    punctuation / spaces, numerals spelled out) -> overlapping
+    10-character n-grams matched, RANSAC keeps the consistent ones ->
+    each chapter found in the audio even reordered or missing, no manual
+    mapping. Unique n-gram matches = anchors about every 2,000
+    characters; CTC Viterbi forced alignment between anchors (blank,
+    stay / next / skip) -> a time for EVERY LETTER -> words and
+    sentences. Weak points they name: greedy-decode errors, skipped
+    narration ("imperfect rather than disastrous"), anchors needed,
+    local optima.
+  - OURS: Whisper (whisper.cpp through TWhisper, any GPU backend)
+    transcribes with word times from DTW; the heard words are aligned
+    with the book's words; a second pass over gaps. The times are
+    Whisper's, not a forced alignment against the known text.
+  - WORTH CONSIDERING (not asked for): (1) a CTC forced-alignment pass
+    after Whisper to sharpen word edges (what WhisperX does with
+    wav2vec2 - from memory); (2) their chapter finding (n-grams +
+    RANSAC) - CHECK how TWhisper's alignment copes with reordered /
+    missing chapters, front matter not narrated, narrator-only text.
+    LICENCE TO CHECK FIRST: MMS's weights are, from memory, CC-BY-NC 4.0
+    (non-commercial) - not shippable in a paid EpubBuilder DLC; another
+    CTC model would be needed.
+  AN IDEA FROM THEM: readers speed narration up a lot (2 - 3x said to be
+  common); their apps keep ONE SPEED FOR LISTENING ONLY AND ANOTHER FOR
+  READ-ALONG. Ours has one speed - offered, not asked for.
+  SIZE (owner 20:26: "think our apps's 1/10th the size of thiers (but +
+  book storage)"; 20:34, after installing it on the Pixel: "similar
+  size then"): THE READERS ARE ABOUT THE SAME SIZE on the phone - not a
+  selling point. Their server's size (Docker image, model) NOT FOUND
+  (their "Resources required" page would not load); book storage is
+  about even (the audio inside the book on both sides; ours adds a clip
+  per word, the index and covers).
+  THEIR APP: "Storyteller" by Shane Friedman on Google Play
+  (dev.smoores.Storyteller; NOT Netflix's game of the same name),
+  "Storyteller Reader" on Apple's store. It reads any EPUB with media
+  overlays without their server - THE INTEROP TEST'S FIRST HALF needs
+  only one of EpubBuilder's books copied to the phone.
+
+### A NAME FOR THE FEATURE (owner 20:53 - 21:30; nothing decided)
+The owner, 20:53: "Amazon have WhisperSync StoryTeller have ReadAloud -
+will have to think up one for ours". AMAZON HAS RENAMED IT: Audible's page
+is now "Read and Listen - Formerly Whispersync for Voice" (the "Read &
+Listen" badge in Audible and Kindle). Storyteller's word: "readaloud".
+Only web searches and app stores were looked at - NOT the trade mark
+registers. Before anything goes on a store page: the UK IPO search
+(trademarks.ipo.gov.uk), classes 9 (software, downloadable ebooks) and 41
+(publishing, education), and the web addresses.
+SHORTLIST (my order; the owner has not chosen):
+1. RECITO - Latin "I read aloud"; fits epubunum (e pluribus unum); "recite"
+   is heard in it. Found: one tiny Android study app "Recito" (Vxtory, AI
+   study tool, April 2026, ~7 installs) - not books. A tagline for the
+   "see" half: "Recito - vide et audi" ("see and hear").
+2. VIDERECITO - "see! I read aloud": both halves; nothing found at all. Long
+   (5 syllables), and "Vide" reads as "video" in English.
+   WEB ADDRESSES (owner 21:33): "recito has decent tlds taken viderecito
+   doesn't" - RECITO's good domains are gone, VIDERECITO's are free. That
+   moves VideRecito up: free addresses + nothing found = the easiest to
+   own. Suggested: register the VideRecito addresses now (cheap, before
+   anyone else), then the UK IPO search. The capital R ("VideRecito")
+   helps the eye split it; "Recito" can stay the short word in the app.
+   THEN (owner 21:34): "then again I already own epubunum". THE BRAND IS
+   EPUBUNUM; the feature needs no addresses of its own (Amazon's "Read &
+   Listen" has none - it lives on Kindle's and Audible's pages). So
+   RECITO IS BACK ON TOP: "epubunum - with Recito", its page
+   epubunum.com/recito or recito.epubunum.com, "Recito" on the button.
+   VideRecito = the fallback if the feature should ever stand alone. The
+   UK IPO search on RECITO (classes 9, 41) still comes first: a
+   registration can stop the use of a name even without a website.
+3. NAREAD - narrate + read; nothing found at all; the easiest to own; needs
+   a tagline and a settled way to say it.
+4. READHEAR - "read here"; nothing found; describes itself; close to
+   Amazon's "Read & Listen"; people may type "readhere".
+5. HARKVIEW - nothing exact; "Hark" now an AI company (Brett Adcock's Hark,
+   2026, a device promised for 2027) and Hark News (articles to audio);
+   "-View" sounds like CCTV apps.
+RULED OUT, AND WHY:
+- READLISTEN: Amazon's own "Read & Listen"; also Speechify Books: Read &
+  Listen.
+- UNISON: the UK trade union (owner 21:07); a file-sync tool too.
+- TANDEM: "Tandem Books" - an app pairing DRM-free EPUB with M4B / MP3 by
+  short transcription (the same space).
+- HEARVIEW: "Hearview" - live captions for deaf people (smart glasses).
+- SEEHEAR: the BBC's "See Hear" (deaf magazine programme since 1981; the
+  owner: two words - no BBC mark for it was found); EYEHEAR is a
+  registered US mark for speech-recognition software.
+- HEARSEE: sounds like "heresy"; among hearing-aid names (Hearsight).
+- VIEWHEAR: "Visual Hear" (captions for deaf people); "view" says video.
+- EYES AND EARS / EARSANDEYES: UK opticians' everyday phrase; a common
+  phrase is a weak mark - good as a TAGLINE ("for your eyes and ears").
+- LOOK & LISTEN: reads as a children's product (old dead marks; StoryToys'
+  "Touch, Look, Listen"); the Green Cross Code; a common phrase.
+- Anything with "Whisper": next to Amazon's old WhisperSync.
+SEEN ON THE WAY: "hear / see / view" names are crowded by apps for deaf and
+hard-of-hearing people; names built on READING came up clean. Other
+read-and-listen apps found: Tandem Books, Ink & Echo (hybrid ebook +
+audiobook library), ElevenReader and many text-to-speech readers (a
+computer voice - ours is a real narrator's, timed to the book: say so).
+
+### Open, the owner's to decide or answer
+- ABOUT_COPYRIGHT is a placeholder; the repository names no holder and
+  has no licence file (343). Skia4Delphi's copyright line to check;
+  Android libraries' Apache 2.0 given as a notice, not the full text
+  (344).
+- The .dproj version info (Android versionCode 1 / versionName 1.0.0,
+  Windows 1.0.0.0) is not 0.0.N yet (asked in 343).
+- OFFERED, not taken up: the ISBN lookup (Open Library) in EpubBuilder /
+  BookManager (340); "Open with EpubReader" and Android's picker (338);
+  remove from library on the phone (345); a narrower indent in a narrow
+  column (338); the Defender exclusion test (above).
+- QUEUED by the owner at 08:33 (desktop): "library: layout" 50 times in
+  a row; the desktop copies the book's audio out at the first Play
+  (FFmpeg's subfile protocol could play it in place).
+- EpubBuilder still calls EpubUnumMove (342) - not asked about.
+
+### Known, not done
+- The reader's folder listing and BuildChapters run in the window's
+  thread.
+- EpubReader.dproj asks for Android permissions it does not use (the
+  IDE's defaults: location, camera, phone calls, phone state) - to trim
+  before a store release.
+- The library is shown twice at every start (FormCreate, then "app: in
+  front again") and twice for each book received.
+- On Android the log's first line has no program name (" - debug log")
+  and "Program:" is empty.
+- gen_projects.py still writes no Android64 group (session 16).
+
+### What I got wrong in session 17 (so that it is not done again)
+- 346 assumed /proc/self/fd/<n> could be reopened: Permission denied on
+  the phone (347).
+- 354's statvfs import did not compile for Android (355).
+- 359: queued closures read a freed server / finder - an access
+  violation at Done (360). The same kind of slip (a shared captured
+  variable) was written twice more and caught before delivery (370,
+  371): read every queued closure against the rule above.
+- 352's delivery had no rebuild banner.
+- 363's hold left books "cancelled" in a race (366).
+- At 20:00 I said BookManager took 82 s to find the phone in the 19:51
+  run: wrong - the phone's link only started at 19:52:52 and was heard
+  3 s later. Read both logs' times before naming a delay.
+- EVERY ZIP IS STILL UNCOMPILED here: the owner builds, runs and sends
+  both logs within minutes. Small zips, one thing each.
+
+### For whoever tests next
+- The phone's log: .../EpubUnum/EpubReader-debug.log (and .old);
+  BookManager-debug.log beside its settings (and .old). The owner sends
+  both, unasked.
+- Link lines to look for: "link: started", "heard BookManager ... -
+  answered directly", "GET /books", "POST /pair", "paired with",
+  "POST /upload", "received book", "upload of ...: x MB in y s",
+  "link: stopped - <why> (n book(s) received)"; in BookManager "first
+  heard", "Paired with the phone", "sent: ... MB/s", "closing: the
+  phone ... was told".
+
+## Handover (session 16, 2026-11-26 01:03)
 
 Written at the owner's request (01:03: "Continue tomorrow. write a
 claude.hd session handover"). Session 16 ran from 2026-11-25 15:09 to
@@ -1870,8 +2216,21 @@ TSteamAPI do not apply (no 3D).
 - Before delivery: `python3 tools/pasdoc_check.py`,
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
+- VERSIONS (owner, 2026-11-26 13:51, "standing rule"): major.minor.build -
+  "Can we start using major.minor.build versioning the currently would be
+  0.0.342 for example. This will get version bumps when everything is
+  working smoothly. Internally the build number must be integer and
+  sorted that way." The build IS THE ZIP'S NUMBER: EVERY ZIP sets
+  VERSION_BUILD in demos/common/uVersion.pas to its own number (and
+  "Last number used" below; project_check.py fails when they differ).
+  VERSION_MAJOR / VERSION_MINOR change only when the owner says. Compare
+  versions part by part as integers (VersionCompare), never as text. The
+  debug logs' first lines ("Version: 0.0.343"), EpubBuilder's log and
+  EpubReader's About show it. NOT YET in the .dproj's version info
+  (Android versionCode=1 / versionName=1.0.0, Windows FileVersion
+  1.0.0.0): asked in zip 343.
 
-Last number used: 340 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
+Last number used: 380 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
 next-session notes, CLAUDE.md only).
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
@@ -4459,6 +4818,988 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 380 (on top of zip 379): epubunum is the brand - Recito back on top
+Owner, 2026-11-26 21:34: "then again I already own epubunum", then "y"
+to recording it. Files: CLAUDE.md, demos/common/uVersion.pas (380). NO
+PACKAGE REBUILD. In the handover's "A NAME FOR THE FEATURE", item 2.
+
+## Zip 379 (on top of zip 378): Recito's web addresses taken, VideRecito's free
+Owner, 2026-11-26 21:33: "recito has decent tlds taken viderecito
+doesn't". Files: CLAUDE.md, demos/common/uVersion.pas (379). NO PACKAGE
+REBUILD. In the handover's "A NAME FOR THE FEATURE", item 2.
+
+## Zip 378 (on top of zip 377): a name for the feature - the shortlist
+Owner, 2026-11-26 20:53 - 21:30: names proposed one by one (HearSee,
+SeeHear, EarsAndEyes, EyesAndEars, LookAndListen, ReadHear, Naread,
+ReadListen, HarkView, ViewHear / HearView, Recito, VideRecito; Unison and
+Tandem mine), each searched; 21:30 "y" to recording them. Files:
+CLAUDE.md, demos/common/uVersion.pas (378). NO PACKAGE REBUILD. In the
+handover: "A NAME FOR THE FEATURE".
+
+## Zip 377 (on top of zip 376): Storyteller's alignment
+Owner, 2026-11-26 20:49: "their alignment". Files: CLAUDE.md,
+demos/common/uVersion.pas (377). NO PACKAGE REBUILD. In the handover's
+"Looked at", Storyteller.
+
+## Zip 376 (on top of zip 375): Storyteller plays our book; word / sentence
+Owner, 2026-11-26 20:35: "it found and it coping forwards the
+foundation"; 20:37: "It plays word tracked (but prob using ours?)";
+20:49: "word / sentance". Files: CLAUDE.md, demos/common/uVersion.pas
+(376). NO PACKAGE REBUILD. In the handover's "Looked at", Storyteller.
+
+## Zip 375 (on top of zip 374): Storyteller's reader - the same size
+Owner, 2026-11-26 20:26 - 20:34 (sizes; "storyteller app is actually
+netflix games" - the wrong app found first; then "similar size then").
+Files: CLAUDE.md, demos/common/uVersion.pas (375). NO PACKAGE REBUILD.
+In the handover's "Looked at", Storyteller.
+
+## Zip 374 (on top of zip 373): Plex and Storyteller looked at
+Owner, 2026-11-26 20:11: "One thing worth looking into is whether Plex
+can stream epub"; 20:15: "how do we compare with
+https://storyteller-platform.dev/"; 20:20, asked whether to add the
+place-sync idea: "all relevant points". Files: CLAUDE.md,
+demos/common/uVersion.pas (374). NO PACKAGE REBUILD. In the handover:
+NEXT item 3 and "Looked at".
+
+## Zip 373 (on top of zip 372): a TV stores or streams - both
+Owner, 2026-11-26 20:09, answering the handover's question (store books
+on the TV, or stream?): "TV Boxes tend to have minimal storage as
+standard. You can increase the storage for android devices but not ios.
+while I do have free space and can add some I'm not sure whats
+available. Therefore both things can be true". Files: CLAUDE.md,
+demos/common/uVersion.pas (373). NO PACKAGE REBUILD. Written into the
+handover's NEXT, item 1.
+
+## Zip 372 (on top of zip 371): session 17's handover
+Owner, 2026-11-26 20:00 (EpubReader 0.0.371 on the Pixel: "OK, good" -
+the phone's panel closed by itself 0.8 s after BookManager's /bye; at
+19:53 the phone had still run 369, hence "no such call: /bye"), then
+20:02: "Tomorrow probably / Write session handover in claude.md".
+Files: CLAUDE.md, demos/common/uVersion.pas (372). NO PACKAGE REBUILD.
+The handover is at the top of this file.
+
+## Zip 371 (on top of zip 370): BookManager says goodbye; speed parked
+Session 17. NOT COMPILED. Files: demos/common/uLink.pas,
+demos/BookManager/src/uManager.pas, demos/BookManager/README.md,
+demos/EpubReader/src/uMain.pas, demos/EpubReader/README.md,
+demos/common/uVersion.pas (371), CLAUDE.md. NO PACKAGE REBUILD.
+- SPEED PARKED (owner 19:36 - 19:38, "fast enough, don't need the
+  speed"): ~10 - 15 MB/s PC (1 Gbit wired) -> Pixel 10a (650 Mbps
+  Wi-Fi) accepted; 369's 1 MiB buffers changed nothing. If it comes back:
+  the Chrome baseline (python -m http.server on the PC) and 370's
+  "upload of ...: x MB in y s; writing it took w s" line on the phone.
+- THE OWNER (19:45): "If phone connected to bookmanager and user closes
+  bookmanager the last thing it should do is announce to clients it is
+  closing then quit. This way phone's link requester can automatically
+  close when manager leaves".
+- uLink: POST /bye (paired only) -> TLinkServer.OnBye(the program's name,
+  from its token); TLinkClient.Bye and ReadTimeout (60000 at first);
+  LinkSayBye(app, name, id, hosts): an announcement with "bye": true, twice,
+  to 255.255.255.255, LinkBroadcastTargets and the hosts directly;
+  TLinkFinder: a "bye" packet drops the peer at once, OnBye('<app>
+  "<name>"') and OnChange. In CommandGet the /bye event has ITS OWN
+  variables (ByeEvent, ByeName) - RequestEvent and Said are captured by
+  the call's first queued line.
+- BookManager FormClose first: SayGoodbye - the chosen phone, heard and
+  paired, gets POST /bye (2 s connect / 2 s answer at most; logged), then
+  LinkSayBye to the network and every phone heard.
+- EpubReader: FLink.OnBye and FLinkFinder.OnBye -> LinkBye: once (FLink
+  nil after the first), only a BookManager's ('BookManager "..."' from the
+  finder; the call's name is the paired program's): StopLink('BookManager
+  closed (...)'), the panel hidden, the library (or "No books yet").
+
+## Zip 370 (on top of zip 369): where an upload's time goes
+Session 17. NOT COMPILED. Files: demos/common/uLink.pas,
+demos/common/uVersion.pas (370), CLAUDE.md. NO PACKAGE REBUILD.
+- THE OWNER (19:29): "PC 1G wired, Phone 650Mbps" (told: ~35 - 45 MB/s
+  at best, 30 - 40 likely); (19:35) 369's 1 MiB buffers: "same" (~10 -
+  15 MB/s).
+- Asked for a baseline without our code: python -m http.server 8000 on
+  the PC, the phone's Chrome downloading a book (its speed).
+- TLinkPartStream: FirstTick, WriteMs (TStopwatch around each inherited
+  Write); at /upload's end (the flush in Free timed too) OnRequest gets
+  "upload of <name>: x MB in y s (z MB/s); writing it took w s of that
+  (p %)" - the phone's log splits network from storage. ITS OWN VARIABLE
+  (Stats): Said is captured by the call's first queued line, which may
+  not have run yet - a captured variable is shared, so reusing it would
+  have changed that line too.
+
+## Zip 369 (on top of zip 368): bigger transfer buffers
+Session 17. NOT COMPILED. Files: demos/common/uLink.pas,
+demos/common/uVersion.pas (369), CLAUDE.md. NO PACKAGE REBUILD.
+- THE OWNER (19:25): "I'd have expected faster speeds" - ~10 - 15 MB/s
+  (80 - 120 Mbit/s) PC -> Pixel 10a over Wi-Fi; a Wi-Fi 6 phone does
+  several times that. Suspected: Indy's 32 KiB buffers both ends and the
+  phone's 32 KiB writes through Android's FUSE layer (Android/data).
+- LINK_BUFFER = 1 MiB: TLinkPartStream is a TBufferedFileStream (1 MiB
+  buffer; Seek(0, soEnd) / Free flush before the size check and the
+  move); TLinkServer.Connected (OnConnect): each connection's IOHandler
+  Recv/SendBufferSize 1 MiB; TLinkClient.NewHttp: an explicit
+  TIdIOHandlerStack with 1 MiB buffers (EpubBuilder's transfers too). The
+  OS socket buffers are left to autotuning (no SO_RCVBUF).
+- TO SEE: the speeds in BookManager's log ("sent: ... (x MB in y s, z
+  MB/s)") against 368's ~10 - 15; asked: the phone's Wi-Fi link speed
+  (Settings > Network > Wi-Fi > the network) and whether the PC is wired.
+
+## Zip 368 (on top of zip 367): each book's transfer in Send to phone's list
+Session 17. NOT COMPILED. Files: demos/BookManager/src/uManager.pas,
+demos/BookManager/README.md, demos/common/uVersion.pas (368), CLAUDE.md.
+NO PACKAGE REBUILD.
+- 367 (owner 19:19, a screenshot): the bar line shows "22 %, 11.0 MB/s,
+  11 more waiting - 7 - Forward the Foundation ..." - but "No M/s
+  showing here...": the books list said "new" for the book being sent.
+- PhoneBookText(file): its latest ToPhone row decides - "waiting", "held",
+  "sending 22 % 11.0 MB/s" (after 1 s), "sent 10.7 MB/s", "FAILED", "on
+  phone" (skipped); none (or cancelled): on phone / new as before; the
+  state column 24 wide. ShowRow -> ShowPhoneBookRow updates that book's
+  line (ListItems[K].Text; the tick kept) on every start, progress and end.
+
+## Zip 367 (on top of zip 366): the speed where it is seen
+Session 17. NOT COMPILED. Files: demos/BookManager/src/uManager.pas,
+demos/common/uVersion.pas (367), CLAUDE.md. NO PACKAGE REBUILD.
+- 366 RUN (owner 18:54, three logs): "BookManager isn't showing transfer
+  speed" - on the Send to phone tab the bar's label read "To the phone:
+  <name> - x MB/s", the speed cut off after a long name (420 px,
+  character trimming); the list with the speed is on the other tab.
+  "Took long time to connect again": BookManager built 18:49, first run
+  18:50:34, the phone first heard 18:51:36 (61 s) - the first-run-of-a-
+  new-build minute again (the phone's data had been wiped - a Release
+  install: library empty at 18:41 - so it paired afresh). BookManager's
+  log now has the speeds: 7.3 MB/s (27 MB, 4 s), 10.7 MB/s (92 MB, 9 s).
+  Pair... pressed by hand 3 s after the automatic ask: a second code
+  (harmless - the second was typed).
+- UpdateTransferBar: "45 %, 14.8 MB/s, 2 more waiting - <name>" (the
+  numbers first; the speed after 1 s); the labels 520 wide; when nothing
+  runs, the last done stays: "Sent to the phone at 10.7 MB/s - <name>"
+  (FLastDone).
+
+## Zip 366 (on top of zip 365): held books not lost; a tap after Done; speeds; every network's broadcast
+Session 17. NOT COMPILED. Files: demos/common/uLink.pas,
+demos/BookManager/src/uManager.pas, demos/BookManager/README.md,
+demos/EpubReader/src/uPadMenu.pas (HiddenAt - shared with EpubBuilder,
+an addition only), demos/EpubReader/src/uMain.pas,
+demos/common/uVersion.pas (366), CLAUDE.md. NO PACKAGE REBUILD.
+- 365 RUN (owner 18:40, three logs): BookManager's start lines - "the
+  finder is listening on UDP 47820; this computer's addresses:
+  192.168.239.1 192.168.150.1 192.168.1.91 172.31.48.1" (VMware x2,
+  WSL/Hyper-V, the LAN); ITS OWN BEACON FIRST HEARD AT ONCE, "from
+  192.168.239.1" - Windows sends 255.255.255.255 out of the VMware
+  adapter. The phone "first heard" at 18:31:20.599 and the phone heard
+  BookManager at 18:31:20.666 - BOTH WAYS AT THE SAME MOMENT, 57 s after
+  BookManager started (18:30:23), though the 192.168.1.255 copies went
+  from the start. The 362 .old run (18:26, BookManager reopened - the
+  same build's second run): heard 0.8 s after the link started. SO: THE
+  FIRST RUN OF A FRESHLY BUILT BookManager.exe is cut off from the LAN
+  for ~1 minute - Windows (Defender scanning a new unsigned exe / its
+  network protection), not our code; a user sees it once after each
+  update. Suggested test: a Defender exclusion for the build folder (not
+  done yet). The phone's LinkLocalAddresses is only 127.0.0.1 (Indy on
+  Android) - LinkNetworkBroadcast found 192.168.1.255 all the same.
+- Owner's notes (18:40): "very slow" (the minute), "White screen
+  library??", "Sent All - cancelled one - One not sent", "Send all again
+  (pickup spare)", "It opened a book - don't know which one - possibly
+  from White Library?", "BookManager should show thruput for transfer
+  MB/s".
+- THE BOOK OPENED BY ITSELF: "stopped - Done" at 18:32:25.701, "open: The
+  Dark Forest" at 18:32:25.850 - a second tap on Done (faded until then)
+  reached the library cover under the box as it closed; the "white
+  screen" = that book's first opening (read 6.4 s + chapters 3.4 s, the
+  known window-thread BuildChapters). FIX: TPadMenu.HiddenAt (Hide stamps
+  it); CoverChosen ignores a tap while the box shows or within 700 ms of
+  its closing (logged).
+- THE BOOK NOT SENT ("cancelled"): HoldPhoneTransfers ran on the main
+  thread after the worker had already taken the next book - FWorker.Cancel
+  of that "waiting" row cancelled the RUNNING job, which ended
+  "cancelled" and was dropped. FIX: rows Stopping (Cancel said False:
+  running) are held too; WorkerStart / WorkerProgress ignore held rows;
+  WorkerDone: a held row that did not finish goes back to waiting (and
+  on at once if the phone answers), one that finished counts as sent;
+  ResumePhoneTransfers skips Stopping rows until their answer.
+- SPEEDS: TTransferRow.StartTick / Speed; RowText "45 % 14.8 MB/s" while
+  running (after 2 s), "Sent 14.6 MB/s" done (the state column 22 wide);
+  the log "sent: name -> path (969.3 MB in 65 s, 14.9 MB/s)".
+- LinkBroadcastTargets: LinkNetworkBroadcast + each local IPv4's
+  x.y.z.255 (no 127.*, 169.254.*) - announcer and beacon send to each
+  (the VMware-first machine reaches the LAN by its own address); the
+  start log lines list them.
+
+## Zip 365 (on top of zip 364): Pair again asks first
+Session 17. NOT COMPILED. Files: demos/BookManager/src/uManager.pas,
+demos/common/uVersion.pas (365), CLAUDE.md. NO PACKAGE REBUILD.
+- THE OWNER (18:27): "Close then reopen - found instantly clicked repair -
+  code came up but already sending" - so 362's 18:14:34 pairing was Pair
+  again by hand (pairings DO survive restarts). AND reopening BookManager
+  found the phone at once: THE SLOW RUNS MAY BE THE FIRST RUN OF A FRESHLY
+  BUILT BookManager.exe (Windows Defender scanning it / the firewall
+  vetting it) - every slow run followed a rebuild. To confirm with 364's
+  lines: rebuild, first run (slow?), close, second run (instant?).
+- btnPhonePairClick: by hand (Sender <> nil), paired and FPhoneConnected
+  -> "The phone ... is paired and answering ... Pair again anyway?" (No
+  by default). The automatic ask (Sender nil) never has a token.
+
+## Zip 364 (on top of zip 363): log lines for the minute after BookManager starts
+Session 17. NOT COMPILED. Files: demos/common/uLink.pas,
+demos/BookManager/src/uManager.pas, demos/EpubReader/src/uMain.pas,
+demos/common/uVersion.pas (364), CLAUDE.md. NO PACKAGE REBUILD.
+- 362 FULL LOG (owner 18:20): Cancel at 18:19:29 mid-book - clean ("stopped
+  - Cancel (3 book(s) received)"); .part deleted at both link starts. The
+  360 run's re-pairing: the phone started with an EMPTY library - the
+  app's data had been wiped (linkId, tokens) - a new phone to BookManager.
+  The 362 run's pairing at 18:14:34 came after two good polls (the token
+  worked): asked whether the owner pressed Pair again - NOT ANSWERED.
+- Owner 18:21: the next runs are Release builds outside the IDE (told:
+  a Release build signed with another key cannot update the debug one -
+  uninstalling wipes the app's Books folder, pairing and settings).
+- Owner 18:24 - 18:25: BookManager open 15 s, then the phone linked, found
+  after ~34 s = ~49 s after BookManager started. ALL SLOW RUNS fit "found
+  50 - 60 s after BOOKMANAGER STARTS" (356: 55, 357: 60, 359: 59, this:
+  ~49); BookManager open a minute or more: found in 1 - 3 s (357 17:29:16,
+  362 18:15:35). 354 found it 1.8 s after BookManager started (the phone
+  already running 70 s) - not explained.
+- Log lines (no behaviour change): TLinkFinder.State ('listening on UDP
+  47820' or 'NOT listening ...: why') and OnFirstHeard ('<app> "<name>"
+  from <ip>, first heard' - its own beacon included, so BookManager's log
+  shows when its UDP starts working); LinkLocalAddresses (the machine's
+  IPv4 addresses - virtual adapters show). BookManager logs at start:
+  "link: the finder is ...; this computer's addresses: ...; announcing to
+  255.255.255.255 and x.y.z.255", then each first-heard. The reader logs
+  the same at StartLink ("this phone's addresses").
+- TO READ in the next logs: BookManager hears ITS OWN beacon at once? (yes
+  -> its socket works); the phone first heard when? the addresses (a
+  172.x / 192.168.56.x adapter on the PC = the broadcast may go there);
+  the phone's "heard BookManager" vs BookManager's start.
+
+## Zip 363 (on top of zip 362): a phone's books held while its link is off
+Session 17. NOT COMPILED. Files: demos/BookManager/src/uManager.pas,
+demos/BookManager/README.md, demos/common/uVersion.pas (363), CLAUDE.md.
+NO PACKAGE REBUILD.
+- 360 ON THE PIXEL (owner 18:09 log): Done mid-transfer - no crash (3
+  books received, the 4th cut off at 18:07:29 about 80 s in, the link
+  stopped cleanly, the app closed normally later). 360's fix holds.
+- FOUND IN THE LOGS SINCE 356: the phone is found ~60 s after BOOKMANAGER
+  STARTS (17:09:47 -> 17:10:42; 17:28:17 -> 17:29:17; 17:39:08 ->
+  17:40:07; and in 357 the phone heard BookManager's beacon only at that
+  mark too) - 354 found it in 1.8 s. Asked (18:10): start BookManager,
+  wait two minutes, then link: instant = BookManager's first minute (the
+  PC - Windows Firewall suspected), still 60 s = the phone. NOT ANSWERED
+  YET.
+- THE OWNER (18:16): "Cancelled - got a couple of graceful quite and
+  restarted - now it's on book 7 (missed 6 books)": with the phone's link
+  off, the worker went on through the queue and each phone book failed
+  at once (refused).
+- BookManager: TTransferRow.Job (the job as given) and Held. WorkerDone:
+  a phone book that fails with IsLinkOff -> HoldPhoneTransfers: it and
+  every phone book still waiting (FWorker.Cancel) become Held, tsWaiting,
+  "waiting for the phone to link"; a status line. ResumePhoneTransfers
+  (on the phone's next good answer - PhoneAnswered): FWorker.Add each
+  held job, in order. Cancel on a held row cancels it at once; Cancel
+  all as before. (The cut-off book starts afresh; the phone deletes its
+  .part when it links - 361.)
+
+## Zip 362 (on top of zip 361): Get books from BookManager in the main menu
+Session 17. NOT COMPILED. Files: demos/EpubReader/src/uMain.pas,
+demos/EpubReader/README.md, demos/common/uVersion.pas (362), CLAUDE.md.
+NO PACKAGE REBUILD.
+- THE OWNER (18:09): "There's no way to re-open bookmanager in Phone menu"
+  (it was only in Menu > Books folders and "No books yet").
+- MENU_LINK = 2, "Get books from BookManager" (MENU_LIBRARY 3 ... ABOUT
+  16 moved down one): StartLink on a phone (BookFolderSupported); faded
+  elsewhere, where it shows a note (BookManager sends to phones and
+  tablets). The panel's Cancel goes back to the main menu on that row
+  when started from it (FLinkFrom MODE_MAIN).
+
+## Zip 361 (on top of zip 360): Done mid-transfer
+Session 17. NOT COMPILED. Files: demos/EpubReader/src/uMain.pas,
+demos/BookManager/src/uManager.pas, demos/common/uVersion.pas (361),
+CLAUDE.md. NO PACKAGE REBUILD.
+- 359's CRASHED RUN (EpubReader-debug.log.old, owner 17:59): 14 books
+  received cleanly; Done at 17:55:10.007, "link: stopped" at .008, then
+  nothing - and BookManager's 20-s poll was due at 17:55:10 (17:54:10,
+  :30, :50): a call came as the link was freed - 360's cause, confirmed
+  as far as a log can.
+- 360 (owner 18:07, "Pressed DONE half way thru transfer to test it"):
+  the debugger showed EIdConnClosedGracefully - Indy's own, in the
+  server's connection thread, handled there (as the BookManager README
+  lists for the debugger). No crash reported.
+- A body cut off leaves its .part (CommandGet - which deletes a short
+  one - never runs): the reader's StartLink deletes *.part in the Books
+  folder (DropPartFiles, logged when any). BookManager's IsLinkOff also
+  takes 10054 / "Connection reset" / "Closed Gracefully" (the link
+  turned off mid-transfer) - "the phone's link is off".
+
+## Zip 360 (on top of zip 359): Done after a transfer - access violation
+Session 17. NOT COMPILED. Files: demos/common/uLink.pas,
+demos/EpubReader/src/uMain.pas, demos/common/uVersion.pas (360),
+CLAUDE.md. NO PACKAGE REBUILD.
+- 359 ON THE PIXEL (owner 17:57): 14 BOOKS, 9.5 GB, SENT IN ~12.3 MIN
+  (17:40:58 - 17:53:16, ~13 MB/s), each in the library. Then Done on the
+  phone: EAccessViolation (address 0000007A57D08384, accessing
+  FFFFFFFFC24FFF8C); "App went away - but came back" (the log sent is the
+  NEXT run's - 17:56:26; the crashed run's is EpubReader-debug.log.old,
+  not seen). BookManager: 17:55:10 "link is off", 17:56:06 not linking.
+- THE CAUSE (by reading): uLink queued its events as closures that read
+  the server's / finder's own fields when they ran (if
+  Assigned(FOnRequest) then FOnRequest(...), FOnChange(Self)). Until 357
+  nothing was freed while the program ran; now the phone frees FLink and
+  FLinkFinder at Done / Cancel - a closure queued just before (BookManager's
+  beacon every 2 s -> the finder's OnChange; its poll -> OnRequest) ran
+  on the freed object.
+- FIX: every TThread.Queue in uLink copies the event into a local first
+  and calls that (RequestEvent, CodeEvent, EndedEvent, PairedEvent,
+  ReceivedEvent in CommandGet; ChangeEvent in TLinkFinder.UdpRead, called
+  with Sender nil); TLinkPartStream.Write did so already. The reader's
+  LinkPairCode / LinkPaired / LinkPairEnded do nothing once FLink is nil;
+  LinkRequest does not re-show the panel then.
+- RULE: an object that queues events and may be freed while the program
+  runs must not be read by the queued code - copy what is needed.
+
+## Zip 359 (on top of zip 358): "Connection inactive"
+Session 17. NOT COMPILED. Files: demos/BookManager/src/uManager.pas,
+demos/BookManager/README.md, demos/common/uVersion.pas (359), CLAUDE.md.
+NO PACKAGE REBUILD.
+- THE OWNER (17:36): ""Not heard now" is a bad phrase - make it
+  "Connection Inactive"". BookManager's lists (a builder or phone chosen
+  but not heard: "name (address) - Connection inactive"), the state labels
+  ("Connection inactive (closed or asleep)" for EpubBuilder, "Connection
+  inactive (not linking on the phone)" for a phone) and the Progress
+  tab's title when the builder goes. The status-line sentences ("is not
+  linking now", "is not heard any more") are unchanged.
+
+## Zip 358 (on top of zip 357): the link panel's Cancel and Done
+Session 17. NOT COMPILED. Files: demos/EpubReader/src/uMain.pas,
+demos/BookManager/src/uManager.pas, the two READMEs,
+demos/common/uVersion.pas (358), CLAUDE.md. NO PACKAGE REBUILD.
+- 357 ON THE PIXEL (owner 17:33, both logs): the third link start found
+  both ways within a second (phone 17:29:16 start, BookManager heard it
+  17:29:17, the phone heard BookManager 17:29:17.8 - "answered
+  directly"); BookManager asked to pair by itself, the code on the phone
+  0.2 s later; Foundation (513 MB) in ~37 s (~14 MB/s), in the library
+  with its cover. Low-latency Wi-Fi on / off logged. BUT: the FIRST link
+  (17:28:39 - 59, Done after 20 s) was heard by neither side - not
+  explained (the phone's clock is ~5 s off the PC's; watch it); Done at
+  17:29:40 right after pairing ended the link, so the send at 17:29:49
+  got "Socket Error # 10061 Connection refused" and the 20-s polls after
+  every Done did too; a 2-s link at 17:28:59 = Done then a tap on "Get
+  books from BookManager" where Done had been.
+- THE OWNER (17:33): "When the BookManager link requester appears on
+  phone there is a DONE button. This should be disabled until something
+  happens. There should be a CANCEL that returns you to main choose book
+  source menu."
+- Reader: the panel's rows [Refuse,] Cancel, Done. Done is Dim and does
+  nothing until FLinkActive (paired, a paired BookManager's call - "In
+  touch", a book received); the selected row is Cancel until then, Done
+  after. Cancel / Back = LinkCancel: StopLink('Cancel') and the menu it
+  was started from (FLinkFrom: MODE_FOLDERS -> ShowFoldersMenu, else "No
+  books yet" when the library is empty, else hidden).
+- BookManager: IsLinkOff (10061 / "Connection refused"): the poll says
+  once "The phone ...'s link is off. ... Get books from BookManager" and
+  does not ask again for 15 s (FPhoneRefusedAt; cleared by an answer or
+  the phone heard again - "is linking"); a book refused that way says so
+  in the list and the status; PhoneReady refuses to send while the phone
+  is not heard or refused ("not linking now").
+
+## Zip 357 (on top of zip 356): the phone starts the link; its panel; hardening
+Session 17. NOT COMPILED. Files: demos/common/uLink.pas,
+demos/BookManager/src/uTransfers.pas, demos/BookManager/src/uManager.pas,
+demos/BookManager/README.md, demos/EpubReader/src/uMain.pas,
+demos/EpubReader/src/uBookImport.pas, demos/EpubReader/EpubReader.dproj
+(AUP_WAKE_LOCK), demos/EpubReader/README.md, demos/common/uVersion.pas
+(357), CLAUDE.md. NO PACKAGE REBUILD.
+- 356 ON THE PIXEL (owner 17:15, both logs): IT WORKS END TO END - Pair...
+  answered in 1 s, the code confirmed in 0.6 s, two books (27 + 92 MB)
+  sent at ~10 MB/s, each in the library with its cover within a second;
+  every call logged on the phone. BUT the phone was heard 55 s after
+  BookManager started (17:09:47 -> 17:10:42; 1.8 s in the run before):
+  its BROADCASTS are lost at times.
+- THE OWNER (17:19): "As Manager will always be on PC why not get phone to
+  request link services as this will allow turning it off after link
+  stuff done. This would ensure phone was up before code shown. Also when
+  transferring we need a pop-up progress indicator so phone user sees
+  what's going on"; (17:23) "Include hardening anyway" (the directed
+  broadcast and the low-latency Wi-Fi lock offered at 17:15).
+- uLink: LINK_APP_MANAGER; TLinkBeacon (a thread: BookManager's
+  announcement, port 0, every 2 s); TLinkFinder keeps port-0 peers only
+  when app = BookManager. TLinkServer.SetDirect / Direct: the announcer
+  also SENDS ITS ANNOUNCEMENT UNICAST to those hosts (the phone: each
+  BookManager heard) - the phone ARPs the computer and the computer learns
+  the phone's MAC from that, so its connection to the phone is not lost
+  (the 45 - 60 s first connections). LinkNetworkBroadcast: the network's
+  x.y.z.255 (a /24 assumed; the local address by "connecting" a UDP
+  socket to 192.0.2.1, nothing sent) - announcer and beacon send there
+  too (looked at every 30 s). Upload progress: TLinkPartStream.Write
+  counts and queues OnUploadProgress (name, batch, done, total; every 500
+  ms and at the end); TLinkClient.Batch -> header X-Link-Batch ('2/3').
+- BookManager: FBeacon (TLinkBeacon, FClientName, [Manager] Id - a GUID
+  made once); the finder skips app BookManager (its own beacon too);
+  PhonesHeard ASKS TO PAIR BY ITSELF when the chosen phone is heard,
+  unpaired, not already pairing (FPhoneAutoAsked: once per time it is
+  heard; reset when not heard); TTransferJob.Batch ('n/m', SendToPhone),
+  the worker sets Client.Batch.
+- EpubReader: THE LINK RUNS ONLY WHILE ITS PANEL IS OPEN. StartLink (Menu
+  > Books folders > Get books from BookManager - a row before Back; "No
+  books yet" > Get books from BookManager) makes FLink and FLinkFinder
+  (hears BookManagers -> FLink.SetDirect), KeepScreenOn(True)
+  (FLAG_KEEP_SCREEN_ON through CallInUIThread) and WifiAwake(True)
+  (WifiManager.createWifiLock(WIFI_MODE_FULL_LOW_LATENCY = 4), not
+  reference counted - JNI imports written in uBookImport, GUIDs new;
+  needs WAKE_LOCK: AUP_WAKE_LOCK in the Base PropertyGroup). MODE_LINK =
+  11 (MODE_PAIR gone): ShowLinkPanel - the status, the code ("123 456",
+  Refuse), "Receiving "<name>", book 2 of 3 - 45 % (41 of 92 MB)", the
+  books received; Done / Back / leaving the app -> StopLink; a tap beside
+  it does nothing. Not started at the start any more.
+- NOTE: the reader's .dproj Base PropertyGroup asks for many permissions
+  the reader never uses (location, camera, phone calls, phone state) -
+  the IDE's defaults; to be trimmed before a store release (not changed).
+- TO SEE: Get books from BookManager -> BookManager hears the phone at
+  once and asks to pair (code in the panel); the reader's log "link:
+  heard BookManager on MONSTER (192.168.1.91) - answered directly",
+  "link: low-latency Wi-Fi on"; the progress lines while a big book
+  comes; Done -> "link: stopped - Done (n book(s) received)", BookManager
+  says not heard.
+
+## Zip 356 (on top of zip 355): a phone's slow first connection
+Session 17. NOT COMPILED. Files: demos/common/uLink.pas,
+demos/BookManager/src/uTransfers.pas, demos/BookManager/src/uManager.pas,
+demos/BookManager/README.md, demos/EpubReader/src/uMain.pas,
+demos/EpubReader/README.md, demos/common/uVersion.pas (356), CLAUDE.md.
+NO PACKAGE REBUILD.
+- 355 ON THE PIXEL (owner 16:42 - 17:05, both logs): uLink compiled for
+  Android. The phone was heard 1.8 s after BookManager started
+  (192.168.1.118 - Wi-Fi, not mobile data); the reader's server started
+  ("can connect (port 47821...)"); but FIVE Pair... gave "Connect timed
+  out" (uLink's ConnectTimeout was 5000) with the reader in front, and
+  the reader's log shows nothing reached it. The PC's browser on
+  http://192.168.1.118:47821/info got the JSON after 45 - 60 s (TCP's
+  own retries - the first tries dropped, by the phone's Wi-Fi or the
+  router); then (17:05) Pair... worked ("pair is wanting to pair") -
+  once a connection got through, the next was quick. Also seen:
+  EIdSocketError "Socket Error # 1" (EPERM) in the debugger when the
+  phone slept - the announcer's broadcast refused (caught; harmless).
+  Asking the phone's browser for 127.0.0.1:47821 is NO TEST: Chrome in
+  front = EpubReader in the background, frozen by Android.
+- uLink: LINK_CONNECT_MS 5000 (as before), LINK_CONNECT_PHONE_MS 30000;
+  TLinkClient.ConnectTimeout. TLinkServer.OnRequest ("GET /info from
+  192.168.1.10", queued to the main thread) and Announcing (True; the
+  announcer sends only while True).
+- BookManager: TLinkTarget.ConnectTimeout / TLinkTargets.SetConnectTimeout
+  (NewClient sets it); FinderChange gives every phone
+  LINK_CONNECT_PHONE_MS. The phone's Pair... and its code run in threads
+  (PhonePairAsked / PhonePairConfirmed; FPhonePairBusy; Pair... disabled
+  meanwhile; status "Asking the phone ... (up to 30 seconds)");
+  DropPhonePairClient: a client a call is using is freed by that call's
+  answer (Cancel, another phone, closing). EpubBuilder's pairing is as
+  it was (5 s, the window's thread).
+- EpubReader: LinkRequest logs every call; AppEvent sets
+  FLink.Announcing False when the app is left, True in front again.
+- TO SEE: the reader's log "link: GET /info from 192.168.1.x" /
+  "POST /pair ..."; a first Pair... after a while waits (status) rather
+  than failing at 5 s; BookManager says the phone is not heard soon
+  after the reader is left, and hears it again when it is in front.
+
+## Zip 355 (on top of zip 354): uLink compiles for Android
+Session 17. NOT COMPILED. Files: demos/common/uLink.pas,
+demos/common/uVersion.pas (355), CLAUDE.md. NO PACKAGE REBUILD.
+- THE OWNER'S ANDROID BUILD OF 354 (16:42): uLink.pas(473) E2003
+  '_statvfs', (477) 'statvfs', (478) E2029 - Delphi's Android RTL has no
+  statvfs in Posix.SysStatvfs (the unit was only ever built for Windows,
+  Linux and the Mac) - then E2250 on six TThread.Queue calls (the usual
+  cascade after an early error: see Delphi gotchas) and F2063.
+- LinkFreeSpace: {$IF Defined(MSWINDOWS)} / {$ELSEIF Defined(ANDROID)} /
+  POSIX as before. Android: TAndroidStatVfs (bionic's struct statvfs,
+  64-bit: eleven 8-byte fields as NativeUInt, then reserved - 16 spare
+  UInt32 to be safe) and android_statvfs, external libc (Posix.Base's)
+  name 'statvfs'. Posix.SysStatvfs is used only on POSIX but not
+  Android.
+- IF IT STILL FAILS: the E2250s should go with the first error; if one
+  stays, it is a real one (send it).
+
+## Zip 354 (on top of zip 353): BookManager sends books to the phone
+Session 17. NOT COMPILED, NOT RUN. Files: demos/common/uLink.pas,
+demos/BookManager/src/uManager.pas, demos/BookManager/README.md,
+demos/EpubReader/src/uMain.pas, demos/EpubReader/src/uBookImport.pas,
+demos/EpubReader/EpubReader.dpr / .dproj (uLink added),
+demos/EpubReader/README.md, demos/common/uVersion.pas (354), CLAUDE.md.
+NO PACKAGE REBUILD (programs only; EpubBuilder uses uLink too - rebuild
+it with the rest).
+- THE OWNER (16:27): "BookManager next so we can link and send books to
+  internal phone storage then Phone again so we can link and recieve
+  books. Once that's done - TV (which needs TV remote)". Asked (16:28):
+  a phone in BookManager - "1" = ITS OWN TAB (builder and phone at once,
+  so a book fetched can go on to the phone); where on the phone - (16:32)
+  "internal storage of app (to start)". Both sides are in this zip (the
+  owner can build BookManager first; nothing to test until the reader
+  has its side).
+- THE DESIGN: THE PHONE IS THE SERVER (TLinkServer, as EpubBuilder) -
+  it ANNOUNCES (UDP broadcast 47820: sending a broadcast needs only
+  INTERNET; RECEIVING one on Android needs a WifiManager MulticastLock,
+  which BookManager-as-server would have needed) and answers HTTP on
+  47821+; pairing by the 6-digit code SHOWN ON THE PHONE. App
+  'EpubReader' (LINK_APP_READER); BookManager's finder splits the peers
+  by app (LINK_APP_BUILDER / '' = builders).
+- ANDROID 17's LOCAL NETWORK PROTECTION (checked in this session,
+  developer.android.com/privacy-and-security/local-network-permission):
+  enforced only for apps TARGETING SDK 37; below it INTERNET implies
+  ACCESS_LOCAL_NETWORK. Delphi's Android target SDK is below 37 now -
+  WHEN IT REACHES 37 the reader must declare and request
+  ACCESS_LOCAL_NETWORK (NEARBY_DEVICES group) or the link stops (UDP:
+  EPERM).
+- uLink: LINK_APP_BUILDER, LINK_APP_READER, LINK_RESERVE_PHONE (500
+  MiB); TLinkServer.Reserve (default LINK_RESERVE; used by uploads and
+  /space); its messages name FApp, not "EpubBuilder" (the client's "no
+  answer" error is "host:port: ..." now); a kind with no folder ('' for
+  audio / covers on a phone): "EpubReader takes no audio files".
+- BookManager: tab 2 "Send to phone" (TAB_NAMES / FTabBoxes /
+  FTabBacks 0..4: Send, Books made, Send to phone, Progress, Log; boxes
+  175 wide): Phone row (cbPhone, state, Pair...), its own code row, a
+  drop box (EPUBs of files and folders; others counted, left out), Send
+  checked / Send all new / Add books... / Refresh, the room line, the
+  transfer bar (mirrors the Send tab's), the list of the books HERE (the
+  fetch folder, recursive, newest first) "on phone" / "new" (by name +
+  size against the phone's /books). Uploads go through the same worker
+  and list (TTransferRow.ToPhone: "To phone"); Job.BuilderId = the
+  phone's id (TLinkTargets is by id, tokens in [Paired] with the
+  builders'). The phone is asked (/books + /space, an anonymous thread,
+  FPhoneGen drops answers for a phone chosen before) on choosing,
+  pairing, every 20 s, after each book sent, on Refresh; "not paired - "
+  drops the token ("Pair... again"). [Phone] Id = the phone chosen last.
+- EpubReader (Android only - StartLink is empty elsewhere): FLink :=
+  TLinkServer.Create(LINK_APP_READER, PhoneName, FLinkId) after the books
+  folder is made; SetFolders(FBooksFolder, '', '', [FBooksFolder]) (books
+  only; /books = its books), Reserve LINK_RESERVE_PHONE; settings "linkId"
+  (a GUID made once), "linkTokens" (TokensText). MODE_PAIR = 11: "Pair
+  with BookManager", the code as "123 456", Refuse (RefusePair) / Hide.
+  OnPaired: tokens saved, a note. OnReceived: logged; the library shown
+  again when it is showing ("No books yet" gives way). Start menu's Link
+  to BookManager: how to (the phone's name). FormClose frees FLink.
+  uBookImport.PhoneName: Build.MANUFACTURER + MODEL ("Google Pixel
+  10a"; a model naming its maker alone).
+- TO SEE: the reader's log "link: EpubReader as "Google Pixel 10a" -
+  ..."; BookManager's Send to phone lists the phone; Pair... shows the
+  code on the phone; a dropped EPUB arrives ("link: received book ...")
+  and is in the library; "on phone" in BookManager's list after.
+
+## Zip 353 (on top of zip 352): the highlight in three menu rows
+Session 17. NOT COMPILED, NOT RUN. Files: demos/EpubReader/src/uMain.pas,
+demos/common/uVersion.pas (353), demos/EpubReader/README.md, CLAUDE.md.
+NO PACKAGE REBUILD (uMain only).
+- ZIP 352 ON THE PIXEL (owner 16:22, log and screenshot): "That actually
+  worked even better than I imagined it would" - every mode tried while
+  Night Watch played (16:07 - 16:12), no errors; document 4 read back
+  from the layout cache in 35 ms both opens. "One issue - menu width cuts
+  off text again": "Highlight  < Sentence so far +..." cut. The owner:
+  "make it 3 rows - Highlight (Word/Phrase/Sentence), Highlight Type
+  (All/Trailing), highlight word (Y/N). If Extra highlist = Word then
+  Highlight type + word disabled".
+- THighlightMode (nine) became THighlightUnit (huWord, huPhrase,
+  huSentence) + FHighTrailing + FHighWord (default True). Menu rows
+  MENU_HIGHLIGHT 8 (< Word / Phrase / Sentence >, tap or left / right),
+  MENU_HIGH_TYPE 9 (< All / Trailing >, tap or left / right),
+  MENU_HIGH_WORD 10 (On / Off, tap); LEARN 11 ... ABOUT 15. With Word the
+  two are TPadMenuItem.Dim (faded), the type's value without arrows, taps
+  and steps on them ignored; a step to or from Word shows the menu again
+  (on the Highlight row) to fade / unfade them. Desktop View > Highlight:
+  Word / Phrase / Sentence, a line, Trailing (up to the word), Word in
+  its own colour (both disabled with Word) - CheckHighlightMenu.
+  Settings: "highlight" word / phrase / sentence, "highlightTrailing",
+  "highlightWord"; zip 352's single key ("sentenceSoFar+word") is read
+  the same way (SoFar = trailing, +word = word; without it, word off).
+  The log: "highlight: sentence, trailing yes, word yes".
+- Seen in 352's log, not touched: at start one cover's PNG took 3910 ms
+  to load ("library: SLOW", c16eecc2...png) - the app was in the
+  background then ("app: in front again" just after); next time it is
+  not seen.
+- TO SEE: the three rows fit; Word fades the two under it; each
+  combination while playing.
+
+## Zip 352 (on top of zip 351): a flick glides; phrase / sentence highlighting
+Session 17. NOT COMPILED, NOT RUN (no Delphi, no FPC here). Files:
+fmx/Epub.FMX.View.pas, demos/EpubReader/src/uMain.pas,
+demos/common/uVersion.pas (352), README.md, demos/EpubReader/README.md,
+CLAUDE.md. PACKAGE REBUILD NEEDED (EpubUnumFMX: the view).
+- ZIP 351 ON THE PIXEL (owner 15:53, two logs: a clean run, then 29 more
+  books and playing around): THE LAYOUT CACHE WORKS - a document read
+  back in 44 - 45 ms against 340 made (Dragon Wing's 69 ms); Night
+  Watch reopened in 0.59 s; 29 books added in about 6 s. Seen, not
+  fixed: the first listing of the books folder after copying books took
+  3960 ms in the window's thread (housekeeping, with BuildChapters).
+- THE OWNER (15:53): "Most apps use a sort of inertia, swipe up fast and
+  more text will go by than swiping slower" - and phrase / sentence
+  highlighting "as many normal similar readers do", with "the option to
+  highlight word at the same time ... the phrase / sentence in one
+  colour and the word in another"; 15:55 "only highlight phrase/sentence
+  as far as current word", "All options are valid..."; 15:56 "only needs
+  to run when it changes" (the phrase / sentence found again only when
+  the word leaves it).
+- TEpubView, the glide: the drag's speed (px/s, smoothed: 0.6 the last
+  move, 0.4 before) and when it last moved; let go at >= 400 px/s and
+  moving within the last 80 ms, a 15 ms timer moves the page by speed x
+  dt, the speed falling by e^(-3 dt) (a 3000 px/s flick: about a page),
+  stopping under 40 px/s or at an end of the document. It does NOT go
+  into the next document (no OnEdge; dragging on from the end does, as
+  before). A press stops it (and that press is no click on a word);
+  StopScrolling (ScrollPos, ShowDocument, ShowPreview) and SmoothScrollTo
+  (the reader following the spoken word) stop it. Property Fling
+  (default True).
+- TEpubView, the second highlight: HighlightUnit(First, Last) in
+  UnitHighlightColor (index 5; default $FFDCE8F7, pale blue), drawn
+  first, Highlight's over it (the same word spans, punctuation trimmed,
+  GetRectsForRange). ClearHighlight clears both.
+- EpubReader: THighlightMode - Word, Phrase, Phrase + word, Phrase so
+  far, Phrase so far + word, Sentence, Sentence + word, Sentence so far,
+  Sentence so far + word. Menu row Highlight (MENU_HIGHLIGHT = 8; Learn
+  to read and the rows after it moved down one: ABOUT = 13) - a tap or
+  left / right steps; desktop View > Highlight (radio items); settings
+  "highlight" (word, phrase, phrase+word, phraseSoFar, ...). Without
+  "+ word" the phrase / sentence is in the word's colour (yellow); with
+  it, pale blue under the yellow word. "So far" ends at the clip's last
+  word. ShowReadHighlight replaces View1.Highlight at the three clip
+  places (GoClip, StartClip's and the playing timer's); Find and Learn
+  to read keep the word highlight alone (Learn's own units). Phrase /
+  sentence bounds: IsUnitStartOf / UnitStartOf / UnitEndOf (the step
+  buttons' rules - EndsPhrase, EpubEndsSentence, a new paragraph or
+  document - with the unit as a parameter; IsUnitStart / UnitStart /
+  UnitEnd call them with StepUnit). Cached in FHiFirst / FHiLast /
+  FHiUnit; reset by a mode change and a book's opening. WordBlock may
+  make the document's layout once per document (from the layout cache:
+  ~45 ms) as the step buttons already did.
+- Dark mode: DARK_UNIT_HIGHLIGHT $FF2A3850 under DARK_HIGHLIGHT.
+- TO SEE: a slow drag stops with the finger; a flick glides and slows; a
+  touch stops it without reading from the word; each Highlight mode
+  while playing (Sentence so far + word: the sentence fills in pale
+  blue behind the yellow word); the colours in dark mode.
+
+## Zip 351 (on top of zip 350): a document's layout kept and read back
+Session 17. NOT COMPILED, the round trip NOT RUN (no FPC here). Files:
+lib/Epub.Layout.pas, lib/Epub.Book.pas, demos/EpubReader/src/uMain.pas,
+demos/common/uVersion.pas (351), README.md, CLAUDE.md. PACKAGE REBUILD
+NEEDED (lib/).
+- ZIP 350 ON THE PIXEL (owner 15:33, two logs, "Both work as expected"):
+  THE BOOKS FOLDER WORKS END TO END - Documents/Books chosen, Night Watch
+  found in Pratchett/ (17 ms), its cover from its picture, a first open
+  from the folder (staged page 0.25 s, read in full 3.7 s, index
+  written; BuildChapters 1.6 s in the window's thread - known), then
+  "clip 0: playing audio/NightWatch.m4b inside the book (839884070 bytes
+  at 1846452), no copy"; a second start: from its index in 0.46 s.
+- ZIP 338's LINE ANSWERED: Night Watch's document 4 (1236 blocks) - made
+  in 338 / 354 ms: unzipped 14 / 17, parsed 111 / 123, style sheets 10 /
+  5, blocks 203 / 209. The view's own laying out after it ~20 ms (337).
+  Offered: (1) keep the blocks, (2) build them in a thread; the owner
+  15:35: "1 will do for now - the rest is housekeeping".
+- lib/Epub.Layout: TEpubDocLayout.SaveToStream / CreateFromStream - words
+  (text, id index, role, block), ids, blocks (kind, level, role, align,
+  indent, margin, text, runs - start, length, styles as a bit mask, size,
+  href - word spans, image path / alt, id); not Sources. Integers and
+  doubles as in memory, texts UTF-8 with a length (EpubUtf8Bytes /
+  EpubBytesText); counts and enumerations checked (EEpubError).
+- lib/Epub.Book: LayoutCache (a file name without extension; '' = off,
+  the default - EpubBuilder, EpubConsole untouched). DocumentLayout
+  reads '<LayoutCache>.<doc>.eul' when its header fits ('EULY',
+  LAYOUT_CACHE_VERSION 1 - TO BE RAISED WHEN THE WALKER'S OUTPUT OR
+  SaveToStream CHANGES - the book's IndexStamp, the document number),
+  else builds as before and writes it. TEpubLayoutTimes.Cached / SaveMs.
+- EpubReader: EpubUnum1Open sets Book.LayoutCache := index\<md5 of the
+  file name> (beside the book's .euix and .chapters.json) before any
+  document is shown; the log: "document N: its layout read back from the
+  cache in T ms (B blocks)" or "... made in T ms - ...; kept in S ms".
+  The staged page (PreviewReady's header book) does not use it.
+- TO SEE: Night Watch twice - the first showing of document 4 "made ...
+  kept in S ms", the next "read back ... in T ms" (T expected a few
+  tens of ms against 340). The index folder grows by the layouts (a
+  long book: perhaps 1 - 3 MB more).
+
+## Zip 350 (on top of zip 349): the book's audio read through the same hook
+Session 17, owner 15:27: 0.0.349 COMPILES (349 fixed the F1027), and on
+the phone three first-chance EFOpenError "Cannot create file
+"/content:/com.android.externalstorage.documents/tree/.../Night%20Watch
+%20-%20Terry%20Pratchett.epub". Not a directory" (Delphi on Android says
+"Cannot create" for a failed open too, and shows the name expanded).
+NOT COMPILED. Files: demos/EpubReader/src/uMain.pas, demos/common/
+uVersion.pas (350), CLAUDE.md. NO PACKAGE REBUILD.
+- Two places opened the book file themselves with TFileStream (not
+  through TEpubZipReader): AudioInBook (where a stored audio file starts,
+  for the player to play it in place - its failure caught, so the audio
+  would have been COPIED OUT instead, ~0.9 GB) and the cover chooser's
+  audiobook picture (ShowCoverChoice). Both now OpenBookFile(AName):
+  EpubStreamOpener's stream when it gives one, else the file.
+
+## Zip 349 (on top of zip 348): uBookImport without Epub.Zip
+Session 17, owner 15:17 - 15:21: "F1027 Unit not found: 'Epub.Zip' or
+binary equivalents (.dcu/.o)" at uBookImport.pas(111) - with
+Epub.Zip.dcu in Dcp\Android64 (15:13, all the package's units there; his
+screenshot) and uMain, which uses Epub.Zip too, past its uses clause in
+the 15:14 build. CAUSE NOT FOUND. NOT COMPILED. Files: demos/EpubReader/
+src/uBookImport.pas, demos/EpubReader/src/uMain.pas, demos/common/
+uVersion.pas (349), CLAUDE.md. NO PACKAGE REBUILD.
+- uBookImport no longer uses Epub.Zip: OpenBookStream is public, raises
+  EStreamError (was EEpubError), and uMain's FormCreate sets
+  EpubStreamOpener := OpenBookStream on Android (was uBookImport's
+  initialization).
+- IF uMain NOW SAYS THE SAME: the problem is the build's, not the unit -
+  ask for the whole Messages pane and the target (Android64 / Win64,
+  Debug / Release).
+
+## Zip 348 (on top of zip 347): zip 347's build - two fixes
+Session 17, owner 15:14 (zip 347's first compile - 0.0.346 had run;
+packages rebuilt): E2003 Undeclared identifier 'BookThere' (uMain 1663), then
+E2250 "no overloaded version of 'ForceQueue' / 'Queue'" at every
+TThread.ForceQueue / Queue(nil, procedure ...) after it (3414, 4612,
+4696, 5089, 5126 - lines unchanged for months), and H2443 FileClose in
+uBookImport. NOT COMPILED. Files: demos/EpubReader/src/uMain.pas,
+demos/EpubReader/src/uBookImport.pas, demos/common/uVersion.pas (348),
+CLAUDE.md. NO PACKAGE REBUILD.
+- MY FAULT IN 347: BookExists -> BookThere replaced everywhere, also in
+  EnsureCover, a plain procedure (BookThere is TfrmMain's). EnsureCover
+  now tries a books folder's book (IsBookAddress or FileExists; a failure
+  is a made cover, as for any unreadable book).
+- THE E2250s: taken for the knock-on of that error (every one after
+  1663, each an OVERLOADED routine given an anonymous procedure; the
+  not overloaded ones - BookFolderChoose, TComparer.Construct - were not
+  reported). If they stay after this zip, they are something else.
+- uBookImport: Posix.Unistd in its Android uses (H2443).
+
+## Zip 347 (on top of zip 346): books folders read from Android's handle, not /proc/self/fd
+Session 17, owner 15:04 - 15:07: "It added my folder and found the book in
+a subdir but then the screen is blank", the debugger's "EFOpenError ...
+Cannot create file "/proc/self/fd/174". Permission denied", the log
+(0.0.346: "books folder: Documents/Books", "library: 1 book(s) in
+Documents/Books (16 ms)", then nothing - stopped in the debugger) and
+the settings (the book in "recent" with no title, meta false).
+NOT COMPILED. Files: lib/Epub.Zip.pas, demos/EpubReader/src/
+uBookImport.pas, demos/EpubReader/src/uPlayerAndroid.pas,
+demos/EpubReader/src/uMain.pas, demos/common/uVersion.pas (347),
+README.md, CLAUDE.md. PACKAGE REBUILD NEEDED (lib/Epub.Zip.pas).
+- MY FAULT IN 346: reopening /proc/self/fd/<n> makes Android check the
+  real path (Documents/...), which an app may not open (scoped storage):
+  Permission denied. ASSUMED in 346, proved wrong on the phone.
+- lib/Epub.Zip: EpubStreamOpener (TEpubStreamOpener = function(const
+  AFileName: string): TStream), nil by default; TEpubZipReader.Create
+  (AFileName) asks it first and reads the stream it gives (owned and
+  freed as its file stream was). Called in the thread opening the book.
+- uBookImport: a book of a folder KEEPS ITS ADDRESS AS ITS NAME everywhere
+  (TEpubBook.FileName, EpubUnum1.FileName, FBookFile) - BookStableName is
+  now the identity. BookOpenPath opens the address through Android (the
+  window's thread), COUNTED (TOpenedBook; each call a BookRelease or held
+  for the run - a header read of the open book no longer closes its
+  file), and returns the name itself; OpenBookStream (EpubStreamOpener on
+  Android, set at initialization) gives TBookFdStream - the descriptor
+  read with bionic's pread64 (by position: the preview's reader in the
+  window's thread and the full book's in the open thread share it
+  safely), size from FileSeek(end). Opened guarded by a critical section.
+  A book not opened first by BookOpenPath: EEpubError.
+- uPlayerAndroid.OpenPart: a content:// name opened by
+  ContentResolver.openFileDescriptor and played from its
+  getFileDescriptor (offset, length), the pfd closed once prepared.
+- uMain: ListBooksFolders (touch builds, in ShowLibrary before
+  DropMissingBooks; ScanTranscribed takes its list) and BookThere - a
+  folder's book is there when its folder's last listing has it (all
+  folders listed; a folder that could not be read: kept). Replaces 346's
+  BookExists query per book (fragile, a query each).
+- THE BOOK ALREADY IN THE SETTINGS (no title, meta false) is read again
+  when the library's order needs it; its cover: made at the next showing.
+
+## Zip 346 (on top of zip 345): books folders read in place (the phone's, the card's) - no copying
+Session 17, owner 14:36 - 14:43: "Is it necessary to copy books from e.g.
+Documents to own storage?" - offered a folder granted once - "don't load
+single files - they should be in folder / subfolders", then "they could
+also use sd card so we need the same option there too - open from card".
+NOT COMPILED. Files: demos/EpubReader/src/uBookImport.pas (REWRITTEN,
+same unit name: no .dproj change), demos/EpubReader/src/uMain.pas,
+demos/EpubReader/EpubReader.dpr (a comment), demos/common/uVersion.pas
+(346), demos/EpubReader/README.md, CLAUDE.md. NO PACKAGE REBUILD.
+- ZIP 341'S COPYING OF SINGLE FILES IS GONE (it was never run).
+- uBookImport: BookFolderChoose - ACTION_OPEN_DOCUMENT_TREE (request
+  7346), takePersistableUriPermission (read) so the folder stays readable
+  across starts; BookFolderBooks - the tree's documents walked through the
+  content resolver (children: content://<authority>/tree/<tree id>/
+  document/<doc id>/children, built by hand as DocumentsContract does,
+  ids through Uri.encode; projection document_id, _display_name,
+  mime_type; folders - vnd.android.document/directory - walked, 12 deep
+  at most), every *.epub as its document address; BookOpenPath - an
+  address opened (openFileDescriptor 'r', detachFd, kept for the run) as
+  /proc/self/fd/<n>, which TEpubBook and the MediaPlayer open as a file;
+  BookRelease (headers read: closed again); BookStableName (the path back
+  to its address); BookFileName (an address's document's last part -
+  'Night Watch.epub' - so covers, indexes, the library's matching and
+  "seen" go by file name as before: a book copied earlier keeps its index
+  and cover); BookExists (an address: a query of the document);
+  BookInFolder / BookFolderForget (releasePersistableUriPermission);
+  BookFolderName ('Documents/EpubUnum'; a card: '<volume id>: path').
+  ASSUMED, not seen: that reopening /proc/self/fd/<n> works for these
+  files (the usual way native code reads SAF files) and Delphi 13's
+  names (takePersistableUriPermission, releasePersistableUriPermission,
+  ACTION_OPEN_DOCUMENT_TREE, FLAG_GRANT_PERSISTABLE_URI_PERMISSION,
+  TJnet_Uri.encode, JCursor.getString).
+- READER: FBooksTrees (settings "booksFolders", a list); ScanTranscribed's
+  per-file checks in Consider (paths and addresses alike; a book in two
+  folders once), the folders' books added on a phone (log "library: N
+  book(s) in Documents/EpubUnum (T ms)" or "could not be read - ...");
+  every book open / header / meta / cover through BookOpenPath; the open
+  book's name back through BookStableName (OnOpen, chapters, index);
+  BookExists for "is it there" (DropMissingBooks: a deleted book goes).
+  Menu > "Books folders" (MENU_OPEN on Android; value: the folder, or how
+  many, or "none yet") -> MODE_FOLDERS: each folder, "Add a folder",
+  Back; a folder -> MODE_FOLDER: "Take it off" (its books leave the
+  library, the permission released) / "Keep it". "No books yet" offers
+  "Choose a books folder" (START_FOLDER).
+
+## Zip 345 (on top of zip 344): the phone's menus as buttons; "No books yet" stays; gone books off the library
+Session 17, owner 14:20 (screenshots of 0.0.344 on the Pixel - "No books
+yet", About, the licences sideways with "Skia4D / elphi" and "d /
+librarie" broken in a narrow column): "Menu could do with proper buttons
+and be a bit larger. If you touch outside the menu it goes away and
+you're left with a blank screen - you should have to load a book. I
+loaded a test normal epub then deleted it. So at this point I had nothing
+in the library - I should get the load books menu. These menus are
+really badly laid out". NOT COMPILED. Files: demos/EpubReader/src/
+uPadMenu.pas (EPUBBUILDER SHARES IT - unchanged there: the new look is
+opt-in), demos/EpubReader/src/uMain.pas, demos/common/uVersion.pas
+(345), CLAUDE.md. NO PACKAGE REBUILD.
+- TPadMenu.TouchStyle (the reader sets it on a touch build; font 22, was
+  20): each row a button - 2.6 font sizes tall (2.0 before), a frame, a
+  tint, half a font size between buttons (RowGap / RowStep; the title
+  keeps 2.0 - TitleHeight), the box 92% of the window's width (at most
+  720) whatever the rows need, a button's text on ONE line (WordWrap off,
+  an ellipsis at its end - TLabel wrapped inside words), its value only
+  as wide as it is (was at least 8 font sizes: what squeezed the names),
+  half the spare line under a text. Off: as before (EpubBuilder, Big
+  Picture, desktops).
+- "No books yet" (MODE_START) cannot be tapped away (PadMenuClose keeps
+  it), nor closed by the pad's Back; Android's Back there leaves the app.
+  OfferBooksIfEmpty - after any menu closes (a tap beside it, Back, OK,
+  Back to the book) the empty library offers books again.
+- DropMissingBooks (touch builds, at every ShowLibrary after
+  DropDoubleBooks): a library entry whose file is gone is taken off (log
+  "library: X is gone - taken off"; the open book closed), so a library
+  of deleted books is empty and offers books. A desktop keeps its faint
+  covers (a click takes one off) as before.
+- NOTE for the owner: a book loaded from the phone is a COPY in Books -
+  deleting the original (Downloads) leaves it in the library. No "remove
+  from library" on the phone yet - offered.
+
+## Zip 344 (on top of zip 343): About > Licences (A .dproj IS IN THIS ZIP)
+Session 17, owner 13:55: "There are external licenses we need to display
+at some point - a button on About can show another submenu with license
+info". NOT COMPILED. Files: demos/EpubReader/src/uLicences.pas (NEW),
+demos/EpubReader/src/uMain.pas, demos/EpubReader/EpubReader.dpr and
+.dproj (uLicences added), demos/common/uVersion.pas (344),
+demos/EpubReader/README.md, CLAUDE.md. NO PACKAGE REBUILD.
+- About is its own mode (MODE_ABOUT = 6): rows OK and Licences. Licences
+  (MODE_LICENCES = 7): this build's components - Skia (BSD 3-Clause),
+  Skia4Delphi (MIT), then FFmpeg (LGPL 2.1+) on a desktop OR Android
+  libraries (Apache 2.0) on Android, and Steamworks in STEAMBUILD - and
+  Back. A licence (MODE_LICENCE = 8): its text a page at a time (the
+  box's text is a label and does not scroll: LicencePages cuts at blank
+  lines, ~700 characters a page), Next page (round) and Back. The pad's
+  / keyboard's / Android's Back: a licence -> the list -> About.
+- THE TEXTS (uLicences): Skia's LICENSE in full as published
+  (skia.googlesource.com, "Copyright (c) 2011 Google Inc."). Skia4Delphi:
+  the MIT text with "Copyright (c) the Skia4Delphi Project" - ITS EXACT
+  COPYRIGHT LINE IS TO BE CHECKED (github's LICENSE page was rate-limited
+  twice; the repository is MIT). FFmpeg: a notice - LGPL 2.1 or later
+  unless the build says otherwise, separate replaceable files, the full
+  text and configure line in licences/ beside the program (the files
+  tools/redist.sh already ships), source at ffmpeg.org/releases, the
+  trademark line. Android: AndroidX / AOSP / Google, the Apache 2.0
+  notice with the licence's URL - NOT ITS FULL TEXT (section 4(a) wants a
+  copy given: to ship as a file, or as pages here, later). Steamworks: a
+  notice and Valve's trademark line. Not listed: Delphi's RTL / FMX
+  (Embarcadero's, no notice needed), the system's own players.
+
+## Zip 343 (on top of zip 342): versions major.minor.build (0.0.343); About (.dproj FILES ARE IN THIS ZIP)
+Session 17, owner 13:51 (a standing rule - see Deliveries) and 13:53:
+"Also add an item to the bottom of the menu "About" that displays the
+version and some copyright info - your basic about box". NOT COMPILED.
+Files: demos/common/uVersion.pas (NEW), demos/common/uDebugLog.pas,
+demos/EpubReader/src/uMain.pas, demos/EpubBuilder/src/uBuilder.pas,
+the .dpr and .dproj of EpubReader, EpubBuilder and BookManager (uVersion
+added after uDebugLog; pulled first: f6c0de8), tools/project_check.py,
+README.md, demos/EpubReader/README.md, CLAUDE.md. NO PACKAGE REBUILD
+(nothing in lib/, fmx/ or packages/).
+- uVersion: VERSION_MAJOR 0, VERSION_MINOR 0, VERSION_BUILD 343 (every zip:
+  its own number); VersionText ('0.0.343'); VersionCompare (part by part
+  as integers, a missing part 0, a leading v ignored).
+- uDebugLog: the log's second line "Version: 0.0.343" (above "Build:");
+  the platform "Android" / "iOS" (was "unknown 64-bit" there - a known
+  item of the phone's list). Every program with uDebugLog (EpubReader,
+  EpubBuilder, BookManager) lists uVersion in its .dpr / .dproj.
+  EpubBuilder's own log: "Version: ..." before "Build: ...".
+- ABOUT: the pad / touch menu's LAST row, "About" (MENU_ABOUT = 12, after
+  Exit as asked - "the bottom of the menu"), and on a desktop Help >
+  About EpubReader... - the menu's box (ShowNote, OK): EpubReader
+  0.0.343, Built <stamp>, a line on what it does, ABOUT_COPYRIGHT, Skia
+  (BSD) through Skia4Delphi (MIT), the sound player's description
+  without its folder. ABOUT_COPYRIGHT = 'Copyright (c) 2026 WhisperBooks.
+  All rights reserved.' IS A PLACEHOLDER: the repository names no holder
+  and has no licence file - asked.
+- project_check.py: VERSION_BUILD must be "Last number used".
+
+## Zip 342 (on top of zip 341): no EpubUnum-moved-EpubReader.txt
+Session 17, owner 13:47 (with a fresh phone's EpubReader.json and log -
+f6c0de8, the library empty): "Don't create EpubUnum-moved-EpubReader.txt
+when starting - it's obsolete". NOT COMPILED. Files: demos/EpubReader/
+src/uMain.pas, demos/common/uEpubUnum.pas (its comment), demos/
+EpubReader/README.md, CLAUDE.md. NO PACKAGE REBUILD.
+- FormCreate no longer calls EpubUnumMove('EpubReader') (the move of
+  Documents/EpubReader/Books and the reader's old settings folder into
+  the shared EpubUnum folders, zip 178, and its marker) - nor logs
+  "folders: ...". EpubUnumMove stays in uEpubUnum: EPUBBUILDER STILL
+  CALLS IT (uBuilder, EpubUnum-moved-EpubBuilder.txt) - not asked about.
+  A marker file already there is left (harmless).
+
+## Zip 341 (on top of f6c0de8 = zip 340 pushed): books from the phone's own storage; the build's hints (A .dproj IS IN THIS ZIP)
+Session 17. NOT COMPILED. Files: demos/EpubReader/src/uBookImport.pas
+(NEW), demos/EpubReader/src/uMain.pas, demos/EpubReader/EpubReader.dpr,
+demos/EpubReader/EpubReader.dproj (one DCCReference added, pulled first:
+f6c0de8), demos/common/uSteamPad.pas, lib/Epub.Book.pas,
+demos/EpubReader/README.md, CLAUDE.md. PACKAGE REBUILD NEEDED (lib/).
+- OWNER 13:40 (f6c0de8 on the Pixel: the new package name works -
+  books folder Android/data/com.epubunum.reader/files/EpubUnum/Books;
+  13:42 "The library now opens fast when first populated"): "We have
+  BookManager which will shortly get the ability to transfer books to
+  phone/TV. Remove that text and in the event of no Library pop up a
+  window (like menu) and offer to Link or Load from a file stored on
+  internal/external storage. Note that the current Open File is useless
+  on Android."
+- uBookImport (Android; elsewhere BookImportSupported = False): the
+  system's picker - ACTION_OPEN_DOCUMENT, CATEGORY_OPENABLE, type */*
+  (a provider may not know an EPUB's type), EXTRA_ALLOW_MULTIPLE;
+  startActivityForResult (request 7341), the answer by
+  TMessageResultNotification. Each chosen book: its display name
+  (_display_name, else the address's last part; no path), not .epub or
+  already in the folder -> left out with a note; opened by the content
+  resolver (TAndroidHelper.Context.getContentResolver.openFileDescriptor,
+  'r'), detachFd. Then a thread copies the descriptors with plain file
+  reads (1 MB pieces; no Java in the thread) to "<name>.part", renamed
+  when whole (the library's *.epub never sees half a book); progress
+  queued per percent. ASSUMED, not seen: Delphi 13's names
+  (JClipData.getItemAt(I).getUri, JCursor in
+  GraphicsContentViewText, JParcelFileDescriptor.detachFd,
+  putExtra(JString, Boolean)).
+- READER: the Android library's text ("No books yet. Connect the phone
+  ... USB") is gone. An empty library on a touch build (no books, none
+  being read in or copied, no menu showing) shows ShowStartMenu - the
+  menu's box (ShowText): "No books yet" / "Books come from BookManager on
+  your computer, or from EPUB files on this phone or its memory card." -
+  rows "Link to BookManager" (a note for now: "comes with its next
+  version") and "Load books from this phone" (selected). Menu > "Open a
+  book" is "Add books from this phone" where the picker exists (the
+  desktop's list of the books folder stays elsewhere). AddBooksFromPhone:
+  the picker, the library behind it ("Copying <title> (1 of 3): 42%" on
+  its note line), at the end the library again (its scan reads the new
+  books, as books copied by USB) and a note of what was left out. Log
+  "books: the system's file picker", "books: copying X (i of n)",
+  "books: N copied into ...". MODE_START = 4, MODE_NOTE = 5 (OK: back to
+  the offer while the library is still empty).
+- THE BUILD'S HINTS (owner 13:28): uSteamPad - FSet, FStick, FResolved,
+  FLastResolve, FActivePad, FPads, TargetPad and Resolve declared only in
+  STEAMBUILD (used by Steam's code only); W1029 (TEpubBook.Create and
+  CreateHeader both a file name only - C++ could not tell them apart;
+  Delphi reported it in uMain where the class is used): {$WARN
+  DUPLICATE_CTOR_DTOR OFF} in uMain and in Epub.Book (Delphi only);
+  RegisterOpenWith's Command declared for Windows / Linux only.
+- NOT DONE: "Open with EpubReader" for an .epub tapped in Files (an
+  intent filter in the manifest template); the link to BookManager.
 
 ## Zip 340 (on top of zip 339): package name com.epubunum.reader; the library's order (A .dproj IS IN THIS ZIP)
 Session 17, owner 13:14: "lets change the package name (everywhere it's

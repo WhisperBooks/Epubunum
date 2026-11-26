@@ -62,6 +62,22 @@ type
     State: TTransferState;
     { Why it failed, or where the file is now. }
     Text: string;
+    { Sent to the phone chosen in Send to phone, not to EpubBuilder. }
+    ToPhone: Boolean;
+    { The job, as given to the worker (to give it again). }
+    Job: TTransferJob;
+    { Waiting for the phone to link again (its link went off: Done or
+      Cancel on the phone) - not with the worker; given to it again when
+      the phone answers (zip 363; owner 18:16, "now it's on book 7 (missed
+      6 books)"). }
+    Held: Boolean;
+    { Held, and the worker had taken it already: stopped (Cancel), its
+      answer not come yet - not given to the worker again before it has. }
+    Stopping: Boolean;
+    { When it started (TThread.GetTickCount64; 0 = not yet): its speed. }
+    StartTick: UInt64;
+    { Its speed when it ended, bytes a second (0 = not known). }
+    Speed: Double;
   end;
 
   { A book EpubBuilder made (its /books). }
@@ -164,11 +180,11 @@ type
       its colours are the style's, light). }
     layTabs: TLayout;
     { Dark: a box per tab in layTabs. }
-    FTabBoxes: array[0..3] of TRectangle;
+    FTabBoxes: array[0..4] of TRectangle;
     { Dark: each box's name. }
-    FTabLabels: array[0..3] of TLabel;
+    FTabLabels: array[0..4] of TLabel;
     { Dark: a dark sheet behind each tab's controls. }
-    FTabBacks: array[0..3] of TRectangle;
+    FTabBacks: array[0..4] of TRectangle;
     { Dark: looked at again twice a second (a style applied again, a
       list's new rows). }
     tmDark: TTimer;
@@ -245,6 +261,86 @@ type
     FReserve: Int64;
     { The window is closing: events are ignored. }
     FClosing: Boolean;
+    { Send to phone (zip 354; owner 16:27, "link and send books to
+      internal phone storage"): the tab. }
+    tabPhone: TTabItem;
+    { The phones heard (EpubReader open on them). }
+    cbPhone: TComboBox;
+    { The phone link's state. }
+    lblPhoneLink: TLabel;
+    { Asks the phone to pair (it shows a code). }
+    btnPhonePair: TButton;
+    { The phone's code row, shown while pairing. }
+    layPhonePair: TLayout;
+    { The code the phone shows. }
+    edPhoneCode: TEdit;
+    { Books dropped here go to the phone. }
+    rcPhoneDrop: TRectangle;
+    { The phone's room. }
+    lblPhoneSpace: TLabel;
+    { The transfer running, in words (as lblTransfer). }
+    lblPhoneTransfer: TLabel;
+    { The transfer running (as pbTransfer). }
+    pbPhone: TProgressBar;
+    { The books here (the fetch folder), each on the phone or not. }
+    lbPhoneBooks: TListBox;
+    { Asks the phone for its books every 20 s. }
+    tmPhone: TTimer;
+    { The phones heard. }
+    FPhones: TLinkPeerArray;
+    { The phone id of each line of cbPhone ('' = none). }
+    FPhoneIds: TArray<string>;
+    { cbPhone is being filled (its OnChange ignored). }
+    FPhoneFilling: Boolean;
+    { The phone chosen ('' = none). }
+    FPhoneId: string;
+    { The phone chosen, as last heard. }
+    FPhone: TLinkPeer;
+    { The phone chosen last time (from the settings). }
+    FLastPhoneId: string;
+    { The phone chosen is heard (the reader open on it). }
+    FPhoneHeard: Boolean;
+    { Its last answer worked. }
+    FPhoneConnected: Boolean;
+    { What went wrong in its last answer ('' = nothing). }
+    FPhoneError: string;
+    { The client asking the phone to pair (nil = not pairing). }
+    FPhonePairClient: TLinkClient;
+    { A pairing call to the phone is on its way (in a thread: a phone
+      may take up to LINK_CONNECT_PHONE_MS to answer). }
+    FPhonePairBusy: Boolean;
+    { Counts the phones chosen: an answer for an earlier one is dropped. }
+    FPhoneGen: Integer;
+    { The phone is being asked (one at a time). }
+    FPhoneBusy: Boolean;
+    { Asked again when the answer on its way comes. }
+    FPhoneAgain: Boolean;
+    { The phone's books (name and size), as it last said. }
+    FPhoneBooks: TArray<TBuilderBook>;
+    { FPhoneBooks is known. }
+    FPhoneKnown: Boolean;
+    { The phone's free space for books (-1 = not known). }
+    FPhoneFree: Int64;
+    { What the phone never lets an upload take. }
+    FPhoneReserve: Int64;
+    { The books here, in lbPhoneBooks' order (full names). }
+    FHereBooks: TArray<string>;
+    { The last transfer done, with its speed ('Sent at 10.7 MB/s - name'),
+      shown by the bars when nothing runs ('' = none yet). }
+    FLastDone: string;
+    { Says BookManager is here (zip 357): a phone that links answers it
+      directly, so this computer learns the phone's address before
+      connecting to it. }
+    FBeacon: TLinkBeacon;
+    { This BookManager's id on the link ([Manager] Id; made once). }
+    FManagerId: string;
+    { The phone asked to pair by itself (it started linking and is not
+      paired): asked once each time it is heard again. }
+    FPhoneAutoAsked: string;
+    { When the phone last refused a connection (its link turned off -
+      Done on the phone - while it is still in the finder's list for up to
+      10 s): not asked again for a while (0 = not refused). }
+    FPhoneRefusedAt: TDateTime;
     { The settings file: BookManager.ini in the EpubUnum settings folder. }
     function SettingsFile: string;
     { Reads the settings. }
@@ -418,6 +514,92 @@ type
     procedure AddLogLines(const ALines: TArray<string>);
     { The free space from /space' JSON. }
     procedure ShowSpace(const AJson: string);
+    { The finder heard a program for the first time (the log). }
+    procedure FinderFirstHeard(const AText: string);
+    { Closing: the phone linking is told directly (POST /bye, a few
+      seconds at most) and a goodbye goes out on the network - its link
+      panel closes by itself (owner 19:45; zip 371). }
+    procedure SayGoodbye;
+    { Send to phone: the phones heard (from FinderChange) - followed,
+      chosen (the one of last time, else the only one). }
+    procedure PhonesHeard;
+    { cbPhone from FPhones. }
+    procedure FillPhones;
+    { A phone chosen in cbPhone. }
+    procedure cbPhoneChange(Sender: TObject);
+    { Chooses the phone AId. }
+    procedure ChoosePhone(const AId: string);
+    { lblPhoneLink and Pair... from the phone's state. }
+    procedure UpdatePhoneLink;
+    { Pair... (the phone): it shows a code. }
+    procedure btnPhonePairClick(Sender: TObject);
+    { The code typed: paired. }
+    procedure btnPhonePairOkClick(Sender: TObject);
+    { The phone's answer to Pair... (on the main thread).
+      @param(AGen  FPhoneGen when asked)
+      @param(AClient  the client that asked (freed here unless it is
+        still FPhonePairClient))
+      @param(AError  what went wrong, '' = it shows the code) }
+    procedure PhonePairAsked(AGen: Integer; AClient: TLinkClient; const AError: string);
+    { Its answer to the code (on the main thread).
+      @param(AGen  FPhoneGen when sent)
+      @param(AClient  the client that sent it (as PhonePairAsked))
+      @param(AToken  the token, '' when not paired)
+      @param(AError  why not) }
+    procedure PhonePairConfirmed(AGen: Integer; AClient: TLinkClient; const AToken, AError: string);
+    { FPhonePairClient let go of: freed now, or - a call on its way uses
+      it - by that call's answer. }
+    procedure DropPhonePairClient;
+    { The code row closed. }
+    procedure btnPhonePairCancelClick(Sender: TObject);
+    { Enter in the code box is Pair. }
+    procedure edPhoneCodeKeyDown(Sender: TObject; var Key: Word; var KeyChar: Char; Shift: TShiftState);
+    { Asks the phone for its books and room (in a thread). }
+    procedure RefreshPhone;
+    { Its answer (on the main thread).
+      @param(AGen  FPhoneGen when asked)
+      @param(ABooks  /books' JSON)
+      @param(ASpace  /space' JSON)
+      @param(AError  what went wrong, '' = nothing) }
+    procedure PhoneAnswered(AGen: Integer; const ABooks, ASpace, AError: string);
+    { lbPhoneBooks: the books here, each on the phone or not. }
+    procedure FillPhoneBooks;
+    { The phone has the book AFileName (the same name and size). }
+    function PhoneHas(const AFileName: string): Boolean;
+    { Every 20 s: the phone asked again. }
+    procedure tmPhoneTimer(Sender: TObject);
+    { A line of lbPhoneBooks: the book's state (its transfer: waiting, held,
+      "sending 22 % 11.0 MB/s", "sent 10.7 MB/s"; else on phone / new),
+      its name and size. }
+    function PhoneBookText(const AFileName: string): string;
+    { Row I's book (a transfer to the phone) shown again in lbPhoneBooks. }
+    procedure ShowPhoneBookRow(I: Integer);
+    { Refresh (the phone). }
+    procedure btnPhoneRefreshClick(Sender: TObject);
+    { Send checked: the books ticked (none ticked: the one chosen). }
+    procedure btnPhoneSendCheckedClick(Sender: TObject);
+    { Send all new: every book here the phone does not have. }
+    procedure btnPhoneSendNewClick(Sender: TObject);
+    { Add books...: books from anywhere, to the phone. }
+    procedure btnPhoneAddClick(Sender: TObject);
+    { Something dragged over the phone's box. }
+    procedure PhoneDropEnter(Sender: TObject; const Data: TDragObject; const Point: TPointF);
+    { ... and away. }
+    procedure PhoneDropLeave(Sender: TObject);
+    { Dropped: books to the phone. }
+    procedure PhoneDropDrop(Sender: TObject; const Data: TDragObject; const Point: TPointF);
+    { A phone is chosen and paired; else says why (True = ready). }
+    function PhoneReady: Boolean;
+    { Sends the EPUBs of APaths (files, and folders looked through) to the
+      phone - other files are left out (the reader reads EPUBs). }
+    procedure SendToPhone(const APaths: array of string);
+    { The phone's link went off while row AFrom was sent: it, and the
+      phone's books waiting after it, are held (Held) until the phone
+      answers again. }
+    procedure HoldPhoneTransfers(AFrom: Integer);
+    { The phone answers again: the held books go to the worker, in their
+      order. }
+    procedure ResumePhoneTransfers;
   public
   end;
 
@@ -445,7 +627,8 @@ const
   { Dark mode: the frame of the other tabs' boxes. }
   DARK_FRAME = $FF4A4F5C;
   { The tabs' names in layTabs: the tab items' texts. }
-  TAB_NAMES: array[0..3] of string = ('Send to EpubBuilder', 'Books made', 'Progress', 'Log');
+  TAB_NAMES: array[0..4] of string = ('Send to EpubBuilder', 'Books made', 'Send to phone', 'Progress',
+    'Log');
   { Room left free on this computer's drive when books are fetched
     (1 GiB). }
   FETCH_RESERVE = Int64(1024) * 1024 * 1024;
@@ -481,6 +664,17 @@ begin
     Result := 0;
 end;
 
+{ A link call's error says the other side refused or dropped the
+  connection (a phone whose link is off: Windows' Socket Error # 10061,
+  "Connection refused"; its link turned off mid-transfer: 10054
+  "Connection reset", or Indy's "Connection Closed Gracefully"). }
+function IsLinkOff(const AError: string): Boolean;
+begin
+  Result := ContainsText(AError, '10061') or ContainsText(AError, 'Connection refused') or
+    ContainsText(AError, '10054') or ContainsText(AError, 'Connection reset') or
+    ContainsText(AError, 'Closed Gracefully');
+end;
+
 var
   { The window is closing or gone: an answer of the link site that comes
     after that (its threads are not waited for) touches nothing. }
@@ -506,6 +700,8 @@ begin
     try
       Ini.ReadSectionValues('Paired', FTokens);
       FLastId := Ini.ReadString('Builder', 'Id', '');
+      FLastPhoneId := Ini.ReadString('Phone', 'Id', '');
+      FManagerId := Ini.ReadString('Manager', 'Id', '');
       FFetchFolder := Ini.ReadString('Folders', 'Fetch', FFetchFolder);
       FAddFolder := Ini.ReadString('Folders', 'Add', FAddFolder);
       FDark := Ini.ReadBool('View', 'Dark', True);
@@ -537,6 +733,10 @@ begin
           Ini.WriteString('Paired', FTokens.Names[I], FTokens.ValueFromIndex[I]);
       if FBuilderId <> '' then
         Ini.WriteString('Builder', 'Id', FBuilderId);
+      if FPhoneId <> '' then
+        Ini.WriteString('Phone', 'Id', FPhoneId);
+      if FManagerId <> '' then
+        Ini.WriteString('Manager', 'Id', FManagerId);
       Ini.WriteString('Folders', 'Fetch', FFetchFolder);
       Ini.WriteString('Folders', 'Add', FAddFolder);
       Ini.WriteBool('View', 'Dark', FDark);
@@ -601,7 +801,8 @@ begin
   case AIndex of
     0: Result := tabSend;
     1: Result := tabBooks;
-    2: Result := tabProgress;
+    2: Result := tabPhone;
+    3: Result := tabProgress;
   else
     Result := tabLog;
   end;
@@ -748,7 +949,7 @@ begin
     FTabBoxes[I].Parent := layTabs;
     FTabBoxes[I].Align := TAlignLayout.Left;
     FTabBoxes[I].Position.X := 100000;
-    FTabBoxes[I].Width := 200;
+    FTabBoxes[I].Width := 175;
     FTabBoxes[I].Margins.Right := GAP div 2;
     FTabBoxes[I].XRadius := 6;
     FTabBoxes[I].YRadius := 6;
@@ -836,7 +1037,7 @@ begin
   lblTransfer := TLabel.Create(Self);
   lblTransfer.Parent := Row;
   lblTransfer.Align := TAlignLayout.Left;
-  lblTransfer.Width := 420;
+  lblTransfer.Width := 520;
   lblTransfer.WordWrap := False;
   lblTransfer.Trimming := TTextTrimming.Character;
   pbTransfer := TProgressBar.Create(Self);
@@ -877,11 +1078,129 @@ begin
   lbBooks.Margins.Rect := RectF(GAP, GAP, GAP, GAP);
   lbBooks.ShowCheckboxes := True;
 
+  // --- Send to phone (EpubReader open on a phone of this network)
+  tabPhone := TTabItem.Create(tcMain);
+  tabPhone.Parent := tcMain;
+  tabPhone.Text := TAB_NAMES[2];
+  AddBack(2, tabPhone);
+  Row := AddRow(tabPhone);
+  Row.Margins.Top := GAP;
+  L := TLabel.Create(Self);
+  L.Parent := Row;
+  L.Align := TAlignLayout.Left;
+  L.Width := 60;
+  L.Text := 'Phone';
+  btnPhonePair := TButton.Create(Self);
+  btnPhonePair.Parent := Row;
+  btnPhonePair.Align := TAlignLayout.Right;
+  btnPhonePair.Width := 110;
+  btnPhonePair.Margins.Left := GAP;
+  btnPhonePair.Text := 'Pair...';
+  btnPhonePair.OnClick := btnPhonePairClick;
+  lblPhoneLink := TLabel.Create(Self);
+  lblPhoneLink.Parent := Row;
+  lblPhoneLink.Align := TAlignLayout.Right;
+  lblPhoneLink.Width := 300;
+  lblPhoneLink.Margins.Left := GAP;
+  lblPhoneLink.WordWrap := False;
+  lblPhoneLink.Trimming := TTextTrimming.Character;
+  cbPhone := TComboBox.Create(Self);
+  cbPhone.Parent := Row;
+  cbPhone.Align := TAlignLayout.Client;
+  cbPhone.OnChange := cbPhoneChange;
+  // the phone's code row, while pairing
+  layPhonePair := AddRow(tabPhone);
+  L := TLabel.Create(Self);
+  L.Parent := layPhonePair;
+  L.Align := TAlignLayout.Left;
+  L.Width := 320;
+  L.Text := 'Type the 6-digit code the phone shows now:';
+  edPhoneCode := TEdit.Create(Self);
+  edPhoneCode.Parent := layPhonePair;
+  edPhoneCode.Align := TAlignLayout.Left;
+  edPhoneCode.Position.X := 100000;
+  edPhoneCode.Width := 110;
+  edPhoneCode.MaxLength := 6;
+  edPhoneCode.OnKeyDown := edPhoneCodeKeyDown;
+  B := AddButton(layPhonePair, 'Pair', btnPhonePairOkClick, 90);
+  B.Margins.Left := GAP;
+  AddButton(layPhonePair, 'Cancel', btnPhonePairCancelClick, 90);
+  layPhonePair.Visible := False;
+  rcPhoneDrop := TRectangle.Create(Self);
+  rcPhoneDrop.Parent := tabPhone;
+  rcPhoneDrop.Align := TAlignLayout.Top;
+  rcPhoneDrop.Position.Y := 100000;
+  rcPhoneDrop.Height := 90;
+  rcPhoneDrop.Margins.Rect := RectF(GAP, GAP, GAP, 0);
+  rcPhoneDrop.Fill.Kind := TBrushKind.None;
+  rcPhoneDrop.Stroke.Color := TAlphaColors.Gray;
+  rcPhoneDrop.Stroke.Thickness := 2;
+  rcPhoneDrop.Stroke.Dash := TStrokeDash.Dash;
+  rcPhoneDrop.XRadius := 10;
+  rcPhoneDrop.YRadius := 10;
+  rcPhoneDrop.HitTest := True;
+  rcPhoneDrop.OnDragEnter := PhoneDropEnter;
+  rcPhoneDrop.OnDragLeave := PhoneDropLeave;
+  rcPhoneDrop.OnDragOver := DropOver;
+  rcPhoneDrop.OnDragDrop := PhoneDropDrop;
+  L := TLabel.Create(Self);
+  L.Parent := rcPhoneDrop;
+  L.Align := TAlignLayout.Top;
+  L.Height := 40;
+  L.Margins.Top := 12;
+  L.StyledSettings := L.StyledSettings - [TStyledSetting.Size, TStyledSetting.Style, TStyledSetting.Other];
+  L.TextSettings.Font.Size := 20;
+  L.TextSettings.Font.Style := [TFontStyle.fsBold];
+  L.TextSettings.HorzAlign := TTextAlign.Center;
+  L.Text := 'Drop books or folders here to send them to the phone';
+  L := TLabel.Create(Self);
+  L.Parent := rcPhoneDrop;
+  L.Align := TAlignLayout.Top;
+  L.Position.Y := 100;
+  L.Height := 28;
+  L.Margins.Rect := RectF(GAP * 2, 0, GAP * 2, 0);
+  L.StyledSettings := L.StyledSettings - [TStyledSetting.Other];
+  L.TextSettings.HorzAlign := TTextAlign.Center;
+  L.WordWrap := True;
+  L.Text := 'EPUB books only; they go to EpubReader''s own Books folder on the phone, and into its library.';
+  Row := AddRow(tabPhone);
+  AddButton(Row, 'Send checked', btnPhoneSendCheckedClick, 120);
+  AddButton(Row, 'Send all new', btnPhoneSendNewClick, 120);
+  AddButton(Row, 'Add books...', btnPhoneAddClick, 110);
+  AddButton(Row, 'Refresh', btnPhoneRefreshClick, 90);
+  lblPhoneSpace := TLabel.Create(Self);
+  lblPhoneSpace.Parent := Row;
+  lblPhoneSpace.Align := TAlignLayout.Client;
+  lblPhoneSpace.Margins.Left := GAP;
+  lblPhoneSpace.WordWrap := False;
+  lblPhoneSpace.Trimming := TTextTrimming.Character;
+  Row := AddRow(tabPhone);
+  lblPhoneTransfer := TLabel.Create(Self);
+  lblPhoneTransfer.Parent := Row;
+  lblPhoneTransfer.Align := TAlignLayout.Left;
+  lblPhoneTransfer.Width := 520;
+  lblPhoneTransfer.WordWrap := False;
+  lblPhoneTransfer.Trimming := TTextTrimming.Character;
+  pbPhone := TProgressBar.Create(Self);
+  pbPhone.Parent := Row;
+  pbPhone.Align := TAlignLayout.Client;
+  pbPhone.Margins.Rect := RectF(GAP, 8, 0, 8);
+  pbPhone.Max := 100;
+  lbPhoneBooks := TListBox.Create(Self);
+  lbPhoneBooks.Parent := tabPhone;
+  lbPhoneBooks.Align := TAlignLayout.Client;
+  lbPhoneBooks.Margins.Rect := RectF(GAP, GAP, GAP, GAP);
+  lbPhoneBooks.ShowCheckboxes := True;
+  lbPhoneBooks.OnDragEnter := PhoneDropEnter;
+  lbPhoneBooks.OnDragLeave := PhoneDropLeave;
+  lbPhoneBooks.OnDragOver := DropOver;
+  lbPhoneBooks.OnDragDrop := PhoneDropDrop;
+
   // --- Progress (as EpubBuilder's progress panel)
   tabProgress := TTabItem.Create(tcMain);
   tabProgress.Parent := tcMain;
-  tabProgress.Text := TAB_NAMES[2];
-  AddBack(2, tabProgress);
+  tabProgress.Text := TAB_NAMES[3];
+  AddBack(3, tabProgress);
   lblPTitle := AddLabel(tabProgress, 26, 0);
   lblPTitle.StyledSettings := lblPTitle.StyledSettings - [TStyledSetting.Style];
   lblPTitle.TextSettings.Font.Style := [TFontStyle.fsBold];
@@ -901,8 +1220,8 @@ begin
   // --- Log (EpubBuilder's)
   tabLog := TTabItem.Create(tcMain);
   tabLog.Parent := tcMain;
-  tabLog.Text := TAB_NAMES[3];
-  AddBack(3, tabLog);
+  tabLog.Text := TAB_NAMES[4];
+  AddBack(4, tabLog);
   mmLog := TMemo.Create(Self);
   mmLog.Parent := tabLog;
   mmLog.Align := TAlignLayout.Client;
@@ -923,6 +1242,10 @@ begin
   tmSite.Enabled := False;
   tmSite.Interval := 5000;
   tmSite.OnTimer := tmSiteTimer;
+  tmPhone := TTimer.Create(Self);
+  tmPhone.Enabled := False;
+  tmPhone.Interval := 20000;
+  tmPhone.OnTimer := tmPhoneTimer;
 end;
 
 procedure TfrmManager.UpdateTabStrip;
@@ -1155,6 +1478,7 @@ begin
     mmLog.ApplyStyleLookup;
     lbTransfers.ApplyStyleLookup;
     lbBooks.ApplyStyleLookup;
+    lbPhoneBooks.ApplyStyleLookup;
     ApplyDark;
   except
     on E: Exception do
@@ -1195,6 +1519,8 @@ begin
   FBooksFree := -1;
   FAudioFree := -1;
   FReserve := LINK_RESERVE;
+  FPhoneFree := -1;
+  FPhoneReserve := LINK_RESERVE_PHONE;
   DebugLogOpen(ChangeFileExt(SettingsFile, '-debug.log'));
   DebugLog('machine: ' + MachineText);
   FClientName := 'BookManager on ' + MachineName;
@@ -1222,9 +1548,25 @@ begin
   // the builders say where they are every two seconds
   FFinder := TLinkFinder.Create;
   FFinder.OnChange := FinderChange;
+  // a phone that links hears this and answers it directly
+  if FManagerId = '' then
+  begin
+    FManagerId := TGUID.NewGuid.ToString.Replace('{', '').Replace('}', '').ToLower;
+    SaveSettings;
+  end;
+  FBeacon := TLinkBeacon.Create(LINK_APP_MANAGER, FClientName, FManagerId);
+  // for the log: why BookManager and a phone take a minute to hear each
+  // other after BookManager starts (zip 364)
+  FFinder.OnFirstHeard := FinderFirstHeard;
+  DebugLog('link: the finder is ' + FFinder.State + '; this computer''s addresses: ' + LinkLocalAddresses +
+    '; announcing to 255.255.255.255 and ' + string.Join(' ', LinkBroadcastTargets));
   tmPeers.Enabled := True;
+  tmPhone.Enabled := True;
   FillBuilders;
   UpdateLink;
+  FillPhones;
+  UpdatePhoneLink;
+  FillPhoneBooks;
   UpdateTransferBar;
   SetStatus(Format('Looking for EpubBuilder on the network (UDP %d)...', [LINK_DISCOVERY_PORT]));
 end;
@@ -1244,17 +1586,23 @@ end;
 
 procedure TfrmManager.FormClose(Sender: TObject; var Action: TCloseAction);
 begin
+  // the last thing said: goodbye (a phone's link panel closes)
+  SayGoodbye;
   FClosing := True;
   GManagerGone := True;
   tmPeers.Enabled := False;
   tmDark.Enabled := False;
   tmSite.Enabled := False;
+  tmPhone.Enabled := False;
   // each stops its call (closing the connection) and waits; the events it
   // queued and that have not run are dropped
   FreeAndNil(FPoller);
   FreeAndNil(FWorker);
   FreeAndNil(FFinder);
+  FreeAndNil(FBeacon);
   FreeAndNil(FPairClient);
+  // a pairing call on its way to the phone: its thread keeps the client
+  DropPhonePairClient;
   SaveSettings;
   DebugLog('closed');
 end;
@@ -1266,7 +1614,9 @@ begin
   FreeAndNil(FPoller);
   FreeAndNil(FWorker);
   FreeAndNil(FFinder);
+  FreeAndNil(FBeacon);
   FreeAndNil(FPairClient);
+  DropPhonePairClient;
   FreeAndNil(FTargets);
   FreeAndNil(FTokens);
 end;
@@ -1304,11 +1654,28 @@ var
 begin
   if FClosing then
     Exit;
-  FPeers := FFinder.Peers;
+  // the builders, and the phones (EpubReader open on them: Send to phone)
+  FPeers := nil;
+  FPhones := nil;
+  for P in FFinder.Peers do
+  begin
+    // BookManagers (this one's beacon too): not listed
+    if P.App = LINK_APP_MANAGER then
+      Continue;
+    FTargets.SetPlace(P.Id, P.Host, P.Port);
+    if P.App = LINK_APP_READER then
+    begin
+      // a phone's first connection can take long to get through
+      FTargets.SetConnectTimeout(P.Id, LINK_CONNECT_PHONE_MS);
+      FPhones := FPhones + [P];
+    end
+    else
+      FPeers := FPeers + [P];
+  end;
+  PhonesHeard;
   Heard := False;
   for P in FPeers do
   begin
-    FTargets.SetPlace(P.Id, P.Host, P.Port);
     if P.Id = FBuilderId then
     begin
       FBuilder := P;
@@ -1325,7 +1692,7 @@ begin
     else
     begin
       FConnected := False;
-      ClearProgress('Not heard');
+      ClearProgress('Connection inactive');
       SetStatus(Format('EpubBuilder on %s is not heard any more (closed, or its computer asleep).',
         [FBuilder.Name]));
     end;
@@ -1382,7 +1749,7 @@ begin
     // the one chosen stays in the list while it is not heard (asleep)
     if (FBuilderId <> '') and not Heard then
     begin
-      Texts.Add(Format('%s (%s) - not heard now', [FBuilder.Name, FBuilder.Host]));
+      Texts.Add(Format('%s (%s) - Connection inactive', [FBuilder.Name, FBuilder.Host]));
       Ids := Ids + [FBuilderId];
     end;
     if Texts.Count = 0 then
@@ -1467,7 +1834,7 @@ begin
   else if not Paired then
     lblLink.Text := 'Not paired yet'
   else if not FHeard then
-    lblLink.Text := 'Not heard (closed or asleep)'
+    lblLink.Text := 'Connection inactive (closed or asleep)'
   else if FConnected then
     lblLink.Text := 'Connected'
   else if FLastError <> '' then
@@ -1994,6 +2361,7 @@ begin
   R.Remote := Job.RemotePath;
   R.Size := ASize;
   R.State := tsWaiting;
+  R.Job := Job;
   FRows := FRows + [R];
   lbTransfers.Items.Add(RowText(High(FRows)));
   FWorker.Add(Job);
@@ -2016,7 +2384,9 @@ var
 begin
   R := FRows[I];
   State := '';
-  if R.Way = twUpload then
+  if R.ToPhone then
+    What := 'To phone'
+  else if R.Way = twUpload then
     What := 'Send ' + RouteKindText(R.Kind)
   else
     What := 'Fetch book';
@@ -2043,15 +2413,27 @@ begin
     tsCancelled:
       State := 'Cancelled';
   end;
-  Result := Format('%-12s %-12s %s  (%s)', [State, What, R.Name, SizeText(R.Size)]);
+  // the speed (owner 18:40: "BookManager should show thruput for transfer
+  // MB/s"): while it runs (after 2 s), and when it is done
+  if (R.State = tsRunning) and (R.StartTick > 0) and (TThread.GetTickCount64 - R.StartTick >= 2000) and
+    (R.Done > 0) then
+    State := State + Format(' %s/s', [SizeText(Round(R.Done * 1000 / (TThread.GetTickCount64 - R.StartTick)))])
+  else if (R.State = tsDone) and (R.Speed > 0) then
+    State := State + Format(' %s/s', [SizeText(Round(R.Speed))]);
+  Result := Format('%-22s %-12s %s  (%s)', [State, What, R.Name, SizeText(R.Size)]);
   if (R.State = tsFailed) and (R.Text <> '') then
     Result := Result + ' - ' + R.Text;
+  if (R.State = tsWaiting) and R.Held then
+    Result := Result + ' - waiting for the phone to link';
 end;
 
 procedure TfrmManager.ShowRow(I: Integer);
 begin
   if (I >= 0) and (I < lbTransfers.Count) then
     lbTransfers.Items[I] := RowText(I);
+  // a book on its way to the phone: its line in Send to phone too
+  if (I >= 0) and (I <= High(FRows)) and FRows[I].ToPhone then
+    ShowPhoneBookRow(I);
 end;
 
 procedure TfrmManager.UpdateTransferBar;
@@ -2074,18 +2456,30 @@ begin
     pbTransfer.Value := 0;
     if Waiting > 0 then
       lblTransfer.Text := Format('%d waiting', [Waiting])
+    else if FLastDone <> '' then
+      // the last one's speed stays in sight
+      lblTransfer.Text := FLastDone
     else
       lblTransfer.Text := 'Nothing being sent or fetched';
+    // the same on Send to phone
+    pbPhone.Value := 0;
+    lblPhoneTransfer.Text := lblTransfer.Text;
     Exit;
   end;
   pbTransfer.Value := PercentOf(FRows[Run].Done, FRows[Run].Size);
-  S := FRows[Run].Name;
+  // the percentage and the speed first: a long book name is cut at the
+  // label's end (owner 18:54, "BookManager isn't showing transfer speed" -
+  // it was after the name, cut off)
+  S := Format('%.0f %%', [PercentOf(FRows[Run].Done, FRows[Run].Size)]);
   Secs := (TThread.GetTickCount - FRunTick) / 1000;
-  if (Secs >= 2) and (FRows[Run].Done > 0) then
-    S := S + Format(' - %s/s', [SizeText(Round(FRows[Run].Done / Secs))]);
+  if (Secs >= 1) and (FRows[Run].Done > 0) then
+    S := S + Format(', %s/s', [SizeText(Round(FRows[Run].Done / Secs))]);
   if Waiting > 0 then
-    S := S + Format(' (%d more waiting)', [Waiting]);
+    S := S + Format(', %d more waiting', [Waiting]);
+  S := S + ' - ' + FRows[Run].Name;
   lblTransfer.Text := S;
+  pbPhone.Value := pbTransfer.Value;
+  lblPhoneTransfer.Text := S;
 end;
 
 function TfrmManager.Unfinished: Integer;
@@ -2108,8 +2502,9 @@ begin
     SetStatus('Choose a transfer waiting or running in the list first.');
     Exit;
   end;
-  // a waiting one is dropped at once; a running one ends in WorkerDone
-  if FWorker.Cancel(FRows[I].Id) then
+  // a waiting one is dropped at once (one held for the phone is not with
+  // the worker); a running one ends in WorkerDone
+  if FRows[I].Held or FWorker.Cancel(FRows[I].Id) then
   begin
     FRows[I].State := tsCancelled;
     ShowRow(I);
@@ -2166,8 +2561,12 @@ begin
   I := RowIndex(AId);
   if I < 0 then
     Exit;
+  // held for the phone as the worker took it: it is being stopped
+  if FRows[I].Held then
+    Exit;
   FRows[I].State := tsRunning;
   FRows[I].Done := 0;
+  FRows[I].StartTick := TThread.GetTickCount64;
   FRunTick := TThread.GetTickCount;
   ShowRow(I);
   UpdateTransferBar;
@@ -2180,13 +2579,59 @@ begin
   if FClosing then
     Exit;
   I := RowIndex(AId);
-  if I < 0 then
+  if (I < 0) or FRows[I].Held then
     Exit;
   FRows[I].Done := ADone;
   if ATotal > 0 then
     FRows[I].Size := ATotal;
   ShowRow(I);
   UpdateTransferBar;
+end;
+
+procedure TfrmManager.HoldPhoneTransfers(AFrom: Integer);
+var
+  I, N: Integer;
+begin
+  N := 0;
+  for I := 0 to High(FRows) do
+    if FRows[I].ToPhone and not FRows[I].Held and ((I = AFrom) or (FRows[I].State in [tsWaiting, tsRunning])) then
+    begin
+      // one the worker has taken already (it went on to the next as this
+      // answer came - 365 lost one so, "cancelled"): stopped; its answer
+      // finds it held (WorkerDone)
+      // (Cancel says False for the one running: its answer comes later)
+      if I <> AFrom then
+        FRows[I].Stopping := not FWorker.Cancel(FRows[I].Id);
+      FRows[I].State := tsWaiting;
+      FRows[I].Held := True;
+      FRows[I].Done := 0;
+      FRows[I].Text := '';
+      ShowRow(I);
+      Inc(N);
+    end;
+  UpdateTransferBar;
+  SetStatus(Format('The phone''s link went off: %d book(s) wait for it, and go on by themselves when the ' +
+    'phone links again (on the phone: Get books from BookManager).', [N]));
+end;
+
+procedure TfrmManager.ResumePhoneTransfers;
+var
+  I, N: Integer;
+begin
+  N := 0;
+  for I := 0 to High(FRows) do
+    if FRows[I].Held and (FRows[I].State = tsWaiting) and not FRows[I].Stopping then
+    begin
+      FRows[I].Held := False;
+      FWorker.Add(FRows[I].Job);
+      ShowRow(I);
+      Inc(N);
+    end;
+  if N > 0 then
+  begin
+    UpdateTransferBar;
+    SetStatus(Format('The phone links again: %d book(s) go on to it.', [N]));
+  end;
 end;
 
 procedure TfrmManager.WorkerDone(AId: Integer; AOk, ASkipped: Boolean; const AText: string);
@@ -2200,12 +2645,30 @@ begin
   if I < 0 then
     Exit;
   FRows[I].Text := AText;
+  // held for the phone (its link went off) and stopped on the way (it had
+  // started as the others were held): waits with them
+  FRows[I].Stopping := False;
+  if FRows[I].Held and not AOk then
+  begin
+    FRows[I].State := tsWaiting;
+    FRows[I].Done := 0;
+    FRows[I].Text := '';
+    ShowRow(I);
+    UpdateTransferBar;
+    // the phone answers already: on at once
+    if FPhoneConnected and (FPhoneRefusedAt = 0) then
+      ResumePhoneTransfers;
+    Exit;
+  end;
+  FRows[I].Held := False;
   if AOk and ASkipped then
     FRows[I].State := tsSkipped
   else if AOk then
   begin
     FRows[I].State := tsDone;
     FRows[I].Done := FRows[I].Size;
+    if (FRows[I].StartTick > 0) and (TThread.GetTickCount64 > FRows[I].StartTick) then
+      FRows[I].Speed := FRows[I].Size * 1000 / (TThread.GetTickCount64 - FRows[I].StartTick);
   end
   else if AText = 'cancelled' then
     FRows[I].State := tsCancelled
@@ -2215,8 +2678,30 @@ begin
     Way := 'sent'
   else
     Way := 'fetched';
-  if AOk then
+  // to a phone whose link went off: it and the phone's books after it
+  // wait for the phone to link again (not failed one after another)
+  if not AOk and FRows[I].ToPhone and IsLinkOff(AText) then
+  begin
+    FPhoneRefusedAt := Now;
+    HoldPhoneTransfers(I);
+    Exit;
+  end;
+  if AOk and (FRows[I].Speed > 0) then
+  begin
+    if FRows[I].ToPhone then
+      FLastDone := Format('Sent to the phone at %s/s - %s', [SizeText(Round(FRows[I].Speed)), FRows[I].Name])
+    else
+      FLastDone := Format('%s at %s/s - %s', [IfThen(FRows[I].Way = twUpload, 'Sent', 'Fetched'),
+        SizeText(Round(FRows[I].Speed)), FRows[I].Name]);
+  end;
+  if AOk and (FRows[I].Speed > 0) then
+    DebugLog(Format('%s: %s -> %s (%s in %.0f s, %s/s)', [Way, FRows[I].Name, AText, SizeText(FRows[I].Size),
+      FRows[I].Size / FRows[I].Speed, SizeText(Round(FRows[I].Speed))]))
+  else if AOk then
     DebugLog(Format('%s: %s -> %s', [Way, FRows[I].Name, AText]))
+  else if FRows[I].ToPhone and (FRows[I].Text = 'the phone''s link is off') then
+    SetStatus(Format('Not sent: %s - the phone''s link is off. On the phone: Get books from BookManager ' +
+      '(Menu > Books folders), then send again.', [FRows[I].Name]))
   else
     SetStatus(Format('Not %s: %s - %s', [Way, FRows[I].Name, AText]));
   ShowRow(I);
@@ -2231,7 +2716,11 @@ begin
       // harmless
     end;
     FillBooks;
+    FillPhoneBooks;
   end;
+  // a book sent to the phone: on it now
+  if AOk and FRows[I].ToPhone then
+    RefreshPhone;
   if Unfinished = 0 then
     SetStatus('All transfers finished.');
 end;
@@ -2396,6 +2885,7 @@ begin
   lblFetchFolder.Text := 'Fetched to: ' + FFetchFolder;
   SaveSettings;
   FillBooks;
+  FillPhoneBooks;
 end;
 
 procedure TfrmManager.CheckPart(I: Integer);
@@ -2667,6 +3157,903 @@ begin
   else
     lblSpace.Text := Format('EpubBuilder''s room: books %s, audio %s (%s kept for building)',
       [SizeText(NonNeg(FBooksFree - FReserve)), SizeText(NonNeg(FAudioFree - FReserve)), SizeText(FReserve)]);
+end;
+
+{ --- Send to phone }
+
+procedure TfrmManager.SayGoodbye;
+var
+  T: TLinkTarget;
+  C: TLinkClient;
+  Hosts: TArray<string>;
+  P: TLinkPeer;
+begin
+  Hosts := nil;
+  for P in FPhones do
+    Hosts := Hosts + [P.Host];
+  // the phone chosen, paired and linking: told directly
+  if (FPhoneId <> '') and FPhoneHeard and (TokenOf(FPhoneId) <> '') and FTargets.Get(FPhoneId, T) and
+    (T.Host <> '') then
+  begin
+    C := TLinkClient.Create(T.Host, T.Port, FClientName, T.Token);
+    try
+      C.ConnectTimeout := 2000;
+      C.ReadTimeout := 2000;
+      try
+        C.Bye;
+        DebugLog(Format('closing: the phone %s was told', [FPhone.Name]));
+      except
+        on E: Exception do
+          DebugLog(Format('closing: the phone %s was not told - %s', [FPhone.Name, E.Message]));
+      end;
+    finally
+      C.Free;
+    end;
+  end;
+  // and every phone that links hears the goodbye
+  try
+    LinkSayBye(LINK_APP_MANAGER, FClientName, FManagerId, Hosts);
+  except
+    on E: Exception do
+      DebugLog('closing: no goodbye on the network - ' + E.Message);
+  end;
+end;
+
+procedure TfrmManager.FinderFirstHeard(const AText: string);
+begin
+  DebugLog('link: ' + AText);
+end;
+
+procedure TfrmManager.PhonesHeard;
+var
+  P: TLinkPeer;
+  I: Integer;
+  Heard: Boolean;
+begin
+  Heard := False;
+  for P in FPhones do
+    if P.Id = FPhoneId then
+    begin
+      FPhone := P;
+      Heard := True;
+    end;
+  if (FPhoneId <> '') and (Heard <> FPhoneHeard) then
+  begin
+    FPhoneHeard := Heard;
+    if Heard then
+    begin
+      SetStatus(Format('The phone %s is linking.', [FPhone.Name]));
+      FPhoneRefusedAt := 0;
+      RefreshPhone;
+    end
+    else
+    begin
+      FPhoneConnected := False;
+      // the next time it links, not paired, it is asked again
+      FPhoneAutoAsked := '';
+      SetStatus(Format('The phone %s is not linking now (Done or Cancel on the phone, EpubReader closed, or ' +
+        'the phone asleep).', [FPhone.Name]));
+    end;
+  end;
+  // the phone chosen links and is not paired: asked at once - the code
+  // shows on the phone in the user's hand (owner 17:19: "get phone to
+  // request link services ... This would ensure phone was up before code
+  // shown")
+  if (FPhoneId <> '') and Heard and (TokenOf(FPhoneId) = '') and not FPhonePairBusy and
+    (FPhonePairClient = nil) and (FPhoneAutoAsked <> FPhoneId) then
+  begin
+    FPhoneAutoAsked := FPhoneId;
+    tcMain.ActiveTab := tabPhone;
+    btnPhonePairClick(nil);
+  end;
+  // none chosen yet: the one of last time, else the only one heard
+  if FPhoneId = '' then
+  begin
+    for I := 0 to High(FPhones) do
+      if FPhones[I].Id = FLastPhoneId then
+      begin
+        ChoosePhone(FLastPhoneId);
+        Exit;
+      end;
+    if Length(FPhones) = 1 then
+    begin
+      ChoosePhone(FPhones[0].Id);
+      Exit;
+    end;
+  end;
+  FillPhones;
+  UpdatePhoneLink;
+end;
+
+procedure TfrmManager.FillPhones;
+var
+  Texts: TStringList;
+  Ids: TArray<string>;
+  P: TLinkPeer;
+  Heard: Boolean;
+  S: string;
+  I, Pick: Integer;
+begin
+  Texts := TStringList.Create;
+  try
+    Ids := nil;
+    Heard := False;
+    for P in FPhones do
+    begin
+      S := Format('%s (%s)', [P.Name, P.Host]);
+      if TokenOf(P.Id) = '' then
+        S := S + ' - not paired';
+      Texts.Add(S);
+      Ids := Ids + [P.Id];
+      if P.Id = FPhoneId then
+        Heard := True;
+    end;
+    // the one chosen stays in the list while it is not heard (asleep)
+    if (FPhoneId <> '') and not Heard then
+    begin
+      Texts.Add(Format('%s (%s) - Connection inactive', [FPhone.Name, FPhone.Host]));
+      Ids := Ids + [FPhoneId];
+    end;
+    if Texts.Count = 0 then
+    begin
+      Texts.Add('Looking for a phone with EpubReader open...');
+      Ids := Ids + [''];
+    end;
+    Pick := 0;
+    for I := 0 to High(Ids) do
+      if (Ids[I] <> '') and (Ids[I] = FPhoneId) then
+        Pick := I;
+    // unchanged: left alone (no flicker while a list is open)
+    if (cbPhone.Items.Text = Texts.Text) and (cbPhone.ItemIndex = Pick) then
+      Exit;
+    FPhoneFilling := True;
+    try
+      cbPhone.Items.Assign(Texts);
+      FPhoneIds := Ids;
+      cbPhone.ItemIndex := Pick;
+    finally
+      FPhoneFilling := False;
+    end;
+  finally
+    Texts.Free;
+  end;
+end;
+
+procedure TfrmManager.cbPhoneChange(Sender: TObject);
+var
+  I: Integer;
+begin
+  if FPhoneFilling or FClosing then
+    Exit;
+  I := cbPhone.ItemIndex;
+  if (I < 0) or (I > High(FPhoneIds)) or (FPhoneIds[I] = '') or (FPhoneIds[I] = FPhoneId) then
+    Exit;
+  ChoosePhone(FPhoneIds[I]);
+end;
+
+procedure TfrmManager.ChoosePhone(const AId: string);
+var
+  P: TLinkPeer;
+begin
+  FPhoneId := AId;
+  for P in FPhones do
+    if P.Id = AId then
+      FPhone := P;
+  Inc(FPhoneGen);
+  FPhoneHeard := True;
+  FPhoneConnected := False;
+  FPhoneError := '';
+  FPhoneBooks := nil;
+  FPhoneKnown := False;
+  FPhoneFree := -1;
+  lblPhoneSpace.Text := '';
+  layPhonePair.Visible := False;
+  DropPhonePairClient;
+  SaveSettings;
+  FillPhones;
+  UpdatePhoneLink;
+  FillPhoneBooks;
+  if TokenOf(AId) = '' then
+    SetStatus(Format('The phone %s found - Send to phone > Pair... to connect (once).', [FPhone.Name]))
+  else
+  begin
+    SetStatus(Format('The phone %s (%s:%d).', [FPhone.Name, FPhone.Host, FPhone.Port]));
+    RefreshPhone;
+  end;
+end;
+
+procedure TfrmManager.UpdatePhoneLink;
+var
+  Paired: Boolean;
+begin
+  Paired := TokenOf(FPhoneId) <> '';
+  btnPhonePair.Enabled := (FPhoneId <> '') and not FPhonePairBusy;
+  if Paired then
+    btnPhonePair.Text := 'Pair again...'
+  else
+    btnPhonePair.Text := 'Pair...';
+  if FPhoneId = '' then
+    lblPhoneLink.Text := 'None heard yet - open EpubReader on the phone'
+  else if not Paired then
+    lblPhoneLink.Text := 'Not paired yet'
+  else if not FPhoneHeard then
+    lblPhoneLink.Text := 'Connection inactive (not linking on the phone)'
+  else if FPhoneConnected then
+    lblPhoneLink.Text := 'Connected'
+  else if FPhoneError <> '' then
+    lblPhoneLink.Text := 'No answer: ' + FPhoneError
+  else
+    lblPhoneLink.Text := 'Connecting...';
+end;
+
+procedure TfrmManager.btnPhonePairClick(Sender: TObject);
+var
+  T: TLinkTarget;
+  Client: TLinkClient;
+  Gen: Integer;
+begin
+  if FPhonePairBusy then
+    Exit;
+  if (FPhoneId = '') or not FTargets.Get(FPhoneId, T) or (T.Host = '') then
+  begin
+    SetStatus('No phone heard yet: open EpubReader on a phone of this network (the same Wi-Fi).');
+    Exit;
+  end;
+  // paired and answering: pairing again is only for a phone that forgot
+  // this BookManager (owner 18:27: "clicked repair - code came up but
+  // already sending")
+  if (Sender <> nil) and (TokenOf(FPhoneId) <> '') and FPhoneConnected and
+    (TDialogServiceSync.MessageDialog(Format('The phone %s is paired and answering - books can be sent to ' +
+    'it now.', [FPhone.Name]) + sLineBreak + sLineBreak + 'Pairing again is only needed when the phone has ' +
+    'forgotten this BookManager. Pair again anyway?', TMsgDlgType.mtConfirmation, [TMsgDlgBtn.mbYes,
+    TMsgDlgBtn.mbNo], TMsgDlgBtn.mbNo, 0) <> mrYes) then
+    Exit;
+  DropPhonePairClient;
+  layPhonePair.Visible := False;
+  Client := TLinkClient.Create(T.Host, T.Port, FClientName, '');
+  Client.ConnectTimeout := LINK_CONNECT_PHONE_MS;
+  FPhonePairClient := Client;
+  FPhonePairBusy := True;
+  btnPhonePair.Enabled := False;
+  Gen := FPhoneGen;
+  SetStatus(Format('Asking the phone %s to pair (keep EpubReader open in front; the first answer can take ' +
+    'up to %d seconds)...', [FPhone.Name, LINK_CONNECT_PHONE_MS div 1000]));
+  TThread.CreateAnonymousThread(
+    procedure
+    var
+      Err: string;
+    begin
+      Err := '';
+      try
+        Client.PairAsk;
+      except
+        on E: Exception do
+          Err := E.Message;
+      end;
+      TThread.Queue(nil,
+        procedure
+        begin
+          if not GManagerGone then
+            PhonePairAsked(Gen, Client, Err);
+        end);
+    end).Start;
+end;
+
+procedure TfrmManager.DropPhonePairClient;
+begin
+  if FPhonePairBusy then
+    FPhonePairClient := nil
+  else
+    FreeAndNil(FPhonePairClient);
+end;
+
+procedure TfrmManager.PhonePairAsked(AGen: Integer; AClient: TLinkClient; const AError: string);
+begin
+  FPhonePairBusy := False;
+  // let go of meanwhile (Cancel, another phone): this call's to free
+  if AClient <> FPhonePairClient then
+    AClient.Free;
+  if FClosing then
+    Exit;
+  UpdatePhoneLink;
+  // the phone chosen changed meanwhile: dropped
+  if (AGen <> FPhoneGen) or (FPhonePairClient = nil) then
+    Exit;
+  if AError <> '' then
+  begin
+    FreeAndNil(FPhonePairClient);
+    SetStatus('Pairing did not start: ' + AError + ' - is EpubReader open in front on the phone, on the same ' +
+      'Wi-Fi? Pair... tries again.');
+    Exit;
+  end;
+  layPhonePair.Visible := True;
+  edPhoneCode.Text := '';
+  edPhoneCode.SetFocus;
+  SetStatus(Format('The phone %s shows a code now: type it here (it works for 5 minutes).', [FPhone.Name]));
+end;
+
+procedure TfrmManager.btnPhonePairOkClick(Sender: TObject);
+var
+  Code: string;
+  Client: TLinkClient;
+  Gen: Integer;
+begin
+  if (FPhonePairClient = nil) or FPhonePairBusy then
+    Exit;
+  Code := Trim(edPhoneCode.Text);
+  if Length(Code) <> 6 then
+  begin
+    SetStatus('The code has 6 digits.');
+    Exit;
+  end;
+  Client := FPhonePairClient;
+  FPhonePairBusy := True;
+  btnPhonePair.Enabled := False;
+  Gen := FPhoneGen;
+  SetStatus('Sending the code to the phone...');
+  TThread.CreateAnonymousThread(
+    procedure
+    var
+      Token, Err: string;
+    begin
+      Token := '';
+      Err := '';
+      try
+        Token := Client.PairConfirm(Code);
+      except
+        on E: Exception do
+          Err := E.Message;
+      end;
+      TThread.Queue(nil,
+        procedure
+        begin
+          if not GManagerGone then
+            PhonePairConfirmed(Gen, Client, Token, Err);
+        end);
+    end).Start;
+end;
+
+procedure TfrmManager.PhonePairConfirmed(AGen: Integer; AClient: TLinkClient; const AToken, AError: string);
+begin
+  FPhonePairBusy := False;
+  if AClient <> FPhonePairClient then
+    AClient.Free;
+  if FClosing then
+    Exit;
+  UpdatePhoneLink;
+  if (AGen <> FPhoneGen) or (FPhonePairClient = nil) then
+  begin
+    layPhonePair.Visible := False;
+    Exit;
+  end;
+  if AToken = '' then
+  begin
+    SetStatus('Not paired: ' + AError);
+    // refused on the phone, run out, five wrong codes: over - Pair...
+    // asks again; a wrong code may be typed again
+    if ContainsText(AError, 'refused') or ContainsText(AError, 'ask again') then
+    begin
+      FreeAndNil(FPhonePairClient);
+      layPhonePair.Visible := False;
+    end
+    else
+      edPhoneCode.SetFocus;
+    Exit;
+  end;
+  FreeAndNil(FPhonePairClient);
+  layPhonePair.Visible := False;
+  SetTokenFor(FPhoneId, AToken);
+  FPhoneConnected := False;
+  FPhoneError := '';
+  FillPhones;
+  UpdatePhoneLink;
+  SetStatus(Format('Paired with the phone %s: books can be sent to it.', [FPhone.Name]));
+  RefreshPhone;
+end;
+
+procedure TfrmManager.btnPhonePairCancelClick(Sender: TObject);
+begin
+  // a call on its way keeps its client: freed when it answers
+  DropPhonePairClient;
+  layPhonePair.Visible := False;
+  SetStatus('Not paired.');
+end;
+
+procedure TfrmManager.edPhoneCodeKeyDown(Sender: TObject; var Key: Word; var KeyChar: Char; Shift: TShiftState);
+begin
+  if Key = vkReturn then
+  begin
+    Key := 0;
+    btnPhonePairOkClick(nil);
+  end;
+end;
+
+procedure TfrmManager.RefreshPhone;
+var
+  Client: TLinkClient;
+  Gen: Integer;
+begin
+  if FClosing or (FPhoneId = '') or (TokenOf(FPhoneId) = '') or not FPhoneHeard then
+    Exit;
+  // its link was off a moment ago: not asked until it has had time to
+  // drop out of the list, or to start linking again
+  if (FPhoneRefusedAt > 0) and (Now - FPhoneRefusedAt < 15 / SecsPerDay) then
+    Exit;
+  if FPhoneBusy then
+  begin
+    FPhoneAgain := True;
+    Exit;
+  end;
+  Client := FTargets.NewClient(FPhoneId);
+  if Client = nil then
+    Exit;
+  FPhoneBusy := True;
+  Gen := FPhoneGen;
+  TThread.CreateAnonymousThread(
+    procedure
+    var
+      O: TJSONObject;
+      Books, Space, Err: string;
+    begin
+      Books := '';
+      Space := '';
+      Err := '';
+      try
+        try
+          O := Client.Books;
+          try
+            Books := O.ToJSON;
+          finally
+            O.Free;
+          end;
+          O := Client.Space;
+          try
+            Space := O.ToJSON;
+          finally
+            O.Free;
+          end;
+        except
+          on E: Exception do
+            Err := E.Message;
+        end;
+      finally
+        Client.Free;
+      end;
+      TThread.Queue(nil,
+        procedure
+        begin
+          if not GManagerGone then
+            PhoneAnswered(Gen, Books, Space, Err);
+        end);
+    end).Start;
+end;
+
+procedure TfrmManager.PhoneAnswered(AGen: Integer; const ABooks, ASpace, AError: string);
+var
+  V, E: TJSONValue;
+  A: TJSONArray;
+  B: TBuilderBook;
+  List: TArray<TBuilderBook>;
+  Room: Int64;
+begin
+  FPhoneBusy := False;
+  if FClosing then
+    Exit;
+  // asked again meanwhile (a book arrived): once more
+  if FPhoneAgain then
+  begin
+    FPhoneAgain := False;
+    RefreshPhone;
+  end;
+  // an answer for a phone chosen before
+  if AGen <> FPhoneGen then
+    Exit;
+  if AError <> '' then
+  begin
+    FPhoneConnected := False;
+    FPhoneError := AError;
+    // refused: the phone's link is off (Done on the phone) - said once,
+    // not asked again for a while
+    if IsLinkOff(AError) then
+    begin
+      FPhoneError := 'its link is off';
+      if FPhoneRefusedAt = 0 then
+        SetStatus(Format('The phone %s''s link is off. To send books, on the phone: Get books from ' +
+          'BookManager (Menu > Books folders).', [FPhone.Name]));
+      FPhoneRefusedAt := Now;
+    end
+    // the phone forgot the pairing (the reader's settings were reset)
+    else if StartsText('not paired - ', AError) and (TokenOf(FPhoneId) <> '') then
+    begin
+      SetTokenFor(FPhoneId, '');
+      FillPhones;
+      SetStatus(Format('The phone %s no longer knows this BookManager: Pair... again.', [FPhone.Name]));
+    end
+    else
+      DebugLog('phone: ' + AError);
+    UpdatePhoneLink;
+    Exit;
+  end;
+  FPhoneConnected := True;
+  FPhoneError := '';
+  FPhoneRefusedAt := 0;
+  // books held while its link was off go on now
+  ResumePhoneTransfers;
+  List := nil;
+  V := TJSONObject.ParseJSONValue(ABooks);
+  try
+    A := nil;
+    if (V is TJSONObject) and TJSONObject(V).TryGetValue<TJSONArray>('books', A) and (A <> nil) then
+      for E in A do
+        if E is TJSONObject then
+        begin
+          B := Default(TBuilderBook);
+          TJSONObject(E).TryGetValue<string>('path', B.Path);
+          TJSONObject(E).TryGetValue<string>('name', B.Name);
+          TJSONObject(E).TryGetValue<Int64>('size', B.Size);
+          TJSONObject(E).TryGetValue<string>('modified', B.Modified);
+          if B.Name <> '' then
+            List := List + [B];
+        end;
+  finally
+    V.Free;
+  end;
+  FPhoneBooks := List;
+  FPhoneKnown := True;
+  V := TJSONObject.ParseJSONValue(ASpace);
+  try
+    Room := -1;
+    if V is TJSONObject then
+    begin
+      TJSONObject(V).TryGetValue<Int64>('books.free', Room);
+      TJSONObject(V).TryGetValue<Int64>('reserve', FPhoneReserve);
+    end;
+    FPhoneFree := Room;
+  finally
+    V.Free;
+  end;
+  if FPhoneFree >= 0 then
+    lblPhoneSpace.Text := Format('%d book(s) on the phone; room for %s more (%s kept free)',
+      [Length(FPhoneBooks), SizeText(NonNeg(FPhoneFree - FPhoneReserve)), SizeText(FPhoneReserve)])
+  else
+    lblPhoneSpace.Text := Format('%d book(s) on the phone', [Length(FPhoneBooks)]);
+  UpdatePhoneLink;
+  FillPhoneBooks;
+end;
+
+function TfrmManager.PhoneHas(const AFileName: string): Boolean;
+var
+  B: TBuilderBook;
+  Size: Int64;
+begin
+  Result := False;
+  try
+    Size := TFile.GetSize(AFileName);
+  except
+    Exit;
+  end;
+  for B in FPhoneBooks do
+    if SameText(B.Name, ExtractFileName(AFileName)) and (B.Size = Size) then
+      Exit(True);
+end;
+
+procedure TfrmManager.FillPhoneBooks;
+var
+  Checked: TStringList;
+  Files: TArray<string>;
+  I, New: Integer;
+begin
+  if lbPhoneBooks = nil then
+    Exit;
+  Files := nil;
+  try
+    if TDirectory.Exists(FFetchFolder) then
+      Files := TDirectory.GetFiles(FFetchFolder, '*.epub', TSearchOption.soAllDirectories);
+  except
+    on E: Exception do
+      DebugLog('phone: the books here could not be listed - ' + E.Message);
+  end;
+  // newest first
+  TArray.Sort<string>(Files, TComparer<string>.Construct(
+    function(const X, Y: string): Integer
+    begin
+      Result := CompareValue(TFile.GetLastWriteTime(Y), TFile.GetLastWriteTime(X));
+      if Result = 0 then
+        Result := CompareText(ExtractFileName(X), ExtractFileName(Y));
+    end));
+  FHereBooks := Files;
+  Checked := TStringList.Create;
+  try
+    // the ticks kept across a refresh (by the file)
+    for I := 0 to lbPhoneBooks.Count - 1 do
+      if (lbPhoneBooks.ListItems[I] <> nil) and lbPhoneBooks.ListItems[I].IsChecked then
+        Checked.Add(lbPhoneBooks.ListItems[I].TagString);
+    New := 0;
+    lbPhoneBooks.BeginUpdate;
+    try
+      lbPhoneBooks.Items.Clear;
+      for I := 0 to High(Files) do
+      begin
+        if FPhoneKnown and not PhoneHas(Files[I]) then
+          Inc(New);
+        lbPhoneBooks.Items.Add(PhoneBookText(Files[I]));
+        lbPhoneBooks.ListItems[I].TagString := Files[I];
+        lbPhoneBooks.ListItems[I].IsChecked := Checked.IndexOf(Files[I]) >= 0;
+      end;
+    finally
+      lbPhoneBooks.EndUpdate;
+    end;
+  finally
+    Checked.Free;
+  end;
+  if FPhoneKnown then
+    tabPhone.Text := Format('Send to phone (%d new)', [New])
+  else
+    tabPhone.Text := 'Send to phone';
+  // dark: the new rows light at once, the tab's name in layTabs
+  if FDark then
+    ApplyDark;
+end;
+
+function TfrmManager.PhoneBookText(const AFileName: string): string;
+var
+  I: Integer;
+  State: string;
+  R: TTransferRow;
+  Ms: UInt64;
+begin
+  // its transfer to the phone, the latest (owner 19:19: "No M/s showing
+  // here" - the list said "new" while the book was being sent)
+  State := '';
+  for I := High(FRows) downto 0 do
+    if FRows[I].ToPhone and SameFileName(FRows[I].Job.FileName, AFileName) then
+    begin
+      R := FRows[I];
+      case R.State of
+        tsWaiting:
+          if R.Held then
+            State := 'held'
+          else
+            State := 'waiting';
+        tsRunning:
+          begin
+            State := Format('sending %.0f %%', [PercentOf(R.Done, R.Size)]);
+            Ms := TThread.GetTickCount64 - R.StartTick;
+            if (R.StartTick > 0) and (Ms >= 1000) and (R.Done > 0) then
+              State := State + Format(' %s/s', [SizeText(Round(R.Done * 1000 / Ms))]);
+          end;
+        tsDone:
+          if R.Speed > 0 then
+            State := Format('sent %s/s', [SizeText(Round(R.Speed))])
+          else
+            State := 'sent';
+        tsSkipped:
+          State := 'on phone';
+        tsFailed:
+          State := 'FAILED';
+        tsCancelled:
+          State := '';
+      end;
+      Break;
+    end;
+  if State = '' then
+    if not FPhoneKnown then
+      State := ''
+    else if PhoneHas(AFileName) then
+      State := 'on phone'
+    else
+      State := 'new';
+  Result := Format('%-24s %s  (%s)', [State, ExtractFileName(AFileName), SizeText(TFile.GetSize(AFileName))]);
+end;
+
+procedure TfrmManager.ShowPhoneBookRow(I: Integer);
+var
+  K: Integer;
+begin
+  if (I < 0) or (I > High(FRows)) or not FRows[I].ToPhone then
+    Exit;
+  for K := 0 to Min(lbPhoneBooks.Count, Length(FHereBooks)) - 1 do
+    if SameFileName(FHereBooks[K], FRows[I].Job.FileName) then
+    begin
+      lbPhoneBooks.ListItems[K].Text := PhoneBookText(FHereBooks[K]);
+      Exit;
+    end;
+end;
+
+procedure TfrmManager.tmPhoneTimer(Sender: TObject);
+begin
+  RefreshPhone;
+end;
+
+procedure TfrmManager.btnPhoneRefreshClick(Sender: TObject);
+begin
+  FillPhoneBooks;
+  if (FPhoneId <> '') and (TokenOf(FPhoneId) <> '') then
+  begin
+    RefreshPhone;
+    SetStatus('Asking the phone for its books...');
+  end;
+end;
+
+procedure TfrmManager.btnPhoneSendCheckedClick(Sender: TObject);
+var
+  Files: TArray<string>;
+  I: Integer;
+begin
+  Files := nil;
+  for I := 0 to Min(lbPhoneBooks.Count, Length(FHereBooks)) - 1 do
+    if lbPhoneBooks.ListItems[I].IsChecked then
+      Files := Files + [FHereBooks[I]];
+  // none ticked: the one selected
+  if (Length(Files) = 0) and (lbPhoneBooks.ItemIndex >= 0) and (lbPhoneBooks.ItemIndex <= High(FHereBooks)) then
+    Files := [FHereBooks[lbPhoneBooks.ItemIndex]];
+  if Length(Files) = 0 then
+  begin
+    SetStatus('Tick the books to send (or choose one) first.');
+    Exit;
+  end;
+  SendToPhone(Files);
+end;
+
+procedure TfrmManager.btnPhoneSendNewClick(Sender: TObject);
+var
+  Files: TArray<string>;
+  F: string;
+begin
+  if not FPhoneKnown then
+  begin
+    SetStatus('The phone has not said yet which books it has - Refresh, then try again.');
+    Exit;
+  end;
+  Files := nil;
+  for F in FHereBooks do
+    if not PhoneHas(F) then
+      Files := Files + [F];
+  if Length(Files) = 0 then
+  begin
+    SetStatus('The phone has every book here.');
+    Exit;
+  end;
+  SendToPhone(Files);
+end;
+
+procedure TfrmManager.btnPhoneAddClick(Sender: TObject);
+var
+  D: TOpenDialog;
+begin
+  D := TOpenDialog.Create(Self);
+  try
+    D.Filter := 'EPUB books|*.epub;*.EPUB|All files (*.*)|*.*';
+    D.Options := D.Options + [TOpenOption.ofAllowMultiSelect];
+    D.InitialDir := FAddFolder;
+    if D.Execute then
+    begin
+      FAddFolder := ExtractFileDir(D.FileName);
+      SaveSettings;
+      SendToPhone(D.Files.ToStringArray);
+    end;
+  finally
+    D.Free;
+  end;
+end;
+
+procedure TfrmManager.PhoneDropEnter(Sender: TObject; const Data: TDragObject; const Point: TPointF);
+begin
+  if Length(Data.Files) > 0 then
+    rcPhoneDrop.Stroke.Color := TAlphaColors.Dodgerblue;
+end;
+
+procedure TfrmManager.PhoneDropLeave(Sender: TObject);
+begin
+  rcPhoneDrop.Stroke.Color := TAlphaColors.Gray;
+end;
+
+procedure TfrmManager.PhoneDropDrop(Sender: TObject; const Data: TDragObject; const Point: TPointF);
+begin
+  rcPhoneDrop.Stroke.Color := TAlphaColors.Gray;
+  if Length(Data.Files) > 0 then
+    SendToPhone(Data.Files);
+end;
+
+function TfrmManager.PhoneReady: Boolean;
+var
+  Why: string;
+begin
+  Why := '';
+  if FPhoneId = '' then
+    Why := 'No phone heard yet: open EpubReader on a phone of this network (the same Wi-Fi), then try again.'
+  else if not FPhoneHeard or ((FPhoneRefusedAt > 0) and (Now - FPhoneRefusedAt < 15 / SecsPerDay)) then
+    Why := Format('The phone %s is not linking now. On the phone: Get books from BookManager (Menu > Books ' +
+      'folders), then send again.', [FPhone.Name])
+  else if TokenOf(FPhoneId) = '' then
+    Why := Format('Pair with the phone %s first (Pair..., at the top of Send to phone).', [FPhone.Name]);
+  Result := Why = '';
+  if not Result then
+  begin
+    SetStatus(Why);
+    TDialogServiceSync.MessageDialog(Why, TMsgDlgType.mtInformation, [TMsgDlgBtn.mbOK], TMsgDlgBtn.mbOK, 0);
+  end;
+end;
+
+procedure TfrmManager.SendToPhone(const APaths: array of string);
+var
+  Files: TArray<string>;
+  P, F: string;
+  Other, N: Integer;
+  Need, Size: Int64;
+  Job: TTransferJob;
+begin
+  if not PhoneReady then
+    Exit;
+  Files := nil;
+  Other := 0;
+  for P in APaths do
+  try
+    if TDirectory.Exists(P) then
+    begin
+      for F in TDirectory.GetFiles(P, '*', TSearchOption.soAllDirectories) do
+        if SameText(ExtractFileExt(F), '.epub') then
+          Files := Files + [F]
+        else
+          Inc(Other);
+    end
+    else if SameText(ExtractFileExt(P), '.epub') and FileExists(P) then
+      Files := Files + [P]
+    else
+      Inc(Other);
+  except
+    on E: Exception do
+      DebugLog('phone: ' + P + ' - ' + E.Message);
+  end;
+  if Length(Files) = 0 then
+  begin
+    SetStatus('Nothing to send: the phone takes EPUB books only.');
+    Exit;
+  end;
+  // never fills the phone: it refuses what would leave less than its
+  // reserve; said before anything is sent
+  Need := 0;
+  for F in Files do
+    Inc(Need, TFile.GetSize(F));
+  if (FPhoneFree >= 0) and (Need + FPhoneReserve > FPhoneFree) and
+    (TDialogServiceSync.MessageDialog(Format('These books need %s on the phone; it has %s free and keeps %s.',
+    [SizeText(Need), SizeText(NonNeg(FPhoneFree)), SizeText(FPhoneReserve)]) + sLineBreak + sLineBreak +
+    'Those that do not fit will be refused. Send anyway?', TMsgDlgType.mtWarning, [TMsgDlgBtn.mbYes,
+    TMsgDlgBtn.mbNo], TMsgDlgBtn.mbNo, 0) <> mrYes) then
+  begin
+    SetStatus('Not sent.');
+    Exit;
+  end;
+  lbTransfers.BeginUpdate;
+  try
+    N := 0;
+    for F in Files do
+    begin
+      Inc(N);
+      Size := TFile.GetSize(F);
+      Job := Default(TTransferJob);
+      Job.Way := twUpload;
+      // the phone shows "book 2 of 3"
+      Job.Batch := Format('%d/%d', [N, Length(Files)]);
+      Job.BuilderId := FPhoneId;
+      Job.FileName := F;
+      Job.Kind := 'book';
+      Job.Dir := '';
+      AddTransfer(Job, ExtractFileName(F), Size);
+      FRows[High(FRows)].ToPhone := True;
+      ShowRow(High(FRows));
+    end;
+  finally
+    lbTransfers.EndUpdate;
+  end;
+  if FDark then
+    ApplyDark;
+  UpdateTransferBar;
+  if Other > 0 then
+    SetStatus(Format('%d book(s) to send to the phone %s (%s); %d other file(s) left out (EPUBs only).',
+      [Length(Files), FPhone.Name, SizeText(Need), Other]))
+  else
+    SetStatus(Format('%d book(s) to send to the phone %s (%s).', [Length(Files), FPhone.Name, SizeText(Need)]));
 end;
 
 end.

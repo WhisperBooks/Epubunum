@@ -29,6 +29,8 @@ interface
 uses
   System.SysUtils, System.Classes,
   Androidapi.JNIBridge, Androidapi.JNI.JavaTypes, Androidapi.Helpers,
+  // a book of a books folder (a content:// address): opened by Android
+  Androidapi.JNI.GraphicsContentViewText, Androidapi.JNI.Net, Androidapi.JNI.Os,
   uPlayer;
 
 type
@@ -259,16 +261,35 @@ end;
 function TAndroidReaderPlayer.OpenPart(const AFileName: string; AOffset, ASize: Int64): Boolean;
 var
   Stream: JFileInputStream;
+  Pfd: JParcelFileDescriptor;
 begin
   Forget;
   // the player keeps a descriptor of its own: ours is closed once it is
   // ready
-  Stream := TJFileInputStream.JavaClass.init(StringToJString(AFileName));
-  try
-    FPlayer.setDataSource(Stream.getFD, AOffset, ASize);
-    FPlayer.prepare;
-  finally
-    Stream.close;
+  if AFileName.StartsWith('content://', True) then
+  begin
+    // a book of a books folder (zip 347): its path may not be opened -
+    // Android opens it by its address
+    Pfd := TAndroidHelper.Context.getContentResolver.openFileDescriptor(TJnet_Uri.JavaClass.parse(
+      StringToJString(AFileName)), StringToJString('r'));
+    if Pfd = nil then
+      raise Exception.Create('Android did not open the book''s audio');
+    try
+      FPlayer.setDataSource(Pfd.getFileDescriptor, AOffset, ASize);
+      FPlayer.prepare;
+    finally
+      Pfd.close;
+    end;
+  end
+  else
+  begin
+    Stream := TJFileInputStream.JavaClass.init(StringToJString(AFileName));
+    try
+      FPlayer.setDataSource(Stream.getFD, AOffset, ASize);
+      FPlayer.prepare;
+    finally
+      Stream.close;
+    end;
   end;
   FDuration := FPlayer.getDuration / 1000;
   FFileName := AFileName;

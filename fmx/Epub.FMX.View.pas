@@ -121,6 +121,24 @@ type
     { Where the drag was at its last move (Y): each move scrolls by the
       difference (ScrollBy - so a drag can go on past an end). }
     FDragY: Single;
+    { The drag's speed, px a second (+ down the document), smoothed over its
+      last moves (zip 352). }
+    FDragSpeed: Single;
+    { When the drag last moved (TThread.GetTickCount64). }
+    FDragTick: UInt64;
+    { The glide after a quick drag (nil until the first): FFlingSpeed px a
+      second, slowing (owner 15:53: "swipe up fast and more text will go
+      by than swiping slower"). }
+    FFlingTimer: TTimer;
+    { The glide's speed, px a second (0 = none). }
+    FFlingSpeed: Single;
+    { The glide's last tick (TThread.GetTickCount64). }
+    FFlingTick: UInt64;
+    { The press that stopped a glide: its letting go is no click on a
+      word. }
+    FPressStoppedFling: Boolean;
+    { Backing field of @link(Fling). }
+    FFling: Boolean;
     { How far the user has scrolled on past an end, px (+ the end, - the
       start; 0 = not at one): at EDGE_PULL_LINES lines, OnEdge. }
     FOverscroll: Single;
@@ -164,6 +182,11 @@ type
     FHighFirst: Integer;
     { Last highlighted word. }
     FHighLast: Integer;
+    { The second highlight, under the first (a phrase or a sentence, the
+      word over it; zip 352): its first and last word, -1 = none. }
+    FUnitFirst, FUnitLast: Integer;
+    { Backing field of @link(UnitHighlightColor). }
+    FUnitColor: TAlphaColor;
     { Backing field of @link(OnWordClick). }
     FOnWordClick: TEpubWordEvent;
     { Backing field of @link(OnDocumentChange). }
@@ -184,6 +207,12 @@ type
     procedure SetScrollPos(const AValue: Single);
     { Stops a smooth scroll where it is. }
     procedure StopScrolling;
+    { Ends a glide (FlingTimer). }
+    procedure StopFling;
+    { A glide's tick: on by its speed, slower each time; it stops at the
+      document's ends (going on into the next document stays a pull of
+      the finger: ScrollBy). }
+    procedure FlingTimer(Sender: TObject);
     { Scrolls to ATarget smoothly - at once when it is far (another part
       of the document) or the view is not shown. }
     procedure SmoothScrollTo(ATarget: Single);
@@ -309,7 +338,11 @@ type
     { Highlights words AFirst..ALast (indexes into the book's Words); -1 =
       none. Does not scroll (see @link(ScrollToWord)). }
     procedure Highlight(AFirst, ALast: Integer);
-    { Removes the highlight. }
+    { A second highlight, words AFirst..ALast (book indexes; -1 = none), in
+      @link(UnitHighlightColor), drawn under @link(Highlight)'s: the
+      phrase or sentence being read, the word over it (zip 352). }
+    procedure HighlightUnit(AFirst, ALast: Integer);
+    { Removes both highlights. }
     procedure ClearHighlight;
     { Shows word AWord (switching document when needed). ACenter = @false:
       scrolls only when it is not already well inside the view. ACenter =
@@ -341,6 +374,11 @@ type
       finger: there is no gliding on. Pulled on past an end of the
       document, it goes into the next or the previous one (OnEdge). }
     property DragScroll: Boolean read FDragScroll write FDragScroll;
+    { A quick drag glides on when the finger lets go, slowing to a stop -
+      the faster the drag, the farther (default True; zip 352). It stops
+      at the document's ends, at a press, and when the page is moved by
+      the program (reading along). }
+    property Fling: Boolean read FFling write FFling;
     { Height of the whole document, px - ESTIMATED for the parts not laid
       out yet (zip 337), so it changes as the document is read. }
     property ContentHeight: Single read FContentHeight;
@@ -393,6 +431,9 @@ type
       ewrNote: aside, epub:type / class footnote, endnote, note), so they
       can be told from the text; transparent (claNull) = not marked. }
     property NoteColor: TAlphaColor index 4 read GetColor write SetColor;
+    { The second highlight's colour (@link(HighlightUnit)): paler than
+      @link(HighlightColor), so the word over it stands out. }
+    property UnitHighlightColor: TAlphaColor index 5 read GetColor write SetColor;
     { A strip at the bottom of the view with how far through the book it
       is (@link(Progress), as a percentage); the text scrolls above it. }
     property ShowProgress: Boolean read FShowProgress write SetShowProgress default False;
@@ -453,6 +494,10 @@ begin
   FDocument := -1;
   FHighFirst := -1;
   FHighLast := -1;
+  FUnitFirst := -1;
+  FUnitLast := -1;
+  // a pale blue: the yellow word stands out on it
+  FUnitColor := $FFDCE8F7;
   FLaidOutWidth := -1;
   FFontSize := DEFAULT_FONT_SIZE;
   FFontFamily := '';                 // '' = Skia's default sans serif
@@ -467,6 +512,7 @@ begin
   FLinkColor := $FF1A5FB4;
   FNoteColor := $FFEDE6D6;           // a shade darker than the paper
   FDragScroll := True;
+  FFling := True;
 end;
 
 destructor TEpubView.Destroy;
@@ -519,6 +565,7 @@ begin
     1: Result := FBackgroundColor;
     2: Result := FHighlightColor;
     4: Result := FNoteColor;
+    5: Result := FUnitColor;
   else
     Result := FLinkColor;
   end;
@@ -531,6 +578,7 @@ begin
     1: FBackgroundColor := AValue;
     2: FHighlightColor := AValue;
     4: FNoteColor := AValue;
+    5: FUnitColor := AValue;
   else
     FLinkColor := AValue;
   end;
@@ -582,6 +630,43 @@ procedure TEpubView.StopScrolling;
 begin
   if FScrollTimer <> nil then
     FScrollTimer.Enabled := False;
+  // the program moves the page: a glide gives way
+  StopFling;
+end;
+
+procedure TEpubView.StopFling;
+begin
+  FFlingSpeed := 0;
+  if FFlingTimer <> nil then
+    FFlingTimer.Enabled := False;
+end;
+
+procedure TEpubView.FlingTimer(Sender: TObject);
+const
+  { The speed lost: e^(-FRICTION x seconds) of it is left (3 = a third of
+    a second to fall to a third; a 3000 px/s flick goes about a page). }
+  FRICTION = 3.0;
+  { Slower than this, px a second: stopped. }
+  STOP_SPEED = 40;
+var
+  Now_: UInt64;
+  Dt, Limit, Was: Single;
+begin
+  Now_ := TThread.GetTickCount64;
+  Dt := (Now_ - FFlingTick) / 1000;
+  FFlingTick := Now_;
+  if Dt <= 0 then
+    Exit;
+  if Dt > 0.1 then
+    Dt := 0.1;
+  Limit := Max(0, FContentHeight - TextHeight);
+  Was := FScroll;
+  FScroll := Max(0, Min(FScroll + FFlingSpeed * Dt, Limit));
+  FFlingSpeed := FFlingSpeed * Exp(-FRICTION * Dt);
+  // an end reached, or slow enough: done
+  if SameValue(FScroll, Was) or (Abs(FFlingSpeed) < STOP_SPEED) then
+    StopFling;
+  Redraw;
 end;
 
 procedure TEpubView.SmoothScrollTo(ATarget: Single);
@@ -589,6 +674,8 @@ const
   { Ticks of the smooth scroll, ms. }
   TICK_MS = 15;
 begin
+  // the program moves the page (reading along): a glide gives way
+  StopFling;
   ATarget := Max(0, Min(ATarget, FContentHeight - TextHeight));
   if not Visible or (Abs(ATarget - FScroll) > TextHeight * 1.5) then
   begin
@@ -806,8 +893,18 @@ begin
   Redraw;
 end;
 
+procedure TEpubView.HighlightUnit(AFirst, ALast: Integer);
+begin
+  if (AFirst = FUnitFirst) and (ALast = FUnitLast) then
+    Exit;
+  FUnitFirst := AFirst;
+  FUnitLast := ALast;
+  Redraw;
+end;
+
 procedure TEpubView.ClearHighlight;
 begin
+  HighlightUnit(-1, -1);
   Highlight(-1, -1);
 end;
 
@@ -1324,7 +1421,8 @@ end;
 procedure TEpubView.Draw(const ACanvas: ISkCanvas; const ADest: TRectF; const AOpacity: Single);
 var
   Paint: ISkPaint;
-  I, K, Local, F, L, S, E, CoreFirst: Integer;
+  I, K, Local, F, L, S, E, CoreFirst, Pass, RangeFirst, RangeLast: Integer;
+  RangeColor: TAlphaColor;
   Item: TEpubViewItem;
   Top, Y: Single;
   Blk: TEpubBlock;
@@ -1395,41 +1493,57 @@ begin
       end;
       if Item.Paragraph <> nil then
       begin
-        // the highlight, behind the text
-        if (FHighFirst >= 0) and (Length(Blk.Words) > 0) then
+        // the highlights, behind the text: the phrase / sentence's first
+        // (pale), the word's over it
+        for Pass := 0 to 1 do
         begin
-          F := -1;
-          L := -1;
-          for K := 0 to High(Blk.Words) do
+          if Pass = 0 then
           begin
-            Local := Blk.Words[K].Word + B.Documents[FDocument].FirstWord;
-            if (Local >= FHighFirst) and (Local <= FHighLast) then
-            begin
-              if F < 0 then
-                F := K;
-              L := K;
-            end;
+            RangeFirst := FUnitFirst;
+            RangeLast := FUnitLast;
+            RangeColor := FUnitColor;
+          end
+          else
+          begin
+            RangeFirst := FHighFirst;
+            RangeLast := FHighLast;
+            RangeColor := FHighlightColor;
           end;
-          if F >= 0 then
+          if (RangeFirst >= 0) and (Length(Blk.Words) > 0) then
           begin
-            // without the punctuation around the words: 'whales' is read,
-            // the comma after it is not
-            S := Blk.Words[F].Start + 1;
-            E := Blk.Words[F].Start + Blk.Words[F].Length;
-            EpubWordCore(Blk.Text, S, E);
-            S := S - 1 + Item.Offset;
-            CoreFirst := Blk.Words[L].Start + 1;
-            E := Blk.Words[L].Start + Blk.Words[L].Length;
-            EpubWordCore(Blk.Text, CoreFirst, E);
-            E := E + Item.Offset;
-            Boxes := Item.Paragraph.GetRectsForRange(S, E, TSkRectHeightStyle.Max, TSkRectWidthStyle.Tight);
-            Paint.Color := FHighlightColor;
-            for K := 0 to High(Boxes) do
+            F := -1;
+            L := -1;
+            for K := 0 to High(Blk.Words) do
             begin
-              R := Boxes[K].Rect;
-              R.Offset(ADest.Left + Item.X, Top);
-              R.Inflate(2, 0);
-              ACanvas.DrawRect(R, Paint);
+              Local := Blk.Words[K].Word + B.Documents[FDocument].FirstWord;
+              if (Local >= RangeFirst) and (Local <= RangeLast) then
+              begin
+                if F < 0 then
+                  F := K;
+                L := K;
+              end;
+            end;
+            if F >= 0 then
+            begin
+              // without the punctuation around the words: 'whales' is read,
+              // the comma after it is not
+              S := Blk.Words[F].Start + 1;
+              E := Blk.Words[F].Start + Blk.Words[F].Length;
+              EpubWordCore(Blk.Text, S, E);
+              S := S - 1 + Item.Offset;
+              CoreFirst := Blk.Words[L].Start + 1;
+              E := Blk.Words[L].Start + Blk.Words[L].Length;
+              EpubWordCore(Blk.Text, CoreFirst, E);
+              E := E + Item.Offset;
+              Boxes := Item.Paragraph.GetRectsForRange(S, E, TSkRectHeightStyle.Max, TSkRectWidthStyle.Tight);
+              Paint.Color := RangeColor;
+              for K := 0 to High(Boxes) do
+              begin
+                R := Boxes[K].Rect;
+                R.Offset(ADest.Left + Item.X, Top);
+                R.Inflate(2, 0);
+                ACanvas.DrawRect(R, Paint);
+              end;
             end;
           end;
         end;
@@ -1643,12 +1757,19 @@ begin
   FPressed := True;
   FDragging := False;
   FPressY := Y;
+  // a press stops a glide - and is then no click
+  FPressStoppedFling := FFlingSpeed <> 0;
+  StopFling;
+  FDragSpeed := 0;
+  FDragTick := TThread.GetTickCount64;
 end;
 
 procedure TEpubView.MouseMove(Shift: TShiftState; X, Y: Single);
 const
   { Moved this far, px, a press is a drag (less is an unsteady click). }
   DRAG_SLOP = 8;
+var
+  Now_: UInt64;
 begin
   inherited;
   if not (FPressed and FDragScroll) then
@@ -1660,6 +1781,12 @@ begin
   end;
   if FDragging then
   begin
+    // the drag's speed, for the glide after it (the recent moves count
+    // most)
+    Now_ := TThread.GetTickCount64;
+    if Now_ > FDragTick then
+      FDragSpeed := 0.6 * ((FDragY - Y) * 1000 / (Now_ - FDragTick)) + 0.4 * FDragSpeed;
+    FDragTick := Now_;
     // by the move since the last one: past an end of the document the
     // finger pulls on into the next (OnEdge), and the drag goes on there
     ScrollBy(FDragY - Y);
@@ -1675,6 +1802,14 @@ begin
 end;
 
 procedure TEpubView.MouseUp(Button: TMouseButton; Shift: TShiftState; X, Y: Single);
+const
+  { A drag at least this fast, px a second, glides on. }
+  FLING_MIN_SPEED = 400;
+  { ... when the finger was still moving this recently, ms (a drag that
+    stopped before letting go does not glide). }
+  FLING_MAX_PAUSE = 80;
+  { The glide's tick, ms. }
+  FLING_TICK_MS = 15;
 var
   W: Integer;
   Dragged: Boolean;
@@ -1686,9 +1821,27 @@ begin
     FPressed := False;
     FDragging := False;
   end;
-  // letting go after a drag is not a click on the word under it
-  if Dragged then
+  // a quick drag let go: the page glides on
+  if Dragged and FFling and (Abs(FDragSpeed) >= FLING_MIN_SPEED) and
+    (TThread.GetTickCount64 - FDragTick <= FLING_MAX_PAUSE) then
+  begin
+    if FFlingTimer = nil then
+    begin
+      FFlingTimer := TTimer.Create(Self);
+      FFlingTimer.Interval := FLING_TICK_MS;
+      FFlingTimer.OnTimer := FlingTimer;
+    end;
+    FFlingSpeed := FDragSpeed;
+    FFlingTick := TThread.GetTickCount64;
+    FFlingTimer.Enabled := True;
+  end;
+  // letting go after a drag is not a click on the word under it, nor
+  // after a press that stopped a glide
+  if Dragged or FPressStoppedFling then
+  begin
+    FPressStoppedFling := False;
     Exit;
+  end;
   if (Button <> TMouseButton.mbLeft) or not Assigned(FOnWordClick) then
     Exit;
   W := WordAt(X, Y);

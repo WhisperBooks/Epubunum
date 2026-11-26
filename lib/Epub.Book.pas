@@ -26,6 +26,12 @@ unit Epub.Book;
 
 interface
 
+{$IFNDEF FPC}
+// Create and CreateHeader both take a file name only: W1029 says C++
+// could not tell them apart - this library is not used from C++ (zip 341)
+{$WARN DUPLICATE_CTOR_DTOR OFF}
+{$ENDIF}
+
 uses
   SysUtils, Classes,
   Epub.Zip, Epub.Xml, Epub.Css, Epub.Layout;
@@ -184,6 +190,11 @@ type
     StyleMs: Int64;
     { The walk that makes the blocks and words. }
     WalkMs: Int64;
+    { Read back from the layout cache (LayoutCache; zip 351) - ReadMs is
+      that, the others 0. }
+    Cached: Boolean;
+    { Written to the layout cache (built, not read back). }
+    SaveMs: Int64;
   end;
 
   { An EPUB book. }
@@ -252,6 +263,15 @@ type
     FFromIndex: Boolean;
     { Backing field of @link(LastLayoutTimes). }
     FLastLayoutTimes: TEpubLayoutTimes;
+    { Backing field of @link(LayoutCache). }
+    FLayoutCache: string;
+    { The layout cache's file of document ADoc. }
+    function LayoutCacheFile(ADoc: Integer): string;
+    { Document ADoc's layout from the cache, nil when it has none that fits
+      this book (another book, another version, damaged). }
+    function LoadCachedLayout(ADoc: Integer): TEpubDocLayout;
+    { Writes ALayout of document ADoc to the cache (a failure: not kept). }
+    procedure SaveCachedLayout(ADoc: Integer; ALayout: TEpubDocLayout);
     { A number made from the size and CRC of every file in the archive: an
       index is this book's only when it carries the same one. }
     function IndexStamp: Cardinal;
@@ -439,6 +459,14 @@ type
     property FromIndex: Boolean read FFromIndex;
     { Where the time of the last @link(DocumentLayout) went. }
     property LastLayoutTimes: TEpubLayoutTimes read FLastLayoutTimes;
+    { Where @link(DocumentLayout) keeps the layouts it makes (zip 351: the
+      parse and the walk were 0.3 s of every long chapter on a phone):
+      a file name without extension, '<it>.<document>.eul' each; '' (the
+      default) = none. A layout is used again only for this book as it is
+      (its archive's stamp, as the index's) and this format. For this
+      program on this kind of machine: a cache, made again when it does
+      not fit. }
+    property LayoutCache: string read FLayoutCache write FLayoutCache;
   end;
 
 { A SMIL clock value in seconds: '1:02:03.5', '02:03.5', '12.5s', '500ms',
@@ -1866,6 +1894,79 @@ begin
   {$endif}
 end;
 
+const
+  { A layout cache file starts with these four bytes: 'EULY'. }
+  LAYOUT_MAGIC: array[0..3] of Byte = ($45, $55, $4C, $59);
+  { Changed whenever what TEpubDocLayout.SaveToStream writes (or the
+    walker makes) changes: older files are not read. }
+  LAYOUT_CACHE_VERSION = 1;
+
+function TEpubBook.LayoutCacheFile(ADoc: Integer): string;
+begin
+  Result := FLayoutCache + '.' + IntToStr(ADoc) + '.eul';
+end;
+
+function TEpubBook.LoadCachedLayout(ADoc: Integer): TEpubDocLayout;
+var
+  M: TMemoryStream;
+  Magic: array[0..3] of Byte;
+  Version, Doc: Integer;
+  Stamp: Cardinal;
+begin
+  Result := nil;
+  if (FLayoutCache = '') or not FileExists(LayoutCacheFile(ADoc)) then
+    Exit;
+  M := TMemoryStream.Create;
+  try
+    try
+      M.LoadFromFile(LayoutCacheFile(ADoc));
+      M.Position := 0;
+      M.ReadBuffer(Magic, SizeOf(Magic));
+      M.ReadBuffer(Version, SizeOf(Version));
+      M.ReadBuffer(Stamp, SizeOf(Stamp));
+      M.ReadBuffer(Doc, SizeOf(Doc));
+      if not CompareMem(@Magic, @LAYOUT_MAGIC, SizeOf(Magic)) or (Version <> LAYOUT_CACHE_VERSION) or
+        (Stamp <> IndexStamp) or (Doc <> ADoc) then
+        Exit;
+      Result := TEpubDocLayout.CreateFromStream(M);
+    except
+      // damaged: made again (and written over)
+      FreeAndNil(Result);
+    end;
+  finally
+    M.Free;
+  end;
+end;
+
+procedure TEpubBook.SaveCachedLayout(ADoc: Integer; ALayout: TEpubDocLayout);
+var
+  M: TMemoryStream;
+  Version, Doc: Integer;
+  Stamp: Cardinal;
+begin
+  if FLayoutCache = '' then
+    Exit;
+  M := TMemoryStream.Create;
+  try
+    try
+      Version := LAYOUT_CACHE_VERSION;
+      Stamp := IndexStamp;
+      Doc := ADoc;
+      M.WriteBuffer(LAYOUT_MAGIC, SizeOf(LAYOUT_MAGIC));
+      M.WriteBuffer(Version, SizeOf(Version));
+      M.WriteBuffer(Stamp, SizeOf(Stamp));
+      M.WriteBuffer(Doc, SizeOf(Doc));
+      ALayout.SaveToStream(M);
+      ForceDirectories(ExtractFilePath(LayoutCacheFile(ADoc)));
+      M.SaveToFile(LayoutCacheFile(ADoc));
+    except
+      // not kept: made again next time
+    end;
+  finally
+    M.Free;
+  end;
+end;
+
 function TEpubBook.DocumentLayout(ADoc: Integer): TEpubDocLayout;
 var
   D: TEpubXmlDoc;
@@ -1874,9 +1975,18 @@ var
   Sheet: TEpubStyleSheet;
   T0, T1, T2, T3: Int64;
 begin
-  // ParseDocument's work in two steps, each timed (LastLayoutTimes)
   FLastLayoutTimes := Default(TEpubLayoutTimes);
   FLastLayoutTimes.Doc := ADoc;
+  // made before (LayoutCache): read back, no parse, no walk
+  T0 := TicksMs;
+  Result := LoadCachedLayout(ADoc);
+  if Result <> nil then
+  begin
+    FLastLayoutTimes.Cached := True;
+    FLastLayoutTimes.ReadMs := TicksMs - T0;
+    Exit;
+  end;
+  // ParseDocument's work in two steps, each timed (LastLayoutTimes)
   T0 := TicksMs;
   Text := FZip.ReadText(FDocuments[ADoc].Path);
   T1 := TicksMs;
@@ -1895,6 +2005,13 @@ begin
     FLastLayoutTimes.WalkMs := TicksMs - T3;
   finally
     D.Free;
+  end;
+  // kept for next time
+  if FLayoutCache <> '' then
+  begin
+    T0 := TicksMs;
+    SaveCachedLayout(ADoc, Result);
+    FLastLayoutTimes.SaveMs := TicksMs - T0;
   end;
 end;
 

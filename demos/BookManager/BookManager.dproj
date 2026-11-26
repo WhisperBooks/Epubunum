@@ -254,6 +254,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
         <DCCReference Include="..\common\uDebugLog.pas"/>
+        <DCCReference Include="..\common\uVersion.pas"/>
         <DCCReference Include="..\common\uMachine.pas"/>
         <DCCReference Include="..\common\uEpubUnum.pas"/>
         <DCCReference Include="..\common\uLink.pas"/>

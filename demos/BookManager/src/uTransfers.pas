@@ -25,6 +25,9 @@ type
     Port: Integer;
     { The token from pairing ('' = not paired). }
     Token: string;
+    { How long a call waits for the connection, ms (0 = uLink's
+      LINK_CONNECT_MS; a phone: LINK_CONNECT_PHONE_MS). }
+    ConnectTimeout: Integer;
   end;
 
   { The builders' addresses and tokens, by the builder's id - for the
@@ -47,6 +50,9 @@ type
     procedure SetPlace(const AId, AHost: string; APort: Integer);
     { The builder AId's token ('' = not paired). }
     procedure SetToken(const AId, AToken: string);
+    { How long calls to AId wait for the connection, ms (a phone:
+      LINK_CONNECT_PHONE_MS). }
+    procedure SetConnectTimeout(const AId: string; AMs: Integer);
     { The builder AId: False when not known. }
     function Get(const AId: string; out ATarget: TLinkTarget): Boolean;
     { A client for the builder AId (the caller frees it): nil when it is
@@ -79,6 +85,9 @@ type
     Dir: string;
     { Fetched: the book's path on the builder (as /books gives it). }
     RemotePath: string;
+    { Sent: its place in its batch, '2/3' ('' = not said; the phone shows
+      it with the progress). }
+    Batch: string;
   end;
 
   { A transfer started. }
@@ -303,6 +312,21 @@ begin
   end;
 end;
 
+procedure TLinkTargets.SetConnectTimeout(const AId: string; AMs: Integer);
+var
+  T: TLinkTarget;
+begin
+  FLock.Enter;
+  try
+    if not FItems.TryGetValue(AId, T) then
+      T := Default(TLinkTarget);
+    T.ConnectTimeout := AMs;
+    FItems.AddOrSetValue(AId, T);
+  finally
+    FLock.Leave;
+  end;
+end;
+
 function TLinkTargets.Get(const AId: string; out ATarget: TLinkTarget): Boolean;
 begin
   FLock.Enter;
@@ -321,6 +345,8 @@ begin
   if (AId = '') or not Get(AId, T) or (T.Host = '') or (T.Port = 0) or (T.Token = '') then
     Exit;
   Result := TLinkClient.Create(T.Host, T.Port, FClientName, T.Token);
+  if T.ConnectTimeout > 0 then
+    Result.ConnectTimeout := T.ConnectTimeout;
 end;
 
 { TTransferWorker }
@@ -491,9 +517,10 @@ begin
   Client := FTargets.NewClient(AJob.BuilderId);
   if Client = nil then
   begin
-    SendDone(Id, False, False, 'not paired with that EpubBuilder (or not heard yet)');
+    SendDone(Id, False, False, 'not paired with it (or not heard yet)');
     Exit;
   end;
+  Client.Batch := AJob.Batch;
   FLock.Enter;
   try
     FClient := Client;

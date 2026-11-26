@@ -19,8 +19,9 @@
       logs, the build history, the models (not in Steam builds), the
       converted MOBIs, the reader's cover cache.))
 
-  @link(EpubUnumMove), called by each program first thing (before its log
-  or settings are opened), moves what is there from before - once:
+  @link(EpubUnumMove), called by EpubBuilder first thing (before its log
+  or settings are opened), moves what is there from before - once
+  (EpubReader no longer calls it: obsolete, owner 2026-11-26, zip 342):
   @unorderedList(
     @item(Documents/EpubBuilder becomes Documents/EpubUnum (renamed; when
       both are there, what EpubUnum has not got is moved in);)

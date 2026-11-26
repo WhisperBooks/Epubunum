@@ -30,6 +30,11 @@ unit uMain;
 
 interface
 
+// TEpubBook.Create and CreateHeader both take a file name only: Delphi
+// warns (W1029) that C++ could not tell them apart, here where the class
+// is used - no C++ uses it (zip 341)
+{$WARN DUPLICATE_CTOR_DTOR OFF}
+
 uses
   System.SysUtils, System.Types, System.UITypes, System.Classes, System.IOUtils, System.Math,
   FMX.Types, FMX.Controls, FMX.Forms, FMX.Graphics, FMX.Dialogs, FMX.StdCtrls, FMX.Layouts, FMX.Platform,
@@ -42,6 +47,14 @@ uses
   uPlayer,
   // the game pad and its menu (fields of the form)
   uSteamPad, uPadMenu,
+  // Android: the books folders chosen in the system's picker, read in place
+  uBookImport,
+  // a phone: BookManager sends it books over the network (zip 355)
+  uLink,
+  // the version, major.minor.build (About, the log)
+  uVersion,
+  // About > Licences: the outside components and their licences
+  uLicences,
   // Linux: the window brought back after the screen saver (a field)
   uRedraw,
   // the folders shared with EpubBuilder (SettingsFile, the books)
@@ -53,6 +66,13 @@ type
   { The library's order (zip 340): as last opened, or by a book's details.
     The book read last stays first (the large cover) in every order. }
   TLibrarySort = (lsRecent, lsTitle, lsAuthor, lsYear, lsGenre);
+
+  { What is highlighted while the book is read aloud (zip 352; owner
+    15:53 - 15:55, "all options are valid"): the word alone, or the phrase
+    or the sentence it is in - all of it or only up to the word
+    (trailing), with or without the word over it in its own colour (zip
+    353: three menu rows, owner 16:22). }
+  THighlightUnit = (huWord, huPhrase, huSentence);
 
   { A book in the Recently Opened list, with where its reader left off. }
   TRecentBook = record
@@ -244,8 +264,81 @@ type
     FDark: Boolean;
     { The library's order (Menu > Library order; saved). }
     FLibrarySort: TLibrarySort;
+    { What is highlighted while reading aloud (Menu > Highlight; saved). }
+    FHighUnit: THighlightUnit;
+    { The phrase / sentence only up to the word being read (Menu >
+      Highlight type: Trailing; saved). }
+    FHighTrailing: Boolean;
+    { The word over the phrase / sentence in its own colour (Menu >
+      Highlight word; saved). }
+    FHighWord: Boolean;
+    { The phrase / sentence last highlighted (book words; FHiUnit = its
+      UNIT_*, -1 = none): it is looked for again only when the read word
+      leaves it (owner 15:56: "only needs to run when it changes"). }
+    FHiFirst, FHiLast, FHiUnit: Integer;
+    { Android: the books folders chosen in the system's picker (the
+      phone's, a memory card's - owner: "they could also use sd card"),
+      their addresses; saved as "booksFolders" (uBookImport). }
+    FBooksTrees: TArray<string>;
+    { A phone: the link BookManager sends books through - only while the
+      user links (Get books from BookManager; zip 357, owner 17:19: "get
+      phone to request link services as this will allow turning it off
+      after link stuff done"), nil otherwise. A paired BookManager uploads
+      EPUBs into FBooksFolder. }
+    FLink: TLinkServer;
+    { Hears the BookManagers while linking (each is answered directly:
+      FLink.SetDirect). }
+    FLinkFinder: TLinkFinder;
+    { The link panel: what it says now. }
+    FLinkStatus: string;
+    { The pairing code shown ('' = none) and who asked. }
+    FLinkCode, FLinkCodeFor: string;
+    { The book being received, in words ('' = none). }
+    FLinkProgress: string;
+    { Books received since the link started. }
+    FLinkReceived: Integer;
+    { The last book received (its name). }
+    FLinkLast: string;
+    { BookManagers heard while linking (their addresses, for the log). }
+    FLinkHeard: string;
+    { Something happened on the link (paired, a call of a paired
+      BookManager, a book): Done may be chosen (owner 17:33: "DONE ...
+      should be disabled until something happens"). }
+    FLinkActive: Boolean;
+    { The menu the link was started from (MODE_START, MODE_FOLDERS or
+      MODE_MAIN):
+      Cancel goes back to it ("a CANCEL that returns you to main choose
+      book source menu"). }
+    FLinkFrom: Integer;
+    { This reader's id on the link (made once; saved as "linkId"). }
+    FLinkId: string;
+    { The BookManagers paired, token=name a line (saved as
+      "linkTokens"). }
+    FLinkTokens: string;
+    { The books the books folders held at their last listing (addresses,
+      in their order), and the same for asking (ListBooksFolders). }
+    FFolderBooks: TArray<string>;
+    { ... }
+    FFolderBookSet: TDictionary<string, Boolean>;
+    { Every folder could be listed then (when one could not, its books are
+      not taken for gone). }
+    FFolderBooksOK: Boolean;
+    { About > Licences: the components (ReaderLicences). }
+    FLicences: TArray<TLicenceInfo>;
+    { The licence shown (index into FLicences), its pages and the page. }
+    FLicence, FLicencePage: Integer;
+    { The books folder shown (MODE_FOLDER; index into FBooksTrees). }
+    FFolderShown: Integer;
+    { ... }
+    FLicencePages: TArray<string>;
     { File > Library order's items (the desktop's menu). }
     miSort: array[TLibrarySort] of TMenuItem;
+    { View > Highlight's items (the desktop's menu). }
+    miHigh: array[THighlightUnit] of TMenuItem;
+    { View > Highlight > Trailing. }
+    miHighTrailing: TMenuItem;
+    { View > Highlight > Word in its own colour. }
+    miHighWord: TMenuItem;
     { Chapters in reading order: their first word in Book.Words. }
     FChapterWord: TArray<Integer>;
     { Chapters: their entry in Book.Toc (-1 = a document, no contents). }
@@ -448,9 +541,86 @@ type
     procedure ShowControlsMenu;
     { Open a book: the EPUBs in the books folder (and its folders). }
     procedure ShowBooksMenu;
+    { No books yet (a phone, zip 341): a box like the menu offering a
+      link to BookManager or books from the phone's own storage. }
+    procedure ShowStartMenu;
+    { The library on a phone, empty, with nothing showing over it (a menu
+      closed, a note's OK): ShowStartMenu - without a book there is
+      nothing else to do (owner, zip 345). }
+    procedure OfferBooksIfEmpty;
+    { A phone: the library's books whose file is gone (deleted with a file
+      manager, over USB) are taken off it - the books folder is the
+      library there; the open book too, closed (zip 345). }
+    procedure DropMissingBooks;
+    { A note in the menu's box, with OK. }
+    procedure ShowNote(const ATitle, AText: string);
+    { A phone: starts the link (BookManager finds this reader and sends it
+      books) and shows its panel. }
+    procedure StartLink;
+    { Ends the link (Done, the app left, closing). }
+    procedure StopLink(const AWhy: string);
+    { Deletes the .part files a cut-off transfer left in the Books folder
+      (Done or Cancel while a book came: the connection closed before the
+      link could). }
+    procedure DropPartFiles;
+    { The panel's Cancel (and Back): the link ends, the menu it was started
+      from shows again. }
+    procedure LinkCancel;
+    { The link panel: where the link is, the code, the book being
+      received, Done (and Refuse with a code). }
+    procedure ShowLinkPanel;
+    { BookManagers heard: answered directly. }
+    procedure LinkFinderChange(Sender: TObject);
+    { A book's progress. }
+    procedure LinkUploadProgress(const AName, ABatch: string; ADone, ATotal: Int64);
+    { A BookManager asks to pair: the code in the panel, with Refuse. }
+    procedure LinkPairCode(const AClient, ACode: string);
+    { A BookManager was paired: its token kept. }
+    procedure LinkPaired(const AClient, AToken: string);
+    { The code shown no longer works (five wrong codes). }
+    procedure LinkPairEnded(const AClient, AWhy: string);
+    { A book arrived: in the library. }
+    procedure LinkReceived(const AKind, AFileName: string);
+    { A call came to the link (the debug log). }
+    procedure LinkRequest(const AText: string);
+    { BookManager closed (its goodbye, by a call or on the network): the
+      link ends, the panel closes (zip 371). }
+    procedure LinkBye(const AText: string);
+    { About: the version, when and from what it was built, the copyright
+      and the libraries' licences, in the menu's box (zip 343). }
+    procedure ShowAbout;
+    { Help > About (a desktop's menu): ShowAbout. }
+    procedure miAboutClick(Sender: TObject);
+    { About > Licences: the outside components of this build
+      (uLicences), the one shown last selected (AIndex). }
+    procedure ShowLicencesMenu(AIndex: Integer);
+    { Component AIndex's licence, page APage (Next page / Back). }
+    procedure ShowLicence(AIndex, APage: Integer);
+    { The system's folder picker (Android): the books folder chosen - its
+      books and its folders' read where they are, the library shows them
+      (zip 346; zip 341 copied single files). }
+    procedure ChooseBooksFolder;
+    { The books folders listed (FFolderBooks): before the library takes
+      gone books off and takes new ones in. }
+    procedure ListBooksFolders;
+    { Book AName is there: a path - the file exists; a books folder's
+      address - its folder's last listing has it (a query of each
+      document, zip 346, took the book just found for gone: the library
+      emptied itself as fast as it filled - owner 15:04, "the screen is
+      blank"); not known (a listing failed) - yes. }
+    function BookThere(const AName: string): Boolean;
+    { Menu > Books folders (Android): the folders chosen (one chosen: what
+      to do with it), "Add a folder" (the phone's storage or the memory
+      card) and Back. }
+    procedure ShowFoldersMenu;
+    { Books folder AIndex (FBooksTrees): take it off, or keep it. }
+    procedure ShowFolder(AIndex: Integer);
+    { Books folder AIndex taken off: its books leave the library (they
+      stay where they are), Android forgets its permission. }
+    procedure RemoveBooksFolder(AIndex: Integer);
     { Row AIndex of the main menu's value as it reads now (text size,
       speed, on / off).
-      @param(AIndex  MENU_RESUME .. MENU_EXIT)
+      @param(AIndex  MENU_RESUME .. MENU_ABOUT)
       @returns(the value; '' for none) }
     function PadMenuValue(AIndex: Integer): string;
     { The hints at the foot of the menu: the pad's own names for choose,
@@ -553,6 +723,8 @@ type
     { A unit (word, sentence or paragraph, by StepUnit) starts at word
       AWord. }
     function IsUnitStart(AWord: Integer): Boolean;
+    { A unit AUnit (UNIT_*) starts at word AWord. }
+    function IsUnitStartOf(AWord, AUnit: Integer): Boolean;
     { The last word of the unit that starts at word AWord. }
     function UnitEnd(AWord: Integer): Integer;
     { Opens the audio file of clip AClip in the player (extracted from the
@@ -642,6 +814,25 @@ type
     procedure SetLibrarySort(ASort: TLibrarySort);
     { File > Library order > an order (Tag = TLibrarySort). }
     procedure miSortClick(Sender: TObject);
+    { Highlights while reading aloud as AUnit says (ATrailing: only up to
+      the word; AWord: the word over it in its own colour), keeps it,
+      shows it on the word being read. }
+    procedure SetHighlight(AUnit: THighlightUnit; ATrailing, AWord: Boolean);
+    { View > Highlight > Word / Phrase / Sentence (Tag = THighlightUnit). }
+    procedure miHighClick(Sender: TObject);
+    { View > Highlight > Trailing. }
+    procedure miHighTrailingClick(Sender: TObject);
+    { View > Highlight > Word in its own colour. }
+    procedure miHighWordClick(Sender: TObject);
+    { The desktop's View > Highlight items checked (and the two under the
+      line enabled) as the settings say. }
+    procedure CheckHighlightMenu;
+    { The pad menu's Highlight row stepped ADelta (Word, Phrase,
+      Sentence, round). }
+    procedure StepHighlight(ADelta: Integer);
+    { Highlights the words AFirst..ALast being read (a clip) as FHighUnit,
+      FHighTrailing and FHighWord say. }
+    procedure ShowReadHighlight(AFirst, ALast: Integer);
     { Cover AIndex (of FRecent) was clicked or tapped: back to the open
       book when it is that one, else it is opened. }
     procedure CoverChosen(AIndex: Integer);
@@ -698,6 +889,10 @@ type
     procedure SaveSettings;
     { The start of the sentence / paragraph that word AWord is in. }
     function UnitStart(AWord: Integer): Integer;
+    { The start of the unit AUnit (UNIT_*) that word AWord is in. }
+    function UnitStartOf(AWord, AUnit: Integer): Integer;
+    { The last word of the unit AUnit that starts at word AWord. }
+    function UnitEndOf(AWord, AUnit: Integer): Integer;
     { Selects in lbToc the chapter of word AWord (no jump). }
     procedure SyncToc(AWord: Integer);
     { Colours of the page and the panels for FDark. }
@@ -766,30 +961,55 @@ const
   MENU_RESUME = 0;
   { Open a book from the books folder. }
   MENU_OPEN = 1;
+  { Get books from BookManager (a phone: the link and its panel; owner
+    18:09, "There's no way to re-open bookmanager in Phone menu" - it was
+    only in Books folders; zip 362). Faded elsewhere. }
+  MENU_LINK = 2;
   { The library. }
-  MENU_LIBRARY = 2;
+  MENU_LIBRARY = 3;
   { The library's order (a tap, or left / right, steps through them). }
-  MENU_SORT = 3;
+  MENU_SORT = 4;
   { The contents. }
-  MENU_CONTENTS = 4;
+  MENU_CONTENTS = 5;
   { Text size (left / right). }
-  MENU_SIZE = 5;
+  MENU_SIZE = 6;
   { Speed (left / right). }
-  MENU_SPEED = 6;
+  MENU_SPEED = 7;
   { Dark mode. }
-  MENU_DARK = 7;
+  MENU_DARK = 8;
+  { What is highlighted while reading aloud: Word, Phrase, Sentence (a
+    tap, or left / right, steps through them; zip 352 / 353). }
+  MENU_HIGHLIGHT = 9;
+  { Highlight type: All / Trailing (only up to the word); faded with
+    Word. }
+  MENU_HIGH_TYPE = 10;
+  { Highlight word: On / Off (the word over the phrase / sentence in its
+    own colour); faded with Word. }
+  MENU_HIGH_WORD = 11;
   { Learn to read. }
-  MENU_LEARN = 8;
+  MENU_LEARN = 12;
   { The pad's controls. }
-  MENU_CONTROLS = 9;
+  MENU_CONTROLS = 13;
   { The open book's cover (thumbnails to choose from). }
-  MENU_COVER = 10;
+  MENU_COVER = 14;
   { Exit. }
-  MENU_EXIT = 11;
+  MENU_EXIT = 15;
+  { About: the version and the copyright (the last row; owner, zip 343). }
+  MENU_ABOUT = 16;
+  { Who holds the copyright, for About - A PLACEHOLDER until the owner
+    says (the repository names no holder; WhisperBooks is its GitHub
+    organisation). }
+  ABOUT_COPYRIGHT = 'Copyright (c) 2026 WhisperBooks. All rights reserved.';
   { The library's orders, as the menus name them. }
   LIBRARY_SORT_NAMES: array[TLibrarySort] of string = ('Recent', 'Title', 'Author', 'Year', 'Genre');
   { ... and as the settings file keeps them. }
   LIBRARY_SORT_KEYS: array[TLibrarySort] of string = ('recent', 'title', 'author', 'year', 'genre');
+  { What is highlighted, as the menus name it. }
+  HIGHLIGHT_NAMES: array[THighlightUnit] of string = ('Word', 'Phrase', 'Sentence');
+  { ... and as the settings file keeps it. }
+  HIGHLIGHT_KEYS: array[THighlightUnit] of string = ('word', 'phrase', 'sentence');
+  { Highlight type, as the menus name it (False = all of it). }
+  HIGHLIGHT_TYPE_NAMES: array[Boolean] of string = ('All', 'Trailing');
   { FMenuMode: the main menu. }
   MODE_MAIN = 0;
   { The contents. }
@@ -798,6 +1018,33 @@ const
   MODE_CONTROLS = 2;
   { The books of the books folder. }
   MODE_BOOKS = 3;
+  { No books yet (a phone): where books come from (zip 341). }
+  MODE_START = 4;
+  { A note with one answer, OK (back to what was there). }
+  MODE_NOTE = 5;
+  { About: OK, Licences (zip 344). }
+  MODE_ABOUT = 6;
+  { The licences' list (the outside components). }
+  MODE_LICENCES = 7;
+  { One licence, a page at a time. }
+  MODE_LICENCE = 8;
+  { The books folders (Android): each one, Add a folder, Back (zip 346). }
+  MODE_FOLDERS = 9;
+  { One books folder: take it off the library, or keep it. }
+  MODE_FOLDER = 10;
+  { Linking with BookManager: the panel (zip 357). }
+  MODE_LINK = 11;
+  { About's rows. }
+  ABOUT_OK = 0;
+  { ... }
+  ABOUT_LICENCES = 1;
+  { A licence's page, characters (the menu's box does not scroll: a
+    phone shows about this much). }
+  LICENCE_PAGE_CHARS = 700;
+  { MODE_START's rows. }
+  START_LINK = 0;
+  { ... }
+  START_FOLDER = 1;
   { The stick's scrolling at full tilt, units a second. }
   PAD_SCROLL_SPEED = 1500;
   { The stick's dead zone. }
@@ -893,6 +1140,11 @@ const
   DARK_TEXT = $FFD8D8D8;
   { Dark mode: highlight (dark amber: light text stays readable on it). }
   DARK_HIGHLIGHT = $FF6B5310;
+  { Dark mode: the phrase / sentence being read, under the word (a dark
+    blue the amber word stands out on). }
+  DARK_UNIT_HIGHLIGHT = $FF2A3850;
+  { The phrase / sentence being read, under the word (pale blue). }
+  UNIT_HIGHLIGHT = $FFDCE8F7;
   { Dark mode: background of notes (footnotes). }
   DARK_NOTE = $FF2C2C34;
   { Dark mode: links. }
@@ -950,6 +1202,19 @@ end;
   @param(ASize  its length, bytes)
   @returns(@false when the entry is compressed, encrypted or not there,
     the archive is not a file, or its header cannot be read) }
+{ The book file AName to read bytes of: through Epub.Zip's
+  EpubStreamOpener when it gives one (a books folder's book on Android:
+  its address is no path - zip 350, the owner's debugger: "Cannot create
+  file "/content:/com.android..."), else the file. The caller frees it. }
+function OpenBookFile(const AName: string): TStream;
+begin
+  Result := nil;
+  if Assigned(EpubStreamOpener) then
+    Result := EpubStreamOpener(AName);
+  if Result = nil then
+    Result := TFileStream.Create(AName, fmOpenRead or fmShareDenyNone);
+end;
+
 function AudioInBook(AZip: TEpubZipReader; const AName: string; out AOffset, ASize: Int64): Boolean;
 const
   LOCAL_HEADER = 30;
@@ -957,7 +1222,7 @@ const
 var
   I: Integer;
   E: TEpubZipEntry;
-  F: TFileStream;
+  F: TStream;
   H: array[0..LOCAL_HEADER - 1] of Byte;
 begin
   Result := False;
@@ -972,7 +1237,7 @@ begin
   if (E.Method <> 0) or ((E.Flags and 1) <> 0) or (E.CompressedSize <> E.Size) or (E.Size <= 0) then
     Exit;
   try
-    F := TFileStream.Create(AZip.FileName, fmOpenRead or fmShareDenyNone);
+    F := OpenBookFile(AZip.FileName);
     try
       F.Position := E.LocalOffset;
       if F.Read(H, LOCAL_HEADER) <> LOCAL_HEADER then
@@ -1306,7 +1571,7 @@ end;
 function CoverFile(const ABookFile: string): string;
 begin
   Result := System.IOUtils.TPath.Combine(System.IOUtils.TPath.Combine(ExtractFilePath(SettingsFile), 'covers'),
-    THashMD5.GetHashString(LowerCase(ExtractFileName(ABookFile))) + '.png');
+    THashMD5.GetHashString(LowerCase(BookFileName(ABookFile))) + '.png');
 end;
 
 { The index of book ABookFile (TEpubBook.SaveIndex: its words and clips
@@ -1317,16 +1582,18 @@ end;
 function BookIndexFile(const ABookFile: string): string;
 begin
   Result := System.IOUtils.TPath.Combine(System.IOUtils.TPath.Combine(ExtractFilePath(SettingsFile), 'index'),
-    THashMD5.GetHashString(LowerCase(ExtractFileName(ABookFile))) + '.euix');
+    THashMD5.GetHashString(LowerCase(BookFileName(ABookFile))) + '.euix');
 end;
 
 { Opens ABookFile in full, with its text - from its index when it has one
   that fits, else from the book, writing the index for next time. Touches
-  nothing of the window: for a thread.
+  nothing of the window: for a thread. APath: where to read it (the same
+  but for a book of the chosen folder: BookOpenPath's, made in the
+  window's thread).
   @param(ANote  what was done, for the debug log)
   @returns(the book; the caller frees it)
   @raises(Exception as TEpubBook.Create) }
-function OpenBookIndexed(const ABookFile: string; out ANote: string): TEpubBook;
+function OpenBookIndexed(const ABookFile, APath: string; out ANote: string): TEpubBook;
 var
   IndexFile: string;
   M: TMemoryStream;
@@ -1341,14 +1608,14 @@ begin
       begin
         M.LoadFromFile(IndexFile);
         M.Position := 0;
-        Result := TEpubBook.CreateIndexed(ABookFile, M);
+        Result := TEpubBook.CreateIndexed(APath, M);
         if Result.FromIndex then
           ANote := Format('open: from its index (%d bytes) - the book''s XML was not read', [M.Size])
         else
           ANote := 'open: its index does not fit (the book changed, or another version) - read in full';
       end
       else
-        Result := TEpubBook.Create(ABookFile);
+        Result := TEpubBook.Create(APath);
       Result.LoadText;
       if not Result.FromIndex then
         try
@@ -1533,7 +1800,9 @@ var
   F, Title, Author: string;
   Own: TEpubBook;
   I: Integer;
+  Held: Boolean;
 begin
+  Held := False;
   DebugLog('cover: ' + ABookFile);
   // EPUBREADER_NO_COVERS=1: no covers made (the library shows titles) -
   // for finding why making one hangs (owner, Linux, 2026-11-16)
@@ -1549,9 +1818,15 @@ begin
   try
     try
       ForceDirectories(ExtractFilePath(F));
-      if (ABook = nil) and FileExists(ABookFile) then
+      // (a books folder's book: tried - a failure is a made cover, below;
+      // BookThere is the form's, this runs without it)
+      if (ABook = nil) and (IsBookAddress(ABookFile) or FileExists(ABookFile)) then
         try
-          // the package only: a cover needs no timings (zip 324)
+          // the package only: a cover needs no timings (zip 324); a book
+          // of the chosen folder through the file Android opens (released
+          // below only when it was opened here)
+          BookOpenPath(ABookFile);
+          Held := True;
           Own := TEpubBook.CreateHeader(ABookFile);
           ABook := Own;
         except
@@ -1580,13 +1855,15 @@ begin
           end;
       end;
       if Title = '' then
-        Title := ChangeFileExt(ExtractFileName(ABookFile), '');
+        Title := ChangeFileExt(BookFileName(ABookFile), '');
       SaveTextCover(F, Title, Author);
     except
       // no cover: the library shows the title
     end;
   finally
     Own.Free;
+    if Held then
+      BookRelease(ABookFile);
   end;
 end;
 
@@ -1605,7 +1882,10 @@ function RegisterOpenWith: string;
 const
   PROG_ID = 'EpubUnum.EpubReader';
 var
-  Exe, Command: string;
+  Exe: string;
+  {$IF Defined(MSWINDOWS) or Defined(LINUX)}
+  Command: string;
+  {$ENDIF}
   {$IFDEF MSWINDOWS}
   Reg: TRegistry;
   {$ENDIF}
@@ -1706,6 +1986,7 @@ procedure TfrmMain.BuildMenu;
 var
   M, S: TMenuItem;
   Sort: TLibrarySort;
+  High_: THighlightUnit;
   Bar: TFmxObject;
   {$IFDEF MSWINDOWS}
   G: TMenuItem;
@@ -1752,11 +2033,23 @@ begin
   M := Item(Bar, '&View', nil);
   miDark := Item(M, '&Dark mode'#9'D', btnDarkClick);
   miLearn := Item(M, '&Learn to read'#9'L', btnLearnClick);
+  S := Item(M, '&Highlight', nil);
+  for High_ := Low(THighlightUnit) to High(THighlightUnit) do
+  begin
+    miHigh[High_] := Item(S, '&' + HIGHLIGHT_NAMES[High_], miHighClick);
+    miHigh[High_].Tag := Ord(High_);
+  end;
+  Item(S, '-', nil);
+  miHighTrailing := Item(S, '&Trailing (up to the word)', miHighTrailingClick);
+  miHighWord := Item(S, 'W&ord in its own colour', miHighWordClick);
+  CheckHighlightMenu;
   Item(M, '-', nil);
   Item(M, '&Larger text'#9'Ctrl+Plus', btnLargerClick);
   Item(M, '&Smaller text'#9'Ctrl+Minus', btnSmallerClick);
   Item(M, '-', nil);
   Item(M, '&Cover of this book...', miCoverClick);
+  M := Item(Bar, '&Help', nil);
+  Item(M, '&About EpubReader...', miAboutClick);
   {$IFDEF MSWINDOWS}
   // which GPU draws the page on a laptop with two: Windows' own setting
   // (Settings > System > Display > Graphics), read when the program starts
@@ -1788,7 +2081,7 @@ var
   Options, More: TCoverOptionArray;
   O: TCoverOption;
   P, I, NameLen, ExtraLen: Integer;
-  F: TFileStream;
+  F: TStream;
   W: TStreamWindow;
   H: TBytes;
   E: TEpubZipEntry;
@@ -1831,7 +2124,7 @@ begin
       if E.Method <> 0 then
         Continue;
       try
-        F := TFileStream.Create(B.FileName, fmOpenRead or fmShareDenyWrite);
+        F := OpenBookFile(B.FileName);
         try
           SetLength(H, 30);
           F.Position := E.LocalOffset;
@@ -1865,7 +2158,7 @@ begin
   // the shared Covers folder's pictures (those named as the book first)
   NoAudio := TStringList.Create;
   try
-    More := CoverOptions(EpubUnumFolder(EU_COVERS), [ChangeFileExt(ExtractFileName(FBookFile), ''), Title], nil,
+    More := CoverOptions(EpubUnumFolder(EU_COVERS), [ChangeFileExt(BookFileName(FBookFile), ''), Title], nil,
       NoAudio);
   finally
     NoAudio.Free;
@@ -1961,9 +2254,9 @@ begin
     M := TMenuItem.Create(Self);
     M.Parent := miRecent;
     if FRecent[I].Title <> '' then
-      M.Text := Format('&%d  %s  (%s)', [(I + 1) mod 10, FRecent[I].Title, ExtractFileName(FRecent[I].FileName)])
+      M.Text := Format('&%d  %s  (%s)', [(I + 1) mod 10, FRecent[I].Title, BookFileName(FRecent[I].FileName)])
     else
-      M.Text := Format('&%d  %s', [(I + 1) mod 10, ExtractFileName(FRecent[I].FileName)]);
+      M.Text := Format('&%d  %s', [(I + 1) mod 10, BookFileName(FRecent[I].FileName)]);
     M.Tag := I;
     M.OnClick := miRecentItemClick;
   end;
@@ -2057,7 +2350,7 @@ procedure TfrmMain.OpenRecent(AIndex: Integer);
 begin
   if (AIndex < 0) or (AIndex > High(FRecent)) then
     Exit;
-  if not FileExists(FRecent[AIndex].FileName) then
+  if not BookThere(FRecent[AIndex].FileName) then
   begin
     ShowMessage('The book is no longer there: ' + FRecent[AIndex].FileName);
     Delete(FRecent, AIndex, 1);
@@ -2091,10 +2384,9 @@ begin
   lblLibrary.TextSettings.HorzAlign := TTextAlign.Center;
   lblLibrary.TextSettings.VertAlign := TTextAlign.Center;
   {$IFDEF ANDROID}
-  // no menu and no file dialog on a phone: books come in over USB (and
-  // from BookManager later)
-  lblLibrary.Text := 'No books yet. Connect the phone to a computer by USB and copy books (.epub) into ' +
-    BooksFolderDefault + ' - they show here when you come back to EpubReader.';
+  // nothing: an empty library offers BookManager or the phone's own
+  // storage in a box like the menu (ShowStartMenu; owner, zip 341)
+  lblLibrary.Text := '';
   {$ELSE}
   lblLibrary.Text := 'No books yet: File > Open... (Ctrl+O) to read one.';
   {$ENDIF}
@@ -2149,6 +2441,11 @@ begin
     RememberBook;
     SaveSettings;
     DebugLog('app: left - place and settings saved');
+    // not in front: Android takes the network away (the announcement
+    // failed with Socket Error # 1 while the phone slept, 16:53) - the
+    // link ends; Get books from BookManager starts it again
+    if FLink <> nil then
+      StopLink('the app was left');
   end;
 end;
 {$ENDIF}
@@ -2175,6 +2472,11 @@ begin
   // the open book first, with where it is
   RememberBook;
   DropDoubleBooks;
+  if TouchBuild then
+  begin
+    ListBooksFolders;
+    DropMissingBooks;
+  end;
   // EpubBuilder's books not seen before: into the library
   ScanTranscribed;
   for I := 0 to High(FCoverImages) do
@@ -2207,7 +2509,7 @@ begin
     Img.Tag := I;
     Img.Hint := FRecent[I].Title;
     if Img.Hint = '' then
-      Img.Hint := ExtractFileName(FRecent[I].FileName);
+      Img.Hint := BookFileName(FRecent[I].FileName);
     // what the orders go by (a desktop shows it over the cover)
     if FRecent[I].Author <> '' then
       Img.Hint := Img.Hint + ' - ' + FRecent[I].Author;
@@ -2230,7 +2532,7 @@ begin
       DebugLog(Format('library: SLOW - loading that cover''s picture took %d ms (%s)', [TThread.GetTickCount - Tick,
         F]));
     // a book no longer there: faint (a click takes it off the list)
-    if not FileExists(FRecent[I].FileName) then
+    if not BookThere(FRecent[I].FileName) then
       Img.Opacity := 0.35;
     FCoverImages := FCoverImages + [Img];
   end;
@@ -2238,6 +2540,7 @@ begin
   recLibrary.Fill.Color := View1.BackgroundColor;
   lblLibrary.TextSettings.FontColor := View1.TextColor;
   lblLibNote.TextSettings.FontColor := View1.TextColor;
+  // (the line stays while books are being copied in: it says how far)
   if Length(FScanQueue) = 0 then
     LibraryNote('');
   recLibrary.Visible := True;
@@ -2246,6 +2549,42 @@ begin
   FCoverSel := -1;
   LayoutLibrary;
   UpdateControls;
+  // a phone with no books: where they come from (not while books are
+  // being read or copied in, nor over a menu already showing)
+  OfferBooksIfEmpty;
+end;
+
+procedure TfrmMain.OfferBooksIfEmpty;
+begin
+  if TouchBuild and LibraryShowing and (Length(FRecent) = 0) and (Length(FScanQueue) = 0) and
+    (FPadMenu <> nil) and not FPadMenu.Showing then
+    ShowStartMenu;
+end;
+
+procedure TfrmMain.DropMissingBooks;
+var
+  I, N: Integer;
+begin
+  N := 0;
+  for I := High(FRecent) downto 0 do
+    if not BookThere(FRecent[I].FileName) then
+    begin
+      DebugLog('library: ' + FRecent[I].FileName + ' is gone - taken off');
+      // the open book itself: closed (its file is no more)
+      if (FBookFile <> '') and SameFileName(FBookFile, FRecent[I].FileName) then
+      begin
+        StopPlaying;
+        EpubUnum1.Active := False;
+        View1.Clear;
+        FBookFile := '';
+      end;
+      Delete(FRecent, I, 1);
+      Inc(N);
+    end;
+  if N = 0 then
+    Exit;
+  BuildRecentMenu;
+  SaveSettings;
 end;
 
 procedure TfrmMain.HideLibrary;
@@ -2393,9 +2732,18 @@ begin
   I := AIndex;
   if (I < 0) or (I > High(FRecent)) or tmLibrary.Enabled or FOpening then
     Exit;
+  // a tap meant for the menu box (a second tap on Done, as it closed)
+  // opens nothing: the box shows, or closed a moment ago (owner 18:40:
+  // "It opened a book - don't know which one")
+  if (FPadMenu <> nil) and (FPadMenu.Showing or (TThread.GetTickCount64 - FPadMenu.HiddenAt < 700)) then
+  begin
+    DebugLog('library: a tap just after the menu closed - no book opened');
+    Exit;
+  end;
   // the open book: back to it, where it was
   if (EpubUnum1.Book <> nil) and (FBookFile <> '') and
-    SameFileName(ExpandFileName(FRecent[I].FileName), FBookFile) then
+    ((IsBookAddress(FRecent[I].FileName) and SameText(FRecent[I].FileName, FBookFile)) or
+    (not IsBookAddress(FRecent[I].FileName) and SameFileName(ExpandFileName(FRecent[I].FileName), FBookFile))) then
   begin
     HideLibrary;
     Exit;
@@ -2414,7 +2762,7 @@ begin
         FCoverImages[I].Opacity := 0.25;
     Name := FRecent[AIndex].Title;
     if Name = '' then
-      Name := ChangeFileExt(ExtractFileName(FRecent[AIndex].FileName), '');
+      Name := ChangeFileExt(BookFileName(FRecent[AIndex].FileName), '');
     LibraryNote('Opening ' + Name + ' ...');
   end;
   tmLibrary.Enabled := True;
@@ -2561,15 +2909,19 @@ var
   I, N: Integer;
   Tick: Cardinal;
   Book: TEpubBook;
+  Held: Boolean;
 begin
   N := 0;
   Tick := TThread.GetTickCount;
   for I := 0 to High(FRecent) do
-    if not FRecent[I].Meta and FileExists(FRecent[I].FileName) then
+    if not FRecent[I].Meta and BookThere(FRecent[I].FileName) then
     begin
       Book := nil;
+      Held := False;
       try
         try
+          BookOpenPath(FRecent[I].FileName);
+          Held := True;
           Book := TEpubBook.CreateHeader(FRecent[I].FileName);
           SetBookMeta(FRecent[I], Book);
           Inc(N);
@@ -2583,6 +2935,8 @@ begin
         end;
       finally
         Book.Free;
+        if Held then
+          BookRelease(FRecent[I].FileName);
       end;
     end;
   if N = 0 then
@@ -2614,10 +2968,10 @@ begin
       RB := FRecent[B];
       TA := RA.Title;
       if TA = '' then
-        TA := ExtractFileName(RA.FileName);
+        TA := BookFileName(RA.FileName);
       TB := RB.Title;
       if TB = '' then
-        TB := ExtractFileName(RB.FileName);
+        TB := BookFileName(RB.FileName);
       Result := 0;
       case FLibrarySort of
         lsAuthor:
@@ -2664,6 +3018,119 @@ begin
     SetLibrarySort(TLibrarySort(TMenuItem(Sender).Tag));
 end;
 
+procedure TfrmMain.CheckHighlightMenu;
+var
+  U: THighlightUnit;
+begin
+  for U := Low(THighlightUnit) to High(THighlightUnit) do
+    if miHigh[U] <> nil then
+      miHigh[U].IsChecked := U = FHighUnit;
+  // with the word alone, the other two say nothing
+  if miHighTrailing <> nil then
+  begin
+    miHighTrailing.IsChecked := FHighTrailing;
+    miHighTrailing.Enabled := FHighUnit <> huWord;
+  end;
+  if miHighWord <> nil then
+  begin
+    miHighWord.IsChecked := FHighWord;
+    miHighWord.Enabled := FHighUnit <> huWord;
+  end;
+end;
+
+procedure TfrmMain.SetHighlight(AUnit: THighlightUnit; ATrailing, AWord: Boolean);
+const
+  YES_NO: array[Boolean] of string = ('no', 'yes');
+begin
+  FHighUnit := AUnit;
+  FHighTrailing := ATrailing;
+  FHighWord := AWord;
+  FHiUnit := -1;
+  DebugLog(Format('highlight: %s, trailing %s, word %s', [HIGHLIGHT_KEYS[AUnit], YES_NO[ATrailing],
+    YES_NO[AWord]]));
+  CheckHighlightMenu;
+  SaveSettings;
+  // the word being read (or where Play starts) in the new way
+  if (EpubUnum1.Book <> nil) and not FLearn and (FClip >= 0) and (FClip < Length(FClipFirst)) and
+    (FClipFirst[FClip] >= 0) then
+    ShowReadHighlight(FClipFirst[FClip], FClipLast[FClip]);
+end;
+
+procedure TfrmMain.miHighClick(Sender: TObject);
+begin
+  if Sender is TMenuItem then
+    SetHighlight(THighlightUnit(TMenuItem(Sender).Tag), FHighTrailing, FHighWord);
+end;
+
+procedure TfrmMain.StepHighlight(ADelta: Integer);
+var
+  Was: THighlightUnit;
+begin
+  Was := FHighUnit;
+  SetHighlight(THighlightUnit((Ord(FHighUnit) + ADelta + Ord(High(THighlightUnit)) + 1) mod
+    (Ord(High(THighlightUnit)) + 1)), FHighTrailing, FHighWord);
+  // to or from the word alone: the two rows under it faded or not - the
+  // menu made again, on this row
+  if (Was = huWord) <> (FHighUnit = huWord) then
+  begin
+    ShowPadMenu;
+    FPadMenu.Move(MENU_HIGHLIGHT);
+  end
+  else
+    FPadMenu.SetValue(MENU_HIGHLIGHT, PadMenuValue(MENU_HIGHLIGHT));
+end;
+
+procedure TfrmMain.miHighTrailingClick(Sender: TObject);
+begin
+  SetHighlight(FHighUnit, not FHighTrailing, FHighWord);
+end;
+
+procedure TfrmMain.miHighWordClick(Sender: TObject);
+begin
+  SetHighlight(FHighUnit, FHighTrailing, not FHighWord);
+end;
+
+procedure TfrmMain.ShowReadHighlight(AFirst, ALast: Integer);
+const
+  { Each choice's unit, -1 = the word alone. }
+  UNIT_OF: array[THighlightUnit] of Integer = (-1, UNIT_PHRASE, UNIT_SENTENCE);
+var
+  U, First, Last: Integer;
+begin
+  U := UNIT_OF[FHighUnit];
+  // the word alone (and Learn to read has its own highlighting)
+  if (U < 0) or FLearn or (AFirst < 0) then
+  begin
+    View1.HighlightUnit(-1, -1);
+    View1.Highlight(AFirst, ALast);
+    Exit;
+  end;
+  // the phrase / sentence: looked for only when the word has left the
+  // last one
+  if (U <> FHiUnit) or (AFirst < FHiFirst) or (AFirst > FHiLast) then
+  begin
+    FHiFirst := UnitStartOf(AFirst, U);
+    FHiLast := UnitEndOf(FHiFirst, U);
+    FHiUnit := U;
+  end;
+  First := FHiFirst;
+  if FHighTrailing then
+    Last := ALast
+  else
+    Last := Max(FHiLast, ALast);
+  if FHighWord then
+  begin
+    View1.HighlightUnit(First, Last);
+    View1.Highlight(AFirst, ALast);
+  end
+  else
+  begin
+    // one colour: the word's
+    View1.HighlightUnit(-1, -1);
+    View1.Highlight(First, Last);
+  end;
+end;
+
 procedure TfrmMain.DropDoubleBooks;
 var
   I, J, N: Integer;
@@ -2671,7 +3138,7 @@ begin
   N := 0;
   for I := High(FRecent) downto 1 do
     for J := 0 to I - 1 do
-      if SameFileName(ExtractFileName(FRecent[J].FileName), ExtractFileName(FRecent[I].FileName)) then
+      if SameFileName(BookFileName(FRecent[J].FileName), BookFileName(FRecent[I].FileName)) then
       begin
         Delete(FRecent, I, 1);
         Inc(N);
@@ -2685,7 +3152,9 @@ procedure TfrmMain.AddScanned(const AFileName: string; AHold: Boolean);
 var
   R: TRecentBook;
   Book: TEpubBook;
+  Held: Boolean;
 begin
+  Held := False;
   // never twice
   if RecentIndex(AFileName) >= 0 then
     Exit;
@@ -2701,6 +3170,8 @@ begin
     try
       // the package only (CreateHeader, zip 324): Create read the timing
       // of every word as well, 2.3 s for a long book
+      BookOpenPath(AFileName);
+      Held := True;
       Book := TEpubBook.CreateHeader(AFileName);
       R.Title := Book.Title;
       SetBookMeta(R, Book);
@@ -2712,6 +3183,8 @@ begin
     end;
   finally
     Book.Free;
+    if Held then
+      BookRelease(AFileName);
   end;
   if AHold then
   begin
@@ -2981,6 +3454,7 @@ begin
   FLearnFirst := -1;
   if B.Words[W].Document <> View1.Document then
     View1.ShowDocument(B.Words[W].Document);
+  View1.HighlightUnit(-1, -1);
   View1.Highlight(W, W + FFindLength - 1);
   View1.ScrollToWord(W, True);
   SyncToc(W);
@@ -3008,7 +3482,7 @@ var
   I: Integer;
 begin
   for I := 0 to High(FRecent) do
-    if SameFileName(ExtractFileName(FRecent[I].FileName), ExtractFileName(AFileName)) then
+    if SameFileName(BookFileName(FRecent[I].FileName), BookFileName(AFileName)) then
       Exit(I);
   Result := -1;
 end;
@@ -3086,6 +3560,7 @@ var
   R: TRecentBook;
   Folder: string;
   Sort: TLibrarySort;
+  High_: THighlightUnit;
 begin
   FBooksFolder := BooksFolderDefault;
   if not FileExists(SettingsFile) then
@@ -3098,10 +3573,31 @@ begin
       O := TJSONObject(V);
       O.TryGetValue<Boolean>('dark', FDark);
       O.TryGetValue<Boolean>('debug', FDebug);
+      FBooksTrees := nil;
+      O.TryGetValue<string>('linkId', FLinkId);
+      O.TryGetValue<string>('linkTokens', FLinkTokens);
+      if O.TryGetValue<TJSONArray>('booksFolders', A) then
+        for I := 0 to A.Count - 1 do
+          if (A.Items[I] is TJSONString) and (TJSONString(A.Items[I]).Value <> '') then
+            FBooksTrees := FBooksTrees + [TJSONString(A.Items[I]).Value];
       if O.TryGetValue<string>('librarySort', Folder) then
         for Sort := Low(TLibrarySort) to High(TLibrarySort) do
           if SameText(Folder, LIBRARY_SORT_KEYS[Sort]) then
             FLibrarySort := Sort;
+      // zip 352 kept one word for all three ("sentenceSoFar+word"):
+      // read the same way
+      if O.TryGetValue<string>('highlight', Folder) then
+      begin
+        for High_ := Low(THighlightUnit) to High(THighlightUnit) do
+          if SameText(Copy(Folder, 1, Length(HIGHLIGHT_KEYS[High_])), HIGHLIGHT_KEYS[High_]) then
+            FHighUnit := High_;
+        if Pos('SoFar', Folder) > 0 then
+          FHighTrailing := True;
+        if (Folder <> 'word') and (Pos('+word', Folder) = 0) then
+          FHighWord := False;
+      end;
+      O.TryGetValue<Boolean>('highlightTrailing', FHighTrailing);
+      O.TryGetValue<Boolean>('highlightWord', FHighWord);
       // another books folder, put in the settings by hand (not written)
       if O.TryGetValue<string>('booksFolder', Folder) and (Folder <> '') then
         FBooksFolder := Folder;
@@ -3150,6 +3646,7 @@ begin
   for Sort := Low(TLibrarySort) to High(TLibrarySort) do
     if miSort[Sort] <> nil then
       miSort[Sort].IsChecked := Sort = FLibrarySort;
+  CheckHighlightMenu;
   miNotes.Visible := FDebug;
   BuildRecentMenu;   // recreates the OS menu
 end;
@@ -3167,6 +3664,18 @@ begin
     O.AddPair('debug', TJSONBool.Create(FDebug));
     O.AddPair('textSize', TJSONNumber.Create(View1.FontSize));
     O.AddPair('librarySort', LIBRARY_SORT_KEYS[FLibrarySort]);
+    O.AddPair('highlight', HIGHLIGHT_KEYS[FHighUnit]);
+    O.AddPair('highlightTrailing', TJSONBool.Create(FHighTrailing));
+    O.AddPair('highlightWord', TJSONBool.Create(FHighWord));
+    // the link (a phone): who this reader is, the BookManagers paired
+    if FLinkId <> '' then
+      O.AddPair('linkId', FLinkId);
+    if FLinkTokens <> '' then
+      O.AddPair('linkTokens', FLinkTokens);
+    A := TJSONArray.Create;
+    O.AddPair('booksFolders', A);
+    for I := 0 to High(FBooksTrees) do
+      A.Add(FBooksTrees[I]);
     O.AddPair('speed', TJSONNumber.Create(FPendingSpeed));
     A := TJSONArray.Create;
     O.AddPair('recent', A);
@@ -3231,21 +3740,23 @@ end;
 
 procedure TfrmMain.FormCreate(Sender: TObject);
 var
-  Line, Moved: string;
+  Line: string;
   OK: Boolean;
   {$IFDEF ANDROID}
   AppEvents: IFMXApplicationEventService;
   Old: string;
   {$ENDIF}
 begin
-  // the folders shared with EpubBuilder: what was in EpubReader's own
-  // moved in, once - before the log and the settings are opened there
-  Moved := EpubUnumMove('EpubReader');
+  // (the move of EpubReader's folders of before into the shared ones,
+  // and its marker EpubUnum-moved-EpubReader.txt, are gone: obsolete -
+  // owner, zip 342)
   // the debug log: next to the settings, started afresh at every run
   DebugLogOpen(ChangeFileExt(SettingsFile, '-debug.log'));
-  if Moved <> '' then
-    for Line in Moved.Split([sLineBreak], TStringSplitOptions.ExcludeEmpty) do
-      DebugLog('folders: ' + Line);
+  {$IFDEF ANDROID}
+  // the books of the books folders are read from the file Android opened
+  // (uBookImport; zip 347 - set here since 349)
+  EpubStreamOpener := OpenBookStream;
+  {$ENDIF}
   // a crash in a library (Steam Deck, 2026-11-17): logged with where it was
   Application.OnException := AppException;
   OnShow := FormShow;
@@ -3277,6 +3788,9 @@ begin
   FClip := -1;
   FSeekClip := -1;
   FUnitDoc := -1;
+  FHiUnit := -1;
+  // the phrase / sentence chosen: the word over it in its own colour
+  FHighWord := True;
   lbToc.OnApplyStyleLookup := TocApplyStyle;
   // how far through the book, under the text
   View1.ShowProgress := True;
@@ -3421,8 +3935,12 @@ begin
   FPadMenu.OnClose := PadMenuClose;
   if SteamBigPicture then
     FPadMenu.FontSize := 30
+  else if TouchBuild then
+    // a phone's: buttons, larger (owner, zip 345)
+    FPadMenu.FontSize := 22
   else
     FPadMenu.FontSize := 20;
+  FPadMenu.TouchStyle := TouchBuild;
   FPad := TSteamPad.Create('Reader', PAD_ACTIONS, 'Scroll');
   // directions repeat while held (scrolling, lists)
   for I := PAD_UP to PAD_RIGHT do
@@ -3543,8 +4061,26 @@ begin
           ShowPadMenu;
           FPadMenu.Move(MENU_OPEN);
         end
+        // a books folder: the folders
+        else if FMenuMode = MODE_FOLDER then
+          ShowFoldersMenu
+        // a licence: its list; the list: About
+        else if FMenuMode = MODE_LICENCE then
+          ShowLicencesMenu(FLicence)
+        else if FMenuMode = MODE_LICENCES then
+          ShowAbout
+        // "No books yet" stays (Android's Back leaves the app there)
+        else if FMenuMode = MODE_START then
+          Exit
+        // the link panel: Back is Cancel (the link ends, back to where
+        // books come from)
+        else if FMenuMode = MODE_LINK then
+          LinkCancel
         else
+        begin
           FPadMenu.Hide;
+          OfferBooksIfEmpty;
+        end;
       PAD_LIBRARY:
         begin
           FPadMenu.Hide;
@@ -3615,6 +4151,14 @@ begin
     MENU_DARK: Result := ON_OFF[FDark];
     MENU_LEARN: Result := ON_OFF[FLearn];
     MENU_SORT: Result := Format('%s  %s  %s', [#$2039, LIBRARY_SORT_NAMES[FLibrarySort], #$203A]);
+    MENU_HIGHLIGHT: Result := Format('%s  %s  %s', [#$2039, HIGHLIGHT_NAMES[FHighUnit], #$203A]);
+    // with the word alone: faded, the value without the arrows
+    MENU_HIGH_TYPE:
+      if FHighUnit = huWord then
+        Result := HIGHLIGHT_TYPE_NAMES[FHighTrailing]
+      else
+        Result := Format('%s  %s  %s', [#$2039, HIGHLIGHT_TYPE_NAMES[FHighTrailing], #$203A]);
+    MENU_HIGH_WORD: Result := ON_OFF[FHighWord];
   else
     Result := '';
   end;
@@ -3677,17 +4221,36 @@ end;
 
 procedure TfrmMain.ShowPadMenu;
 const
-  TEXTS: array[MENU_RESUME..MENU_EXIT] of string = ('Back to the book', 'Open a book', 'Library',
+  TEXTS: array[MENU_RESUME..MENU_ABOUT] of string = ('Back to the book', 'Open a book',
+    'Get books from BookManager', 'Library',
     'Library order', 'Contents', 'Text size',
-    'Speed', 'Dark mode', 'Learn to read', 'Controls', 'Cover of this book', 'Exit');
+    'Speed', 'Dark mode', 'Highlight', 'Highlight type', 'Highlight word', 'Learn to read',
+    'Controls', 'Cover of this book', 'Exit', 'About');
 var
   Items: TArray<TPadMenuItem>;
   I: Integer;
 begin
   FMenuMode := MODE_MAIN;
-  SetLength(Items, MENU_EXIT + 1);
-  for I := 0 to MENU_EXIT do
+  SetLength(Items, MENU_ABOUT + 1);
+  for I := 0 to MENU_ABOUT do
     Items[I] := TPadMenu.Item(TEXTS[I], PadMenuValue(I));
+  // with the word alone, the highlight's type and word say nothing
+  Items[MENU_HIGH_TYPE].Dim := FHighUnit = huWord;
+  Items[MENU_HIGH_WORD].Dim := FHighUnit = huWord;
+  // BookManager sends books to a phone
+  Items[MENU_LINK].Dim := not BookFolderSupported;
+  // a phone: its own storage through the system's picker (the books folder
+  // is the library already; owner: "the current Open File is useless on
+  // Android")
+  if BookFolderSupported then
+  begin
+    if Length(FBooksTrees) = 1 then
+      Items[MENU_OPEN] := TPadMenu.Item('Books folders', BookFolderName(FBooksTrees[0]))
+    else if Length(FBooksTrees) > 1 then
+      Items[MENU_OPEN] := TPadMenu.Item('Books folders', IntToStr(Length(FBooksTrees)))
+    else
+      Items[MENU_OPEN] := TPadMenu.Item('Books folders', 'none yet');
+  end;
   PadMenuColors;
   FPadMenu.Show('EpubReader', Items, MENU_RESUME, PadMenuFoot(True));
   RefreshPadFoot;
@@ -3831,10 +4394,54 @@ const
 var
   Folders, Files, Found: TArray<string>;
   Times: TArray<TDateTime>;
-  I, J, K: Integer;
+  I, J: Integer;
   Name, T: string;
   D: TDateTime;
-  Have: Boolean;
+
+  { Book AFile (a path, or a chosen folder's address) found: into Found
+    unless the library or the queue has it already. }
+  procedure Consider(const AFile: string; ATime: TDateTime);
+  var
+    K: Integer;
+    Have: Boolean;
+    N: string;
+  begin
+    N := LowerCase(BookFileName(AFile));
+    Have := False;
+    for K := 0 to High(FSeen) do
+      if FSeen[K] = N then
+      begin
+        Have := True;
+        Break;
+      end;
+    // "Seen" keeps a book the user took off the list from coming back.
+    // On a phone the library IS the folder, and nothing takes a book
+    // off but the old limit of ten: a book there and not in the
+    // library goes in (zip 325).
+    if Have and not TouchBuild then
+      Exit;
+    if not Have then
+      FSeen := FSeen + [N];
+    // already in the library (opened from elsewhere)
+    if RecentIndex(AFile) >= 0 then
+      Exit;
+    // or waiting to be read into it. MY FAULT IN 325 (zip 328): with
+    // "seen" no longer stopping it on a phone, every showing of the
+    // library - one after each book read - queued the waiting books
+    // again, and each came in two or three times
+    for K := 0 to High(FScanQueue) do
+      if SameFileName(BookFileName(FScanQueue[K]), BookFileName(AFile)) then
+        Exit;
+    for K := 0 to High(FScanDone) do
+      if SameFileName(BookFileName(FScanDone[K].FileName), BookFileName(AFile)) then
+        Exit;
+    for K := 0 to High(Found) do
+      if SameFileName(BookFileName(Found[K]), BookFileName(AFile)) then
+        Exit;
+    Found := Found + [AFile];
+    Times := Times + [ATime];
+  end;
+
 begin
   Result := 0;
   // EpubBuilder's output folder (its settings, else Documents/EpubUnum/
@@ -3860,52 +4467,16 @@ begin
       Continue;
     Files := TDirectory.GetFiles(Folders[I], '*.epub', TSearchOption.soAllDirectories);
     for J := 0 to High(Files) do
-    begin
-      Name := LowerCase(ExtractFileName(Files[J]));
-      Have := False;
-      for K := 0 to High(FSeen) do
-        if FSeen[K] = Name then
-        begin
-          Have := True;
-          Break;
-        end;
-      // "Seen" keeps a book the user took off the list from coming back.
-      // On a phone the library IS the folder, and nothing takes a book
-      // off but the old limit of ten: a book there and not in the
-      // library goes in (zip 325).
-      if Have and not TouchBuild then
-        Continue;
-      if not Have then
-        FSeen := FSeen + [Name];
-      // already in the library (opened from elsewhere)
-      if RecentIndex(Files[J]) >= 0 then
-        Continue;
-      // or waiting to be read into it. MY FAULT IN 325 (zip 328): with
-      // "seen" no longer stopping it on a phone, every showing of the
-      // library - one after each book read - queued the waiting books
-      // again, and each came in two or three times
-      Have := False;
-      for K := 0 to High(FScanQueue) do
-        if SameFileName(ExtractFileName(FScanQueue[K]), ExtractFileName(Files[J])) then
-        begin
-          Have := True;
-          Break;
-        end;
-      for K := 0 to High(FScanDone) do
-        if SameFileName(ExtractFileName(FScanDone[K].FileName), ExtractFileName(Files[J])) then
-        begin
-          Have := True;
-          Break;
-        end;
-      if Have then
-        Continue;
-      Found := Found + [Files[J]];
-      Times := Times + [TFile.GetLastWriteTime(Files[J])];
-    end;
+      Consider(Files[J], TFile.GetLastWriteTime(Files[J]));
   except
     on E: Exception do
       DebugLog('library: ' + Folders[I] + ': ' + E.Message);
   end;
+  // Android: the books folders chosen in the system's picker - every book
+  // in them and their folders, read where it is (zip 346), as last listed
+  // (ListBooksFolders; a phone's order is by name, below: no time needed)
+  for J := 0 to High(FFolderBooks) do
+    Consider(FFolderBooks[J], 0);
   if Length(FSeen) > SEEN_MAX then
     Delete(FSeen, 0, Length(FSeen) - SEEN_MAX);
   if Length(Found) = 0 then
@@ -3935,7 +4506,7 @@ begin
     // times: by name (zip 331; the owner saw a "random-looking order").
     for I := 1 to High(Found) do
       for J := I downto 1 do
-        if CompareText(ExtractFileName(Found[J - 1]), ExtractFileName(Found[J])) > 0 then
+        if CompareText(BookFileName(Found[J - 1]), BookFileName(Found[J])) > 0 then
         begin
           T := Found[J - 1];
           Found[J - 1] := Found[J];
@@ -3949,12 +4520,526 @@ begin
     tmScan.Enabled := True;
     Exit;
   end;
-  for K := 0 to High(Found) do
+  for I := 0 to High(Found) do
   begin
-    AddScanned(Found[K]);
+    AddScanned(Found[I]);
     Inc(Result);
   end;
   BuildRecentMenu;
+end;
+
+procedure TfrmMain.ListBooksFolders;
+var
+  I, J: Integer;
+  Books: TArray<string>;
+  Note: string;
+  Tick: Cardinal;
+begin
+  FFolderBooks := nil;
+  FFolderBooksOK := True;
+  if FFolderBookSet = nil then
+    FFolderBookSet := TDictionary<string, Boolean>.Create;
+  FFolderBookSet.Clear;
+  for I := 0 to High(FBooksTrees) do
+  begin
+    Tick := TThread.GetTickCount;
+    Books := BookFolderBooks(FBooksTrees[I], Note);
+    if Note <> '' then
+    begin
+      FFolderBooksOK := False;
+      DebugLog('library: the books folder ' + BookFolderName(FBooksTrees[I]) + ' could not be read - ' + Note);
+      Continue;
+    end;
+    DebugLog(Format('library: %d book(s) in %s (%d ms)', [Length(Books), BookFolderName(FBooksTrees[I]),
+      TThread.GetTickCount - Tick]));
+    for J := 0 to High(Books) do
+      if not FFolderBookSet.ContainsKey(Books[J]) then
+      begin
+        FFolderBookSet.Add(Books[J], True);
+        FFolderBooks := FFolderBooks + [Books[J]];
+      end;
+  end;
+end;
+
+function TfrmMain.BookThere(const AName: string): Boolean;
+begin
+  if not IsBookAddress(AName) then
+    Exit(FileExists(AName));
+  // not listed yet, or a folder that could not be read: not taken for gone
+  if (FFolderBookSet = nil) or not FFolderBooksOK then
+    Exit(True);
+  Result := FFolderBookSet.ContainsKey(AName);
+end;
+
+procedure TfrmMain.ShowFoldersMenu;
+var
+  Items: TArray<TPadMenuItem>;
+  I: Integer;
+begin
+  FMenuMode := MODE_FOLDERS;
+  Items := nil;
+  for I := 0 to High(FBooksTrees) do
+    Items := Items + [TPadMenu.Item(BookFolderName(FBooksTrees[I]))];
+  Items := Items + [TPadMenu.Item('Add a folder'), TPadMenu.Item('Get books from BookManager'),
+    TPadMenu.Item('Back')];
+  PadMenuColors;
+  // the phone's storage and a memory card are both in Android's picker
+  FPadMenu.ShowText('Books folders', 'Every EPUB book in these folders and in their folders is in the library, ' +
+    'read where it is. Add the phone''s folder, a memory card''s, or both - or get books from BookManager ' +
+    'on your computer.', Items, Length(FBooksTrees), '');
+end;
+
+procedure TfrmMain.ShowFolder(AIndex: Integer);
+begin
+  if (AIndex < 0) or (AIndex > High(FBooksTrees)) then
+    Exit;
+  FMenuMode := MODE_FOLDER;
+  FFolderShown := AIndex;
+  PadMenuColors;
+  FPadMenu.ShowText(BookFolderName(FBooksTrees[AIndex]), 'Taken off, its books leave the library. They stay ' +
+    'where they are; adding the folder again brings them back.', [TPadMenu.Item('Take it off'),
+    TPadMenu.Item('Keep it')], 1, '');
+end;
+
+procedure TfrmMain.RemoveBooksFolder(AIndex: Integer);
+var
+  I, N: Integer;
+  Tree: string;
+begin
+  if (AIndex < 0) or (AIndex > High(FBooksTrees)) then
+    Exit;
+  Tree := FBooksTrees[AIndex];
+  Delete(FBooksTrees, AIndex, 1);
+  // its books off the library (the open one closed)
+  N := 0;
+  for I := High(FRecent) downto 0 do
+    if BookInFolder(FRecent[I].FileName, Tree) then
+    begin
+      if SameText(FBookFile, FRecent[I].FileName) then
+      begin
+        StopPlaying;
+        EpubUnum1.Active := False;
+        View1.Clear;
+        FBookFile := '';
+      end;
+      Delete(FRecent, I, 1);
+      Inc(N);
+    end;
+  BookFolderForget(Tree);
+  DebugLog(Format('books folder: %s taken off, %d book(s) with it', [BookFolderName(Tree), N]));
+  BuildRecentMenu;
+  SaveSettings;
+  ShowLibrary;
+end;
+
+procedure TfrmMain.ShowStartMenu;
+var
+  Items: TArray<TPadMenuItem>;
+begin
+  FMenuMode := MODE_START;
+  Items := [TPadMenu.Item('Get books from BookManager'), TPadMenu.Item('Choose a books folder')];
+  PadMenuColors;
+  FPadMenu.ShowText('No books yet', 'Books come from BookManager on your computer, or from a folder on this ' +
+    'phone or on its memory card - every EPUB book in it and in its folders, read where it is.', Items,
+    START_FOLDER, '');
+  DebugLog('library: empty - BookManager or the phone''s storage offered');
+end;
+
+procedure TfrmMain.ShowAbout;
+var
+  Sound: string;
+  P: Integer;
+begin
+  // the sound player's own words, without where its files are
+  if FPlayer <> nil then
+  begin
+    Sound := FPlayer.Description;
+    P := Pos(' from ', Sound);
+    if P > 0 then
+      Sound := Copy(Sound, 1, P - 1);
+  end
+  else
+    Sound := 'none';
+  DebugLog('about: ' + VersionText);
+  FMenuMode := MODE_ABOUT;
+  PadMenuColors;
+  FPadMenu.ShowText('About EpubReader', 'EpubReader ' + VersionText + sLineBreak + 'Built ' + BuildStamp +
+    sLineBreak + sLineBreak + 'Reads EPUB books aloud, the words highlighted as they are spoken.' + sLineBreak +
+    sLineBreak + ABOUT_COPYRIGHT + sLineBreak + sLineBreak + 'Sound: ' + Sound + '.' + sLineBreak +
+    'Licences: the outside components it is made with.', [TPadMenu.Item('OK'), TPadMenu.Item('Licences')],
+    ABOUT_OK, '');
+end;
+
+procedure TfrmMain.ShowLicencesMenu(AIndex: Integer);
+var
+  Items: TArray<TPadMenuItem>;
+  I: Integer;
+begin
+  FMenuMode := MODE_LICENCES;
+  FLicences := ReaderLicences;
+  SetLength(Items, Length(FLicences) + 1);
+  for I := 0 to High(FLicences) do
+    Items[I] := TPadMenu.Item(FLicences[I].Name, FLicences[I].Licence);
+  Items[High(Items)] := TPadMenu.Item('Back');
+  PadMenuColors;
+  FPadMenu.Show('Licences', Items, EnsureRange(AIndex, 0, High(Items)), '');
+end;
+
+procedure TfrmMain.ShowLicence(AIndex, APage: Integer);
+var
+  Items: TArray<TPadMenuItem>;
+  Title: string;
+begin
+  if (AIndex < 0) or (AIndex > High(FLicences)) then
+    Exit;
+  FMenuMode := MODE_LICENCE;
+  FLicence := AIndex;
+  FLicencePages := LicencePages(FLicences[AIndex].Text, LICENCE_PAGE_CHARS);
+  FLicencePage := EnsureRange(APage, 0, High(FLicencePages));
+  Title := FLicences[AIndex].Name + ' - ' + FLicences[AIndex].Licence;
+  if Length(FLicencePages) > 1 then
+    Title := Title + Format(' (%d of %d)', [FLicencePage + 1, Length(FLicencePages)]);
+  // Next page while there is one (round to the first after the last);
+  // Back to the list
+  if Length(FLicencePages) > 1 then
+    Items := [TPadMenu.Item('Next page'), TPadMenu.Item('Back')]
+  else
+    Items := [TPadMenu.Item('Back')];
+  PadMenuColors;
+  FPadMenu.ShowText(Title, FLicencePages[FLicencePage], Items, 0, '');
+end;
+
+procedure TfrmMain.miAboutClick(Sender: TObject);
+begin
+  ShowAbout;
+end;
+
+procedure TfrmMain.ShowNote(const ATitle, AText: string);
+begin
+  FMenuMode := MODE_NOTE;
+  PadMenuColors;
+  FPadMenu.ShowText(ATitle, AText, [TPadMenu.Item('OK')], 0, '');
+end;
+
+procedure TfrmMain.StartLink;
+{$IFDEF ANDROID}
+var
+  Name, Said: string;
+{$ENDIF}
+begin
+  {$IFDEF ANDROID}
+  if FLink = nil then
+  begin
+    if FLinkId = '' then
+    begin
+      // made once, kept: BookManager knows this reader by it
+      FLinkId := TGUID.NewGuid.ToString.Replace('{', '').Replace('}', '').ToLower;
+      SaveSettings;
+    end;
+    Name := PhoneName;
+    if Name = '' then
+      Name := 'Android phone';
+    FLinkStatus := '';
+    FLinkCode := '';
+    FLinkProgress := '';
+    FLinkReceived := 0;
+    FLinkLast := '';
+    FLinkHeard := '';
+    FLinkActive := False;
+    // where Cancel goes back to
+    if FMenuMode in [MODE_FOLDERS, MODE_MAIN] then
+      FLinkFrom := FMenuMode
+    else
+      FLinkFrom := MODE_START;
+    try
+      FLink := TLinkServer.Create(LINK_APP_READER, Name, FLinkId);
+      // books only, into the reader's own Books folder; /books lists it
+      FLink.SetFolders(FBooksFolder, '', '', [FBooksFolder]);
+      FLink.Reserve := LINK_RESERVE_PHONE;
+      FLink.SetTokens(FLinkTokens);
+      FLink.OnPairCode := LinkPairCode;
+      FLink.OnPaired := LinkPaired;
+      FLink.OnPairEnded := LinkPairEnded;
+      FLink.OnReceived := LinkReceived;
+      FLink.OnRequest := LinkRequest;
+      FLink.OnUploadProgress := LinkUploadProgress;
+      FLink.OnBye := LinkBye;
+      Said := FLink.Start;
+      DebugLog(Format('link: started - EpubReader as "%s" - %s', [Name, Said]));
+      if FLink.Port = 0 then
+        FLinkStatus := Said
+      else
+        FLinkStatus := 'Waiting for BookManager on your computer (on the same Wi-Fi): open its Send to ' +
+          'phone tab.';
+      // a book cut off last time (Done mid-transfer: its .part stays)
+      DropPartFiles;
+      // BookManager says it is here: answered directly
+      FLinkFinder := TLinkFinder.Create;
+      FLinkFinder.OnChange := LinkFinderChange;
+      FLinkFinder.OnBye := LinkBye;
+      DebugLog('link: the finder is ' + FLinkFinder.State + '; this phone''s addresses: ' + LinkLocalAddresses +
+        '; announcing to 255.255.255.255 and ' + string.Join(' ', LinkBroadcastTargets));
+    except
+      on E: Exception do
+      begin
+        DebugLog('link: not started - ' + E.ClassName + ': ' + E.Message);
+        FreeAndNil(FLinkFinder);
+        FreeAndNil(FLink);
+        FLinkStatus := 'The link could not start: ' + E.Message;
+      end;
+    end;
+    // a batch of books takes a while: the screen stays on meanwhile, and
+    // the Wi-Fi saves no power (its first connections were dropped)
+    KeepScreenOn(FLink <> nil);
+    if FLink <> nil then
+      DebugLog('link: ' + WifiAwake(True));
+  end;
+  ShowLinkPanel;
+  {$ENDIF}
+end;
+
+procedure TfrmMain.DropPartFiles;
+var
+  F: string;
+  N: Integer;
+begin
+  N := 0;
+  try
+    if TDirectory.Exists(FBooksFolder) then
+      for F in TDirectory.GetFiles(FBooksFolder, '*.part', TSearchOption.soAllDirectories) do
+      try
+        TFile.Delete(F);
+        Inc(N);
+      except
+        // in use: next time
+      end;
+  except
+    on E: Exception do
+      DebugLog('link: .part files not looked through - ' + E.Message);
+  end;
+  if N > 0 then
+    DebugLog(Format('link: %d unfinished book(s) of a cut-off transfer deleted', [N]));
+end;
+
+procedure TfrmMain.StopLink(const AWhy: string);
+begin
+  if (FLink = nil) and (FLinkFinder = nil) then
+    Exit;
+  FreeAndNil(FLinkFinder);
+  FreeAndNil(FLink);
+  KeepScreenOn(False);
+  DebugLog('link: ' + WifiAwake(False));
+  DebugLog(Format('link: stopped - %s (%d book(s) received)', [AWhy, FLinkReceived]));
+end;
+
+procedure TfrmMain.LinkCancel;
+begin
+  StopLink('Cancel');
+  if FLinkFrom = MODE_FOLDERS then
+    ShowFoldersMenu
+  else if FLinkFrom = MODE_MAIN then
+  begin
+    ShowPadMenu;
+    FPadMenu.Move(MENU_LINK);
+  end
+  else if TouchBuild and LibraryShowing and (Length(FRecent) = 0) and (Length(FScanQueue) = 0) then
+    ShowStartMenu
+  else
+  begin
+    FPadMenu.Hide;
+    OfferBooksIfEmpty;
+  end;
+end;
+
+procedure TfrmMain.ShowLinkPanel;
+var
+  Text: string;
+  Items: TArray<TPadMenuItem>;
+begin
+  if FPadMenu = nil then
+    Exit;
+  Text := FLinkStatus;
+  if FLinkCode <> '' then
+    // the code in two halves, easier to read across a room
+    Text := Format('%s asks to send books to this phone.' + sLineBreak + sLineBreak +
+      'Type this code there:  %s %s' + sLineBreak + sLineBreak + 'It works for 5 minutes. Not you? Refuse.',
+      [FLinkCodeFor, Copy(FLinkCode, 1, 3), Copy(FLinkCode, 4, MaxInt)]);
+  if FLinkProgress <> '' then
+    Text := Text + sLineBreak + sLineBreak + FLinkProgress;
+  if FLinkReceived > 0 then
+    Text := Text + sLineBreak + sLineBreak + Format('Received: %d book(s), the last "%s" - in the library.',
+      [FLinkReceived, FLinkLast]);
+  // Cancel back to where books come from; Done only once something
+  // happened (faded until then); Refuse with a code
+  if FLinkCode <> '' then
+    Items := [TPadMenu.Item('Refuse'), TPadMenu.Item('Cancel'), TPadMenu.Item('Done')]
+  else
+    Items := [TPadMenu.Item('Cancel'), TPadMenu.Item('Done')];
+  Items[High(Items)].Dim := not FLinkActive;
+  FMenuMode := MODE_LINK;
+  PadMenuColors;
+  if FLinkActive then
+    FPadMenu.ShowText('Get books from BookManager', Text, Items, High(Items), '')
+  else
+    FPadMenu.ShowText('Get books from BookManager', Text, Items, High(Items) - 1, '');
+end;
+
+procedure TfrmMain.LinkFinderChange(Sender: TObject);
+var
+  P: TLinkPeer;
+  Hosts: TArray<string>;
+  Heard: string;
+begin
+  if (FLink = nil) or (FLinkFinder = nil) then
+    Exit;
+  Hosts := nil;
+  Heard := '';
+  for P in FLinkFinder.Peers do
+    if P.App = LINK_APP_MANAGER then
+    begin
+      Hosts := Hosts + [P.Host];
+      Heard := Heard + P.Name + ' (' + P.Host + ') ';
+    end;
+  FLink.SetDirect(Hosts);
+  if Heard <> FLinkHeard then
+  begin
+    FLinkHeard := Heard;
+    if Heard <> '' then
+      DebugLog('link: heard ' + Trim(Heard) + ' - answered directly');
+  end;
+end;
+
+procedure TfrmMain.LinkUploadProgress(const AName, ABatch: string; ADone, ATotal: Int64);
+var
+  Of_: string;
+begin
+  if FLink = nil then
+    Exit;
+  Of_ := '';
+  if Pos('/', ABatch) > 1 then
+    Of_ := Format(', book %s of %s', [Copy(ABatch, 1, Pos('/', ABatch) - 1),
+      Copy(ABatch, Pos('/', ABatch) + 1, MaxInt)]);
+  if ATotal > 0 then
+    FLinkProgress := Format('Receiving "%s"%s - %d %% (%.0f of %.0f MB)', [ChangeFileExt(AName, ''), Of_,
+      Round(ADone * 100 / ATotal), ADone / 1E6, ATotal / 1E6])
+  else
+    FLinkProgress := Format('Receiving "%s"%s', [ChangeFileExt(AName, ''), Of_]);
+  if FMenuMode = MODE_LINK then
+    ShowLinkPanel;
+end;
+
+procedure TfrmMain.LinkPairCode(const AClient, ACode: string);
+begin
+  // the link ended meanwhile (Done / Cancel): nothing to show
+  if FLink = nil then
+    Exit;
+  DebugLog('link: ' + AClient + ' asks to pair - the code shown');
+  FLinkCode := ACode;
+  FLinkCodeFor := AClient;
+  ShowLinkPanel;
+end;
+
+procedure TfrmMain.LinkPaired(const AClient, AToken: string);
+begin
+  if FLink = nil then
+    Exit;
+  FLinkTokens := FLink.TokensText;
+  SaveSettings;
+  DebugLog('link: paired with ' + AClient);
+  FLinkCode := '';
+  FLinkActive := True;
+  FLinkStatus := 'Paired with ' + AClient + ': drop books on its Send to phone tab, or Send all new. They ' +
+    'come into the library as they arrive.';
+  ShowLinkPanel;
+end;
+
+procedure TfrmMain.LinkPairEnded(const AClient, AWhy: string);
+begin
+  if FLink = nil then
+    Exit;
+  DebugLog('link: pairing with ' + AClient + ' ended - ' + AWhy);
+  FLinkCode := '';
+  FLinkStatus := Format('The code for %s no longer works (%s). Press Pair... in BookManager to try again.',
+    [AClient, AWhy]);
+  if FMenuMode = MODE_LINK then
+    ShowLinkPanel;
+end;
+
+procedure TfrmMain.LinkBye(const AText: string);
+begin
+  // the call and the announcement may both come: once; and only a
+  // BookManager ends the link
+  if (FLink = nil) or ((AText <> '') and (Pos('"', AText) > 0) and (Pos(LINK_APP_MANAGER, AText) <> 1)) then
+    Exit;
+  StopLink('BookManager closed (' + AText + ')');
+  if (FPadMenu <> nil) and (FMenuMode = MODE_LINK) then
+  begin
+    FPadMenu.Hide;
+    OfferBooksIfEmpty;
+  end;
+end;
+
+procedure TfrmMain.LinkRequest(const AText: string);
+begin
+  DebugLog('link: ' + AText);
+  // the first call of a paired BookManager: in touch (not after the link
+  // ended - a call that came just before Done)
+  if (FLink <> nil) and (FLinkCode = '') and (Pos('/pair', AText) = 0) and (Pos('Paired with', FLinkStatus) <> 1) and
+    (Pos('In touch', FLinkStatus) <> 1) then
+  begin
+    FLinkStatus := 'In touch with BookManager (' + Copy(AText, Pos(' from ', AText) + 6, MaxInt) + '): drop ' +
+      'books on its Send to phone tab, or Send all new.';
+    FLinkActive := True;
+    if FMenuMode = MODE_LINK then
+      ShowLinkPanel;
+  end;
+end;
+
+procedure TfrmMain.LinkReceived(const AKind, AFileName: string);
+begin
+  DebugLog(Format('link: received %s %s (%d bytes)', [AKind, AFileName, TFile.GetSize(AFileName)]));
+  Inc(FLinkReceived);
+  FLinkActive := True;
+  FLinkLast := ChangeFileExt(ExtractFileName(AFileName), '');
+  FLinkProgress := '';
+  // the library shows it now, behind the panel; with a book open, the
+  // next time it shows
+  if LibraryShowing and not FOpening then
+    ShowLibrary;
+  if FLink <> nil then
+    ShowLinkPanel;
+end;
+
+procedure TfrmMain.ChooseBooksFolder;
+begin
+  if not BookFolderSupported then
+    Exit;
+  FPadMenu.Hide;
+  DebugLog('books folder: the system''s folder picker');
+  BookFolderChoose(
+    procedure(const ATree: string)
+    var
+      I: Integer;
+    begin
+      if ATree = '' then
+      begin
+        DebugLog('books folder: none chosen');
+        OfferBooksIfEmpty;
+        Exit;
+      end;
+      // a folder chosen again: once
+      for I := 0 to High(FBooksTrees) do
+        if SameText(FBooksTrees[I], ATree) then
+        begin
+          ShowLibrary;
+          Exit;
+        end;
+      FBooksTrees := FBooksTrees + [ATree];
+      SaveSettings;
+      DebugLog('books folder: ' + BookFolderName(ATree) + ' (' + ATree + ')');
+      // its books into the library (read one at a time, as any new books)
+      ShowLibrary;
+    end);
 end;
 
 procedure TfrmMain.ShowBooksMenu;
@@ -4081,6 +5166,106 @@ begin
     FPadMenu.Move(MENU_CONTROLS);
     Exit;
   end;
+  if FMenuMode = MODE_LINK then
+  begin
+    // the rows: [Refuse,] Cancel, Done
+    if FLinkCode = '' then
+      Inc(AIndex);
+    case AIndex of
+      0:
+        begin
+          // Refuse: BookManager is told, the link stays
+          if FLink <> nil then
+            FLink.RefusePair;
+          DebugLog('link: pairing refused here');
+          FLinkCode := '';
+          FLinkStatus := 'Refused. Waiting for BookManager...';
+          ShowLinkPanel;
+        end;
+      1:
+        // Cancel: back to where books come from
+        LinkCancel;
+    else
+      // Done: only once something happened (faded until then)
+      if FLinkActive then
+      begin
+        StopLink('Done');
+        FPadMenu.Hide;
+        OfferBooksIfEmpty;
+      end;
+    end;
+    Exit;
+  end;
+  if FMenuMode = MODE_START then
+  begin
+    case AIndex of
+      START_LINK:
+        StartLink;
+      START_FOLDER:
+        ChooseBooksFolder;
+    end;
+    Exit;
+  end;
+  if FMenuMode = MODE_FOLDERS then
+  begin
+    if AIndex <= High(FBooksTrees) then
+      ShowFolder(AIndex)
+    else if AIndex = Length(FBooksTrees) then
+      ChooseBooksFolder
+    else if AIndex = Length(FBooksTrees) + 1 then
+      StartLink
+    else
+    begin
+      FPadMenu.Hide;
+      OfferBooksIfEmpty;
+    end;
+    Exit;
+  end;
+  if FMenuMode = MODE_FOLDER then
+  begin
+    if AIndex = 0 then
+    begin
+      FPadMenu.Hide;
+      RemoveBooksFolder(FFolderShown);
+    end
+    else
+      ShowFoldersMenu;
+    Exit;
+  end;
+  if FMenuMode = MODE_ABOUT then
+  begin
+    if AIndex = ABOUT_LICENCES then
+      ShowLicencesMenu(0)
+    else
+    begin
+      FPadMenu.Hide;
+      OfferBooksIfEmpty;
+    end;
+    Exit;
+  end;
+  if FMenuMode = MODE_LICENCES then
+  begin
+    if AIndex <= High(FLicences) then
+      ShowLicence(AIndex, 0)
+    else
+      ShowAbout;
+    Exit;
+  end;
+  if FMenuMode = MODE_LICENCE then
+  begin
+    if (Length(FLicencePages) > 1) and (AIndex = 0) then
+      ShowLicence(FLicence, (FLicencePage + 1) mod Length(FLicencePages))
+    else
+      ShowLicencesMenu(FLicence);
+    Exit;
+  end;
+  if FMenuMode = MODE_NOTE then
+  begin
+    // OK: back to the library's offer when it is still empty
+    FPadMenu.Hide;
+    OfferBooksIfEmpty;
+    Exit;
+  end;
   if FMenuMode = MODE_BOOKS then
   begin
     if AIndex > High(FBookFiles) then
@@ -4117,8 +5302,20 @@ begin
         FPadMenu.Hide;
         if LibraryShowing and (EpubUnum1.Book <> nil) then
           HideLibrary;
+        OfferBooksIfEmpty;
       end;
-    MENU_OPEN: ShowBooksMenu;
+    MENU_OPEN:
+      if BookFolderSupported then
+        ShowFoldersMenu
+      else
+        ShowBooksMenu;
+    MENU_LINK:
+      if BookFolderSupported then
+        StartLink
+      else
+        ShowNote('Get books from BookManager', 'BookManager sends books to EpubReader on a phone or a ' +
+          'tablet. Here, books come from the Books folder (Open a book) and EpubBuilder''s Transcribed ' +
+          'folder.');
     MENU_LIBRARY:
       begin
         FPadMenu.Hide;
@@ -4154,6 +5351,21 @@ begin
         ShowPadMenu;
         FPadMenu.Move(MENU_DARK);
       end;
+    MENU_HIGHLIGHT:
+      // a tap (or Select) is a step - the menu stays
+      StepHighlight(1);
+    MENU_HIGH_TYPE:
+      if FHighUnit <> huWord then
+      begin
+        SetHighlight(FHighUnit, not FHighTrailing, FHighWord);
+        FPadMenu.SetValue(MENU_HIGH_TYPE, PadMenuValue(MENU_HIGH_TYPE));
+      end;
+    MENU_HIGH_WORD:
+      if FHighUnit <> huWord then
+      begin
+        SetHighlight(FHighUnit, FHighTrailing, not FHighWord);
+        FPadMenu.SetValue(MENU_HIGH_WORD, PadMenuValue(MENU_HIGH_WORD));
+      end;
     MENU_LEARN:
       if EpubUnum1.Book <> nil then
       begin
@@ -4166,6 +5378,7 @@ begin
         FPadMenu.Hide;
         ShowCoverChoice;
       end;
+    MENU_ABOUT: ShowAbout;
     MENU_EXIT:
       begin
         FPadMenu.Hide;
@@ -4181,7 +5394,13 @@ end;
 
 procedure TfrmMain.PadMenuClose(Sender: TObject);
 begin
+  // a tap beside the box: "No books yet" stays (without a book there is
+  // nothing behind it; owner, zip 345: "you should have to load a book");
+  // the link panel too (Done ends the link)
+  if FMenuMode in [MODE_START, MODE_LINK] then
+    Exit;
   FPadMenu.Hide;
+  OfferBooksIfEmpty;
 end;
 
 procedure TfrmMain.PadMenuStep(ADelta: Integer);
@@ -4196,6 +5415,14 @@ begin
         btnLargerClick(nil);
     MENU_SPEED:
       tbSpeed.Value := tbSpeed.Value + ADelta * SPEED_STEP;
+    MENU_HIGHLIGHT:
+      begin
+        StepHighlight(ADelta);
+        Exit;
+      end;
+    MENU_HIGH_TYPE:
+      if FHighUnit <> huWord then
+        SetHighlight(FHighUnit, not FHighTrailing, FHighWord);
     MENU_SORT:
       begin
         SetLibrarySort(TLibrarySort((Ord(FLibrarySort) + ADelta + Ord(High(TLibrarySort)) + 1) mod
@@ -4285,6 +5512,8 @@ begin
   if tmPad <> nil then
     tmPad.Enabled := False;
   FreeAndNil(FPad);
+  // the link: no more announcing, no more uploads
+  StopLink('closing');
   StopPlaying;
   // where the reader left off, and the settings
   RememberBook;
@@ -4329,6 +5558,9 @@ begin
   // open: the system then leaves the app, as Back does everywhere
   if Key = vkHardwareBack then
   begin
+    // "No books yet": Back leaves the app, as with an empty library
+    if (FPadMenu <> nil) and FPadMenu.Showing and (FMenuMode = MODE_START) then
+      Exit;
     if ((FPadMenu <> nil) and FPadMenu.Showing) or (LibraryShowing and (EpubUnum1.Book <> nil)) then
       Key := vkEscape
     else if (EpubUnum1.Book <> nil) and not LibraryShowing then
@@ -4471,7 +5703,7 @@ end;
 procedure TfrmMain.OpenBook(const AFileName: string);
 var
   Ticket, PDoc, PWord, K: Integer;
-  Name: string;
+  Name, Path: string;
   Staged: Boolean;
 begin
   DebugLog('open: ' + AFileName);
@@ -4492,6 +5724,7 @@ begin
   FLearnLast := -1;
   FreeAndNil(FUnitLayout);
   FUnitDoc := -1;
+  FHiUnit := -1;
   FChapterWord := nil;
   FChapterToc := nil;
   FChapterDoc := nil;
@@ -4525,6 +5758,20 @@ begin
       PWord := FRecent[K].DocWord;
     end;
     UpdateControls;
+    // where to read it: a book of the chosen folder is opened by Android
+    // here, in the window's thread (Java), and read in the thread below
+    try
+      Path := BookOpenPath(AFileName);
+    except
+      on E: Exception do
+      begin
+        FOpening := False;
+        DebugLog('open: ' + AFileName + ' - ' + E.Message);
+        EpubUnum1OpenFailed(EpubUnum1, E.Message);
+        ShowLibrary;
+        Exit;
+      end;
+    end;
     TThread.CreateAnonymousThread(
       procedure
       var
@@ -4540,7 +5787,7 @@ begin
         Note := '';
         if Staged then
           try
-            Header := TEpubBook.CreateHeader(Name);
+            Header := TEpubBook.CreateHeader(Path);
             TThread.Queue(nil,
               procedure
               begin
@@ -4553,7 +5800,7 @@ begin
         try
           // with its words (the reader needs them at once) - from the
           // book's index when it has one (zip 330)
-          Book := OpenBookIndexed(Name, Note);
+          Book := OpenBookIndexed(Name, Path, Note);
           // and each clip's words (zip 329: 0.1 s less in the window's
           // thread)
           SetLength(CF, Length(Book.Clips));
@@ -4699,6 +5946,10 @@ var
   K, Big, Back: Integer;
 begin
   DebugLog('open: read, building the view');
+  // its documents' layouts kept beside its index (index\<md5>.<n>.eul):
+  // a chapter shown again is read back, not parsed and walked (zip 351) -
+  // set before any document is shown
+  EpubUnum1.Book.LayoutCache := ChangeFileExt(BookIndexFile(BookStableName(EpubUnum1.FileName)), '');
   DebugLog(Format('book: %d documents, %d words, %d clips', [Length(EpubUnum1.Book.Documents),
     EpubUnum1.Book.WordCount, Length(EpubUnum1.Book.Clips)]));
   // the biggest document (the one whose layout takes longest)
@@ -4792,7 +6043,9 @@ begin
   // document was laid out here first, only to be dropped (zip 329; part
   // of 0.8 s on the Pixel). Now the first document is laid out only when
   // there is no place to go back to.
-  I := RecentIndex(EpubUnum1.FileName);
+  // (the book's name: a book of a chosen folder was opened from the path
+  // Android gave - BookStableName gives its address back)
+  I := RecentIndex(BookStableName(EpubUnum1.FileName));
   Back := -1;
   if (I >= 0) and (FRecent[I].Word >= 0) and (FRecent[I].Word < B.WordCount) then
     Back := FRecent[I].Word;
@@ -4802,7 +6055,9 @@ begin
     DebugLog('open: the first document laid out');
   end;
   // this book now: first in Recently Opened, and back where it was left
-  FBookFile := ExpandFileName(EpubUnum1.FileName);
+  FBookFile := BookStableName(EpubUnum1.FileName);
+  if not IsBookAddress(FBookFile) then
+    FBookFile := ExpandFileName(FBookFile);
   // its cover for the library (made once, cached)
   EnsureCover(FBookFile, B, B.Title);
   // each step logged: the Steam Deck crash comes after the cover (2026-11-17)
@@ -4883,8 +6138,8 @@ begin
   B := EpubUnum1.Book;
   if (B = nil) or not B.FromIndex then
     Exit;
-  F := BookChaptersFile(EpubUnum1.FileName);
-  Ix := BookIndexFile(EpubUnum1.FileName);
+  F := BookChaptersFile(BookStableName(EpubUnum1.FileName));
+  Ix := BookIndexFile(BookStableName(EpubUnum1.FileName));
   V := nil;
   try
     try
@@ -4958,9 +6213,9 @@ var
   Breaks: TArray<Integer>;
 begin
   B := EpubUnum1.Book;
-  if (B = nil) or not FileExists(BookIndexFile(EpubUnum1.FileName)) then
+  if (B = nil) or not FileExists(BookIndexFile(BookStableName(EpubUnum1.FileName))) then
     Exit;
-  F := BookChaptersFile(EpubUnum1.FileName);
+  F := BookChaptersFile(BookStableName(EpubUnum1.FileName));
   O := TJSONObject.Create;
   try
     try
@@ -5277,7 +6532,7 @@ begin
     View1.ShowDocument(B.Clips[AClip].Document);
   if FClipFirst[AClip] >= 0 then
   begin
-    View1.Highlight(FClipFirst[AClip], FClipLast[AClip]);
+    ShowReadHighlight(FClipFirst[AClip], FClipLast[AClip]);
     // the layout itself happens here (ScrollToWord lays the document out)
     View1.ScrollToWord(FClipFirst[AClip], True);
     SyncToc(FClipFirst[AClip]);
@@ -5387,6 +6642,11 @@ begin
 end;
 
 function TfrmMain.IsUnitStart(AWord: Integer): Boolean;
+begin
+  Result := IsUnitStartOf(AWord, StepUnit);
+end;
+
+function TfrmMain.IsUnitStartOf(AWord, AUnit: Integer): Boolean;
 var
   B: TEpubBook;
 begin
@@ -5395,27 +6655,37 @@ begin
     Exit(True);
   if B.Words[AWord - 1].Document <> B.Words[AWord].Document then
     Exit(True);
-  if (StepUnit <> UNIT_PARAGRAPH) and EpubEndsSentence(B.Words[AWord - 1].Text) then
+  if (AUnit <> UNIT_PARAGRAPH) and EpubEndsSentence(B.Words[AWord - 1].Text) then
     Exit(True);
-  if (StepUnit = UNIT_PHRASE) and EndsPhrase(B.Words[AWord - 1].Text) then
+  if (AUnit = UNIT_PHRASE) and EndsPhrase(B.Words[AWord - 1].Text) then
     Exit(True);
   Result := WordBlock(AWord - 1) <> WordBlock(AWord);
 end;
 
 function TfrmMain.UnitStart(AWord: Integer): Integer;
 begin
-  Result := AWord;
-  while not IsUnitStart(Result) do
-    Dec(Result);
+  Result := UnitStartOf(AWord, StepUnit);
 end;
 
 function TfrmMain.UnitEnd(AWord: Integer): Integer;
+begin
+  Result := UnitEndOf(AWord, StepUnit);
+end;
+
+function TfrmMain.UnitStartOf(AWord, AUnit: Integer): Integer;
+begin
+  Result := AWord;
+  while not IsUnitStartOf(Result, AUnit) do
+    Dec(Result);
+end;
+
+function TfrmMain.UnitEndOf(AWord, AUnit: Integer): Integer;
 var
   B: TEpubBook;
 begin
   B := EpubUnum1.Book;
   Result := AWord;
-  while (Result + 1 < B.WordCount) and not IsUnitStart(Result + 1) do
+  while (Result + 1 < B.WordCount) and not IsUnitStartOf(Result + 1, AUnit) do
     Inc(Result);
 end;
 
@@ -5601,6 +6871,7 @@ begin
   FLearnLast := ALast;
   if B.Words[AFirst].Document <> View1.Document then
     View1.ShowDocument(B.Words[AFirst].Document);
+  View1.HighlightUnit(-1, -1);
   View1.Highlight(AFirst, ALast);
   View1.ScrollToWord(AFirst, True);
   SyncToc(AFirst);
@@ -5716,6 +6987,7 @@ begin
       View1.HighlightColor := DARK_HIGHLIGHT;
     View1.LinkColor := DARK_LINK;
     View1.NoteColor := DARK_NOTE;
+    View1.UnitHighlightColor := DARK_UNIT_HIGHLIGHT;
   end
   else
   begin
@@ -5728,6 +7000,7 @@ begin
       View1.HighlightColor := $FFFFE08A;
     View1.LinkColor := $FF1A5FB4;
     View1.NoteColor := $FFEDE6D6;
+    View1.UnitHighlightColor := UNIT_HIGHLIGHT;
   end;
   // the library has the page's colours
   if recLibrary <> nil then
@@ -5893,7 +7166,7 @@ begin
       View1.ShowDocument(C.Document);
     if FClipFirst[AClip] >= 0 then
     begin
-      View1.Highlight(FClipFirst[AClip], FClipLast[AClip]);
+      ShowReadHighlight(FClipFirst[AClip], FClipLast[AClip]);
       View1.ScrollToWord(FClipFirst[AClip], True);
     end;
     UpdateControls;
@@ -6100,9 +7373,13 @@ begin
   if B <> nil then
   begin
     T := B.LastLayoutTimes;
-    DebugLog(Format('document %d: its layout made in %d ms - unzipped %d, parsed %d, style sheets %d, blocks %d ' +
-      '(%d blocks)', [T.Doc, T.ReadMs + T.ParseMs + T.StyleMs + T.WalkMs, T.ReadMs, T.ParseMs, T.StyleMs, T.WalkMs,
-      LayoutBlocks]));
+    if T.Cached then
+      DebugLog(Format('document %d: its layout read back from the cache in %d ms (%d blocks)', [T.Doc, T.ReadMs,
+        LayoutBlocks]))
+    else
+      DebugLog(Format('document %d: its layout made in %d ms - unzipped %d, parsed %d, style sheets %d, blocks ' +
+        '%d (%d blocks); kept in %d ms', [T.Doc, T.ReadMs + T.ParseMs + T.StyleMs + T.WalkMs, T.ReadMs, T.ParseMs,
+        T.StyleMs, T.WalkMs, LayoutBlocks, T.SaveMs]));
   end;
   UpdateControls;
 end;
@@ -6133,7 +7410,7 @@ begin
     end;
     if FClipFirst[C] >= 0 then
     begin
-      View1.Highlight(FClipFirst[C], FClipLast[C]);
+      ShowReadHighlight(FClipFirst[C], FClipLast[C]);
       View1.ScrollToWord(FClipFirst[C], True);
       SyncToc(FClipFirst[C]);
     end;

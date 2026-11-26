@@ -233,6 +233,17 @@ type
         document (@link(Sources)).) }
     constructor Create(ABody: TEpubXmlNode; const ADocPath: string; AStyles: TEpubStyleSheet;
       AWithBlocks: Boolean; AWithSources: Boolean = False);
+    { A layout read back from what @link(SaveToStream) wrote (a cache of
+      laid-out documents: zip 351).
+      @param(AStream  read from its position on)
+      @raises(EEpubError when the bytes are not such a layout) }
+    constructor CreateFromStream(AStream: TStream);
+    { Writes the layout - its words, ids and blocks, not its
+      @link(Sources) - for @link(CreateFromStream): numbers as they lie in
+      memory, texts as UTF-8; for this program on this kind of machine
+      (a cache), not a file to pass on.
+      @param(AStream  written at its position) }
+    procedure SaveToStream(AStream: TStream);
     { Index of id AId in Ids, -1 when absent. }
     function IndexOfId(const AId: string): Integer;
     { The words. }
@@ -1263,6 +1274,189 @@ end;
 function TEpubDocLayout.GetBlocks: TEpubBlockArray;
 begin
   Result := FBlocks;
+end;
+
+{ Layout cache I/O: one number, text, ... }
+procedure LWriteInt(AStream: TStream; AValue: Integer);
+begin
+  AStream.WriteBuffer(AValue, SizeOf(AValue));
+end;
+
+procedure LWriteDouble(AStream: TStream; AValue: Double);
+begin
+  AStream.WriteBuffer(AValue, SizeOf(AValue));
+end;
+
+procedure LWriteText(AStream: TStream; const AText: string);
+var
+  B: TBytes;
+begin
+  B := EpubUtf8Bytes(AText);
+  LWriteInt(AStream, Length(B));
+  if Length(B) > 0 then
+    AStream.WriteBuffer(B[0], Length(B));
+end;
+
+function LReadInt(AStream: TStream): Integer;
+begin
+  AStream.ReadBuffer(Result, SizeOf(Result));
+end;
+
+function LReadDouble(AStream: TStream): Double;
+begin
+  AStream.ReadBuffer(Result, SizeOf(Result));
+end;
+
+{ A count (not negative, not absurd: a damaged cache is refused). }
+function LReadCount(AStream: TStream): Integer;
+begin
+  Result := LReadInt(AStream);
+  if (Result < 0) or (Result > 50000000) then
+    raise EEpubError.Create('not a saved layout (a count of ' + IntToStr(Result) + ')');
+end;
+
+function LReadText(AStream: TStream): string;
+var
+  B: TBytes;
+  N: Integer;
+begin
+  N := LReadCount(AStream);
+  if N = 0 then
+    Exit('');
+  SetLength(B, N);
+  AStream.ReadBuffer(B[0], N);
+  Result := EpubBytesText(B);
+end;
+
+{ An enumeration's ordinal, AMax at most. }
+function LReadOrd(AStream: TStream; AMax: Integer): Integer;
+begin
+  Result := LReadInt(AStream);
+  if (Result < 0) or (Result > AMax) then
+    raise EEpubError.Create('not a saved layout (a kind of ' + IntToStr(Result) + ')');
+end;
+
+procedure TEpubDocLayout.SaveToStream(AStream: TStream);
+var
+  I, K, Mask: Integer;
+  St: TEpubRunStyle;
+begin
+  LWriteInt(AStream, FWordCount);
+  for I := 0 to FWordCount - 1 do
+  begin
+    LWriteText(AStream, FWords[I].Text);
+    LWriteInt(AStream, FWords[I].IdIndex);
+    LWriteInt(AStream, Ord(FWords[I].Role));
+    LWriteInt(AStream, FWords[I].Block);
+  end;
+  LWriteInt(AStream, FIdCount);
+  for I := 0 to FIdCount - 1 do
+  begin
+    LWriteText(AStream, FIds[I].Id);
+    LWriteInt(AStream, FIds[I].FirstWord);
+    LWriteInt(AStream, FIds[I].LastWord);
+    LWriteInt(AStream, FIds[I].Block);
+  end;
+  LWriteInt(AStream, FBlockCount);
+  for I := 0 to FBlockCount - 1 do
+  begin
+    LWriteInt(AStream, Ord(FBlocks[I].Kind));
+    LWriteInt(AStream, FBlocks[I].Level);
+    LWriteInt(AStream, Ord(FBlocks[I].Role));
+    LWriteInt(AStream, Ord(FBlocks[I].Align));
+    LWriteDouble(AStream, FBlocks[I].TextIndent);
+    LWriteDouble(AStream, FBlocks[I].MarginLeft);
+    LWriteText(AStream, FBlocks[I].Text);
+    LWriteInt(AStream, Length(FBlocks[I].Runs));
+    for K := 0 to High(FBlocks[I].Runs) do
+    begin
+      LWriteInt(AStream, FBlocks[I].Runs[K].Start);
+      LWriteInt(AStream, FBlocks[I].Runs[K].Length);
+      // the styles as a mask (a set's size is the compiler's)
+      Mask := 0;
+      for St := Low(TEpubRunStyle) to High(TEpubRunStyle) do
+        if St in FBlocks[I].Runs[K].Styles then
+          Mask := Mask or (1 shl Ord(St));
+      LWriteInt(AStream, Mask);
+      LWriteDouble(AStream, FBlocks[I].Runs[K].Size);
+      LWriteText(AStream, FBlocks[I].Runs[K].Href);
+    end;
+    LWriteInt(AStream, Length(FBlocks[I].Words));
+    for K := 0 to High(FBlocks[I].Words) do
+    begin
+      LWriteInt(AStream, FBlocks[I].Words[K].Word);
+      LWriteInt(AStream, FBlocks[I].Words[K].Start);
+      LWriteInt(AStream, FBlocks[I].Words[K].Length);
+    end;
+    LWriteText(AStream, FBlocks[I].ImagePath);
+    LWriteText(AStream, FBlocks[I].ImageAlt);
+    LWriteText(AStream, FBlocks[I].Id);
+  end;
+end;
+
+constructor TEpubDocLayout.CreateFromStream(AStream: TStream);
+var
+  I, K, N, Mask: Integer;
+  St: TEpubRunStyle;
+  Styles: TEpubRunStyles;
+begin
+  inherited Create;
+  FWordCount := LReadCount(AStream);
+  SetLength(FWords, FWordCount);
+  for I := 0 to FWordCount - 1 do
+  begin
+    FWords[I].Text := LReadText(AStream);
+    FWords[I].IdIndex := LReadInt(AStream);
+    FWords[I].Role := TEpubWordRole(LReadOrd(AStream, Ord(High(TEpubWordRole))));
+    FWords[I].Block := LReadInt(AStream);
+  end;
+  FIdCount := LReadCount(AStream);
+  SetLength(FIds, FIdCount);
+  for I := 0 to FIdCount - 1 do
+  begin
+    FIds[I].Id := LReadText(AStream);
+    FIds[I].FirstWord := LReadInt(AStream);
+    FIds[I].LastWord := LReadInt(AStream);
+    FIds[I].Block := LReadInt(AStream);
+  end;
+  FBlockCount := LReadCount(AStream);
+  SetLength(FBlocks, FBlockCount);
+  for I := 0 to FBlockCount - 1 do
+  begin
+    FBlocks[I].Kind := TEpubBlockKind(LReadOrd(AStream, Ord(High(TEpubBlockKind))));
+    FBlocks[I].Level := LReadInt(AStream);
+    FBlocks[I].Role := TEpubWordRole(LReadOrd(AStream, Ord(High(TEpubWordRole))));
+    FBlocks[I].Align := TEpubTextAlign(LReadOrd(AStream, Ord(High(TEpubTextAlign))));
+    FBlocks[I].TextIndent := LReadDouble(AStream);
+    FBlocks[I].MarginLeft := LReadDouble(AStream);
+    FBlocks[I].Text := LReadText(AStream);
+    N := LReadCount(AStream);
+    SetLength(FBlocks[I].Runs, N);
+    for K := 0 to N - 1 do
+    begin
+      FBlocks[I].Runs[K].Start := LReadInt(AStream);
+      FBlocks[I].Runs[K].Length := LReadInt(AStream);
+      Mask := LReadInt(AStream);
+      Styles := [];
+      for St := Low(TEpubRunStyle) to High(TEpubRunStyle) do
+        if Mask and (1 shl Ord(St)) <> 0 then
+          Include(Styles, St);
+      FBlocks[I].Runs[K].Styles := Styles;
+      FBlocks[I].Runs[K].Size := LReadDouble(AStream);
+      FBlocks[I].Runs[K].Href := LReadText(AStream);
+    end;
+    N := LReadCount(AStream);
+    SetLength(FBlocks[I].Words, N);
+    for K := 0 to N - 1 do
+    begin
+      FBlocks[I].Words[K].Word := LReadInt(AStream);
+      FBlocks[I].Words[K].Start := LReadInt(AStream);
+      FBlocks[I].Words[K].Length := LReadInt(AStream);
+    end;
+    FBlocks[I].ImagePath := LReadText(AStream);
+    FBlocks[I].ImageAlt := LReadText(AStream);
+    FBlocks[I].Id := LReadText(AStream);
+  end;
 end;
 
 function TEpubDocLayout.IndexOfId(const AId: string): Integer;

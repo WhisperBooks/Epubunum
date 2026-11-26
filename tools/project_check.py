@@ -16,7 +16,10 @@ For every .dproj / .groupproj under the repository:
     Projects list - another order breaks Build All and Delphi's quick
     re-compilation;
   * no demo source includes Epub.inc (demos have no path to lib/);
-  * no source spells a constant in two ways (Pascal ignores case).
+  * no source spells a constant in two ways (Pascal ignores case);
+  * VERSION_BUILD in demos/common/uVersion.pas is the number of the zip
+    being made - CLAUDE.md's "Last number used" (owner's standing rule,
+    2026-11-26: major.minor.build, the build an integer).
 
 Adapted from TSteamAPI's tools/project_check.py (Lazarus / Free Pascal twin
 and Steam demo checks removed).
@@ -146,6 +149,18 @@ for top in ("demos", "lib", "fmx", "vcl", "lcl"):
                 if other:
                     problems.append(f"{os.path.relpath(path, ROOT)}: constant {c} is also spelled "
                                     f"{', '.join(sorted(other))} - Pascal ignores case: rename one")
+
+# the version's build is the zip's number
+ver = os.path.join(ROOT, "demos", "common", "uVersion.pas")
+notes = os.path.join(ROOT, "CLAUDE.md")
+if os.path.exists(ver) and os.path.exists(notes):
+    m = re.search(r"\bVERSION_BUILD\s*=\s*(\d+)\s*;", open(ver, encoding="latin-1").read())
+    n = re.search(r"^Last number used:\s*(\d+)", open(notes, encoding="utf-8").read(), re.M)
+    if not m:
+        problems.append("demos/common/uVersion.pas: no VERSION_BUILD = <number>;")
+    elif n and int(m.group(1)) != int(n.group(1)):
+        problems.append(f"demos/common/uVersion.pas: VERSION_BUILD = {m.group(1)}, but CLAUDE.md's "
+                        f"\"Last number used\" is {n.group(1)} - the build is the zip's number")
 
 for p in problems:
     print(p)

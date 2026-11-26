@@ -19,7 +19,7 @@ uses
   Epub.Zip, Epub.Book, Epub.Layout, Epub.Writer, Epub.Mobi,
   FFmpeg.API, FFmpeg.Media,
   Whisper.Types, Whisper.API, Whisper.Audio, Whisper.Core, Whisper.Words, Whisper.Align, Whisper.AudioSet,
-  uDebugLog, uMachine, uCalibration, uHistory, uModels, uSteam, uSteamBoard, uWebBoard, uGpuPower, uInhibit, uQuitSignal, uSteamPad,
+  uDebugLog, uVersion, uMachine, uCalibration, uHistory, uModels, uSteam, uSteamBoard, uWebBoard, uGpuPower, uInhibit, uQuitSignal, uSteamPad,
   uPadMenu, uCards,
   uRedraw, uLink, uLinkSite, uCovers, uCoverPick, uEpubUnum, uBenchProgress, uMacWindow;
 
@@ -3900,6 +3900,7 @@ begin
     LogLine('Core ML: built in - a model''s Core ML encoder is downloaded with it (the encoder then runs on the ' +
       'Neural Engine).');
   LogLine('Machine: ' + MachineText);
+  LogLine('Version: ' + VersionText);
   LogLine('Build: ' + BuildStamp);
   // Steam (started in the .dpr, before the log was open)
   LogLine(SteamText);

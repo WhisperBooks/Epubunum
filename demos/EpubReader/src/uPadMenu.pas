@@ -111,10 +111,14 @@ type
     FValues: TArray<TLabel>;
     { The selected row (-1 = none). }
     FSelected: Integer;
+    { Backing field of HiddenAt. }
+    FHiddenAt: UInt64;
     { Colours: the box, the text, the selected row. }
     FBack, FFore, FAccent: TAlphaColor;
     { Text size. }
     FFontSize: Single;
+    { Backing field of @link(TouchStyle). }
+    FTouch: Boolean;
     { Pictures loaded, by file (freed with the menu). }
     FBitmaps: TObjectDictionary<string, TBitmap>;
     { See OnChoose. }
@@ -182,6 +186,12 @@ type
     procedure ClearRows;
     { Height of a row. }
     function RowHeight: Single;
+    { The title's height (a pad's row height, whatever the style). }
+    function TitleHeight: Single;
+    { The room between two rows (TouchStyle's buttons; 0 otherwise). }
+    function RowGap: Single;
+    { A row and the room after it. }
+    function RowStep: Single;
     { The height of what the menu covers (the window's client height). }
     function ParentHeight: Single;
     { The picture in AFile (loaded once; nil when it cannot be). }
@@ -265,8 +275,20 @@ type
     class function Item(const AText: string; const AValue: string = ''): TPadMenuItem; static;
     { The selected row (-1 = none). }
     property Selected: Integer read FSelected;
+    { When the box was last closed (TThread.GetTickCount64; 0 = never): a
+      second tap that closed it must not reach what is under it
+      (EpubReader's library opened a book, zip 366). }
+    property HiddenAt: UInt64 read FHiddenAt;
     { Text size (set before Show). }
     property FontSize: Single read FFontSize write FFontSize;
+    { A phone's or a tablet's menu (zip 345; owner: "Menu could do with
+      proper buttons and be a bit larger ... These menus are really badly
+      laid out"): each choice a button of its own - taller, a frame, room
+      between them - the box nearly the window's width, a choice's text on
+      one line (cut short with an ellipsis, never broken in the middle of
+      a word), its value only as wide as it needs. Off (the default): the
+      pad's list, as EpubBuilder and Big Picture have it. Set before Show. }
+    property TouchStyle: Boolean read FTouch write FTouch;
     { The box is not made narrower than this by the next Show (0 = as its
       own rows need; the window's limits still hold). }
     property MinWidth: Single read FMinWidth write FMinWidth;
@@ -342,6 +364,10 @@ const
   BOX_HEIGHT_SHARE = 0.85;
   { Rows shown at most before the list scrolls. }
   MAX_ROWS = 11;
+  { TouchStyle: the box's width as a share of the window's ... }
+  TOUCH_BOX_SHARE = 0.92;
+  { ... and at most (a tablet, a phone held sideways). }
+  TOUCH_BOX_MAX_WIDTH = 720;
   { Padding inside the box. }
   PAD = 20;
   { A table's key column (NextColumns) has room for this at least. }
@@ -447,7 +473,28 @@ end;
 
 function TPadMenu.RowHeight: Single;
 begin
+  if FTouch then
+    Result := Round(FFontSize * 2.6)
+  else
+    Result := Round(FFontSize * 2.0);
+end;
+
+function TPadMenu.TitleHeight: Single;
+begin
   Result := Round(FFontSize * 2.0);
+end;
+
+function TPadMenu.RowGap: Single;
+begin
+  if FTouch then
+    Result := Round(FFontSize * 0.5)
+  else
+    Result := 0;
+end;
+
+function TPadMenu.RowStep: Single;
+begin
+  Result := RowHeight + RowGap;
 end;
 
 function TPadMenu.ParentHeight: Single;
@@ -465,11 +512,11 @@ var
 begin
   // the box less what Show puts around the rows: its padding, the title,
   // the rule, the foot
-  Room := ParentHeight * AHeightShare - (PAD * 1.5 + RowHeight + PAD / 2 + 1);
+  Room := ParentHeight * AHeightShare - (PAD * 1.5 + TitleHeight + PAD / 2 + 1);
   if AFoot then
     Room := Room - (FFontSize * 1.5 + PAD / 2);
   // a little to spare: a row cut in half is worse than a gap
-  Result := Max(1, Trunc((Room - 2) / RowHeight));
+  Result := Max(1, Trunc((Room - 2) / RowStep));
 end;
 
 function TPadMenu.Bitmap(const AFile: string): TBitmap;
@@ -624,7 +671,7 @@ begin
   FTitleCentered := False;
   FTitle.TextSettings.Font.Size := FFontSize * 1.2;
   FTitle.TextSettings.FontColor := FFore;
-  FTitle.Height := RowHeight;
+  FTitle.Height := TitleHeight;
   FRule.Stroke.Color := Faded(FFore, $40);
   FFoot.Text := AFoot;
   FFoot.Visible := AFoot <> '';
@@ -638,13 +685,26 @@ begin
   begin
     R := TRectangle.Create(Self);
     R.Parent := FScroll;
-    R.Position.Y := I * RowHeight;
+    R.Position.Y := I * RowStep;
     R.Height := RowHeight;
     R.Width := 100;
     R.Align := TAlignLayout.Top;
     R.Stroke.Kind := TBrushKind.None;
     R.XRadius := 10;
     R.YRadius := 10;
+    if FTouch then
+    begin
+      // a button: framed, room below it (not after a line of information)
+      R.Margins.Bottom := RowGap;
+      if not AItems[I].Info then
+      begin
+        R.Stroke.Kind := TBrushKind.Solid;
+        R.Stroke.Color := Faded(FFore, $40);
+        R.Stroke.Thickness := 1;
+      end;
+      R.XRadius := 12;
+      R.YRadius := 12;
+    end;
     R.Tag := I;
     FInfo := FInfo + [AItems[I].Info];
     R.HitTest := True;
@@ -705,6 +765,12 @@ begin
     V.Parent := R;
     V.Align := TAlignLayout.Right;
     V.Width := Max(ValW, FFontSize * 8);
+    // a button's value: only as wide as it is (the text has the rest)
+    if FTouch and not Table then
+    begin
+      V.Width := TextW(AItems[I].Value, FFontSize * 0.9) + PAD;
+      V.TextSettings.WordWrap := False;
+    end;
     // no value: the text has the row's whole width (the empty column cut
     // short rows' text)
     V.Visible := (AItems[I].Value <> '') or (Table and (AItems[I].Value2 <> ''));
@@ -729,6 +795,13 @@ begin
       L.TextSettings.FontColor := FFore;
     L.Text := AItems[I].Text;
     L.HitTest := False;
+    // a button's text on one line: cut short at its end, never broken
+    // inside a word ("Skia4D / elphi", the phone, 2026-11-26)
+    if FTouch then
+    begin
+      L.TextSettings.WordWrap := False;
+      L.TextSettings.Trimming := TTextTrimming.Character;
+    end;
     // a table's third column (placed below, once the box's width is known)
     V2 := nil;
     if Table and V.Visible then
@@ -771,13 +844,22 @@ begin
   // NextWidthShare: that share, for this Show only
   if FNextShare <= 0 then
     MaxW := Min(MaxW, BOX_MAX_WIDTH);
+  // a touch menu: nearly the window's width, whatever its rows need
+  if FTouch and (FNextShare <= 0) then
+  begin
+    if FShade.Parent is TCommonCustomForm then
+      MaxW := Min(TCommonCustomForm(FShade.Parent).ClientWidth * TOUCH_BOX_SHARE, TOUCH_BOX_MAX_WIDTH)
+    else if FShade.Parent is TControl then
+      MaxW := Min(TControl(FShade.Parent).Width * TOUCH_BOX_SHARE, TOUCH_BOX_MAX_WIDTH);
+    Need := MaxW;
+  end;
   FNextShare := 0;
   W := Max(Need, FMinWidth);
   // a text, a table: the widest box the window allows
   if (Body <> '') or Table then
     W := Max(W, MaxW);
   W := Max(Min(W, MaxW), FFontSize * 12);
-  H := PAD * 1.5 + RowHeight * (1 + Min(Length(AItems), MAX_ROWS)) + PAD / 2 + 1;
+  H := PAD * 1.5 + TitleHeight + RowStep * Min(Length(AItems), MAX_ROWS) + PAD / 2 + 1;
   // the text's height at the box's width, measured
   FBody.Visible := Body <> '';
   if Body <> '' then
@@ -799,8 +881,12 @@ begin
       finally
         TL.EndUpdate;
       end;
-      // a spare line for the same reason
-      BodyH := TL.TextHeight + FFontSize * 1.5;
+      // a spare line for the same reason (half of one in a touch menu:
+      // its box is wide, and the gap under the text looked lost)
+      if FTouch then
+        BodyH := TL.TextHeight + FFontSize * 0.75
+      else
+        BodyH := TL.TextHeight + FFontSize * 1.5;
     finally
       TL.Free;
     end;
@@ -898,6 +984,8 @@ end;
 
 procedure TPadMenu.Hide;
 begin
+  if FShade.Visible then
+    FHiddenAt := TThread.GetTickCount64;
   FShade.Visible := False;
   ClearRows;
   FSelected := -1;
@@ -1092,6 +1180,10 @@ begin
   for I := 0 to High(FRows) do
     if I = FSelected then
       FRows[I].Fill.Color := FAccent
+    // a touch menu's buttons stand out from the box (not its lines of
+    // information)
+    else if FTouch and not ((I <= High(FInfo)) and FInfo[I]) then
+      FRows[I].Fill.Color := Faded(FFore, $10)
     else
       FRows[I].Fill.Color := TAlphaColors.Null;
 end;
@@ -1102,7 +1194,7 @@ var
 begin
   if (FSelected < 0) or (FSelected > High(FRows)) then
     Exit;
-  Top := FSelected * RowHeight;
+  Top := FSelected * RowStep;
   View := FScroll.Height;
   if Top < FScroll.ViewportPosition.Y then
     FScroll.ViewportPosition := TPointF.Create(0, Top)

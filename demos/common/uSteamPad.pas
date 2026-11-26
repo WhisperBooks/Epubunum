@@ -59,16 +59,24 @@ type
     FHeld: TArray<Boolean>;
     { When a held button repeats next (ms, TThread.GetTickCount64). }
     FRepeatAt: TArray<UInt64>;
-    { Handles: the set (0 = not yet). }
-    FSet: UInt64;
     { The buttons' handles. }
     FButtons: TArray<UInt64>;
+    {$IFDEF STEAMBUILD}
+    // used by Steam's code only: without it they were hints in every
+    // other build (Android, a desktop's Debug; zip 341)
+    { Handles: the set (0 = not yet). }
+    FSet: UInt64;
     { The stick's handle. }
     FStick: UInt64;
     { All handles found. }
     FResolved: Boolean;
     { When the handles were last looked up (ms). }
     FLastResolve: UInt64;
+    { The pad that pressed last (0 = none yet). }
+    FActivePad: UInt64;
+    { The pads at the last Poll. }
+    FPads: TArray<UInt64>;
+    {$ENDIF}
     { Started: ISteamInput runs and the manifest was given. }
     FStarted: Boolean;
     { Pads at the last Poll (for the log). }
@@ -76,15 +84,13 @@ type
     { What happened worth a line in the log since the last call of
       TakeNote. }
     FNote: string;
-    { The pad that pressed last (0 = none yet). }
-    FActivePad: UInt64;
-    { The pads at the last Poll. }
-    FPads: TArray<UInt64>;
+    {$IFDEF STEAMBUILD}
     { The pad whose controls Origin describes: the one that pressed last,
       else the first. }
     function TargetPad: UInt64;
     { The handles looked up again. }
     procedure Resolve;
+    {$ENDIF}
   public
     { The action set ASet with button actions AButtons and stick action
       AStick ('' for none) - the names as in the manifest.
@@ -216,6 +222,7 @@ begin
   {$ENDIF}
 end;
 
+{$IFDEF STEAMBUILD}
 function TSteamPad.TargetPad: UInt64;
 var
   Pad: UInt64;
@@ -228,6 +235,7 @@ begin
   else
     Result := 0;
 end;
+{$ENDIF}
 
 function TSteamPad.Origin(AIndex: Integer; ADark: Boolean): TSteamPadOrigin;
 {$IFDEF STEAMBUILD}
@@ -334,16 +342,14 @@ begin
   {$ENDIF}
 end;
 
-procedure TSteamPad.Resolve;
 {$IFDEF STEAMBUILD}
+procedure TSteamPad.Resolve;
 var
   P: TSteamInputPlugin;
   I: Integer;
   Missing: string;
-{$ENDIF}
 begin
   FLastResolve := TThread.GetTickCount64;
-  {$IFDEF STEAMBUILD}
   P := InputPlugin;
   if P = nil then
     Exit;
@@ -366,8 +372,8 @@ begin
   if FResolved then
     FNote := Format('pad: action set %s and its %d actions found', [FSetName, Length(FNames) +
       Ord(FStickName <> '')]);
-  {$ENDIF}
 end;
+{$ENDIF}
 
 function TSteamPad.Poll(out APresses: TSteamPadPresses; out AStickY: Single): Boolean;
 {$IFDEF STEAMBUILD}

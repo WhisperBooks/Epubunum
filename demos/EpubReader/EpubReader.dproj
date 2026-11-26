@@ -7,9 +7,8 @@
         <MainSource>EpubReader.dpr</MainSource>
         <Base>True</Base>
         <Config Condition="'$(Config)'==''">Debug</Config>
-        <Platform Condition="'$(Platform)'==''">Win64</Platform>
+        <Platform Condition="'$(Platform)'==''">Android64</Platform>
         <TargetedPlatforms>168066</TargetedPlatforms>
-        <ProjectName Condition="'$(ProjectName)'==''">EpubReader</ProjectName>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Base' or '$(Base)'!=''">
         <Base>true</Base>
@@ -139,6 +138,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <AUP_CALL_PHONE>true</AUP_CALL_PHONE>
         <AUP_CAMERA>true</AUP_CAMERA>
         <AUP_INTERNET>true</AUP_INTERNET>
+        <AUP_WAKE_LOCK>true</AUP_WAKE_LOCK>
         <AUP_READ_EXTERNAL_STORAGE>true</AUP_READ_EXTERNAL_STORAGE>
         <AUP_WRITE_EXTERNAL_STORAGE>true</AUP_WRITE_EXTERNAL_STORAGE>
         <AUP_READ_PHONE_STATE>true</AUP_READ_PHONE_STATE>
@@ -324,6 +324,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <DCCReference Include="src\FmxWineCanvas.pas"/>
         <DCCReference Include="src\FmxSkiaCanvas.pas"/>
         <DCCReference Include="..\common\uDebugLog.pas"/>
+        <DCCReference Include="..\common\uVersion.pas"/>
         <DCCReference Include="..\common\uInhibit.pas"/>
         <DCCReference Include="..\common\uCards.pas"/>
         <DCCReference Include="..\common\uRedraw.pas"/>
@@ -333,6 +334,9 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <DCCReference Include="..\common\uQuitSignal.pas"/>
         <DCCReference Include="..\common\uSteamPad.pas"/>
         <DCCReference Include="src\uPadMenu.pas"/>
+        <DCCReference Include="src\uBookImport.pas"/>
+        <DCCReference Include="..\common\uLink.pas"/>
+        <DCCReference Include="src\uLicences.pas"/>
         <DCCReference Include="src\uReaderInput.pas"/>
         <DCCReference Include="..\common\uSteam.pas"/>
         <DCCReference Include="src\uMain.pas">

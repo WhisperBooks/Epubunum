@@ -67,6 +67,8 @@ uses
   // System.SysUtils.RenameFile's inline body expands only with it (H2443)
   Winapi.Windows,
   {$ENDIF}
+  // the version (major.minor.build) on the log's first lines
+  uVersion,
   // System.SysUtils: in the interface's uses
   System.Classes, System.SyncObjs;
 
@@ -119,6 +121,11 @@ begin
       LogName := AFileName;
       {$IF Defined(MSWINDOWS)}
       Plat := 'Windows';
+      {$ELSEIF Defined(ANDROID)}
+      // (was "unknown" there)
+      Plat := 'Android';
+      {$ELSEIF Defined(IOS)}
+      Plat := 'iOS';
       {$ELSEIF Defined(MACOS)}
       Plat := 'macOS';
       {$ELSEIF Defined(LINUX)}
@@ -129,9 +136,10 @@ begin
       {$IFDEF CPU64BITS}
       Plat := Plat + ' 64-bit';
       {$ENDIF}
-      WriteRaw(Format('%s - debug log, %s, started %s' + sLineBreak + 'Build: %s' + sLineBreak +
-        'Program: %s' + sLineBreak + 'OS: %s' + sLineBreak, [ChangeFileExt(ExtractFileName(ParamStr(0)), ''),
-        Plat, FormatDateTime('yyyy-mm-dd hh:nn:ss', Now), BUILD_STAMP, ParamStr(0), TOSVersion.ToString]));
+      WriteRaw(Format('%s - debug log, %s, started %s' + sLineBreak + 'Version: %s' + sLineBreak +
+        'Build: %s' + sLineBreak + 'Program: %s' + sLineBreak + 'OS: %s' + sLineBreak,
+        [ChangeFileExt(ExtractFileName(ParamStr(0)), ''), Plat, FormatDateTime('yyyy-mm-dd hh:nn:ss', Now),
+        VersionText, BUILD_STAMP, ParamStr(0), TOSVersion.ToString]));
     except
       LogName := '';
     end;

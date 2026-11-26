@@ -25,6 +25,7 @@ uses
   // Direct2D leaves FMX windows white; a no-op on Windows and elsewhere
   FmxWineCanvas in 'src\FmxWineCanvas.pas',
   uDebugLog in '..\common\uDebugLog.pas',
+  uVersion in '..\common\uVersion.pas',
   // keeps the computer awake while it works (SteamOS sleeps on no input)
   uInhibit in '..\common\uInhibit.pas',
   // memory cards' Books / Audio / Transcribed folders (Steam hardware)

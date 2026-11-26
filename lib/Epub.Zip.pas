@@ -140,6 +140,19 @@ type
     procedure Finish;
   end;
 
+type
+  { Gives the stream to read archive AFileName from, nil = none (the file
+    is opened by its name as usual). }
+  TEpubStreamOpener = function(const AFileName: string): TStream;
+
+var
+  { When set, TEpubZipReader.Create(AFileName) asks it first, and reads
+    (and frees) the stream it gives: a program whose books are not files
+    of a path - Android's books folders, an open handle the system gave
+    and the file's path may not be opened again (EpubReader, zip 347).
+    Called in the thread that opens the book. }
+  EpubStreamOpener: TEpubStreamOpener = nil;
+
 { CRC-32 (ZIP / zlib polynomial) of ACount bytes at AData, continuing ACrc
   (start with 0). }
 function EpubCrc32(ACrc: Cardinal; AData: PByte; ACount: NativeInt): Cardinal;
@@ -359,7 +372,11 @@ begin
   inherited Create;
   FFileName := AFileName;
   try
-    FStream := TFileStream.Create(AFileName, fmOpenRead or fmShareDenyWrite);
+    FStream := nil;
+    if Assigned(EpubStreamOpener) then
+      FStream := EpubStreamOpener(AFileName);
+    if FStream = nil then
+      FStream := TFileStream.Create(AFileName, fmOpenRead or fmShareDenyWrite);
   except
     on E: Exception do
       raise EEpubError.CreateFmt('%s cannot be opened: %s', [AFileName, E.Message]);

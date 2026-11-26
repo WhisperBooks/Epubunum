@@ -61,6 +61,14 @@ that is a link (a link back from the note to its marker is ignored).
 The highlight covers the word, not the punctuation around it: in
 "whales," the comma is not lit.
 
+**Highlight** (the menu; on a desktop View > Highlight) says what is lit
+while the book is read aloud: the Word, or the Phrase or the Sentence it
+is in. With a phrase or sentence, **Highlight type** is All (the whole
+of it) or Trailing (only up to the word being read), and **Highlight
+word** On lights the phrase / sentence pale and the word over it in the
+highlight colour (Off: all of it in the highlight colour). With Word the
+two are faded and do nothing. Learn to read keeps its own highlighting.
+
 Copy-protected books are refused with a message.
 
 ## Remembered between runs
@@ -136,8 +144,13 @@ this is needed only when the controls change.
 | Start / Menu | the menu | the menu | close |
 | Select / View | the library | back to the book | the library |
 
-The menu: Back to the book, Open a book, Library, Library order, Contents, Text size,
-Speed, Dark mode, Learn to read, Controls, Exit. Controls lists what each control
+The menu: Back to the book, Open a book, Get books from BookManager (a
+phone; faded elsewhere), Library, Library order, Contents, Text size,
+Speed, Dark mode, Highlight, Highlight type, Highlight word, Learn to read, Controls, Exit, About (the version and
+the copyright, and Licences: the outside components of that build - Skia,
+Skia4Delphi, FFmpeg on a desktop, Android's libraries on a phone,
+Steamworks in a Steam build - each licence a page at a time; on a desktop
+also Help > About EpubReader). Controls lists what each control
 does, with Steam's own pictures of the buttons of the pad in hand (the
 names, without Steam). Esc on the page opens the menu with the keyboard
 (arrows, Enter, Esc there); a click or tap on a row works too.
@@ -163,10 +176,8 @@ top-level Books and Transcribed folders ("<card>: <book>"). The books folder, ma
 - Steam builds: `Books` beside the program (on the Mac beside
   EpubReader.app) - in Steam, the reader's Manage > Browse local files,
   then Books;
-- builds without Steam: Documents/EpubUnum/Books (shared with EpubBuilder;
-  the books of Documents/EpubReader/Books are moved there, once, at the
-  first start after the change - EpubReader's settings too, into the
-  epubunum settings folder).
+- builds without Steam: Documents/EpubUnum/Books (shared with
+  EpubBuilder).
 
 Copy books there (on a Steam Deck in Desktop Mode). Another folder can
 be named in the settings file, `"booksFolder": "..."`. Uninstalling the
@@ -306,20 +317,51 @@ TSteamAPI's launcher with one addition (below, FreeType):
 A build for Android 64-bit (zips 317 to 321; first run on a Pixel 10a,
 Android 17). What differs from a desktop:
 
-- **Books** are copied over USB into
-  `Android/data/com.epubunum.reader/files/EpubUnum/Books` on the
-  phone; every book there is in the library, and the library is read
-  again when you come back to the app. The debug log
+- **Books** are in **books folders** you choose once (Menu > Books
+  folders > Add a folder - Android's own folder picker: a folder on the
+  phone, Documents/EpubUnum say, one on the memory card, or both). Every
+  EPUB in them and in their folders is in the library, read where it is -
+  nothing is copied, and the library looks again whenever it shows (a
+  book put there later comes in, a book deleted goes). A folder can be
+  taken off (Menu > Books folders > the folder: its books leave the
+  library and stay where they are). With no books yet, the library offers
+  a folder, or a link to BookManager, in a box like the menu that a book
+  is needed to leave.
+- **From BookManager** (zips 354 - 362): **Get books from BookManager**
+  (the Menu's third row, Menu > Books folders, or "No books yet") starts
+  the link and shows its
+  panel; nothing of it runs otherwise. While the panel is open the phone
+  says where it is on the network, answers BookManager directly, keeps
+  the screen on and its Wi-Fi awake (Android's low-latency Wi-Fi lock).
+  BookManager's **Send to phone** tab lists it by its name ("Google
+  Pixel 10a"); not paired yet, BookManager asks to pair at once and the
+  code shows in the panel (**Refuse** says no) - typed there, they are
+  paired, once. The panel shows each book as it comes ("Receiving "...", book
+  2 of 3 - 45 % (41 of 92 MB)") and the books received; they go to
+  the reader's own Books folder
+  (`Android/data/com.epubunum.reader/files/EpubUnum/Books`) and into the
+  library behind the panel; when BookManager is closed it says so, and
+  the panel closes by itself. **Cancel** (or Back) ends the link and goes
+  back to the menu it was started from; **Done** - faded until something
+  has happened (paired, BookManager in touch, a book received) - ends it
+  and shows the library. Leaving the app ends it too. EPUBs only; 500 MB of the phone are always left
+  free. Uninstalling the reader deletes that folder and its books. The
+  pairings are kept in the settings ("linkId", "linkTokens"); every call
+  that reaches the phone is in the debug log ("link: GET /books from
+  ...").
+  Books copied over USB into
+  `Android/data/com.epubunum.reader/files/EpubUnum/Books` are found too. The debug log
   (`EpubReader-debug.log`) is in `EpubUnum` beside `Books`.
 - **The window** is the page alone, as in Steam's Big Picture: no tool bar
   across the top and no contents panel beside the page. It keeps clear of
   the status and navigation bars.
 - **A bar of six buttons at the foot:** Menu, a page back, a sentence
   back, Play / pause, a sentence on, a page on.
-- **Menu** is the pad's menu, used by touch: Library, Open a book,
-  Library order, Contents, Text size, Speed, Dark mode, Learn to read. A
-  tap on Text size or Speed is one step up, and from the top it goes round
-  to the bottom; a tap on Library order is the next order.
+- **Menu** is the pad's menu, used by touch: Library, Books folders, Get
+  books from BookManager, Library order, Contents, Text size, Speed, Dark mode, Highlight,
+  Highlight type, Highlight word, Learn to read. A tap on Text size or
+  Speed is one step up, and from the top it goes round to the bottom; a
+  tap on Library order, Highlight or Highlight type is the next one.
   A tap beside the menu closes it.
 - **Back** (the system's) leaves the menu; from a book goes to the
   library; from the library goes back to the open book, or with no book
@@ -337,7 +379,9 @@ Android 17). What differs from a desktop:
   detail goes last. The place in the book and the library are saved
   whenever the app is left.
 - **Tap a word** to read from there. **Drag the page** with a finger to
-  scroll it (it stops with the finger; while a book is being read aloud
+  scroll it; a quick flick glides on and slows to a stop (the faster, the
+  farther; a touch stops it, and it stops at a chapter's end - drag on
+  from there for the next; while a book is being read aloud
   the page goes back to the word being spoken).
 - **A book's index:** the first time a book is opened its words and
   timings are written to `EpubUnum/index/<name>.euix` (packed: about 25

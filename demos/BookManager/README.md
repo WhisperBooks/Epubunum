@@ -52,7 +52,7 @@ BookManager runs (allow it on private networks). EpubBuilder's HTTP port
 is 47821, or the next free one up to 47830.
 
 When EpubBuilder is closed, or its computer sleeps, it is not heard: the
-list says "not heard now" and BookManager stops asking it for its
+list says "Connection inactive" and BookManager stops asking it for its
 progress (a builder that does not answer is asked less and less often
 first: 2, 4, 8, 16, then every 30 seconds). Transfers started then fail
 with "no answer": drop the same files again when it is back - those that
@@ -127,6 +127,56 @@ from where it stopped the next time (its `.part` file is kept, with a
 in between, the fetch starts afresh rather than mix the two). Nothing
 is fetched that would leave less than 1 GB free here.
 
+## Send to phone
+
+On the phone, **Get books from BookManager** (EpubReader's Menu > Books
+folders) starts its link: while its panel is open the phone says where
+it is on the same network (the same Wi-Fi), and the **Send to phone** tab
+lists it (the one chosen last time, else the only one, is chosen).
+BookManager says where it is too (a UDP announcement every two seconds),
+so the phone answers it directly - the computer learns the phone's
+address that way, and its first connection is not lost. A phone not
+paired yet is asked at once: it shows a 6-digit code - type it in the row
+that opens (**Pair** or Enter); once per phone, kept on both sides.
+**Pair...** asks again by hand. Up to 30 seconds is waited for a phone's
+answer. A phone whose link is off (Done or Cancel on the phone, the
+reader left, the phone asleep) is "not linking now": books are not sent
+to it, and BookManager says to start Get books from BookManager on the
+phone. When the phone's link goes off while books are being sent (Done
+or Cancel on the phone), the book cut off and the phone's books after it
+are held - "waiting for the phone to link" in the list - and go on by
+themselves, in their order, once the phone links again; the one cut off
+starts afresh. Cancel / Cancel all drop held books as any other.
+Closing BookManager tells the phone (directly when it is paired and
+linking, and with a goodbye on the network): its link panel closes by
+itself.
+
+- **Drop** books or folders on the dashed box (or on the list): their
+  EPUBs go to the phone; other files are left out (the reader reads
+  EPUBs). **Add books...** chooses them in a dialog.
+- The list is the books here - the folder Books made fetches to - newest
+  first, each "on phone" (a book of that name and size is on the phone)
+  or "new" - and while it is being sent, its transfer: "waiting",
+  "held" (the phone's link went off), "sending 22 % 11.0 MB/s", "sent
+  10.7 MB/s". **Send checked** sends the ticked ones (none ticked: the one
+  chosen), **Send all new** every one the phone does not have.
+- On the phone they go to EpubReader's own Books folder
+  (`Android/data/com.epubunum.reader/files/EpubUnum/Books`) and into its
+  library. Uninstalling EpubReader deletes that folder, and the books in
+  it.
+- The phone keeps 500 MB free: a book that would leave less is refused
+  before it is sent (BookManager asks first when the books dropped need
+  more than it has). The line beside the buttons says how many books
+  the phone has and its room.
+
+The transfers are in Send to EpubBuilder's list too ("To phone"), one at
+a time with the others; the bar under the buttons shows the one running.
+Each row shows its speed - while it runs ("45 % 14.8 MB/s", after two
+seconds) and when it is done ("Sent 14.6 MB/s"); the debug log has the
+size, time and speed of each.
+The phone is asked for its books every 20 seconds and after each book
+sent; **Refresh** asks now.
+
 ## Progress and Log
 
 **Progress** shows what EpubBuilder's progress panel shows: the book, the
@@ -139,7 +189,8 @@ BookManager connects).
 `BookManager.ini` in the shared epubunum settings folder (Windows
 `%APPDATA%\EpubUnum`, macOS `~/Library/Application Support/EpubUnum`,
 Linux `~/.config/EpubUnum`): the pairings ([Paired], one line per
-EpubBuilder), the EpubBuilder chosen last, the fetch folder and the
+EpubBuilder or phone), the EpubBuilder chosen last ([Builder]), the phone
+chosen last ([Phone]), the fetch folder and the
 folder Add files... opens. After **Account...**: [Link] - this
 installation's random id and key at the link site, and whether an account
 has it. No name of the computer is sent there.

@@ -73,6 +73,14 @@ end;
 - **Audio chapter marks** (books written by `TEpubWriter` with
   `AddAudioChapter`): `AudioChapters` (title, audio file, start) and
   `AudioChapterWords` (the first word read at each mark).
+- **Books that are not files of a path**: `Epub.Zip`'s
+  `EpubStreamOpener`, when set, gives `TEpubZipReader` a stream for a
+  book's name (EpubReader on Android reads the books of the folders the
+  user chose from the handle Android opened).
+- **Laid-out documents kept**: `TEpubBook.LayoutCache` (a file name
+  without extension) has `DocumentLayout` keep each document's layout
+  (`TEpubDocLayout.SaveToStream`) and read it back next time
+  (`CreateFromStream`) for this book as it is - no parse, no walk.
 - **Layout for a renderer**: `DocumentLayout(Doc)` gives the blocks with
   their runs and word spans; `BlockOfWord` finds a word's block. Character
   offsets are 0-based UTF-16 (what Skia's paragraph ranges use).
@@ -145,7 +153,9 @@ untouched, and no half written one.
 
 Link it to a `TEpubUnum` (`Epub` property), call `ShowDocument` or
 `ShowFragment`; `Highlight(First, Last)` + `ScrollToWord` follow the
-narration; `OnWordClick` gives the word under a click. Text size, line
+narration (`HighlightUnit(First, Last)` adds a second, paler highlight
+under it in `UnitHighlightColor` - the phrase or sentence being read,
+the word standing out over it); `OnWordClick` gives the word under a click. Text size, line
 height, paragraph spacing, page margin and colours are properties. It lays out
 each block with Skia's paragraph engine (`TSkParagraph`) and draws the
 highlight from the paragraph's range rectangles. Only the blocks near the
@@ -157,6 +167,9 @@ says how many blocks are laid out so far. Scrolled on past an end of
 the document (a drag, the wheel, keys, `Page`, `ScrollBy`), the view
 calls `OnEdge`, and the program shows the next or the previous document
 (EpubReader: the whole book can be scrolled through without the sound).
+A quick drag glides on when the finger lets go, slowing to a stop - the
+faster the flick, the farther (`Fling`, default on); it stops at the
+document's ends, at a touch, and when the program moves the page.
 `ShowProgress` adds a
 strip under the text with how far through the book the view is
 (`Progress`, by words - the text size does not change it).
@@ -284,6 +297,14 @@ copies it too (made executable). Keep it LF and executable in git.
 - `tools/gen_projects.py` - generates the .dproj files and the groupproj
   (missing files only; `--force` rewrites them). Once the IDE has saved a
   file, the IDE's version is authoritative.
+
+## Versions
+
+The programs' version is major.minor.build (`demos/common/uVersion.pas`):
+the build is the number of the change set that last changed the
+repository, an integer - versions are compared part by part as numbers
+(0.0.99 before 0.0.343). Major and minor go up when a release is
+declared. The debug logs' first lines and EpubReader's About show it.
 
 ## Checks before delivery
 
