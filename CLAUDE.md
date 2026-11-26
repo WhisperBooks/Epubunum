@@ -4,7 +4,170 @@ Read README.md first, then this file. Keep both up to date with every change.
 The rules follow TWhisper's and TFFMpegAPI's CLAUDE.md (same owner, same
 conventions); where this file is silent, theirs apply.
 
-## Handover - READ THIS FIRST (latest: session 14, 2026-11-23 21:21)
+## Handover - READ THIS FIRST (latest: session 16, 2026-11-26 01:03)
+
+Written at the owner's request (01:03: "Continue tomorrow. write a
+claude.hd session handover"). Session 16 ran from 2026-11-25 15:09 to
+2026-11-26 01:03: zips 311 - 336 here (336 = this handover, CLAUDE.md
+only) and TWhisper-34. Each zip has its own section further down ("Zip
+335" first, newest first), with the owner's words and what was
+measured; this is the map. Session 14's handover follows (it holds the
+logs of sessions 15 and 16 up to zip 320); what it says of Steam, the
+sites and the boards still stands.
+
+### Where it stands (2026-11-26 01:03)
+- THE REPOSITORY: the owner's last push is fc108fe "Reader Droid"
+  (2026-11-25 22:38) = zips to 322. THIS SESSION CAN FETCH IT (git fetch
+  works here now): pull before touching a .dproj. The working copy =
+  fc108fe + zips 323 - 336, uncommitted. Never commit or push, never
+  offer to.
+- THE OWNER'S PROJECT FILES, to go back as they came:
+  demos/EpubReader/EpubReader.dproj - Config Condition Debug, Platform
+  Condition Android64 (zip 326 changed four values in it after 322's
+  nine; if he has saved it since, his wins); packages/EpubUnum.dproj
+  and EpubUnumFMX.dproj - Platform Condition Android64;
+  demos/EpubBuilder/EpubBuilder.dproj - Config Condition Release.
+- EVERYTHING TO ZIP 335 COMPILES AND RUNS on the phone (the owner's
+  build of 00:58 and its logs). Nothing of session 16 after zip 314
+  has been built or run on a DESKTOP: lib/Epub.Book.pas (324, 330,
+  334, 335), lib/Epub.Components.pas (327) and fmx/Epub.FMX.View.pas
+  (327, 332) changed, and uMain.pas very much. THE FIRST DESKTOP BUILD
+  IS A TEST OF ALL OF IT - packages for Win64 first.
+- PACKAGES: every lib/ or fmx/ change needs EpubUnum and EpubUnumFMX
+  built for Android 64-bit before EpubReader ("Unit not found:
+  Epub.Zip" at 23:24 was exactly that), and dclEpubUnumFMX for the IDE.
+
+### What session 16 made
+1. EPUBBUILDER ON THE ROG ALLY UNDER WINDOWS (zips 311 - 314,
+   TWhisper-34): ROCm ended the program at its first computation
+   (gfx1103 is not built for). Now left out before it runs, from the
+   targets read out of ggml-hip.dll; Vulkan0 is used. The Ally's four
+   Windows scores are on the 1.9.6 boards.
+2. THE READER ON ANDROID (zips 316 - 335), the plan's steps 1 and 2:
+   - sound behind TReaderPlayer (uPlayer; desktop uPlayerFFmpeg,
+     Android uPlayerAndroid = MediaPlayer through JNI), played INSIDE
+     the book with no copy (321);
+   - the project builds and deploys for Android64 (318), its own icon
+     (322) and start picture (326);
+   - folders where USB reaches them:
+     Android/data/com.embarcadero.EpubReader/files/EpubUnum (Books,
+     index, covers, EpubReader.json, EpubReader-debug.log);
+   - THE TOUCH LAYOUT (321): the page alone, safe area, a bar of six
+     buttons at the foot, the pad's menu by touch, Back;
+   - THE LIBRARY (320, 323, 325, 328, 331): every book of Books, the
+     order read, saved whenever the app is left, the width filled and
+     scrolled, new books read in one batch and shown once, 1000 books;
+   - a finger scrolls the page (327, TEpubView.DragScroll).
+3. SPEED (zips 324, 327, 329 - 335), after the owner's "The Kindle
+   android app can open a book and display text in under a second":
+   TEpubBook.CreateHeader (package only); the book read in a thread and
+   adopted (TCustomEpub.Adopt); A BOOK'S INDEX (SaveIndex /
+   CreateIndexed, version 3: 22 bytes a word); its chapters kept beside
+   it; THE STAGED OPEN (TEpubView.ShowPreview: the page left at, 74 ms
+   after the tap, from the package and one document).
+
+### Measured on the Pixel 10a (the last logs, 01:00)
+- Tap to page from the index: The Stars My Destination 0.36 s (index
+  0.29), Foundation and Empire 0.32 s, Night Watch 0.85 - 0.94 s (index
+  0.32 - 0.43, THE LAYOUT of its 1236-block document 0.48 every time).
+  Before the session's speed work: 4.5 s, the window held throughout.
+- The index: Night Watch 12,142,100 bytes (v1) -> 2,787,930 (v2) ->
+  2,549,827 (v3, 22.4 a word); Stars 1,590,489; Foundation and Empire
+  1,668,219. Load: v3 about as v1, v2 was slower (the time is in making
+  strings, not reading bytes). I had said "perhaps 20 bytes" and
+  "faster than version 1": neither.
+- A first opening (no index): the staged page at 74 ms, the book 3.2 s
+  behind it; then BuildChapters still in the window's thread (1.5 s for
+  Night Watch, once a book).
+- Start to library, 30 books: about 0.25 s a showing, and it is shown
+  TWICE at every start (FormCreate, then "app: in front again").
+
+### NEXT (the owner, 01:03: "Continue tomorrow")
+1. LAZY LAYOUT in fmx/Epub.FMX.View.pas - the one thing left between
+   Night Watch and half a second, offered at 01:00 and put off to a
+   fresh session by me ("the riskiest change I'd have written blind").
+   LayoutItems makes a Skia paragraph for EVERY block of the document
+   before the first page: lay out what is near the page, estimate the
+   rest, correct as it is reached. It touches FContentHeight, ScrollPos,
+   ScrollToWord, WordLine, WordAt, Progress, Page, DragScroll and
+   ShowPreview. Package unit.
+2. ASK FIRST: were the three four-second pauses (00:31, 00:50, 00:59 -
+   always the first start after a new build, a different place each
+   time, and zip 335's SLOW lines stayed silent) starts from the IDE
+   with the debugger? Asked at 01:01, not answered.
+3. Then the plan's order (zip 316's section): ANDROID TV on the Shield
+   (remote keys onto the pad's actions, LEANBACK_LAUNCHER in the
+   owner's AndroidManifest.template.xml, a banner) -> BookManager
+   sending and streaming, the readers receiving (a headless BookManager
+   later) -> iOS (uPlayerIOS) -> Apple TV (Swift) -> Fire TVs -> the
+   Kindle Fire 8 last.
+
+### Open, the owner's to decide or answer
+- THE PACKAGE NAME is still com.embarcadero.EpubReader ("In a bit
+  we'll give it a better package name") - it changes the folder's path
+  on the phone.
+- A BATCH OF NEW BOOKS is ordered by FILE NAME in the library (331):
+  my choice, he has not said.
+- DRAGGING THE PAGE now works with the mouse on a desktop too (327):
+  wanted there?
+- THE DESKTOP opens books the old way (window's thread, no index, no
+  staged page): the index and the thread are TOUCH BUILD ONLY until he
+  says move them. The Steam Deck would gain most.
+- TABLETS and a phone held sideways have the phone's layout; the plan
+  of 18 November kept the desktop's there.
+- IdeaPad under Windows (CUDA and Vulkan slow on the GTX 1650): still
+  waiting for the top of a debug log from each system.
+
+### Known, not done (the phone)
+- A drag is undone at the next clip while a book plays (the page goes
+  to the spoken word).
+- Opened from Menu > Open a book, nothing says the book is being read.
+- The status line is in the hidden tool bar: FSoundNote and "No book
+  open" are in the log only.
+- The status bar's clock is white on the light page; the colour behind
+  the start picture is Delphi's.
+- The menu's Controls page lists a pad's buttons.
+- Audio that is COMPRESSED inside a book is still copied out, in the
+  window's thread.
+- The debug log's first lines say "unknown 64-bit" and an empty
+  "Program:" on Android.
+- The library loads every cover's picture at every showing (fine at
+  30).
+- The library matches books by file name without the folder.
+- FOR THE TV STEP (owner, 00:48: "Savings in size will also benefit TV
+  devices with limited persistant storage"): a size limit on
+  EpubUnum/index and covers, the book opened longest ago dropped
+  first; BookManager building the index and sending it ahead of the
+  stream.
+- TWhisper's CLAUDE.md and HIP.md still say the place of the Ally's
+  end "is not known": to correct in its next zip (it is the first
+  computation on ROCm0).
+
+### What I got wrong in session 16 (so that it is not done again)
+- Guessed before the log, three times: the IdeaPad (Optimus), the
+  Ally (the crash at loading), the phone's freeze (the layout - it was
+  a 924 MB copy). THE LOG FIRST.
+- Zip 319 sent the owner to a folder the library never read; zip 325
+  put books in the library two and three times (a scan that ran again
+  while its queue was waiting); zip 313's rocBLAS test.
+- Said Debug was "noticeably slower" (9 %), 40 bytes a word (107), a
+  packed index would load faster (slower, until version 3).
+- EVERY ZIP IS UNCOMPILED: he builds, runs and sends the log within
+  minutes, at any hour - small zips, one thing each, and what is not
+  known said in the delivery, worked.
+
+### The phone, for whoever tests next
+- Books go into .../EpubUnum/Books over USB; the log is
+  .../EpubUnum/EpubReader-debug.log (the run before:
+  EpubReader-debug.log.old). The owner sends both, unasked now.
+- To see a first opening again: delete .../EpubUnum/index. To see the
+  library fill again: delete .../EpubUnum/EpubReader.json.
+- Lines to look for: "open: from its index (N bytes)", "open: N
+  chapters from last time", "open: a page shown from the package
+  alone", "go to clip N (document D): laying out" to "shown (N
+  blocks)" = the layout, "library: SLOW".
+
+## Handover (session 14, 2026-11-23 21:21; the logs of sessions 15 and 16 to zip 320 are in it)
 
 Written at the owner's request (21:21: "write up a session handover in
 claude.md"). Session 14 ran from 2026-11-22 18:30 to 2026-11-23 21:21:
@@ -1708,7 +1871,7 @@ TSteamAPI do not apply (no 3D).
   `python3 tools/project_check.py`, an FPC build of lib/ and EpubConsole
   run on the test books.
 
-Last number used: 335 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
+Last number used: 336 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
 next-session notes, CLAUDE.md only).
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
@@ -4296,6 +4459,12 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 336 (on top of zip 335): session 16's handover; this file only
+Owner, 2026-11-26 01:03: "Continue tomorrow. write a claude.hd session
+handover". Files: CLAUDE.md. NO PACKAGE REBUILD. The handover is at the
+top of this file; it also holds what the logs of 01:00 measured for zip
+335 (index version 3) and the sync with fc108fe.
 
 ## Zip 335 (on top of zip 334): index version 3 - a clip's id is its document's own string; the decoder makes one string an id, not three
 Session 16, two logs of zip 334 on the Pixel (00:53), and the owner at
