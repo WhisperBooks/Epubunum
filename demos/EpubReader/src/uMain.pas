@@ -49,6 +49,8 @@ uses
   uSteamPad, uPadMenu,
   // Android: the books folders chosen in the system's picker, read in place
   uBookImport,
+  // "Opening book" and its count over the window (zip 388)
+  uProgressFrame,
   // a phone: BookManager sends it books over the network (zip 355)
   uLink,
   // the version, major.minor.build (About, the log)
@@ -157,6 +159,9 @@ type
     { Keys: P, Ctrl+O, Ctrl+Plus / Ctrl+Minus, D, L (Learn to read), R (say
       again), [ / ] (speed). }
     procedure FormKeyDown(Sender: TObject; var Key: Word; var KeyChar: WideChar; Shift: TShiftState);
+    { A TV: a key let go - logged the first time (TvKeyFirst), to see
+      the remote's keys FMX passes on only as let go. }
+    procedure FormKeyUp(Sender: TObject; var Key: Word; var KeyChar: WideChar; Shift: TShiftState);
     { Chooses and opens a book. }
     procedure btnOpenClick(Sender: TObject);
     { Previous document. }
@@ -197,6 +202,31 @@ type
     procedure btnLargerClick(Sender: TObject);
     { The book is open: contents, first document, clip map. }
     procedure EpubUnum1Open(Sender: TObject);
+    { The open's next step: the frame at APercent saying AStage, then
+      AProc - straight away without the frame (a desktop), else from
+      tmOpenStep, so the window draws the frame first (zip 388).
+      @param(APercent  the count now)
+      @param(AStage  the step to come)
+      @param(AProc  the step) }
+    procedure OpenStep(APercent: Single; const AStage: string; AProc: TProc);
+    { Runs the open's next step (OpenStep). }
+    procedure tmOpenStepTimer(Sender: TObject);
+    { The open, second step (after EpubUnum1Open): the chapters, the
+      contents list from them, the notes menu. }
+    procedure OpenChapters;
+    { The open, last step: the page laid out where the book was left, the
+      library away, the book remembered; the frame gone. }
+    procedure OpenPage;
+    { "Opening book" shown, at 0 %, in the reader's colours.
+      @param(AFileName  the book) }
+    procedure ProgressStart(const AFileName: string);
+    { The frame gone (done, or the open failed). }
+    procedure ProgressFinish;
+    { An open that failed after the book was read (in EpubUnum1Open or a
+      step after it): logged, the frame and the staged page gone, no
+      longer opening - so nothing stays over the window taking the keys.
+      @param(AWhy  the exception's message) }
+    procedure OpenAbandoned(const AWhy: string);
     { The book could not be opened. }
     procedure EpubUnum1OpenFailed(Sender: TObject; const AMessage: string);
     { A contents entry was chosen. }
@@ -415,6 +445,17 @@ type
     { A touch build: a book is being read in a thread (OpenBook) and is
       not open yet. }
     FOpening: Boolean;
+    { "Opening book" over the window, 0 - 100 % (a touch build; zip 388;
+      nil until the first book is opened). }
+    FProgress: TProgressFrame;
+    { The open's next step (OpenStep), run by tmOpenStep - so the frame is
+      drawn between the steps in the window's thread. }
+    FOpenNext: TProc;
+    { FOpenTicket when FOpenNext was set: another book asked for since
+      drops it. }
+    FOpenNextTicket: Integer;
+    { Runs FOpenNext (nil until needed). }
+    tmOpenStep: TTimer;
     { The staged open (a touch build, zip 332): a second book component
       and view, over the page, that show ONE document of a book whose
       package only has been read, while OpenBook's thread reads the rest. }
@@ -497,6 +538,12 @@ type
     FPadKeys: Boolean;
     { The menu's foot has left / right's "change" (PadMenuFoot). }
     FFootChange: Boolean;
+    { A TV (uBookImport.IsTelevision, zip 381): the remote drives the
+      reader through PadPress (TvKey), no bar of buttons at the foot. }
+    FTV: Boolean;
+    { The remote's keys already logged once (TvKey: each key's first
+      press is logged, so the log shows what the remote sends). }
+    FTvKeysSeen: TArray<Integer>;
     { The pad's menu (uPadMenu). }
     FPadMenu: TPadMenu;
     { What FPadMenu shows: MODE_MAIN, MODE_CONTENTS, MODE_CONTROLS or
@@ -527,11 +574,36 @@ type
     { The pad: Steam Input with EpubReader's manifest (written beside the
       settings from uReaderInput), the menu, the poll. }
     procedure StartPad;
+    { Into the log: the app's folder on each storage volume and its free
+      space (uBookImport.StorageFolders; Android only - zip 381, the TV's
+      storage and a USB drive's). }
+    procedure LogStorage;
     { Reads the pad: presses to PadPress, the stick scrolls the page. }
     procedure tmPadTimer(Sender: TObject);
     { What a pad button does where the reader is (menu, library, page).
       @param(AButton  PAD_UP .. PAD_LIBRARY) }
     procedure PadPress(AButton: Integer);
+    { A TV: a remote's key, from FormKeyDown - the D-pad, OK, Menu and
+      Play / Pause onto the pad's actions (PadPress); Back is left to
+      FormKeyDown (vkHardwareBack). OK on the page opens the menu, Up
+      from the library's top row too (zip 383: the Shield's remote has
+      no Menu key an app gets); Play / Pause plays on the page only.
+      Each key's first press is logged, the keys not used too.
+      @param(AKey  the key)
+      @param(AKeyChar  its character)
+      @returns(the key was used) }
+    function TvKey(AKey: Word; AKeyChar: WideChar): Boolean;
+    { A TV: key AKey / AKeyChar (pressed, or AUp: let go) is seen for the
+      first time - its line goes into the log once.
+      @param(AKey  the key)
+      @param(AKeyChar  its character)
+      @param(AUp  let go, not pressed)
+      @returns(the first time) }
+    function TvKeyFirst(AKey: Word; AKeyChar: WideChar; AUp: Boolean): Boolean;
+    { A TV: the remote's OK (Android's DPAD_CENTER) and Menu made FMX's
+      Enter and Menu (vkApps) keys through IFMXKeyMappingService, what
+      was there before logged (zip 382: neither reached FormKeyDown). }
+    procedure TvKeyMappings;
     { The pad's main menu. }
     procedure ShowPadMenu;
     { The pad's contents list (the panel's entries). }
@@ -917,6 +989,8 @@ uses
   // System.SysUtils.DeleteFile's inline body expands only with it (H2443)
   Posix.Unistd,
   {$ENDIF}
+  // a TV: the remote's OK and Menu given FMX keys (TvKeyMappings)
+  FMX.KeyMapping,
   System.Hash, System.UIConsts, System.Skia, System.Generics.Defaults, System.IniFiles,
   FmxWineCanvas, FmxSkiaCanvas, uSteam, uInhibit, uQuitSignal, uReaderInput, uCards;
 
@@ -3884,6 +3958,29 @@ begin
       SIZE_MIN_DECK]));
     View1.FontSize := SIZE_MIN_DECK;
   end;
+  // a TV (zip 381; owner 2026-11-27: "The player buttons don't make much
+  // sense on TV so hide them ... TV also needs TV Remote to control it"):
+  // the remote is the pad, the page read from across the room
+  FTV := TouchBuild and IsTelevision;
+  if FTV then
+  begin
+    TvKeyMappings;
+    OnKeyUp := FormKeyUp;
+    // the page takes no keys of its own: it scrolled behind the menu
+    // with the D-pad (owner, 11:36: "When in a menu up/down scroll the
+    // paused book in the background") - TvKey scrolls it on the page
+    View1.CanFocus := False;
+    DebugLog('tv: ' + PhoneName + ' - the remote drives it (D-pad, OK, Menu, Play / Pause, Back), ' +
+      'no bar of buttons');
+    if View1.FontSize < SIZE_MIN_DECK then
+    begin
+      DebugLog(Format('tv: text size %d raised to %d', [Round(View1.FontSize), SIZE_MIN_DECK]));
+      View1.FontSize := SIZE_MIN_DECK;
+    end;
+  end;
+  // where books could be kept (the TV's storage is small; a USB drive set
+  // up as portable storage is one more folder here)
+  LogStorage;
   StartPad;
   // Big Picture: the pad and its menu do it all - no tool bar, no
   // contents panel (owner, 2026-11-18; the menu bar is left off already)
@@ -3894,7 +3991,11 @@ begin
     layTop.Visible := False;
     lbToc.Visible := False;
     Splitter1.Visible := False;
-    if TouchBuild then
+    // a TV: not even the bar - the remote's Menu is the way in (the bar
+    // can come back, sliding in, if it is missed)
+    if FTV then
+      DebugLog('tv: no tool bar, contents panel or bar at the foot - the remote''s Menu has them')
+    else if TouchBuild then
     begin
       BuildTouchBar;
       DebugLog('touch: no tool bar or contents panel - the bar at the foot, and its menu, have them');
@@ -3910,6 +4011,35 @@ begin
     OpenBook(ParamStr(1))
   else
     ShowLibrary;
+end;
+
+procedure TfrmMain.LogStorage;
+var
+  Folders: TArray<string>;
+  I: Integer;
+  Avail: Int64;
+  What: string;
+begin
+  Folders := StorageFolders;
+  if Length(Folders) = 0 then
+  begin
+    if TouchBuild then
+      DebugLog('storage: no volumes known');
+    Exit;
+  end;
+  for I := 0 to High(Folders) do
+  begin
+    // the first is the built-in storage (Android's primary)
+    if I = 0 then
+      What := 'built-in'
+    else
+      What := 'another volume';
+    Avail := LinkFreeSpace(Folders[I]);
+    if Avail >= 0 then
+      DebugLog(Format('storage %d (%s): %s - %.2f GB free', [I + 1, What, Folders[I], Avail / (1024.0 * 1024 * 1024)]))
+    else
+      DebugLog(Format('storage %d (%s): %s - free space not known', [I + 1, What, Folders[I]]));
+  end;
 end;
 
 procedure TfrmMain.QuitSignalled(ASignal: Integer);
@@ -3935,12 +4065,17 @@ begin
   FPadMenu.OnClose := PadMenuClose;
   if SteamBigPicture then
     FPadMenu.FontSize := 30
+  else if FTV then
+    // a TV's: Big Picture's list, read from the sofa (a 1080p TV box is
+    // usually 960 x 540 at a scale of 2 - the log's display line says)
+    FPadMenu.FontSize := 26
   else if TouchBuild then
     // a phone's: buttons, larger (owner, zip 345)
     FPadMenu.FontSize := 22
   else
     FPadMenu.FontSize := 20;
-  FPadMenu.TouchStyle := TouchBuild;
+  // a TV: the pad's list, as Big Picture - nothing is tapped there
+  FPadMenu.TouchStyle := TouchBuild and not FTV;
   FPad := TSteamPad.Create('Reader', PAD_ACTIONS, 'Scroll');
   // directions repeat while held (scrolling, lists)
   for I := PAD_UP to PAD_RIGHT do
@@ -4141,6 +4276,150 @@ begin
   end;
 end;
 
+function TfrmMain.TvKeyFirst(AKey: Word; AKeyChar: WideChar; AUp: Boolean): Boolean;
+var
+  Code, Seen: Integer;
+begin
+  Code := (Integer(AKey) shl 16) or Ord(AKeyChar);
+  if AUp then
+    Code := Code or Integer($40000000);
+  for Seen in FTvKeysSeen do
+    if Seen = Code then
+      Exit(False);
+  FTvKeysSeen := FTvKeysSeen + [Code];
+  Result := True;
+end;
+
+function TfrmMain.TvKey(AKey: Word; AKeyChar: WideChar): Boolean;
+var
+  Button, Was: Integer;
+  What: string;
+  OnPage: Boolean;
+begin
+  Button := -1;
+  What := '';
+  // the page alone: no menu, library or cover chooser over it
+  OnPage := not FPadMenu.Showing and not LibraryShowing and not ((FCoverPick <> nil) and FCoverPick.Showing);
+  case AKey of
+    vkUp: Button := PAD_UP;
+    vkDown: Button := PAD_DOWN;
+    vkLeft: Button := PAD_LEFT;
+    vkRight: Button := PAD_RIGHT;
+    // the D-pad's middle (OK / Select): on the page the menu - the
+    // Shield remote's menu-like button is its Settings button, which
+    // Android keeps (owner, 11:23: "The menu button causes the Android
+    // side-menu to appear"; chosen 11:2x: "OK on the page"); elsewhere a
+    // pad's A - choose, open
+    vkReturn:
+      if OnPage then
+        Button := PAD_MENU
+      else
+        Button := PAD_PLAY;
+    // Play / Pause plays and pauses the book, and only that (owner,
+    // 2026-11-27 11:21: "On the menu the Play/Pause button acts like a
+    // press - it should use the central dpad"): over the menu, the
+    // library or the cover chooser it does nothing
+    vkMediaPlayPause, vkPlay:
+      if OnPage then
+        Button := PAD_PLAY
+      else
+        What := 'Play - nothing here (the page only)';
+    // a Menu key, where a remote sends one (not the Shield's): the menu
+    // (again: closed)
+    vkApps, vkMenu: Button := PAD_MENU;
+  end;
+  Result := (Button >= 0) or (What <> '');
+  if Button >= 0 then
+    What := PAD_ACTIONS[Button]
+  else if What = '' then
+    What := 'not used';
+  // each key's first press into the log (zip 381's run: Up 38, Down 40,
+  // Right 39, Play / Pause 179; OK and Menu never came)
+  if TvKeyFirst(AKey, AKeyChar, False) then
+    DebugLog(Format('tv: remote key %d (char %d) - %s', [AKey, Ord(AKeyChar), What]));
+  if Button < 0 then
+    Exit;
+  // the library: Up from its top row of covers is the menu (OK opens the
+  // book there) - the selection that did not move is at the top
+  if (Button = PAD_UP) and LibraryShowing and not FPadMenu.Showing and not ((FCoverPick <> nil) and
+    FCoverPick.Showing) and (FCoverSel >= 0) then
+  begin
+    Was := FCoverSel;
+    PadPress(PAD_UP);
+    if FCoverSel = Was then
+      PadPress(PAD_MENU);
+    Exit;
+  end;
+  PadPress(Button);
+end;
+
+procedure TfrmMain.FormKeyUp(Sender: TObject; var Key: Word; var KeyChar: WideChar; Shift: TShiftState);
+begin
+  // a TV only (set in FormCreate): a key that comes up without having
+  // come down is one FMX does not pass on as a press - the log says
+  if not FTV then
+    Exit;
+  if TvKeyFirst(Key, KeyChar, True) then
+    DebugLog(Format('tv: remote key %d (char %d) up', [Key, Ord(KeyChar)]));
+end;
+
+procedure TfrmMain.TvKeyMappings;
+const
+  // Android's KeyEvent codes
+  KEYCODE_DPAD_CENTER = 23;
+  KEYCODE_ENTER = 66;
+  KEYCODE_MENU = 82;
+  KEYCODE_MEDIA_PLAY_PAUSE = 85;
+  KEYCODE_NUMPAD_ENTER = 160;
+var
+  Service: IFMXKeyMappingService;
+  Kind: TKeyKind;
+
+  { What FMX makes of Android's key APlatform, for the log. }
+  function Mapped(APlatform: Word): Word;
+  begin
+    Kind := TKeyKind.Unknown;
+    Result := Service.PlatformKeyToVirtualKey(APlatform, Kind);
+  end;
+
+  { Android's key APlatform made FMX's AVirtual (a function key). }
+  procedure Map(APlatform, AVirtual: Word; const AName: string);
+  var
+    Was: Word;
+    OK: Boolean;
+  begin
+    Was := Mapped(APlatform);
+    if Was = AVirtual then
+    begin
+      DebugLog(Format('tv: %s (Android key %d) is FMX''s key %d already (kind %d)', [AName, APlatform,
+        AVirtual, Ord(Kind)]));
+      Exit;
+    end;
+    if Was <> 0 then
+      Service.UnregisterKeyMapping(APlatform);
+    OK := Service.RegisterKeyMapping(APlatform, AVirtual, TKeyKind.Functional);
+    DebugLog(Format('tv: %s (Android key %d) was FMX''s key %d - made key %d: %s', [AName, APlatform, Was,
+      AVirtual, BoolToStr(OK, True)]));
+  end;
+
+begin
+  if not TPlatformServices.Current.SupportsPlatformService(IFMXKeyMappingService, Service) then
+  begin
+    DebugLog('tv: no key mapping service - the remote''s OK and Menu cannot be mapped');
+    Exit;
+  end;
+  // zip 381's run: OK and Menu never reached FormKeyDown (the D-pad's
+  // arrows and Play / Pause did) - FMX has no virtual key for them
+  Map(KEYCODE_DPAD_CENTER, vkReturn, 'OK');
+  // Android TV's select keys are DPAD_CENTER, ENTER, NUMPAD_ENTER,
+  // BUTTON_A and BUTTON_SELECT, all the same (the TV controllers page; a
+  // pad's A unhandled comes again as DPAD_CENTER - Android's fallback)
+  Map(KEYCODE_NUMPAD_ENTER, vkReturn, 'Numpad Enter');
+  Map(KEYCODE_MENU, vkApps, 'Menu');
+  DebugLog(Format('tv: FMX''s keys for Android''s Enter %d, Play / Pause %d', [Mapped(KEYCODE_ENTER),
+    Mapped(KEYCODE_MEDIA_PLAY_PAUSE)]));
+end;
+
 function TfrmMain.PadMenuValue(AIndex: Integer): string;
 const
   ON_OFF: array[Boolean] of string = ('Off', 'On');
@@ -4182,6 +4461,14 @@ function TfrmMain.PadFootHints(AKeys: Boolean): TArray<TPadHint>;
     Origin.Name := '';
     if not AKeys and (FPad <> nil) then
       Origin := FPad.Origin(AButton, FDark);
+    // a TV: the remote's buttons by their names
+    if FTV then
+      case AButton of
+        PAD_PLAY: Origin.Name := 'OK';
+        PAD_BACK: Origin.Name := 'Back';
+        PAD_LEFT: Origin.Name := 'Left';
+        PAD_RIGHT: Origin.Name := 'Right';
+      end;
     // the keys (or no pad Steam knows): the key's name from the table
     if (Origin.Glyph = '') and (Origin.Name = '') then
       Origin.Name := ReaderMenuFirstKey(PAD_ACTIONS[AButton]);
@@ -5016,30 +5303,40 @@ begin
     Exit;
   FPadMenu.Hide;
   DebugLog('books folder: the system''s folder picker');
-  BookFolderChoose(
-    procedure(const ATree: string)
-    var
-      I: Integer;
-    begin
-      if ATree = '' then
+  // a TV may have no folder picker (Android TV leaves Android's documents
+  // app out on some boxes): logged, and back to where books come from
+  try
+    BookFolderChoose(
+      procedure(const ATree: string)
+      var
+        I: Integer;
       begin
-        DebugLog('books folder: none chosen');
-        OfferBooksIfEmpty;
-        Exit;
-      end;
-      // a folder chosen again: once
-      for I := 0 to High(FBooksTrees) do
-        if SameText(FBooksTrees[I], ATree) then
+        if ATree = '' then
         begin
-          ShowLibrary;
+          DebugLog('books folder: none chosen');
+          OfferBooksIfEmpty;
           Exit;
         end;
-      FBooksTrees := FBooksTrees + [ATree];
-      SaveSettings;
-      DebugLog('books folder: ' + BookFolderName(ATree) + ' (' + ATree + ')');
-      // its books into the library (read one at a time, as any new books)
-      ShowLibrary;
-    end);
+        // a folder chosen again: once
+        for I := 0 to High(FBooksTrees) do
+          if SameText(FBooksTrees[I], ATree) then
+          begin
+            ShowLibrary;
+            Exit;
+          end;
+        FBooksTrees := FBooksTrees + [ATree];
+        SaveSettings;
+        DebugLog('books folder: ' + BookFolderName(ATree) + ' (' + ATree + ')');
+        // its books into the library (read one at a time, as any new books)
+        ShowLibrary;
+      end);
+  except
+    on E: Exception do
+    begin
+      DebugLog('books folder: no folder picker here - ' + E.ClassName + ': ' + E.Message);
+      OfferBooksIfEmpty;
+    end;
+  end;
 end;
 
 procedure TfrmMain.ShowBooksMenu;
@@ -5482,11 +5779,17 @@ end;
 procedure TfrmMain.ShowCoverSelection;
 var
   R: TRectF;
+  Top, ViewH: Single;
 begin
   if recCoverSel = nil then
   begin
     recCoverSel := TRectangle.Create(Self);
-    recCoverSel.Parent := recLibrary;
+    // with the covers in the scroll box (a phone, a TV) the frame is in it
+    // too: it moves with them (zip 387 - it stayed put over recLibrary)
+    if FLibScroll <> nil then
+      recCoverSel.Parent := FLibScroll
+    else
+      recCoverSel.Parent := recLibrary;
     recCoverSel.Fill.Kind := TBrushKind.None;
     recCoverSel.Stroke.Thickness := 6;
     recCoverSel.HitTest := False;
@@ -5502,6 +5805,22 @@ begin
   recCoverSel.BoundsRect := R;
   recCoverSel.Visible := True;
   recCoverSel.BringToFront;
+  // the scroll box follows the selection (owner, 2026-11-27 12:56: "The
+  // library needs to scroll based on where the highlight for current book
+  // is" - past 18 books the rows below the window never came into view):
+  // just enough to show the whole cover and its frame, a gap round it
+  if FLibScroll <> nil then
+  begin
+    Top := FLibScroll.ViewportPosition.Y;
+    ViewH := FLibScroll.Height;
+    if R.Top - COVER_GAP < Top then
+      Top := R.Top - COVER_GAP
+    else if R.Bottom + COVER_GAP > Top + ViewH then
+      Top := R.Bottom + COVER_GAP - ViewH;
+    Top := Max(0, Top);
+    if not SameValue(Top, FLibScroll.ViewportPosition.Y, 0.5) then
+      FLibScroll.ViewportPosition := PointF(FLibScroll.ViewportPosition.X, Top);
+  end;
 end;
 
 procedure TfrmMain.FormClose(Sender: TObject; var Action: TCloseAction);
@@ -5533,6 +5852,23 @@ end;
 
 procedure TfrmMain.FormKeyDown(Sender: TObject; var Key: Word; var KeyChar: WideChar; Shift: TShiftState);
 begin
+  // a book opening ("Opening book" over the window): no key does anything
+  // until it is open (a second open, the menu, Back half-way through)
+  if (FProgress <> nil) and FProgress.Active then
+  begin
+    Key := 0;
+    KeyChar := #0;
+    Exit;
+  end;
+  // a TV: the remote's D-pad, OK, Menu and Play / Pause are the pad's
+  // buttons (Back below, as on a phone)
+  if FTV and (Key <> vkHardwareBack) and not ((edFind <> nil) and edFind.IsFocused) and
+    TvKey(Key, KeyChar) then
+  begin
+    Key := 0;
+    KeyChar := #0;
+    Exit;
+  end;
   // Ctrl+F, F3 / Shift+F3 work anywhere
   if (ssCtrl in Shift) and ((KeyChar = 'f') or (KeyChar = 'F') or (Key = Ord('F'))) then
   begin
@@ -5560,6 +5896,14 @@ begin
   begin
     // "No books yet": Back leaves the app, as with an empty library
     if (FPadMenu <> nil) and FPadMenu.Showing and (FMenuMode = MODE_START) then
+      Exit;
+    // a TV: Back in the library leaves the app, never back to the book -
+    // Android TV's rule: repeated Back presses must reach the home
+    // screen, and Back never toggles (page -> library -> page ... did;
+    // developer.android.com/training/tv/get-started/controllers, owner
+    // 11:41)
+    if FTV and LibraryShowing and not ((FPadMenu <> nil) and FPadMenu.Showing) and
+      not ((FCoverPick <> nil) and FCoverPick.Showing) then
       Exit;
     if ((FPadMenu <> nil) and FPadMenu.Showing) or (LibraryShowing and (EpubUnum1.Book <> nil)) then
       Key := vkEscape
@@ -5758,6 +6102,22 @@ begin
       PWord := FRecent[K].DocWord;
     end;
     UpdateControls;
+    // "Opening book", 0 - 100 (owner, 2026-11-27 13:14: on the Shield the
+    // screen stayed black or white for up to 15 s - Night Watch - and
+    // looked dead). The thread says nothing until it is done: the count
+    // creeps meanwhile, further for a book with no index yet (the long
+    // read, the first time)
+    ProgressStart(AFileName);
+    if Staged then
+    begin
+      FProgress.Step(2, 'Reading the book - the first time takes longest');
+      FProgress.Creep(70, 6);
+    end
+    else
+    begin
+      FProgress.Step(2, 'Reading the book''s index');
+      FProgress.Creep(45, 1);
+    end;
     // where to read it: a book of the chosen folder is opened by Android
     // here, in the window's thread (Java), and read in the thread below
     try
@@ -5766,6 +6126,7 @@ begin
       on E: Exception do
       begin
         FOpening := False;
+        ProgressFinish;
         DebugLog('open: ' + AFileName + ' - ' + E.Message);
         EpubUnum1OpenFailed(EpubUnum1, E.Message);
         ShowLibrary;
@@ -5887,6 +6248,12 @@ begin
   FPreviewView.Visible := True;
   FPreviewView.BringToFront;
   FPreviewView.ShowPreview(ADoc, AWord);
+  // the frame over the page, the count going on
+  if (FProgress <> nil) and FProgress.Active then
+  begin
+    FProgress.Step(8, 'Reading the book''s text - the first time takes longest');
+    FProgress.Creep(70, 6);
+  end;
   DebugLog(Format('open: a page shown from the package alone (document %d, word %d of it) - the book is ' +
     'still being read', [ADoc, AWord]));
 end;
@@ -5910,9 +6277,10 @@ begin
     ABook.Free;
     Exit;
   end;
-  FOpening := False;
   if ABook = nil then
   begin
+    FOpening := False;
+    ProgressFinish;
     HidePreview;
     EpubUnum1OpenFailed(EpubUnum1, AError);
     // back to the library (its covers were faded for "Opening ...", or
@@ -5921,12 +6289,24 @@ begin
     Exit;
   end;
   DebugLog('open: read in its thread');
+  if FProgress <> nil then
+    FProgress.Step(72, 'Building the view');
   FClipFirst := AClipFirst;
   FClipLast := AClipLast;
   FClipsReady := True;
-  EpubUnum1.Adopt(ABook);   // OnOpen follows
-  // the real page is laid out at the same place: the staged one goes
-  HidePreview;
+  // OnOpen follows - its steps one after the other from tmOpenStep
+  // (OpenStep: the frame drawn between them); FOpening and the staged
+  // page last until the page is laid out (OpenPage)
+  try
+    EpubUnum1.Adopt(ABook);
+  except
+    // the frame must not stay (it takes every key and tap)
+    on E: Exception do
+    begin
+      OpenAbandoned(E.Message);
+      raise;
+    end;
+  end;
   UpdateControls;
 end;
 
@@ -5940,10 +6320,10 @@ end;
 procedure TfrmMain.EpubUnum1Open(Sender: TObject);
 var
   B: TEpubBook;
-  I, F, L, First: Integer;
+  I, F, L: Integer;
   DocWords: TArray<Integer>;
   Ws: TEpubWordArray;
-  K, Big, Back: Integer;
+  K, Big: Integer;
 begin
   DebugLog('open: read, building the view');
   // its documents' layouts kept beside its index (index\<md5>.<n>.eul):
@@ -6002,6 +6382,14 @@ begin
   end;
   FClipsReady := False;
   DebugLog('open: the clips'' words known');
+  // the rest in steps, the frame drawn between them (zip 388)
+  OpenStep(76, 'Finding the chapters', OpenChapters);
+end;
+
+procedure TfrmMain.OpenChapters;
+var
+  I: Integer;
+begin
   // The chapters: kept from the last opening when the book came from its
   // index (zip 333). Working them out lays out every document a chapter
   // mark falls in - 1.5 s of Night Watch's 2.4 s on the Pixel, in the
@@ -6031,6 +6419,15 @@ begin
   end;
   BuildNotesMenu;
   DebugLog('open: notes menu built');
+  OpenStep(88, 'Laying out the page', OpenPage);
+end;
+
+procedure TfrmMain.OpenPage;
+var
+  B: TEpubBook;
+  I, First, Back: Integer;
+begin
+  B := EpubUnum1.Book;
   // the first linear document with words
   First := 0;
   for I := 0 to High(B.Documents) do
@@ -6071,8 +6468,97 @@ begin
   DebugLog('open: remembering the book');
   RememberBook;
   View1.SetFocus;
+  // the real page is laid out at the same place: the staged one goes
+  // (OpenDone did this before zip 388), and the frame
+  HidePreview;
+  FOpening := False;
+  ProgressFinish;
   UpdateControls;
   DebugLog('open: done (the page is drawn next)');
+end;
+
+procedure TfrmMain.OpenStep(APercent: Single; const AStage: string; AProc: TProc);
+begin
+  if (FProgress = nil) or not FProgress.Active then
+  begin
+    AProc();
+    Exit;
+  end;
+  FProgress.Step(APercent, AStage);
+  FOpenNext := AProc;
+  FOpenNextTicket := FOpenTicket;
+  if tmOpenStep = nil then
+  begin
+    tmOpenStep := TTimer.Create(Self);
+    tmOpenStep.Interval := 15;
+    tmOpenStep.OnTimer := tmOpenStepTimer;
+  end;
+  tmOpenStep.Enabled := False;
+  tmOpenStep.Enabled := True;
+end;
+
+procedure TfrmMain.tmOpenStepTimer(Sender: TObject);
+var
+  P: TProc;
+begin
+  tmOpenStep.Enabled := False;
+  P := FOpenNext;
+  FOpenNext := nil;
+  if not Assigned(P) then
+    Exit;
+  // another book asked for meanwhile: this one's steps are not wanted
+  if FOpenNextTicket <> FOpenTicket then
+  begin
+    DebugLog('open: another book was asked for - the rest of this one''s opening dropped');
+    Exit;
+  end;
+  try
+    P();
+  except
+    on E: Exception do
+    begin
+      OpenAbandoned(E.Message);
+      raise;
+    end;
+  end;
+end;
+
+procedure TfrmMain.OpenAbandoned(const AWhy: string);
+begin
+  DebugLog('open: FAILED half-way - ' + AWhy);
+  FOpenNext := nil;
+  FOpening := False;
+  HidePreview;
+  ProgressFinish;
+end;
+
+procedure TfrmMain.ProgressStart(const AFileName: string);
+var
+  K: Integer;
+  Title: string;
+begin
+  if FProgress = nil then
+  begin
+    FProgress := TProgressFrame.Create(Self);
+    FProgress.Parent := Self;
+  end;
+  if FDark then
+    FProgress.SetColours($FF23262E, View1.TextColor, $FF34405A, $FF62A0EA)
+  else
+    FProgress.SetColours($FFFBFAF7, View1.TextColor, $FFD9E5F6, View1.LinkColor);
+  K := RecentIndex(AFileName);
+  Title := '';
+  if K >= 0 then
+    Title := FRecent[K].Title;
+  if Title = '' then
+    Title := ChangeFileExt(BookFileName(AFileName), '');
+  FProgress.Start('Opening book', Title);
+end;
+
+procedure TfrmMain.ProgressFinish;
+begin
+  if FProgress <> nil then
+    FProgress.Finish;
 end;
 
 procedure TfrmMain.EpubUnum1OpenFailed(Sender: TObject; const AMessage: string);

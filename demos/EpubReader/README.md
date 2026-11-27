@@ -399,6 +399,68 @@ Android 17). What differs from a desktop:
   there uncompressed - as EpubBuilder's books have it. Compressed audio is
   copied out first, and the app does not answer while that is done.
 
+### "Opening book" (zip 388)
+
+On a phone or a TV, opening a book shows a frame over the dimmed window:
+**Opening book**, the book's title, the step under way ("Reading the
+book - the first time takes longest", "Reading the book's index",
+"Building the view", "Finding the chapters", "Laying out the page"), a
+bar and its count from 0 to 100 %. At 100 the book is ready and the
+frame goes. While it shows, taps and keys do nothing.
+
+The count is honest about steps, not about time inside one: the book is
+read in a thread that says nothing until it is done, so the bar creeps
+on by itself towards that step's end (further for a book read for the
+first time, which has no index yet) and jumps when the step really ends.
+The steps in the window's thread (chapters, the page's layout) are run
+one after the other from a timer, so the frame is drawn between them.
+The frame is `demos/common/uProgressFrame.pas` (built in code - any
+program of the group can use it). The desktop opens as before, without
+it.
+
+### Android TV (zip 381, first build for the NVIDIA Shield)
+
+The same APK installs on a TV box (Android TV, Google TV): the manifest
+asks for neither a touch screen nor the TV's launcher, and adds the
+TV's home-screen entry (`LEANBACK_LAUNCHER`) with a banner. The reader
+knows it is on a TV by the system's leanback feature and then:
+
+- **No bar of buttons at the foot** (they make little sense across a
+  room); **OK** on the page opens the menu (the way to everything, as
+  the Menu button is on a phone), and so does **Up** from the library's
+  top row of covers. The Shield remote's top-right button is its
+  Settings button: Android keeps it for its own side panel. The page is a little larger (at least 24, as on
+  a Steam Deck).
+- **A remote or game pad** connected or disconnected does not restart
+  the app (the manifest's `configChanges` has `navigation`). Numpad
+  Enter is OK too, as Android TV has it.
+- **The remote:** the **D-pad** moves in the menu, the library's covers
+  and on the page (up / down scroll, left / right a page); **OK** (the
+  D-pad's middle) opens the menu on the page and chooses in the menu
+  and the library; **Play / Pause** plays and pauses the book and does
+  nothing over the menu or the library (zip 382); a remote with a Menu
+  key that reaches apps opens the menu with it too; **Back** closes the
+  menu, goes from a book to the library, and from the library leaves
+  the app (Android TV's rule: Back never toggles, and pressed again and
+  again it reaches the home screen - zip 385; a phone goes back to the
+  open book). FMX gives no key for the remote's OK and
+  Menu by itself: the reader maps them (Android's DPAD_CENTER to Enter,
+  MENU to FMX's Menu key, zip 382) and logs what it found. The menu is
+  Big Picture's list (the remote's names at its foot: OK, Back).
+- **The library scrolls with the selection:** moving the frame with
+  the D-pad past the covers in view brings that row in (zip 387).
+- **The page takes no keys of its own** on a TV, so the D-pad in the
+  menu does not scroll the book behind it (zip 384).
+- **The log** has a line for each of the remote's keys the first time
+  it is pressed ("tv: remote key 19 (char 0) - Up"; "not used" for the
+  ones that do nothing yet), and a line for each storage volume the app
+  can keep books on, with its free space ("storage 2 (another volume):
+  /storage/XXXX-XXXX/Android/data/com.epubunum.reader/files - 931.20 GB
+  free" - a USB drive set up as portable storage).
+- **Books folders** need Android's folder picker, which some TV boxes do
+  not have: then the log says "books folder: no folder picker here" and
+  BookManager's link is the way books come.
+
 ### Its icon
 
 `tools/make_icons.py` writes the Android icons into `android/` beside the
@@ -406,7 +468,9 @@ project: `LauncherIcon_36.png` to `_192.png`, and the adaptive icon's
 three vector drawables (`AdaptiveIcon_Background.xml`, `_Foreground.xml`,
 `_Monochrome.xml`), and the picture shown while the app starts
 (`Splash.xml`, `SplashV31.xml` and a `...Dark.xml` of each: the whole icon
-on its navy tile). `EpubReader.dproj` names them for Android 64-bit.
+on its navy tile), and the TV's banner `TvBanner_320x180.png` (the tile
+and the name; deployed to `res/drawable-xhdpi/tv_banner.png`).
+`EpubReader.dproj` names them for Android 64-bit.
 
 ## Sound
 

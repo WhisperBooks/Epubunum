@@ -335,6 +335,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <DCCReference Include="..\common\uSteamPad.pas"/>
         <DCCReference Include="src\uPadMenu.pas"/>
         <DCCReference Include="src\uBookImport.pas"/>
+        <DCCReference Include="..\common\uProgressFrame.pas"/>
         <DCCReference Include="..\common\uLink.pas"/>
         <DCCReference Include="src\uLicences.pas"/>
         <DCCReference Include="src\uReaderInput.pas"/>
@@ -1255,6 +1256,20 @@ $(PreBuildEvent)]]></PreBuildEvent>
                 <DeployFile LocalName="android\AdaptiveIcon_Monochrome.xml" Configuration="Release" Class="Android_AdaptiveIconMonochrome">
                     <Platform Name="Android64">
                         <RemoteName>ic_launcher_monochrome.xml</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="android\TvBanner_320x180.png" Configuration="Debug" Class="File">
+                    <Platform Name="Android64">
+                        <RemoteDir>res\drawable-xhdpi</RemoteDir>
+                        <RemoteName>tv_banner.png</RemoteName>
+                        <Overwrite>true</Overwrite>
+                    </Platform>
+                </DeployFile>
+                <DeployFile LocalName="android\TvBanner_320x180.png" Configuration="Release" Class="File">
+                    <Platform Name="Android64">
+                        <RemoteDir>res\drawable-xhdpi</RemoteDir>
+                        <RemoteName>tv_banner.png</RemoteName>
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>

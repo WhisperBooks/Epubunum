@@ -4,6 +4,26 @@ Read README.md first, then this file. Keep both up to date with every change.
 The rules follow TWhisper's and TFFMpegAPI's CLAUDE.md (same owner, same
 conventions); where this file is silent, theirs apply.
 
+## Session 18 (2026-11-27 10:37 -): Android TV begun
+Zip 381: the Shield's manifest entries and banner, the remote onto the
+pad's actions, no touch bar on a TV, the storage volumes logged (built
+and run by the owner 11:05: arrows and Play / Pause arrive, OK and
+Menu do not). Zip 382: OK and Menu mapped through FMX's key mapping
+service; Play / Pause on the page only. Zip 383: the Shield's
+"menu" button is its Settings button (Android's) - OK on the page
+opens the menu, Up from the library's top row too (owner's choice).
+Zip 384: the remote's keys shown on the screen (temporary); the page
+takes no keys on a TV (the menu's D-pad scrolled the book). The sound
+plays on the Shield (owner, 11:37). Zip 385: Android TV's controller
+page followed - Back from the library leaves the app (no toggling),
+Numpad Enter is OK, "navigation" in configChanges. Zip 386: the key
+overlay taken out ("wasn't very helpful"; the keys improving). Zip
+387: the library scrolls to keep the D-pad's selection in view. Zip 388:
+"Opening book" - uProgressFrame (new, demos/common), 0 - 100 %, the
+open's window-thread part in steps so the frame is drawn. The handover below is session 17's
+(zips 373 - 380 since then: notes only, pushed as f6b8655 "Reader TV
+next" - its "uncommitted" line is out of date).
+
 ## Handover - READ THIS FIRST (latest: session 17, 2026-11-26 20:02)
 
 Written at the owner's request (20:02: "Tomorrow probably / Write session
@@ -2230,7 +2250,7 @@ TSteamAPI do not apply (no 3D).
   (Android versionCode=1 / versionName=1.0.0, Windows FileVersion
   1.0.0.0): asked in zip 343.
 
-Last number used: 380 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
+Last number used: 388 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
 next-session notes, CLAUDE.md only).
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
@@ -4818,6 +4838,292 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 388 (on top of zip 387): "Opening book" - a progress frame, 0 - 100 % (A .dproj AND THE .dpr ARE IN THIS ZIP)
+Owner, 2026-11-27 13:14 (with EpubUnum.groupproj and its .local - the
+group's seven projects; nothing in them changed): "When opening a book
+on a slower device like the shield it can look like the program has
+died as all the user sees is a black/white screen. This is aggravated
+by slow media (USB or potentially Network). When something may take
+some time there should be some kind of progress bar on-screen
+indicating what was going on. The obvious long-term delay is opening a
+book so that in particular should have a progress bar as a child frame
+with a count from 0 - 100 at which point the media is ready and it
+vanishes. Title the frame with whatever is going on - e.g. Opening
+Book. One particularly bad example is Night Watch (it's basically one
+huge chapter we split into sections). This took about 15 seconds to
+open". NOT COMPILED. Files: demos/common/uProgressFrame.pas (NEW),
+demos/EpubReader/EpubReader.dpr and .dproj (the unit added - pulled
+state = this working copy, zips 381 - 387 on f6b8655; ONLY a
+DCCReference added), demos/EpubReader/src/uMain.pas, demos/EpubReader/
+README.md, demos/common/uVersion.pas (388), CLAUDE.md. NO PACKAGE
+REBUILD.
+- uProgressFrame.TProgressFrame (a TRectangle, Align Contents over the
+  window, $70000000 shade, HitTest on - taps stop there; a centred
+  rounded frame, max 480 x 156): Start(title, detail) 0 %; Step(pct,
+  stage) - never backwards, at most 99, BringToFront; Creep(goal, pace)
+  - a 50 ms timer moves the count (goal - pct) * (1 - exp(-dt / pace)),
+  never reaching the goal; Finish - 100 %, hidden. SetColours (the pad
+  menu's: dark $FF23262E / track $FF34405A / bar $FF62A0EA, light
+  $FFFBFAF7 / $FFD9E5F6 / the link colour). Built in code, no .fmx - an
+  IDE TFrame would need a .fmx and the designer; this one any program of
+  the group can use (BookManager, EpubBuilder: not yet).
+- THE OPEN (touch builds; the desktop's path unchanged - FProgress nil,
+  OpenStep calls straight through): OpenBook - ProgressStart (title from
+  FRecent, else the file's name), Step 2 and Creep to 70 (pace 6 s) for
+  a book with no index ("Reading the book - the first time takes
+  longest"), to 45 (pace 1 s) with one ("Reading the book's index");
+  PreviewReady (the staged page) Step 8 and creep on; OpenDone Step 72
+  "Building the view"; EpubUnum1Open SPLIT IN THREE: its first part (to
+  "the clips' words known") as before, then OpenStep(76, "Finding the
+  chapters", OpenChapters), then OpenStep(88, "Laying out the page",
+  OpenPage); OpenPage ends with HidePreview (moved from OpenDone),
+  FOpening := False (moved from OpenDone: it lasts to the end now) and
+  ProgressFinish. OpenStep on a touch build: Step, then the next step
+  from tmOpenStep (15 ms one-shot) - the window draws the frame between
+  them; a step whose FOpenTicket is stale (another book asked for) is
+  dropped, logged.
+- SAFETY: keys do nothing while the frame shows (FormKeyDown's first
+  step). An exception in Adopt / EpubUnum1Open or a later step:
+  OpenAbandoned (logged "open: FAILED half-way", FOpening off, preview
+  and frame gone), then raised as before - the frame never stays.
+- HONEST ABOUT: steps, not time inside one. The thread (the index or
+  the XML read, the index written, the clips' words) says nothing until
+  done - lib's TEpubBook has no progress callback. OFFERED: one
+  (ReadOverlays per SMIL, LoadText per document) - then the first read
+  counts for real; PACKAGE REBUILD.
+- NOT KNOWN: where the Shield's 15 s for Night Watch go - the log's
+  "open:" lines have the times (the thread's read, "chapters built",
+  "back to word N (lays the page out)"); the next log of an opening of
+  Night Watch says which step to make faster. NOTE: a step in the
+  window's thread that takes seconds (BuildChapters on a first open,
+  the layout of document 4) still freezes the frame for its length -
+  the frame shows the step's name meanwhile.
+- TO SEE: open a book on the Shield and on the Pixel - the frame at
+  once, the count moving during the read, the steps named, gone when the
+  page is there; a book whose open fails - the frame gone, the message
+  as before.
+
+## Zip 387 (on top of zip 386): the library scrolls with the D-pad's selection
+Owner, 2026-11-27 12:56: "a lot better with one major obvious issue. If
+the library had > 18 books then it overflows vertically. The up/down
+keys do not bring these rows into view when you go down past the last
+visible titles. The library needs to scroll based on where the
+highlight for current book is". NOT COMPILED. Files: demos/EpubReader/
+src/uMain.pas, demos/EpubReader/README.md, demos/common/uVersion.pas
+(387), CLAUDE.md. NO PACKAGE REBUILD.
+- ShowCoverSelection: with FLibScroll (every touch build - phone, TV)
+  the frame recCoverSel is made IN the scroll box (its content, as the
+  covers), so it moves with them - it was over recLibrary in the
+  covers' content coordinates, wrong as soon as the box had scrolled.
+  Then FLibScroll.ViewportPosition.Y is moved just enough to show the
+  framed cover with COVER_GAP round it (up or down; at least 0; not
+  touched when already in view). The layout's own call (after every
+  re-layout) keeps it in view too.
+- recCoverSel's parent is set once, at its first use: FLibScroll exists
+  from FormCreate on a touch build, so that is always the right one.
+- TO SEE on the Shield: Down past the last row in view scrolls a row
+  in; Up back to the top scrolls back, and Up again from the top row
+  opens the menu (383).
+
+## Zip 386 (on top of zip 385): the key overlay taken out
+Owner, 2026-11-27 11:45: "get rid of the overlay - wasn't very helpful.
+Keys are improving anyway". NOT COMPILED. Files: demos/EpubReader/src/
+uMain.pas, demos/EpubReader/README.md, demos/common/uVersion.pas (386),
+CLAUDE.md. NO PACKAGE REBUILD.
+- Gone: TV_KEY_OVERLAY, TvKeyShow, TvKeyName, tmTvKeysTimer, FTvWhat,
+  FTvKeyLines, recTvKeys, lblTvKeys, tmTvKeys; FormKeyDown's TV step as
+  in 383 (first, Back left to the phone's path). STAYS: View1.CanFocus
+  off on a TV (384), the first press and first let-go of each key in
+  the log, the key mappings (382, 385).
+
+## Zip 385 (on top of zip 384): Android TV's controller rules - Back reaches home, Numpad Enter, navigation
+Owner, 2026-11-27 11:41: "there is documentation here
+https://developer.android.com/training/tv/get-started/controllers".
+Read (11:4x). What it says that bears on us:
+- SELECT = DPAD_CENTER, ENTER, NUMPAD_ENTER, BUTTON_A, BUTTON_SELECT,
+  all equal. BACK = BACK, BUTTON_B. Apps must work with up / down /
+  left / right / select / Back / Home ONLY; "Start, Search, Menu: not
+  all game controllers have these buttons, so UI must not depend on
+  them" - zip 383's OK-on-the-page is in line with it.
+- BACK MUST NEVER TOGGLE; repeated Back presses must reach the TV's
+  home screen; a menu opened by another button is closed by Back.
+- configChanges keyboard|keyboardHidden|navigation, so a controller
+  connecting or disconnecting does not restart the activity.
+- A game pad's D-pad may send other codes than a remote's (to handle).
+- Nothing on long presses, Home or Menu's codes, or which keys the
+  system keeps.
+NOT COMPILED. Files: demos/EpubReader/src/uMain.pas,
+demos/EpubReader/AndroidManifest.template.xml, demos/EpubReader/
+README.md, demos/common/uVersion.pas (385), CLAUDE.md. NO PACKAGE
+REBUILD.
+- BACK ON A TV: in the library (no menu, no cover chooser over it) Back
+  is not taken - Android leaves the app. Before: page -> library ->
+  page -> ... for ever (the phone's way, unchanged there: the library's
+  Back goes back to the open book). MY READING OF THE RULE - the owner
+  may want the phone's way back.
+- TvKeyMappings: NUMPAD_ENTER (160) -> vkReturn as well (BUTTON_A comes
+  again as DPAD_CENTER when unhandled - Android's fallback key, from
+  memory, not checked); the log line for Numpad Enter's old mapping
+  moved into Map's.
+- MANIFEST: "navigation" added to the activity's configChanges.
+- NOT DONE: a game pad's D-pad as an axis (the Shield controller's hat
+  - motion events, not keys: FMX gives none to OnKeyDown); MEDIA_PLAY
+  (126) / MEDIA_PAUSE (127) of remotes with two buttons (the overlay
+  will show what comes).
+
+## Zip 384 (on top of zip 383): the remote's keys on the screen (temporary); the menu no longer scrolls the book
+Owner, 2026-11-27 11:36: "Put a temporary overlay on the screen that
+shows the android key so I can work out which button does what. When
+in a menu up/down scroll the paused book in the background down/up";
+11:37: "At least it plays audio" (the Shield's sound works - Android's
+MediaPlayer). NOT COMPILED. Files: demos/EpubReader/src/uMain.pas,
+demos/EpubReader/README.md, demos/common/uVersion.pas (384), CLAUDE.md.
+NO PACKAGE REBUILD.
+- TvKeyShow (TV_KEY_OVERLAY = True - TEMPORARY, False takes it away):
+  every key FormKeyDown and FormKeyUp get on a TV, at the top right over
+  everything (BringToFront each time; HitTest off): "down  key 38 Up
+  Android 19  char 0  -> Up"; the last 8; hidden 8 s after the last key
+  (tmTvKeysTimer). Android's number from IFMXKeyMappingService.
+  VirtualKeyToPlatformKey (-1 = not known). TvKey keeps what it did in
+  FTvWhat (the library's Up from the top row: "Up - the top row: Menu";
+  Back: "Back (as on a phone)"). A button that shows NOTHING is one FMX
+  never passes on.
+- FormKeyDown: the TV block is now its first step (before Ctrl+F / F3;
+  not while the find box has the focus).
+- THE MENU SCROLLED THE BOOK: TEpubView.KeyDown scrolls on vkUp / vkDown
+  when the view has the focus - FMX gave the focused view the key as
+  well as the form's OnKeyDown. On a TV View1.CanFocus := False (its
+  SetFocus calls do nothing then); TvKey scrolls the page (PadPress,
+  three lines) - before this, on the page the D-pad probably scrolled
+  twice (the view's line and PadPress's three).
+- NOT CHANGED, the same on a desktop with the keyboard: the arrows over
+  Big Picture's menu may scroll the focused page too (not seen - the
+  pad has no arrows to the view).
+
+## Zip 383 (on top of zip 382): OK on the page opens the menu; Up from the library's top row too
+Owner, 2026-11-27 11:23: "The menu button causes the Android side-menu
+to appear." The Shield remote's top-right button is its SETTINGS button
+(NVIDIA: it opens Quick settings, customizable in the Shield's
+settings) - Android keeps it, no app gets it. Asked which button opens
+the menu instead; the owner chose "OK on the page" (OK opens the menu
+while reading, Play / Pause plays; in the library OK opens a book and
+Up from the top row of covers opens the menu). NOT COMPILED. Files:
+demos/EpubReader/src/uMain.pas, demos/EpubReader/README.md,
+demos/common/uVersion.pas (383), CLAUDE.md. NO PACKAGE REBUILD.
+- TvKey: OnPage (no menu, library or cover chooser) - vkReturn there is
+  PAD_MENU, elsewhere PAD_PLAY (choose / open); Play / Pause PAD_PLAY on
+  the page only (382). Library: Up with a cover selected - PadPress
+  (PAD_UP), and when the selection did not move (the top row),
+  PadPress(PAD_MENU). vkApps / vkMenu still open the menu (a remote
+  whose Menu reaches apps; 382's mapping of Android's MENU stays).
+- STILL UNPROVED: that 382's mapping makes OK (DPAD_CENTER) arrive at
+  all - without it none of this works; the log's "tv: OK (Android key
+  23) ..." line and "remote key 13" say.
+- NOT DONE: nothing on the page says "OK: menu" (offered).
+
+## Zip 382 (on top of zip 381): the remote's OK and Menu mapped; Play / Pause on the page only
+Owner, 2026-11-27 11:21, with both logs of 0.0.381 on the Shield: "On
+the menu the Play/Pause button acts like a press - it should use the
+central dpad / I've put one book on there for testing / I can't get the
+menu up". NOT COMPILED. Files: demos/EpubReader/src/uMain.pas,
+demos/EpubReader/README.md, demos/common/uVersion.pas (382), CLAUDE.md.
+NO PACKAGE REBUILD.
+- WHAT 381's LOGS SHOWED: FormKeyDown got Up 38, Down 40, Right 39 and
+  Play / Pause 179 (vkMediaPlayPause) - and NEVER OK (the D-pad's
+  middle) or Menu, though both were pressed. Play / Pause chose the
+  "No books yet" row (PAD_PLAY in the menu = choose) and started the
+  link. So FMX drops Android's DPAD_CENTER (23) and MENU (82) before
+  OnKeyDown - most likely no virtual key in its Android key map (NOT
+  PROVED: the next log says).
+- TvKeyMappings (a TV only, in FormCreate): IFMXKeyMappingService
+  (FMX.KeyMapping) - DPAD_CENTER -> vkReturn, MENU -> vkApps
+  (TKeyKind.Functional; an existing other mapping unregistered first),
+  each logged with what FMX had: "tv: OK (Android key 23) was FMX's key
+  0 - made key 13: True" or "... is FMX's key 13 already". If "already",
+  the key is eaten elsewhere (FMX's text-input view?) - then the next
+  step is a Java-side key hook. Also logged: FMX's keys for Enter (66),
+  Numpad Enter (160), Play / Pause (85).
+- FormKeyUp (set in code on a TV, not in the .fmx): each key's first
+  LET-GO logged ("tv: remote key N (char M) up") - a key FMX passes on
+  only as let go shows there.
+- PLAY / PAUSE plays and pauses the book only: over the menu, the
+  library or the cover chooser it does nothing (logged "Play - nothing
+  here (the page only)"). OK chooses, opens and plays.
+- SEEN IN THE LOG, NOT DONE: the link lists the Shield's addresses as
+  127.0.0.1 only (wired Ethernet not found by its address listing?) -
+  BookManager reached it anyway (answered directly, 0.4 s); Foundation
+  (513 MB) came at 21.1 MB/s; one volume only (7.27 GB free - the USB
+  drive not attached yet).
+- TO SEE: the "tv:" mapping lines at the start; OK and Menu in the log
+  as "remote key 13 ... - Play" and "remote key 93 ... - Menu"; Menu
+  opens the menu on the library and the page; Play / Pause in the menu
+  does nothing.
+
+## Zip 381 (on top of zip 380 = f6b8655 "Reader TV next"): Android TV - the remote, no bar, the banner (A .dproj IS IN THIS ZIP)
+Session 18, owner 2026-11-27 10:44: "Android TV. The player buttons
+don't make much sense on TV so hide them - they can always slide in
+later if needed. TV also needs TV Remote to control it. Menu button can
+bring up menu and Play button can play to start with. There's a DPad
+on remote as well that can navigate the menu. TVs will always be
+landscape ... One important thing with TV is disk space which will be
+very limited. I'll add a USB HD though so we have plenty of space to
+test in."
+NOT COMPILED. Files: demos/EpubReader/AndroidManifest.template.xml,
+demos/EpubReader/EpubReader.dproj (pulled first: f6b8655; ONLY two
+DeployFile entries added - its Platform line Android64 / Config Debug
+as it came), demos/EpubReader/android/TvBanner_320x180.png (NEW),
+demos/EpubReader/src/uBookImport.pas, demos/EpubReader/src/uMain.pas,
+demos/EpubReader/README.md, tools/make_icons.py, demos/common/
+uVersion.pas (381), CLAUDE.md. NO PACKAGE REBUILD.
+- MANIFEST: uses-feature android.hardware.touchscreen and
+  android.software.leanback, both required="false" (one APK, phone and
+  TV); LEANBACK_LAUNCHER beside LAUNCHER in the activity's filter;
+  android:banner="@drawable/tv_banner" on the application.
+- BANNER: make_icons.py's tv_banner() - 320 x 180 (xhdpi), navy, the
+  reader's tile left, "epubunum" (cream) over "reader" (amber), DejaVu
+  Sans Bold (else Arial Bold; no font = the PNG left as it is). The
+  .dproj deploys it (Debug and Release, Android64, Class File) to
+  res\drawable-xhdpi as tv_banner.png - IF THE APK BUILD SAYS
+  "resource drawable/tv_banner not found", that deployment is what
+  failed (Project > Deployment shows it).
+- uBookImport: IsTelevision (PackageManager.hasSystemFeature
+  "android.software.leanback"); StorageFolders
+  (Context.getExternalFilesDirs: the app's folder on each mounted
+  volume, the built-in first).
+- uMain: FTV := TouchBuild and IsTelevision, logged ("tv: NVIDIA SHIELD
+  Android TV - the remote drives it ..."). On a TV: NO TOUCH BAR (the
+  owner's "hide them"; nil-safe - UpdateControls checks btnTouchPlay);
+  text at least SIZE_MIN_DECK (24); the menu Big Picture's list
+  (TouchStyle off, FontSize 26), its foot naming OK / Back / Left /
+  Right. TvKey (from FormKeyDown, before Back's handling): vkUp / Down /
+  Left / Right -> PAD_UP..PAD_RIGHT; vkReturn (OK) and vkMediaPlayPause
+  / vkPlay -> PAD_PLAY; vkApps / vkMenu -> PAD_MENU (Menu again closes
+  it - PadPress's PAD_MENU). Back stays vkHardwareBack's path. EVERY
+  KEY'S FIRST PRESS IS LOGGED: "tv: remote key N (char M) - Up / Play /
+  Menu / not used" - WHAT FMX MAKES OF THE SHIELD REMOTE'S KEYS IS NOT
+  KNOWN (DPAD_CENTER as vkReturn, KEYCODE_MENU as vkApps or vkMenu,
+  MEDIA_PLAY_PAUSE as vkMediaPlayPause are guesses); the log decides the
+  next zip. Rewind / fast forward: not mapped yet (logged).
+- LANDSCAPE: nothing locked - a TV does not turn; the TV's layout is
+  the phone's held sideways (the library's covers across).
+- DISK SPACE (the owner's point): THIS ZIP ONLY LOGS IT - LogStorage at
+  every Android start: "storage N (built-in | another volume): <the
+  app's folder> - x.xx GB free". With the USB drive set up as PORTABLE
+  storage it should be a second folder
+  (/storage/<id>/Android/data/com.epubunum.reader/files), writable
+  without a permission; set up as INTERNAL (adopted) storage it may
+  replace the built-in one instead. The log says which before the link
+  is taught to keep books there (next zip: the volume with the most
+  room, LINK_RESERVE_PHONE on each).
+- BOOKS FOLDERS: ChooseBooksFolder catches a missing folder picker
+  (ACTION_OPEN_DOCUMENT_TREE has no app on some TV boxes): "books
+  folder: no folder picker here - ...", back to OfferBooksIfEmpty.
+- TO SEE on the Shield: the reader in the TV's apps row with the
+  banner; the log's "tv:" and "storage" lines; Menu opens the menu, the
+  D-pad moves in it and over the library's covers, OK chooses / opens /
+  plays, Play / Pause plays, Back as on the phone. On the PIXEL nothing
+  changes (the bar is there; the "storage" lines are new).
 
 ## Zip 380 (on top of zip 379): epubunum is the brand - Recito back on top
 Owner, 2026-11-26 21:34: "then again I already own epubunum", then "y"

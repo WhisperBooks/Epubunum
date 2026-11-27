@@ -27,6 +27,8 @@ SplashV31.xml (the same inside the circle Android 12 on shows it in),
 each with a ...Dark.xml for the dark theme (the same picture: the navy
 tile stands on white and on black; a file each because the project has
 a setting each).
+And the TV banner TvBanner_320x180.png (zip 381: Android TV's home
+screen; the name in DejaVu Sans Bold, else Arial Bold).
 EpubReader.dproj names them.
 
 Drawn 4x larger and scaled down. Small sizes are simpler: no lines on the
@@ -381,6 +383,56 @@ def android():
         with open(path, 'w', encoding='ascii', newline='\n') as f:
             f.write(text)
         print('wrote', path)
+    banner = tv_banner()
+    path = '%s/TvBanner_320x180.png' % ANDROID_FOLDER
+    if banner is None:
+        print('no bold font found:', path, 'left as it is')
+    else:
+        banner.save(path)
+        print('wrote', path)
+
+
+# the TV banner (zip 381): Android TV's home screen shows it, 320 x 180
+# (xhdpi), the name in it; deployed by EpubReader.dproj to
+# res/drawable-xhdpi/tv_banner.png, the manifest's android:banner
+TV_BANNER = (320, 180)
+# a bold sans for the name, the first one found (the PNG is in the
+# repository: a machine without any of them leaves it as it is)
+BANNER_FONTS = ['/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+                '/Library/Fonts/Arial Bold.ttf',
+                '/System/Library/Fonts/Supplemental/Arial Bold.ttf',
+                'C:/Windows/Fonts/arialbd.ttf']
+
+
+def tv_banner():
+    """The TV banner: the navy ground, the reader's tile on the left, the
+    name on the right ("epubunum", "reader" under it in amber); None
+    when no font is found."""
+    global sizes_now
+    from PIL import ImageFont
+    font = next((f for f in BANNER_FONTS if os.path.exists(f)), None)
+    if font is None:
+        return None
+    w, h = TV_BANNER
+    im = Image.new('RGBA', (w * SS, h * SS), NAVY)
+    d = ImageDraw.Draw(im)
+    # the tile, as the launcher's (its navy is the ground's)
+    sizes_now = 256
+    icon = reader().resize((112 * SS, 112 * SS), Image.LANCZOS)
+    im.alpha_composite(icon, (10 * SS, (h * SS - icon.height) // 2))
+    x = 124 * SS
+    room = w * SS - x - 14 * SS
+    # the name as large as fits beside the tile
+    size = 40
+    big = ImageFont.truetype(font, size * SS)
+    while size > 16 and d.textlength('epubunum', font=big) > room:
+        size -= 1
+        big = ImageFont.truetype(font, size * SS)
+    small = ImageFont.truetype(font, round(size * 0.62) * SS)
+    top = (h * SS - (size + round(size * 0.62) + 8) * SS) // 2
+    d.text((x, top), 'epubunum', font=big, fill=CREAM, anchor='la')
+    d.text((x + SS, top + (size + 8) * SS), 'reader', font=small, fill=AMBER, anchor='la')
+    return im.resize((w, h), Image.LANCZOS)
 
 
 def render(fn):

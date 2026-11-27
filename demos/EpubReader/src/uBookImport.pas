@@ -44,6 +44,20 @@ function BookFolderSupported: Boolean;
   @returns(the name) }
 function PhoneName: string;
 
+{ This is a TV (Android TV, Google TV: the system has the leanback
+  feature - a remote, no touch screen, a screen across the room; zip
+  381). False elsewhere.
+  @returns(the answer) }
+function IsTelevision: Boolean;
+
+{ The app's own folders on every storage volume Android has mounted
+  (Context.getExternalFilesDirs: the built-in storage first, then a
+  memory card or a USB drive set up as portable storage - the app may
+  write there without a permission); a volume that is not mounted is
+  left out. Empty elsewhere (zip 381: the TV's storage, logged).
+  @returns(the folders) }
+function StorageFolders: TArray<string>;
+
 { Keeps the screen on while AOn (Android: the window's
   FLAG_KEEP_SCREEN_ON - while BookManager sends books, a batch is not cut
   short by the screen going off; zip 357). Nothing elsewhere.
@@ -434,6 +448,40 @@ begin
     Result := Trim(Model);
 end;
 
+function IsTelevision: Boolean;
+begin
+  try
+    // PackageManager.FEATURE_LEANBACK: what Google Play itself goes by
+    Result := TAndroidHelper.Context.getPackageManager.hasSystemFeature(
+      StringToJString('android.software.leanback'));
+  except
+    Result := False;
+  end;
+end;
+
+function StorageFolders: TArray<string>;
+var
+  Dirs: TJavaObjectArray<JFile>;
+  I: Integer;
+begin
+  Result := nil;
+  try
+    Dirs := TAndroidHelper.Context.getExternalFilesDirs(nil);
+    if Dirs = nil then
+      Exit;
+    try
+      // an entry is null for a volume that is not mounted
+      for I := 0 to Dirs.Length - 1 do
+        if Dirs.Items[I] <> nil then
+          Result := Result + [JStringToString(Dirs.Items[I].getAbsolutePath)];
+    finally
+      Dirs.Free;
+    end;
+  except
+    // none known: the log says so
+  end;
+end;
+
 procedure BookFolderChoose(AOnDone: TBookFolderChosen);
 var
   Intent: JIntent;
@@ -751,6 +799,16 @@ end;
 function PhoneName: string;
 begin
   Result := '';
+end;
+
+function IsTelevision: Boolean;
+begin
+  Result := False;
+end;
+
+function StorageFolders: TArray<string>;
+begin
+  Result := nil;
 end;
 
 procedure KeepScreenOn(AOn: Boolean);

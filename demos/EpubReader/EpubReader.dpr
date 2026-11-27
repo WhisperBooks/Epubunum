@@ -46,6 +46,8 @@ uses
   uPadMenu in 'src\uPadMenu.pas',
   // Android: the books folders chosen in the system's picker
   uBookImport in 'src\uBookImport.pas',
+  // "Opening book" and its count over the window (zip 388)
+  uProgressFrame in '..\common\uProgressFrame.pas',
   // a phone: BookManager sends it books (Indy, as BookManager's)
   uLink in '..\common\uLink.pas',
   // About > Licences

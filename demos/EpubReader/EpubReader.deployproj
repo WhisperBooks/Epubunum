@@ -5,7 +5,7 @@
     </ProjectExtensions>
     <PropertyGroup>
         <DeviceId Condition="'$(Platform)'=='Android'"/>
-        <DeviceId Condition="'$(Platform)'=='Android64'">66291JEA300081</DeviceId>
+        <DeviceId Condition="'$(Platform)'=='Android64'">192.168.1.60:5555</DeviceId>
         <DeviceId Condition="'$(Platform)'=='iOSDevice64'"/>
         <DeviceId Condition="'$(Platform)'=='iOSSimARM64'"/>
     </PropertyGroup>
@@ -280,6 +280,24 @@
             <RemoteName>styles.xml</RemoteName>
             <DeployClass>AndroidSplashStyles</DeployClass>
             <Operation>1</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="android\TvBanner_320x180.png" Condition="'$(Config)'=='Debug'">
+            <RemoteDir>EpubReader\res\drawable-xhdpi\</RemoteDir>
+            <RemoteName>tv_banner.png</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
+            <LocalCommand/>
+            <RemoteCommand/>
+            <Overwrite>True</Overwrite>
+        </DeployFile>
+        <DeployFile Include="android\TvBanner_320x180.png" Condition="'$(Config)'=='Release'">
+            <RemoteDir>EpubReader\res\drawable-xhdpi\</RemoteDir>
+            <RemoteName>tv_banner.png</RemoteName>
+            <DeployClass>File</DeployClass>
+            <Operation>0</Operation>
             <LocalCommand/>
             <RemoteCommand/>
             <Overwrite>True</Overwrite>
