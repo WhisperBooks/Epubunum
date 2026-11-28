@@ -54,7 +54,8 @@ function IsTelevision: Boolean;
   (Context.getExternalFilesDirs: the built-in storage first, then a
   memory card or a USB drive set up as portable storage - the app may
   write there without a permission); a volume that is not mounted is
-  left out. Empty elsewhere (zip 381: the TV's storage, logged).
+  left out. iOS: the app's Documents folder (zip 404). Empty elsewhere
+  (zip 381: the TV's storage, logged).
   @returns(the folders) }
 function StorageFolders: TArray<string>;
 
@@ -104,7 +105,8 @@ function BookInFolder(const AName, ATree: string): Boolean;
   @param(ATree  the folder) }
 procedure BookFolderForget(const ATree: string);
 
-{ AName is a book's address in a chosen folder (content://), not a path.
+{ AName is a book's address in a chosen folder (content://), or a book
+  streamed from BookManager (bookmanager://, zip 392), not a path.
   @param(AName  a book's name)
   @returns(the answer) }
 function IsBookAddress(const AName: string): Boolean;
@@ -142,7 +144,8 @@ function BookExists(const AName: string): Boolean;
 
 { For Epub.Zip's EpubStreamOpener (uMain sets it on Android): a book of a
   books folder read from the file BookOpenPath had Android open; nil for a
-  path (opened as a file) - and elsewhere always nil.
+  path (opened as a file) - and elsewhere always nil; a book streamed from
+  BookManager, read by blocks over the link (uStreamBook), anywhere.
   @param(AFileName  the book's name)
   @returns(the stream, nil = open the file by its name)
   @raises(EStreamError when an address was not opened first) }
@@ -153,14 +156,19 @@ implementation
 uses
   // (not Epub.Zip: uMain connects OpenBookStream to its EpubStreamOpener -
   // here the unit was "not found" on the owner's build, zip 349)
-  System.Generics.Collections, System.SyncObjs
+  System.Generics.Collections, System.SyncObjs, System.IOUtils,
+  // a book streamed from BookManager is an address too (zip 392)
+  uStreamBook
   {$IFDEF ANDROID},
   System.Messaging, Androidapi.JNI.GraphicsContentViewText, Androidapi.JNI.App, Androidapi.JNI.Net,
   Androidapi.JNI.Os, Androidapi.JNI.JavaTypes, Androidapi.JNIBridge, Androidapi.Helpers,
   // CallInUIThread (KeepScreenOn: the window is the Java UI thread's)
   FMX.Helpers.Android,
   // FileClose's inline body expands only with it (H2443)
-  Posix.Unistd
+  Posix.Unistd,
+  // TJavaBasicArray.Length's inline body (GetArrayLength) expands only
+  // with it (H2443, owner's build 2026-11-27)
+  Androidapi.Jni
   {$ENDIF};
 
 const
@@ -250,7 +258,7 @@ end;
 
 function IsBookAddress(const AName: string): Boolean;
 begin
-  Result := AName.StartsWith(CONTENT_SCHEME, True);
+  Result := AName.StartsWith(CONTENT_SCHEME, True) or IsStreamName(AName);
 end;
 
 function BookFileName(const AName: string): string;
@@ -260,6 +268,8 @@ var
 begin
   if not IsBookAddress(AName) then
     Exit(ExtractFileName(AName));
+  if IsStreamName(AName) then
+    Exit(StreamBookFileName(AName));
   Id := DocumentId(AName);
   P := Id.LastDelimiter('/:');
   if P >= 0 then
@@ -273,6 +283,8 @@ var
   Id, Volume: string;
   P: Integer;
 begin
+  if IsStreamName(ATree) then
+    Exit(StreamFolderName(ATree));
   Id := TreeId(ATree);
   P := Pos(':', Id);
   if P = 0 then
@@ -568,6 +580,9 @@ var
   end;
 
 begin
+  // BookManager's books (zip 392): as it listed them last
+  if IsStreamName(ATree) then
+    Exit(StreamBooks(ATree, ANote));
   ANote := '';
   Found := nil;
   try
@@ -583,12 +598,17 @@ end;
 
 function BookInFolder(const AName, ATree: string): Boolean;
 begin
+  if IsStreamName(ATree) then
+    Exit(StreamBookIn(AName, ATree));
   Result := IsBookAddress(AName) and (TreeId(ATree) <> '') and
     AName.StartsWith(CONTENT_SCHEME + Authority(ATree) + '/tree/' + UriEncode(TreeId(ATree)) + DOCUMENT_PART);
 end;
 
 procedure BookFolderForget(const ATree: string);
 begin
+  // BookManager gave no permission to keep
+  if IsStreamName(ATree) then
+    Exit;
   try
     TAndroidHelper.Context.getContentResolver.releasePersistableUriPermission(TJnet_Uri.JavaClass.parse(
       StringToJString(ATree)), TJIntent.JavaClass.FLAG_GRANT_READ_URI_PERMISSION);
@@ -686,6 +706,9 @@ begin
   Result := nil;
   if not IsBookAddress(AFileName) then
     Exit;
+  // read by blocks from BookManager (zip 392)
+  if IsStreamName(AFileName) then
+    Exit(OpenStreamBook(AFileName));
   OpenedLock.Enter;
   try
     Found := (Opened <> nil) and Opened.TryGetValue(AFileName, B);
@@ -703,7 +726,8 @@ var
   Pfd: JParcelFileDescriptor;
 begin
   Result := AName;
-  if not IsBookAddress(AName) then
+  // a streamed book: nothing to open first (each read is a call)
+  if not IsBookAddress(AName) or IsStreamName(AName) then
     Exit;
   OpenedLock.Enter;
   try
@@ -766,6 +790,10 @@ var
 begin
   if not IsBookAddress(AName) then
     Exit(FileExists(AName));
+  // a streamed book: there while its BookManager lists it - and not taken
+  // for gone while it is not running (zip 392)
+  if IsStreamName(AName) then
+    Exit(True);
   Result := False;
   try
     Cols := TJavaObjectArray<JString>.Create(1);
@@ -808,7 +836,13 @@ end;
 
 function StorageFolders: TArray<string>;
 begin
+  {$IFDEF IOS}
+  // the app's Documents: its one volume (zip 404 - "no volumes known" was
+  // logged on the iPad)
+  Result := [System.IOUtils.TPath.GetDocumentsPath];
+  {$ELSE}
   Result := nil;
+  {$ENDIF}
 end;
 
 procedure KeepScreenOn(AOn: Boolean);
@@ -829,13 +863,15 @@ end;
 
 function BookFolderBooks(const ATree: string; out ANote: string): TArray<string>;
 begin
+  if IsStreamName(ATree) then
+    Exit(StreamBooks(ATree, ANote));
   ANote := 'no folder picker here';
   Result := nil;
 end;
 
 function BookInFolder(const AName, ATree: string): Boolean;
 begin
-  Result := False;
+  Result := IsStreamName(ATree) and StreamBookIn(AName, ATree);
 end;
 
 procedure BookFolderForget(const ATree: string);
@@ -853,11 +889,13 @@ end;
 
 function BookExists(const AName: string): Boolean;
 begin
-  Result := FileExists(AName);
+  Result := IsStreamName(AName) or FileExists(AName);
 end;
 
 function OpenBookStream(const AFileName: string): TStream;
 begin
+  if IsStreamName(AFileName) then
+    Exit(OpenStreamBook(AFileName));
   Result := nil;
 end;
 

@@ -35,7 +35,14 @@
       (@link(TLinkServer.TakesTickets));)
     @item(GET /space - the books and audio folders and their free space;)
     @item(GET /books - the books made (the output folders);)
-    @item(GET /book?path=P&offset=N - one of them, from byte N;)
+    @item(GET /book?path=P&offset=N - one of them, from byte N; with
+      &length=L only L bytes from N (zip 391: a TV reads a streamed book
+      by blocks; at most LINK_RANGE_MAX);)
+    @item(GET /slice?path=P&offset=N&length=L[&type=T][&token=K] - bytes N
+      to N + L of a book as a file of its own (the audio stored inside an
+      EPUB) and its HTTP Range requests answered (206): a player streams
+      it. The token may be in the query: a player sets no headers (zip
+      391);)
     @item(POST /upload/check and POST /upload - a file into Books, Audio
       or Covers (headers X-Link-Kind book / audio / cover, X-Link-Name,
       X-Link-Dir,
@@ -89,6 +96,9 @@ const
   { Tickets refused in a minute before no more are looked at for the
     rest of it (each one looked at is a call to the link site). }
   LINK_TICKET_TRIES = 5;
+  { The most bytes one /book call with a length gives (zip 391: a
+    streamed book's blocks). }
+  LINK_RANGE_MAX = 16 * 1024 * 1024;
 
 type
   { A builder heard (TLinkFinder). }
@@ -529,7 +539,7 @@ uses
   // libc names the library)
   {$IF Defined(POSIX) and not Defined(ANDROID)} Posix.SysStatvfs, {$ENDIF}
   {$IFDEF ANDROID} Posix.Base, {$ENDIF}
-  System.IOUtils, System.StrUtils, System.DateUtils, System.NetEncoding, System.Diagnostics,
+  System.IOUtils, System.StrUtils, System.DateUtils, System.NetEncoding, System.Diagnostics, System.Math,
   // the machine's addresses (LinkLocalAddresses)
   IdStack,
   // the transfers' buffers
@@ -587,6 +597,37 @@ type
     function Seek(const Offset: Int64; Origin: TSeekOrigin): Int64; override;
   end;
 
+  { A window of a file, read as a file of its own (/slice, zip 391): bytes
+    AStart to AStart + ALength - 1 of the file, read from position 0. }
+  TLinkWindowStream = class(TStream)
+  private
+    { The file (owned). }
+    FFile: TFileStream;
+    { The window's first byte in the file. }
+    FStart: Int64;
+    { The window's length. }
+    FLength: Int64;
+    { The position in the window. }
+    FPos: Int64;
+  protected
+    { The window's length. }
+    function GetSize: Int64; override;
+  public
+    { Opens AFileName (read only) for its window.
+      @param(AFileName  the file)
+      @param(AStart  the window's first byte)
+      @param(ALength  its length) }
+    constructor Create(const AFileName: string; AStart, ALength: Int64);
+    { Frees the file. }
+    destructor Destroy; override;
+    { Reads within the window. }
+    function Read(var Buffer; Count: Longint): Longint; override;
+    { Refused: read only. }
+    function Write(const Buffer; Count: Longint): Longint; override;
+    { Moves within the window. }
+    function Seek(const Offset: Int64; Origin: TSeekOrigin): Int64; override;
+  end;
+
   { Says where the builder is every two seconds. }
   TLinkAnnouncer = class(TThread)
   private
@@ -603,6 +644,110 @@ type
 function TLinkRefusedStream.Write(const Buffer; Count: Longint): Longint;
 begin
   Result := Count;
+end;
+
+constructor TLinkWindowStream.Create(const AFileName: string; AStart, ALength: Int64);
+begin
+  inherited Create;
+  FFile := TFileStream.Create(AFileName, fmOpenRead or fmShareDenyWrite);
+  FStart := AStart;
+  FLength := ALength;
+end;
+
+destructor TLinkWindowStream.Destroy;
+begin
+  FFile.Free;
+  inherited;
+end;
+
+function TLinkWindowStream.GetSize: Int64;
+begin
+  Result := FLength;
+end;
+
+function TLinkWindowStream.Read(var Buffer; Count: Longint): Longint;
+var
+  Left: Int64;
+begin
+  Result := 0;
+  Left := FLength - FPos;
+  if (Count <= 0) or (Left <= 0) then
+    Exit;
+  if Count > Left then
+    Count := Longint(Left);
+  FFile.Position := FStart + FPos;
+  Result := FFile.Read(Buffer, Count);
+  if Result > 0 then
+    Inc(FPos, Result);
+end;
+
+function TLinkWindowStream.Write(const Buffer; Count: Longint): Longint;
+begin
+  raise EStreamError.Create('a slice of a book is read only');
+end;
+
+function TLinkWindowStream.Seek(const Offset: Int64; Origin: TSeekOrigin): Int64;
+begin
+  case Origin of
+    soBeginning:
+      FPos := Offset;
+    soCurrent:
+      FPos := FPos + Offset;
+    soEnd:
+      FPos := FLength + Offset;
+  end;
+  if FPos < 0 then
+    FPos := 0;
+  if FPos > FLength then
+    FPos := FLength;
+  Result := FPos;
+end;
+
+{ A Range header's "bytes=A-B" / "bytes=A-" / "bytes=-N" for a file of
+  ALength bytes: the first and last byte asked for (False: no range, or
+  one that cannot be met - the whole is sent).
+  @param(ARange  the header's value)
+  @param(ALength  the file's length)
+  @param(AFirst  the first byte)
+  @param(ALast  the last byte)
+  @returns(a range to send) }
+function ParseByteRange(const ARange: string; ALength: Int64; out AFirst, ALast: Int64): Boolean;
+var
+  S, A, B: string;
+  P: Integer;
+begin
+  Result := False;
+  AFirst := 0;
+  ALast := ALength - 1;
+  S := Trim(ARange);
+  if not StartsText('bytes=', S) or (ALength <= 0) then
+    Exit;
+  S := Trim(Copy(S, 7, MaxInt));
+  // one range only (a player asks for one)
+  P := Pos(',', S);
+  if P > 0 then
+    S := Copy(S, 1, P - 1);
+  P := Pos('-', S);
+  if P = 0 then
+    Exit;
+  A := Trim(Copy(S, 1, P - 1));
+  B := Trim(Copy(S, P + 1, MaxInt));
+  if A = '' then
+  begin
+    // the last N bytes
+    AFirst := ALength - StrToInt64Def(B, 0);
+    if AFirst < 0 then
+      AFirst := 0;
+  end
+  else
+  begin
+    AFirst := StrToInt64Def(A, -1);
+    if B <> '' then
+      ALast := StrToInt64Def(B, -1);
+  end;
+  if ALast > ALength - 1 then
+    ALast := ALength - 1;
+  Result := (AFirst >= 0) and (AFirst <= ALast);
 end;
 
 function TLinkRefusedStream.Read(var Buffer; Count: Longint): Longint;
@@ -1489,9 +1634,17 @@ var
   EndedEvent: TLinkPairEndedEvent;
   PairedEvent: TLinkPairedEvent;
   ReceivedEvent: TLinkReceivedEvent;
+  // (not Last: CommandGet has an Integer Last for /log - E2004, zip 393)
+  RangeLen, RangeFirst, RangeLast: Int64;
+  Block: TMemoryStream;
+  Window: TLinkWindowStream;
 begin
   Doc := LowerCase(ARequestInfo.Document);
   Token := ARequestInfo.RawHeaders.Values['X-Link-Token'];
+  // a player sets no headers: its address carries the token (/slice, zip
+  // 391)
+  if Token = '' then
+    Token := QueryValue(ARequestInfo, 'token');
   // every call, for the debug log (a phone: did it reach us at all?)
   // (the events below are copied before they are queued: the server may
   // be freed before the queue runs - a phone's link ends with Done while
@@ -1744,6 +1897,7 @@ begin
     begin
       Path := QueryValue(ARequestInfo, 'path');
       Offset := StrToInt64Def(QueryValue(ARequestInfo, 'offset'), 0);
+      RangeLen := StrToInt64Def(QueryValue(ARequestInfo, 'length'), -1);
       if not MayGet(Path) then
       begin
         SendError(AResponseInfo, 404, 'no such book');
@@ -1753,6 +1907,34 @@ begin
       Size := F.Size;
       if (Offset < 0) or (Offset > Size) then
         Offset := 0;
+      // a block of a streamed book (zip 391): exactly those bytes, held in
+      // memory (at most LINK_RANGE_MAX)
+      if RangeLen >= 0 then
+      begin
+        try
+          RangeLen := Min(Min(RangeLen, Int64(LINK_RANGE_MAX)), Size - Offset);
+          Block := TMemoryStream.Create;
+          try
+            F.Position := Offset;
+            if RangeLen > 0 then
+              Block.CopyFrom(F, RangeLen);
+            Block.Position := 0;
+          except
+            Block.Free;
+            raise;
+          end;
+        finally
+          F.Free;
+        end;
+        AResponseInfo.ResponseNo := 200;
+        AResponseInfo.ContentType := 'application/octet-stream';
+        AResponseInfo.CustomHeaders.Values['X-Link-Size'] := IntToStr(Size);
+        AResponseInfo.CustomHeaders.Values['X-Link-Offset'] := IntToStr(Offset);
+        AResponseInfo.ContentStream := Block;
+        AResponseInfo.ContentLength := Block.Size;
+        AResponseInfo.FreeContentStream := True;
+        Exit;
+      end;
       F.Position := Offset;
       AResponseInfo.ResponseNo := 200;
       AResponseInfo.ContentType := 'application/epub+zip';
@@ -1760,6 +1942,49 @@ begin
       AResponseInfo.CustomHeaders.Values['X-Link-Offset'] := IntToStr(Offset);
       AResponseInfo.ContentStream := F;
       AResponseInfo.ContentLength := Size - Offset;
+      AResponseInfo.FreeContentStream := True;
+      Exit;
+    end;
+    // bytes N to N + L of a book as a file of its own - the audio stored in
+    // it - with HTTP ranges: a TV's player streams it (zip 391)
+    if Doc = '/slice' then
+    begin
+      Path := QueryValue(ARequestInfo, 'path');
+      Offset := StrToInt64Def(QueryValue(ARequestInfo, 'offset'), -1);
+      RangeLen := StrToInt64Def(QueryValue(ARequestInfo, 'length'), -1);
+      if not MayGet(Path) then
+      begin
+        SendError(AResponseInfo, 404, 'no such book');
+        Exit;
+      end;
+      Size := TFile.GetSize(Path);
+      if (Offset < 0) or (RangeLen <= 0) or (Offset + RangeLen > Size) then
+      begin
+        SendError(AResponseInfo, 416, 'no such part of the book');
+        Exit;
+      end;
+      Kind := QueryValue(ARequestInfo, 'type');
+      if Kind = '' then
+        Kind := 'audio/mp4';
+      AResponseInfo.ContentType := Kind;
+      AResponseInfo.CustomHeaders.Values['Accept-Ranges'] := 'bytes';
+      // the part asked for: a window that ends where it ends (Indy sends a
+      // stream to its end)
+      if ParseByteRange(ARequestInfo.RawHeaders.Values['Range'], RangeLen, RangeFirst, RangeLast) then
+      begin
+        Window := TLinkWindowStream.Create(Path, Offset + RangeFirst, RangeLast - RangeFirst + 1);
+        AResponseInfo.ResponseNo := 206;
+        AResponseInfo.CustomHeaders.Values['Content-Range'] := Format('bytes %d-%d/%d', [RangeFirst, RangeLast,
+          RangeLen]);
+        AResponseInfo.ContentLength := RangeLast - RangeFirst + 1;
+      end
+      else
+      begin
+        Window := TLinkWindowStream.Create(Path, Offset, RangeLen);
+        AResponseInfo.ResponseNo := 200;
+        AResponseInfo.ContentLength := RangeLen;
+      end;
+      AResponseInfo.ContentStream := Window;
       AResponseInfo.FreeContentStream := True;
       Exit;
     end;

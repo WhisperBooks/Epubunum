@@ -8,7 +8,7 @@
         <Base>True</Base>
         <Config Condition="'$(Config)'==''">Release</Config>
         <Platform Condition="'$(Platform)'==''">Win64</Platform>
-        <TargetedPlatforms>135298</TargetedPlatforms>
+        <TargetedPlatforms>131202</TargetedPlatforms>
         <ProjectName Condition="'$(ProjectName)'==''">EpubBuilder</ProjectName>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Base' or '$(Base)'!=''">
@@ -372,7 +372,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
                 <Platform value="iOSDevice64">False</Platform>
                 <Platform value="iOSSimARM64">False</Platform>
                 <Platform value="Linux64">True</Platform>
-                <Platform value="OSX64">True</Platform>
+                <Platform value="OSX64">False</Platform>
                 <Platform value="OSXARM64">True</Platform>
                 <Platform value="Win32">False</Platform>
                 <Platform value="Win64">True</Platform>
@@ -2130,7 +2130,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
     <Import Project="$(APPDATA)\Embarcadero\$(BDSAPPDATABASEDIR)\$(PRODUCTVERSION)\UserTools.proj" Condition="Exists('$(APPDATA)\Embarcadero\$(BDSAPPDATABASEDIR)\$(PRODUCTVERSION)\UserTools.proj')"/>
     <Import Project="$(MSBuildProjectName).deployproj" Condition="Exists('$(MSBuildProjectName).deployproj')"/>
     <PropertyGroup Condition="'$(Config)'=='Debug' And '$(Platform)'=='Android'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2138,7 +2138,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Debug' And '$(Platform)'=='Android64'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2146,7 +2146,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Debug' And '$(Platform)'=='iOSDevice64'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2154,7 +2154,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Debug' And '$(Platform)'=='iOSSimARM64'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2162,7 +2162,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Debug' And '$(Platform)'=='Linux64'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2170,7 +2170,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Debug' And '$(Platform)'=='OSX64'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2178,7 +2178,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Debug' And '$(Platform)'=='OSXARM64'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2186,7 +2186,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Debug' And '$(Platform)'=='Win32'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2194,7 +2194,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Debug' And '$(Platform)'=='Win64'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2202,7 +2202,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='SteamDebug' And '$(Platform)'=='Android'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2210,7 +2210,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='SteamDebug' And '$(Platform)'=='Android64'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2218,7 +2218,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='SteamDebug' And '$(Platform)'=='iOSDevice64'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2226,7 +2226,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='SteamDebug' And '$(Platform)'=='iOSSimARM64'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2234,7 +2234,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='SteamDebug' And '$(Platform)'=='Linux64'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2242,7 +2242,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='SteamDebug' And '$(Platform)'=='OSX64'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2250,7 +2250,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='SteamDebug' And '$(Platform)'=='OSXARM64'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2258,7 +2258,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='SteamDebug' And '$(Platform)'=='Win32'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2266,7 +2266,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='SteamDebug' And '$(Platform)'=='Win64'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2274,7 +2274,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Release' And '$(Platform)'=='Android'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2282,7 +2282,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Release' And '$(Platform)'=='Android64'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2290,7 +2290,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Release' And '$(Platform)'=='iOSDevice64'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2298,7 +2298,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Release' And '$(Platform)'=='iOSSimARM64'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2306,7 +2306,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Release' And '$(Platform)'=='Linux64'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2314,7 +2314,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Release' And '$(Platform)'=='OSX64'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2322,7 +2322,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Release' And '$(Platform)'=='OSXARM64'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2330,7 +2330,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Release' And '$(Platform)'=='Win32'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2338,7 +2338,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Release' And '$(Platform)'=='Win64'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2346,7 +2346,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Steam' And '$(Platform)'=='Android'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2354,7 +2354,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Steam' And '$(Platform)'=='Android64'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2362,7 +2362,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Steam' And '$(Platform)'=='iOSDevice64'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2370,7 +2370,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Steam' And '$(Platform)'=='iOSSimARM64'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2378,7 +2378,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Steam' And '$(Platform)'=='Linux64'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2386,7 +2386,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Steam' And '$(Platform)'=='OSX64'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2394,7 +2394,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Steam' And '$(Platform)'=='OSXARM64'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2402,7 +2402,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Steam' And '$(Platform)'=='Win32'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>
@@ -2410,7 +2410,7 @@ $(PreBuildEvent)]]></PreBuildEvent>
         <PostBuildEventIgnoreExitCode>False</PostBuildEventIgnoreExitCode>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Steam' And '$(Platform)'=='Win64'">
-        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
+        <PreBuildEvent>call &quot;$(PROJECTDIR)\..\..\tools\buildstamp.bat&quot;</PreBuildEvent>
         <PreBuildEventIgnoreExitCode>False</PreBuildEventIgnoreExitCode>
         <PreLinkEvent/>
         <PreLinkEventIgnoreExitCode>False</PreLinkEventIgnoreExitCode>

@@ -127,6 +127,28 @@ from where it stopped the next time (its `.part` file is kept, with a
 in between, the fetch starts afresh rather than mix the two). Nothing
 is fetched that would leave less than 1 GB free here.
 
+## Streaming to a TV (zip 391 - BookManager's half)
+
+While it runs, BookManager serves the books here (the folder Books made
+fetches to, its sub-folders too) to the readers paired with it - a TV
+streams them instead of storing them. Read only: nothing can be sent to
+BookManager this way, and only the programs paired with it (the tokens
+they gave it, Send to phone's pairing) are answered. Its UDP
+announcement now says the port of that server (EpubBuilder on the same
+computer has 47821: BookManager takes the next free one, 47822); when no
+port is free it says where it is as before, without serving.
+
+What a reader asks it: `/books` (the list), `/book?path=..&offset=..&length=..`
+(a block of a book, at most 16 MB) and `/slice?path=..&offset=..&length=..`
+(the audio stored in a book, as a file of its own, with HTTP ranges - the
+TV's player streams it; the token may be in the address there,
+`&token=..`). The debug log has a "serve:" line for every call but the
+blocks.
+
+The reader's half is zip 392: a TV paired with BookManager has all these
+books in its library while BookManager runs (EpubReader's README, "BookManager's
+books, streamed to a TV").
+
 ## Send to phone
 
 On the phone, **Get books from BookManager** (EpubReader's Menu > Books

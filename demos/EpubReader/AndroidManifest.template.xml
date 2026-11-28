@@ -28,6 +28,9 @@
 <%queries-child-elements%>
     </queries>
 
+    <!-- usesCleartextTraffic (zip 392): a book streamed from BookManager on
+         the home network is played from http://computer:port/slice -
+         Android 9 on refuses plain http to its media player without it -->
     <application
         android:debuggable="%debuggable%"
         android:hardwareAccelerated="%hardwareAccelerated%"
@@ -38,6 +41,7 @@
         android:persistent="%persistent%"
         android:requestLegacyExternalStorage="true"
         android:resizeableActivity="true"
+        android:usesCleartextTraffic="true"
         android:restoreAnyVersion="%restoreAnyVersion%"
         android:theme="%theme%" >
 <%provider%>

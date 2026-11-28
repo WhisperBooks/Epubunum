@@ -332,6 +332,11 @@ type
       directly, so this computer learns the phone's address before
       connecting to it. }
     FBeacon: TLinkBeacon;
+    { The books here served to the readers paired with this BookManager -
+      a TV streams them (zip 391; owner 2026-11-27 15:47, "Next we need to
+      stream to the tv"). Its announcement says where it is (the beacon
+      is not needed then). nil when it could not start. }
+    FServer: TLinkServer;
     { This BookManager's id on the link ([Manager] Id; made once). }
     FManagerId: string;
     { The phone asked to pair by itself (it started linking and is not
@@ -385,6 +390,17 @@ type
     function TokenOf(const AId: string): string;
     { Keeps (or, with '', forgets) the token for the builder AId. }
     procedure SetTokenFor(const AId, AToken: string);
+    { The server for the readers started (zip 391): the books here (the
+      fetch folder) served read-only to the programs paired with this
+      BookManager, by the tokens they gave it; logged. }
+    procedure StartServer;
+    { The server told the books folder and the tokens again (a pairing, a
+      new fetch folder). }
+    procedure ServeSettings;
+    { A call to the server, for the log (a streamed book's blocks left out:
+      too many).
+      @param(AText  'GET /books from 192.168.1.60') }
+    procedure ServerRequest(const AText: string);
     { The finder heard a builder come, go or move. }
     procedure FinderChange(Sender: TObject);
     { tmPeers: FinderChange. }
@@ -1554,7 +1570,12 @@ begin
     FManagerId := TGUID.NewGuid.ToString.Replace('{', '').Replace('}', '').ToLower;
     SaveSettings;
   end;
-  FBeacon := TLinkBeacon.Create(LINK_APP_MANAGER, FClientName, FManagerId);
+  // the books here served to the readers (a TV streams them); its
+  // announcement says BookManager is here - the beacon only when it could
+  // not start
+  StartServer;
+  if FServer = nil then
+    FBeacon := TLinkBeacon.Create(LINK_APP_MANAGER, FClientName, FManagerId);
   // for the log: why BookManager and a phone take a minute to hear each
   // other after BookManager starts (zip 364)
   FFinder.OnFirstHeard := FinderFirstHeard;
@@ -1600,6 +1621,7 @@ begin
   FreeAndNil(FWorker);
   FreeAndNil(FFinder);
   FreeAndNil(FBeacon);
+  FreeAndNil(FServer);
   FreeAndNil(FPairClient);
   // a pairing call on its way to the phone: its thread keeps the client
   DropPhonePairClient;
@@ -1615,6 +1637,7 @@ begin
   FreeAndNil(FWorker);
   FreeAndNil(FFinder);
   FreeAndNil(FBeacon);
+  FreeAndNil(FServer);
   FreeAndNil(FPairClient);
   DropPhonePairClient;
   FreeAndNil(FTargets);
@@ -1642,6 +1665,55 @@ begin
   FTokens.Values[AId] := AToken;
   FTargets.SetToken(AId, AToken);
   SaveSettings;
+  ServeSettings;
+end;
+
+procedure TfrmManager.StartServer;
+var
+  Said: string;
+begin
+  FServer := TLinkServer.Create(LINK_APP_MANAGER, FClientName, FManagerId);
+  FServer.OnRequest := ServerRequest;
+  ServeSettings;
+  Said := FServer.Start;
+  DebugLog('serve: ' + Said);
+  if FServer.Port = 0 then
+  begin
+    FreeAndNil(FServer);
+    Exit;
+  end;
+  DebugLog(Format('serve: the books in %s to the paired readers (a TV streams them), port %d',
+    [FFetchFolder, FServer.Port]));
+end;
+
+procedure TfrmManager.ServeSettings;
+var
+  Lines: TStringList;
+  I: Integer;
+begin
+  if FServer = nil then
+    Exit;
+  // read only: no folder for uploads, the fetch folder's books to read
+  FServer.SetFolders('', '', '', [FFetchFolder]);
+  // the tokens the paired programs gave this BookManager are theirs to
+  // call it with (the server keeps token=name)
+  Lines := TStringList.Create;
+  try
+    for I := 0 to FTokens.Count - 1 do
+      if (FTokens.Names[I] <> '') and (FTokens.ValueFromIndex[I] <> '') then
+        Lines.Add(FTokens.ValueFromIndex[I] + '=' + FTokens.Names[I]);
+    FServer.SetTokens(Lines.Text);
+  finally
+    Lines.Free;
+  end;
+end;
+
+procedure TfrmManager.ServerRequest(const AText: string);
+begin
+  // a streamed book's blocks: many a second
+  if Pos(' /book ', AText + ' ') > 0 then
+    Exit;
+  DebugLog('serve: ' + AText);
 end;
 
 { --- the builders }
@@ -2884,6 +2956,7 @@ begin
   FFetchFolder := ExcludeTrailingPathDelimiter(Folder);
   lblFetchFolder.Text := 'Fetched to: ' + FFetchFolder;
   SaveSettings;
+  ServeSettings;
   FillBooks;
   FillPhoneBooks;
 end;

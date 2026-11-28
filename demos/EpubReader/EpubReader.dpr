@@ -48,6 +48,11 @@ uses
   uBookImport in 'src\uBookImport.pas',
   // "Opening book" and its count over the window (zip 388)
   uProgressFrame in '..\common\uProgressFrame.pas',
+  // books prepared in the background (zip 390)
+  uBookPrep in 'src\uBookPrep.pas',
+  uStreamBook in 'src\uStreamBook.pas',
+  uBookStore in 'src\uBookStore.pas',
+  uPlayerIOS in 'src\uPlayerIOS.pas',
   // a phone: BookManager sends it books (Indy, as BookManager's)
   uLink in '..\common\uLink.pas',
   // About > Licences

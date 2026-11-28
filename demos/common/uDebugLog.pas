@@ -81,10 +81,17 @@ var
   { The log file, '' when not started. }
   LogName: string;
 
+const
+  { A log grows to this, then goes to .old and a new one starts (zip 397:
+    a TV left playing all day wrote without end - never the device's last
+    space): the log takes at most twice this. }
+  LOG_MAX = Int64(8) * 1024 * 1024;
+
 procedure WriteRaw(const AText: string);
 var
   S: TFileStream;
   B: TBytes;
+  Size: Int64;
 begin
   // open, append, close for every line: what is written is in the file
   // even when the next instruction kills the process
@@ -97,8 +104,27 @@ begin
     S.Seek(0, soEnd);
     if Length(B) > 0 then
       S.WriteBuffer(B[0], Length(B));
+    Size := S.Size;
   finally
     S.Free;
+  end;
+  // full: the lines so far become .old (the last run's .old goes), and a
+  // new log starts saying so
+  if Size > LOG_MAX then
+  begin
+    System.SysUtils.DeleteFile(LogName + '.old');
+    if System.SysUtils.RenameFile(LogName, LogName + '.old') then
+    begin
+      B := TEncoding.UTF8.GetBytes(FormatDateTime('hh:nn:ss.zzz', Now) + ' (the log went on from ' +
+        ExtractFileName(LogName) + '.old: it had reached ' + IntToStr(LOG_MAX div (1024 * 1024)) + ' MB)' +
+        sLineBreak);
+      S := TFileStream.Create(LogName, fmCreate);
+      try
+        S.WriteBuffer(B[0], Length(B));
+      finally
+        S.Free;
+      end;
+    end;
   end;
 end;
 

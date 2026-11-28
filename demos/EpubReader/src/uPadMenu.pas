@@ -235,6 +235,12 @@ type
     { True while it shows.
       @returns(the answer) }
     function Showing: Boolean;
+    { Selects row AIndex (counted from the top, not from the row selected
+      now: Move is a step - after a Show that starts elsewhere, Move(row)
+      went to the wrong row; EpubReader zip 398, owner 2026-11-27 21:40:
+      "After you press Left/Right it moves to another option").
+      @param(AIndex  the row) }
+    procedure Select(AIndex: Integer);
     { Moves the selection by ADelta rows (wrapping at the ends).
       @param(ADelta  rows, negative upwards) }
     procedure Move(ADelta: Integer);
@@ -1015,6 +1021,15 @@ begin
       FSelected := (FSelected + 1) mod N;
     Inc(K);
   end;
+  Paint;
+  KeepVisible;
+end;
+
+procedure TPadMenu.Select(AIndex: Integer);
+begin
+  if (AIndex < 0) or (AIndex > High(FRows)) then
+    Exit;
+  FSelected := AIndex;
   Paint;
   KeepVisible;
 end;

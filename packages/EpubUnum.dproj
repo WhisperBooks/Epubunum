@@ -7,8 +7,8 @@
         <MainSource>EpubUnum.dpk</MainSource>
         <Base>True</Base>
         <Config Condition="'$(Config)'==''">Release</Config>
-        <Platform Condition="'$(Platform)'==''">Android64</Platform>
-        <TargetedPlatforms>168067</TargetedPlatforms>
+        <Platform Condition="'$(Platform)'==''">iOSDevice64</Platform>
+        <TargetedPlatforms>169091</TargetedPlatforms>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Base' or '$(Base)'!=''">
         <Base>true</Base>
@@ -240,7 +240,7 @@
             <Platforms>
                 <Platform value="Android">False</Platform>
                 <Platform value="Android64">True</Platform>
-                <Platform value="iOSDevice64">False</Platform>
+                <Platform value="iOSDevice64">True</Platform>
                 <Platform value="iOSSimARM64">False</Platform>
                 <Platform value="Linux64">True</Platform>
                 <Platform value="OSX64">True</Platform>

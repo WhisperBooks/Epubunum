@@ -19,7 +19,7 @@ const
   { Minor version (changed by the owner only). }
   VERSION_MINOR = 0;
   { The build: the number of the zip that last changed the repository. }
-  VERSION_BUILD = 388;
+  VERSION_BUILD = 407;
 
 { This build's version, 'major.minor.build' ('0.0.351').
   @returns(the version) }

@@ -4,7 +4,129 @@ Read README.md first, then this file. Keep both up to date with every change.
 The rules follow TWhisper's and TFFMpegAPI's CLAUDE.md (same owner, same
 conventions); where this file is silent, theirs apply.
 
-## Session 18 (2026-11-27 10:37 -): Android TV begun
+## Handover - READ THIS FIRST (latest: session 18, 2026-11-28 01:10)
+
+Written at the owner's request (01:10: "session handover time, late
+here"). Session 18 ran from 2026-11-27 10:37 to 2026-11-28 01:10: zips
+381 - 407 (407 = this handover: CLAUDE.md and uVersion.pas only). Each
+zip has its own section further down (newest first), with the owner's
+words and what was measured. Session 17's handover follows this one;
+its link notes and standing rules still stand.
+
+### Where it stands (2026-11-28 01:10)
+- THE REPOSITORY: the last push known here is f85aa50 "Working shield"
+  (zips to 388). The owner's builds tonight still stamped "f85aa50", so
+  zips 389 - 407 are most likely UNCOMMITTED in the working copy - ask /
+  check git status first. Pull before touching a .dproj. Never commit or
+  push, never offer to.
+- BUILT AND RUN BY THE OWNER: Android TV (NVIDIA Shield) to zip 402 -
+  streaming from BookManager, storage limits, local copies first, the
+  "Unavailable" mark all confirmed ("OK, that's all good" 22:15). iPad
+  (iOS 27.0, iPadOS device UDID 00008120-001035C12E780032) to zip 406:
+  EpubReader runs, finds books, opens Night Watch (802.7 MB, m4b inside)
+  from its index in 1 s, and PLAYS with the highlighting following and
+  seeks anywhere (to 32706 s) - owner 01:09 "Plays fine now - skipped
+  around a bit to check"; audio goes on when the app is left.
+- VERSION 0.0.407 (this zip). Every zip: VERSION_BUILD = its number =
+  "Last number used" (project_check.py).
+
+### What session 18 made
+1. ANDROID TV (381 - 390): the remote mapped onto the pad's actions (OK,
+   Menu, Play / Pause, Back), no touch bar, "Opening book" progress
+   (uProgressFrame), chapters made in the open's thread, books prepared
+   in the background (uBookPrep).
+2. STREAMING (391 - 394): BookManager serves its books (/books, /book by
+   blocks, /slice with ranges); a paired TV lists them and reads them by
+   blocks (uStreamBook, bookmanager://ID/path), audio streamed by URL;
+   new books read in a thread.
+3. TV LIFE (395 - 402): Back never quits (Exit in the menu); hold OK =
+   the menu; the library's title "Library - N books available (M
+   unavailable)"; dead menu rows faded; Left / Right never move the row
+   (TPadMenu.Select); the cover choice cut to in-book / audio / plain /
+   the user's own; book storage held to a size (uBookStore: 250 MB on a
+   TV, 1 GB on a phone, a menu row; never-opened books go first; 1 GiB
+   always left free); the device's own copy of a book before a network
+   one (RehomeBooks); unavailable covers shaded with "Unavailable".
+4. iOS (403 - 406): the iOS Device 64 target, uPlayerIOS (AVPlayer), the
+   Info.plist keys (background audio, Files sharing, local network
+   reason); the first iPad runs: the library finds books anywhere in the
+   app's Documents and again whenever the app comes back to the front;
+   free space read properly (nothing written when unknown, Android and
+   iOS); the empty library on iOS says where to put books.
+
+### iOS: what was learnt (keep)
+- AVPLAYER IS CALLED BY RAW IDS THROUGH objc_msgSend (zip 406) - NOT
+  through Delphi's Objective-C bridge. Through the bridge (403), and then
+  with CMTime records by value / as a result in typed objc_msgSend (404,
+  405), every seek raised an access violation that try/except did not
+  even catch where it should, and the length read 0.0. What works: a
+  record over 16 bytes passed as a POINTER to a copy (AAPCS64 written
+  out), times read by valueForKey: + NSValue getValue:size:, objects as
+  Pointer retained / released by message. Use the same for any other
+  Apple API taking or giving a struct (lock-screen controls next).
+- THE OWNER'S iOS SETUP (2026-11-28): Mac mini M4 with PAServer; Delphi's
+  SDK iPhoneOS27.0; team T64Z85XVKR (Simon Booth); bundle
+  com.epubunum.reader. PROVISIONING: the profile is Xcode's "iOS Team
+  Provisioning Profile: *" (file 39d...; made by Xcode's Set Up Signing
+  - the old 4610e5be one lacked the current certificate BD3931B1...
+  54F07F); in Delphi it must be PICKED in Project > Options > Deployment
+  > Provisioning (Debug, iOS Device 64-bit, Development) - Auto pointed
+  at the deleted file. Developer certificate "Apple Development: Simon
+  Booth (368BZHC2VL)".
+- DEBUGGING through PAServer is broken (owner): RUN WITHOUT DEBUGGING.
+  "Can't connect to the Mac": restart PAServer (a reboot fixed it once).
+- FILES ON THE iPAD from the Mac (Finder's Files tab does not open the
+  app's folders):
+    xcrun devicectl device copy to --device 00008120-001035C12E780032
+      --domain-type appDataContainer --domain-identifier com.epubunum.reader
+      --source <file> --destination Documents/<name>.epub
+  THE LOG (copy before the app is started again - each start begins a
+  new one):
+    xcrun devicectl device copy from --device 00008120-001035C12E780032
+      --domain-type appDataContainer --domain-identifier com.epubunum.reader
+      --source "Library/Application Support/EpubUnum/EpubReader-debug.log"
+      --destination ~/Desktop/EpubReader-debug.log
+  Listing: xcrun devicectl device info files ... (same domain options).
+- A REINSTALL MOVES THE APP'S CONTAINER: the library drops the old path
+  ("is gone - taken off") and finds the book again in the new one -
+  fine, but the reading place goes with the old entry.
+- THE 12 BUILD WARNINGS on iOS are the owner's global library path
+  (BOSS entries written as "..\C:\Users\simon\.boss\..."), not the
+  project: told to delete them in Tools > Options > Language > Delphi >
+  Library (iOS Device 64-bit; likely Android / Windows too).
+
+### Next, in this order (owner: "Now iOS then tvOS")
+1. Zip 408: BOOKMANAGER ON THE iPAD BY A TYPED ADDRESS - the link on iOS
+   (StartLink is Android only now), the reader's announcements sent
+   unicast to the typed address (FLink.SetDirect), /info for BookManager's
+   id and name, pairing, then streaming as on the TV (uStreamBook works
+   on any platform; OpenUrl is in uPlayerIOS). The start menu on iOS
+   then offers it again.
+2. Lock-screen / Control Centre controls (MPRemoteCommandCenter,
+   MPNowPlayingInfoCenter) - by raw ids as above.
+3. "Open in" (CFBundleDocumentTypes for epub) and the document picker.
+4. tvOS: a separate Swift app in a NEW repository, streaming from
+   BookManager (500 KB persistent storage there; caches purgeable).
+- Later: BookManager's index ahead; family / local users with pictures
+  and their own lists (owner: "for later on"); cloud storage only ever
+  optional (privacy, subscriptions - iCloud and Google alike).
+
+### Reminders for the owner (also below, zip 403)
+- When the iOS app is in ALPHA (TestFlight): request Apple's multicast
+  networking entitlement for com.epubunum.reader - then BookManager is
+  found by itself on an iPhone / iPad ("remind me!").
+- Before App Store review: take Delphi's unused default usage strings
+  (location, contacts, camera ...) out of the iOS VerInfo_Keys.
+
+### Standing rules (unchanged, repeated because they bit this session)
+- NEVER '}' inside a { } comment, NEVER '*)' inside a (* *) comment
+  (zip 400: "Embedded comments - you keep doing this..."); a multi-line
+  comment ends at the end of its line (pasdoc_check.py checks).
+- Every zip: numbered, summary's FIRST LINE says "NO PACKAGE REBUILD" or
+  which package needs one, and names any .dproj in it; run
+  tools/pasdoc_check.py and tools/project_check.py first.
+
+## Session 18's running notes (2026-11-27 10:37 -): Android TV begun
 Zip 381: the Shield's manifest entries and banner, the remote onto the
 pad's actions, no touch bar on a TV, the storage volumes logged (built
 and run by the owner 11:05: arrows and Play / Pause arrive, OK and
@@ -20,11 +142,23 @@ Numpad Enter is OK, "navigation" in configChanges. Zip 386: the key
 overlay taken out ("wasn't very helpful"; the keys improving). Zip
 387: the library scrolls to keep the D-pad's selection in view. Zip 388:
 "Opening book" - uProgressFrame (new, demos/common), 0 - 100 %, the
-open's window-thread part in steps so the frame is drawn. The handover below is session 17's
+open's window-thread part in steps so the frame is drawn. Zip 389: a
+first open's chapters made in the open's thread (MakeChapters), counted
+55 - 72 % (6.2 s of Night Watch's first open froze the window). The handover below is session 17's
 (zips 373 - 380 since then: notes only, pushed as f6b8655 "Reader TV
 next" - its "uncommitted" line is out of date).
+Pushed as f85aa50 "Working shield" (13:46: zips 381 - 388, verified
+byte for byte). Zip 389 on it: a first open's chapters made in the
+open's thread. Zip 390: books prepared in the background (uBookPrep, new;
+an open of the book being prepared waits for that job).
+Zip 390 tried on the Shield (15:41 - 15:46): works - all 29 books
+prepared while a book played, prepared books open in ~1.5 s. 15:47
+"Next we need to stream to the tv": zip 391 = BookManager serves its
+books; zip 392 = the reader's half (a TV streams a paired BookManager's
+books - library, open, preparation, audio). Next: the index ahead (its
+own zip), when the owner says.
 
-## Handover - READ THIS FIRST (latest: session 17, 2026-11-26 20:02)
+## Handover (session 17, 2026-11-26 20:02)
 
 Written at the owner's request (20:02: "Tomorrow probably / Write session
 handover in claude.md"). Session 17 ran from 2026-11-26 08:23 to 20:02:
@@ -2250,7 +2384,7 @@ TSteamAPI do not apply (no 3D).
   (Android versionCode=1 / versionName=1.0.0, Windows FileVersion
   1.0.0.0): asked in zip 343.
 
-Last number used: 388 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
+Last number used: 407 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
 next-session notes, CLAUDE.md only).
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
@@ -4838,6 +4972,780 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 407 (on top of zip 406): session 18's handover
+Owner 01:09 (build 406 log): "Plays fine now - skipped around a bit to
+check" - length 52888.7 s, Play at 114.9, 198.6, 2002.0 and 32706.1 s
+each sought and playing within 2 ms, the clips followed, audio on after
+"app: left". 01:10: "session handover time, late here". The handover at
+the top of this file. NOT COMPILED (notes only). NO PACKAGE REBUILD; no
+.dproj. Files: CLAUDE.md, demos/common/uVersion.pas (407).
+
+## Zip 406 (on top of zip 405): iPad - AVPlayer by raw ids, no record by value
+Owner 01:01 (build 405 log): "sound: ready, 0.0 s long", "sound: to
+114.920 s", then "sound: EAccessViolation - ... accessing address
+0000000000000028" - NO "sought" line, so the typed seek itself (CMTime
+by value through a cdecl procedural type) raised, and the inner
+try/except in StartAt did NOT catch it (the outer ones did) - the frame
+was not unwound normally; the length came back 0.0 (the struct-return
+typed call not right either). Same on every Play.
+NOT COMPILED. NO PACKAGE REBUILD; no .dproj. Files:
+demos/EpubReader/src/uPlayerIOS.pas (rewritten), demos/EpubReader/README.md,
+demos/common/uVersion.pas (406), CLAUDE.md.
+- uPlayerIOS: NO Objective-C bridge at all (no TOCGenericImport, no
+  Macapi / iOSapi units): objc_msgSend, sel_registerName, objc_getClass by
+  dlsym from /usr/lib/libobjc.A.dylib; the player and the item are RAW
+  IDS (Pointer), retained / released by message. Typed msgSend shapes:
+  TMsg0 (id / NSInteger / char * back), TMsg1 (one pointer), TMsgSetFloat
+  (setRate:), TMsgFloat (rate), TMsgSeek (THREE PCMTime - pointers to
+  copies: AAPCS64 passes a composite over 16 bytes that way, so this IS
+  the C call written out), TMsgGetValue (NSValue getValue:size:),
+  TMsgCategory / TMsgActive (the audio session, BOOL as Byte). Times READ
+  with valueForKey:@"currentTime" / @"duration" (an NSValue) and
+  getValue:size: into an own TCMTime record (24 bytes) - no struct
+  return anywhere. NSString by stringWithUTF8String:, back by UTF8String.
+  The audio session's outcome is logged at start. StartAt still logs
+  to / sought / playing.
+- NEXT: BookManager on the iPad by typed address.
+
+## Zip 405 (on top of zip 404): iPad - every AVPlayer call direct, each start logged
+Owner 00:57 (build 404 log): "Won't play - icon changed from arrow to two
+bars and instantly back". The AV now CAUGHT ("sound: EAccessViolation -
+Access violation at address 0000000100377578, accessing address
+0000000000000028" in Watch; then "clip 0: Access violation ..." from
+StartClip's Play, same address, on every Play) and NO "sound: not sought
+to" - the typed seek returned; what follows it in StartAt is
+FPlayer.setRate through the bridge (never reached before: in 403 the
+seek crashed first, and Resume returned early with the player's FPlaying
+still True). Also from that log: storage 1 = Documents, 52.64 GB free;
+the store's free space known (52.6 GB); the library found the book again
+in the NEW container (a reinstall moves it: the old path "is gone -
+taken off", the new one read in 2 ms); "app: in front again" works.
+NOT COMPILED. NO PACKAGE REBUILD; no .dproj. Files:
+demos/EpubReader/src/uPlayerIOS.pas, demos/common/uVersion.pas (405),
+CLAUDE.md.
+- uPlayerIOS: play, pause, rate, setRate:, status ALSO through
+  objc_msgSend typed (TMsgVoid, TMsgSetFloat - the float in s0,
+  TMsgFloat, TMsgInteger); gone from the imported interfaces. The bridge
+  is left with making the item and the player (playerItemWithURL,
+  playerWithPlayerItem), retain / release, error, the pitch algorithm
+  and the audio session. StartAt logs "sound: to X s", "sound: sought;
+  rate R", "sound: playing"; Watch logs "sound: ready, N s long" once.
+- If it still fails, the step logged last says which call.
+- NEXT: BookManager on the iPad by typed address (was planned as 405).
+
+## Zip 404 (on top of zip 403): iPad - Play's access violation, storage, books anywhere in Files
+First iPad run (owner 2026-11-28 00:30-00:50, build 403): provisioning
+sorted (a new "iOS Team Provisioning Profile: *" from Xcode's Set Up
+Signing; picked explicitly in Project Options - Tools > Options' Auto
+still pointed at the deleted 4610e5be profile); PAServer needed a reboot.
+The app ran: AVPlayer made, TCanvasGpu, safe area bottom 20. Night
+Watch (802.7 MB, m4b inside) put in with xcrun devicectl device copy to
+(Finder's Files tab does not open folders inside the app's), read in
+2.1 s, opened from its index in 1 s. Play: "UNHANDLED EAccessViolation
+... accessing address 0000000000000050", twice at the same address -
+0.1 s after Play (Watch starting the waiting start once the item was
+ready) and at once on a chapter's Play (the item ready: StartAt
+directly) - BOTH AT THE SEEK, seekToTime:toleranceBefore:toleranceAfter:
+with three CMTime (24-byte records) through the Objective-C bridge. The
+try/excepts round it did NOT catch it (an AV inside the bridge's call
+is not unwound to the Delphi frames - "UNHANDLED" both times). Pause /
+Play then played from the very start (never sought).
+NOT COMPILED. NO PACKAGE REBUILD; no .dproj. Files:
+demos/EpubReader/src/uPlayerIOS.pas, uBookStore.pas, uBookImport.pas,
+uMain.pas, demos/EpubReader/README.md, demos/common/uVersion.pas (404),
+CLAUDE.md.
+- uPlayerIOS: NO CMTime THROUGH THE BRIDGE. currentTime, duration and
+  seekToTime:toleranceBefore:toleranceAfter: are called through
+  objc_msgSend typed as the C function (TMsgTime: function(self, sel):
+  CMTime cdecl - the record back through x8 on arm64, no _stret there;
+  TMsgSeek: procedure(self, sel, time, before, after: CMTime) cdecl),
+  objc_msgSend and sel_registerName found with dlsym in
+  /usr/lib/libobjc.A.dylib (FindMsgSend, once). Those three methods are
+  gone from the imported interfaces. A failed seek / place / item is
+  logged ("sound: ...").
+- uBookStore: StoreFree measures the nearest existing folder above one
+  not made yet (the iPad's first start: "? free on the volume" - the
+  index folder did not exist). StoreMayWrite: free space NOT KNOWN = NO
+  on Android and iOS (owner: it must never be possible to run out),
+  still yes elsewhere.
+- uBookImport: StorageFolders on iOS = the app's Documents ("storage: no
+  volumes known" before).
+- uMain: the app-event handler (library read again in front; place and
+  settings saved, the link stopped when left) on iOS too. The library
+  takes every .epub anywhere in iOS's Documents (Files / Finder show it
+  as "EpubReader"; Finder drops at its top), not in a folder starting
+  with "." (Documents/.Trash); Android unchanged (the Books folder).
+  The empty library on iOS: where to put books (Files, Finder) and one
+  choice, Look again (ShowLibrary) - no BookManager / folder choices
+  there yet (both did nothing on iOS).
+- NEXT (zip 406 - 405 went to the player): BookManager on the iPad by typed address (the link on
+  iOS; announcements unicast to it; /info; streaming as on the TV). Then
+  lock-screen controls, "Open in", the document picker.
+
+## Zip 403 (on top of zip 402): iOS, step 1 - the target on, AVPlayer, Files, background audio
+Owner 22:15: "OK, that's all good. Now iOS then tvOS". Answers (22:1x):
+the Mac's iOS SDK in Delphi and a paid Apple Developer membership are
+READY; discovery: BOTH (the multicast entitlement asked for AND a typed
+address meanwhile); test device: an iPAD; tvOS: a NEW REPOSITORY (Swift).
+Owner 22:19: the multicast entitlement "Can't do this until app in
+alpha - remind me!" -> see REMINDERS below.
+Checked 22:1x: RAD Studio Florence's targets list iOS Device 64-bit, no
+tvOS (docwiki); iOS needs com.apple.developer.networking.multicast to
+send OR receive UDP broadcast (Apple's Local Network Privacy FAQ);
+unicast needs no entitlement; ATS is not applied to IP addresses.
+NOT COMPILED (iOS never built yet). .dproj IS IN THIS ZIP (one
+DCCReference src\uPlayerIOS.pas; <Platform value="iOSDevice64"> True;
+the iOS VerInfo_Keys of iOSDevice64 and iOSSimARM64: UIBackgroundModes=
+audio, UIFileSharingEnabled=true, LSSupportsOpeningDocumentsInPlace=true,
+NSLocalNetworkUsageDescription). PACKAGE REBUILD - FOR iOS DEVICE 64
+ONLY: EpubUnum and EpubUnumFMX built for that target first (it is on now
+in packages/EpubUnum.dproj and packages/EpubUnumFMX.dproj, ALSO IN THIS
+ZIP: only their iOSDevice64 Platform flag changed); Android / desktop
+need no rebuild.
+Files: demos/EpubReader/src/uPlayerIOS.pas (NEW), uPlayer.pas,
+EpubReader.dpr, EpubReader.dproj, packages/EpubUnum.dproj,
+packages/EpubUnumFMX.dproj, demos/EpubReader/README.md,
+demos/common/uVersion.pas (403), CLAUDE.md.
+- uPlayerIOS: own Objective-C imports (AVPlayerItem, AVPlayer,
+  AVAudioSession - named as the classes, the methods used only;
+  iOSapi.AVFoundation NOT used, AVFoundation dlopen-ed at start so the
+  classes are found); CMTime made by hand (value / 1000, flags valid) -
+  no CoreMedia functions called. Open = fileURLWithPath; OpenUrl =
+  URLWithString (BookManager's /slice); OpenPart = TIOSLoopback, an Indy
+  server on 127.0.0.1:47890-47909 serving one window of the book under a
+  random key, Range -> 206 (type sniffed: ftyp -> audio/mp4 .m4a, ID3 /
+  frame sync -> audio/mpeg .mp3). The item gets ready later: a start
+  before waits (FPendingFrom, Watch). Seek exact (zero tolerances); speed
+  = setRate; TimeDomain pitch; ended = rate 0 at the duration. Audio
+  session: playback, mode spoken audio, active.
+- uPlayer: ReaderPlayerCreate on iOS = TIOSReaderPlayer.
+- EXPECT compile errors on the first iOS build (never compiled for iOS:
+  uMain's Android / desktop branches, the bridge's names) - send them.
+- NEXT (zip 404 ...): BookManager on the iPad - a typed address (the
+  reader's announcements then go to it unicast - FLink.SetDirect; /info
+  tells its id and name; streaming as on the TV), the link on iOS (now
+  Android only); the start menu's "Choose a books folder" on iOS (the
+  Files app instead); later the document picker, "Open in" (epub
+  document type), lock-screen controls (MPRemoteCommandCenter).
+
+## REMINDERS FOR THE OWNER (keep at the top of the list)
+- WHEN THE iOS APP IS IN ALPHA (TestFlight): request Apple's multicast
+  networking entitlement (developer.apple.com/contact/request/
+  networking-multicast) for com.epubunum.reader - then BookManager is
+  found by itself on an iPhone / iPad (owner 22:19: "Can't do this until
+  app in alpha - remind me!").
+- Before App Store review: the iOS VerInfo_Keys carry Delphi's default
+  usage strings for location, contacts, camera, photos ... that the
+  reader does not use - take them out.
+
+## Zip 402 (on top of zip 401): "Unavailable" a little smaller, in the cover's middle
+Owner 22:04: "Unavailable - a little smaller (not much) and center horiz +
+vert". MarkUnavailable's label: Client with both aligns Center; 19 pt on
+a TV (was 22), 12 on a phone (was 14). NOT COMPILED. NO PACKAGE REBUILD;
+no .dproj. Files: demos/EpubReader/src/uMain.pas, demos/EpubReader/README.md,
+demos/common/uVersion.pas (402), CLAUDE.md.
+
+## Zip 401 (on top of zip 400): unavailable covers marked plainly
+Owner 21:59 (log of build 400): "2 books are unavailable but none are a
+different colour indicating unavailable". The 0.35 opacity was not to be
+seen. NOT COMPILED. NO PACKAGE REBUILD; no .dproj. Files:
+demos/EpubReader/src/uMain.pas, demos/EpubReader/README.md,
+demos/common/uVersion.pas (401), CLAUDE.md.
+  Owner 22:01: the 2 WERE faded - the benchmark's two test books (A
+  Christmas Carol, A Scandal in Bohemia: pale covers to start with), so
+  it did not show; "Still - your answer is better" - the shade and the
+  word kept.
+- MarkUnavailable(Img): a TRectangle child (Client, $B0000000, no hit
+  test) with a bold white "Unavailable" label at its foot (TV 22 pt);
+  the cover's own opacity left at 1. ShowLibrary logs "library: N
+  unavailable - names" when the list changes (FAwayWas).
+- From the same log (build 400 - zips 397-400 compiled and ran): "store:
+  88 MB for 32 book(s) - indexes 81 MB, chapters 0 MB, page layouts 6
+  MB; covers 11 MB (32); 7.2 GB free" - so of Android's 221 MB about 100
+  MB are the reader's own data, the rest the app itself. Under the TV's
+  250 MB: nothing made way. 30 of the library's 32 books on the USB
+  drive; BookManager came (21:58:04) and went (21:58:23).
+
+## Zip 400 (on top of zip 399): zip 397's uBookStore did not compile - a comment closed early
+Owner 21:52: "Embedded comments - you keep doing this..." - uBookStore.pas
+(15): E2029 'UNIT' expected but ':' found, then everything after. The
+unit's (* *) header said "(the store: index\<md5>.*)" - its ".*)" closed
+the comment, the rest of the header became code.
+NOT COMPILED. NO PACKAGE REBUILD; no .dproj. Files:
+demos/EpubReader/src/uBookStore.pas, tools/pasdoc_check.py,
+demos/common/uVersion.pas (400), CLAUDE.md.
+- The two comments reworded ("every file index\<md5> with any
+  extension").
+- tools/pasdoc_check.py now catches it: a comment over several lines
+  must end at the end of its last line - text after its '}' or '*)'
+  there means a closer written inside it ended it early (the whole
+  repository passes; it found exactly this one).
+- RULE FOR ME (owner, more than once): never write '}' inside a { }
+  comment or '*)' inside a (* *) one - no "x.*)", "(see {...})", no
+  closer in an example. Run tools/pasdoc_check.py before every zip (it
+  now says so).
+
+## Zip 399 (on top of zip 398): one book in two places - read from the copy there, the device's own first
+Owner 21:47 (logs of build 396): all 44 books streamed; BookManager
+closed - unavailable; a books folder added on the USB drive with the
+same books (30): "zero books are available" (also after a restart).
+"Local books are obviously more reliable than network ones. If local
+becomes unavailable but network makes it available then the transient
+copy is available again" and "local storage may be swapped at any
+time". The log: "library: 30 book(s) in 720D-25F6:" and nothing added -
+ScanTranscribed's Consider skips a file name already in FRecent (one
+entry a name, by design since zip 328), so the faint stream entries
+kept the names and the USB copies never came in.
+NOT COMPILED. NO PACKAGE REBUILD (lib/ untouched); no .dproj. Files:
+demos/EpubReader/src/uMain.pas, demos/EpubReader/README.md,
+demos/common/uVersion.pas (399), CLAUDE.md.
+- RehomeBooks (ShowLibrary, after ListBooksFolders, before
+  DropMissingBooks): for each file name the best copy listed now (Here:
+  a books folder's in FFolderBookSet; a streamed one's BookManager
+  reachable; a path that exists) - a books folder's before a stream's;
+  each FRecent entry not Here, or streamed while a local copy is Here,
+  gets that address (FileName only: places, index, cover, Opens - all by
+  the file name - stay). The open book skipped. Logged as a count;
+  BuildRecentMenu + SaveSettings.
+- OpenRecent: a touch build's address whose copy is gone now (BookExists
+  false - a content query - or the stream not reachable): ListBooksFolders
+  + RehomeBooks first; still a books folder's copy and not there: a note
+  "Not there now" naming the folder (BookFolderOf, new), nothing deleted.
+- Not done: a local book being READ when its drive goes (reads fail
+  then); BookManager's copy of the open book is not switched to mid-read.
+
+## Zip 398 (on top of zip 397): Left / Right never move the menu's row; the cover choice cut down
+Owner 21:40: "The menu has an annoying habbit on options that may be one
+of many values. After you press Left/Right it moves to another option.
+Only Up/Down should do that. The Book Cover option should not show path
+to cover or all other books. Only in-book, audio, a generic or specially
+uploaded one (which should be attached to the book anyway)".
+NOT COMPILED. NO PACKAGE REBUILD (lib/ untouched); no .dproj. Files:
+demos/EpubReader/src/uMain.pas, uPadMenu.pas (EpubBuilder uses it too:
+one method added), demos/EpubReader/README.md, demos/common/uVersion.pas
+(398), CLAUDE.md.
+- The cause found: TPadMenu.Move is a STEP, and every "ShowPadMenu;
+  FPadMenu.Move(MENU_X)" (Library order's step, Dark mode, Highlight to
+  or from Word, back from Contents / Controls / Books / the link) took
+  it as a row - right only while Show started on row 0; zip 396 made it
+  start on the first live row (no book open: row 1), so they landed one
+  row on. New TPadMenu.Select(row); all ten calls use it.
+- And the rule itself: PadPress's Left / Right in a menu keep the row -
+  if a step left the same menu on another row it is put back and logged
+  ("menu: left / right on row N had moved to row M - put back") - so if
+  it still happens somewhere the log says where.
+- ShowCoverChoice: the book's own, the audiobook's, a Covers picture
+  NAMED for this book (file name or title; caption "Your picture for this
+  book"), and "A plain one" (SaveTextCover to a temp file, choice
+  'plain'); no other books' pictures, no path in the title ("Cover of
+  <title>"). The owner's "(which should be attached to the book anyway)":
+  a picture for a book belongs in the book - EpubBuilder puts the chosen
+  cover in the book it builds; a picture chosen on a phone or TV stays
+  the library's (the book file is not changed) - to discuss if more is
+  wanted.
+
+## Zip 397 (on top of zip 396): book storage held to a size; never the device's last space
+Owner 21:25 / 21:30 (below) and 21:30 "It must NEVER be possible to run
+out of storage space". NOT COMPILED. .dproj IS IN THIS ZIP (one
+DCCReference: src\uBookStore.pas - nothing else touched). NO PACKAGE
+REBUILD (lib/ untouched). Files: demos/EpubReader/src/uBookStore.pas
+(NEW), uMain.pas, EpubReader.dpr, EpubReader.dproj,
+demos/common/uDebugLog.pas (the log's cap - BookManager and EpubBuilder
+get it at their next build), demos/EpubReader/README.md,
+demos/common/uVersion.pas (397), CLAUDE.md.
+- uBookStore (new, pure): STORE_RESERVE 1 GiB; StoreMayWrite (free -
+  size >= reserve; free unknown: yes); StoreScan (FindFirst over
+  index\ - each book's files by key = the name to its first dot, sizes
+  by kind; .tmp over an hour old deleted; covers\ summed, not in the
+  budget); StoreVictims (tier 0 not in the library, 1 Opens = 0 oldest
+  written first, 2 opened by LastOpen - unknown ones first, by the
+  library's order; Keep never); StoreDropBook (<key>.* but .tmp);
+  StoreText. Sizes 100/250/500/1000/2000 MB; TV 250, phone 1000,
+  desktop 2000.
+- TRecentBook.Opens / LastOpen (settings "opens", "lastOpen"; a book with
+  a place from before = 1 open). RememberBook keeps them; NoteOpened at
+  the open's end (after RememberBook).
+- TrimStore(why) - main thread builds the uses (Keep: the open book,
+  FPrep.Current, FJoinName, and STORE_KEEP_OPENED = 3 opened last), a
+  thread scans, budget = min(chosen, max(0, total + free - reserve)),
+  drops the victims, StoreDone logs (at start the breakdown), sets
+  FStoreUsed / FStoreBudget, Forgive('') when room was made, PrepList.
+  Called: FormShow before StartPrep ('start'), each open's end ('a book
+  opened'), the menu's size ('its size set'), a prep job whose index
+  was not kept ('an index not kept'). One at a time (FStoreAgain).
+- PrepList: StoreFull -> an empty list (logged once). PrepDone(done):
+  FStoreUsed += the book's index + chapters - the preparation may pass
+  the budget by a book or two (the worker starts the next before the
+  window hears); the reserve is the hard rule, the budget soft.
+- Hard guards (StoreMayWrite): SaveWhole (indexes) and SaveChaptersFile
+  raise EInOutError (the callers already go on without them);
+  SaveImageCover / SaveTextCover raise (no cover; the title shows); the
+  layout cache is '' at an open without 64 MB to spare; SaveSettings
+  skips writing (logged) and now writes temp + rename; FLink.Reserve =
+  max(500 MB, 1 GiB) for received books.
+- uDebugLog: LOG_MAX 8 MB, then the log goes to .old (the last run's
+  .old is lost then) and a new one starts with a line saying so.
+- Menu: MENU_STORE = 15 "Book storage" ("< 250 MB, 180 MB used >"; left /
+  right or a tap a step; StepStore); MENU_EXIT 16, MENU_ABOUT 17.
+- TO SEE in the next log: the "store:" line at start (what the 221 MB
+  is), whether anything made way, "prep: the book storage is full ..."
+  when it fills.
+
+## Owner 21:25 - the TV's storage: a budget for the per-book caches (done in zip 397)
+"32 books with indices took 221Mb according to android app info. We need
+to limit how much we use (this is especially true for apple). What's the
+apple limit? May as well use same limit for both TV platforms." When a
+book not cached is read, the least used make way; new books replace
+never-opened ones first, then older ones; recent ones kept.
+- Apple TV (looked up 21:2x): no fixed cache quota - 500 KB of persistent
+  storage (NSUserDefaults) and everything else in Caches, which the
+  system may delete at any time; iCloud KVS (1 MB) / CloudKit for more.
+  So: our own budget, and every cache rebuildable (they are: the index
+  is made again by reading the book). For a tvOS port the settings
+  (library, places) must fit 500 KB or go to iCloud.
+- Per book on disk (beside the settings): index\<md5>.euix,
+  index\<md5>.chapters.json, index\<md5>.<n>.eul (layouts, zip 351),
+  covers\<md5>.png. 221 MB in Android's App info includes the APK.
+- OWNER RULE 21:28: "ICloud (or any remote storage) is a privacy and
+  subscription issue - this HAS to be optional". Never required: on an
+  Apple TV the settings live in the 500 KB of local storage
+  (NSUserDefaults; kept until the app is deleted); offered extras only
+  (BookManager on the home computer keeping a copy - private, no
+  subscription - or iCloud, each switched on by the user). 500 KB:
+  about 400 bytes a library entry now (the bookmanager:// address is
+  most of it) - ~1000 books; keep the settings compact.
+  Owner 21:30: "Note the same applies to Google cloud" - no Google Drive
+  / Google backup required either; optional only.
+- Owner 21:30 "OK to storage sizes": 250 MB on both TVs, a menu setting
+  (100 / 250 / 500 MB / 1 GB ...), phones 1 GB by default. Being built
+  as zip 397.
+- FAMILY ACCESS (owner 21:25, "for later on"): local users with optional
+  pictures, each with their own books / lists and places (a daughter's
+  set, the parents' own). NOT NOW - but keep places and access counts in
+  a shape that can be keyed by user later.
+
+## Zip 396 (on top of zip 395): the library's menu by a held OK, its title, the menu's dead rows faded
+Owner 21:06: "There is no way to open menu on Library screen - Long Hold
+would do. A static title at top of library would be good. e.g. Library -
+12 Books available (18 unavailable). Not all menu options are applicable
+from main menu so those that make no sense should be disabled."
+NOT COMPILED. NO PACKAGE REBUILD (lib/ untouched); no .dproj. Files:
+demos/EpubReader/src/uMain.pas, demos/EpubReader/README.md,
+demos/common/uVersion.pas (396), CLAUDE.md.
+- TvKey, vkReturn with the library alone (no menu): no press on the way
+  down - FOkWaiting and tmOkHold (TV_OK_HOLD_MS = 700, made on first
+  use); FormKeyUp of OK while waiting: PadPress(PAD_PLAY) (the book, as
+  before but on the way up); the timer first: PadPress(PAD_MENU), logged
+  "tv: OK held 700 ms in the library - the menu". The repeats of the
+  held OK are TvKeyIgnored's (zip 394). Up from the top row still opens
+  the menu (zip 383 - the owner did not know it).
+- lblLibTitle (touch builds; Top of recLibrary, before FLibScroll) with
+  lblLibHint at its right (a TV: "Hold OK for the menu"): ShowLibrary
+  counts the covers (faint = Away, as the faint test) - LibraryTitle
+  (standalone): "Library - N book(s) available" + " (M unavailable)"
+  when M > 0. A TV: 64 high, 28 / 20 pt; else 40 high, 18 / 14 pt.
+  Hidden with an empty library (the start menu is there).
+- MenuRowOff(MENU_...): RESUME and LEARN and COVER with no book;
+  LIBRARY over the library; CONTENTS with no book or over the library.
+  ShowPadMenu fades them (Dim) and starts on the first live row;
+  PadMenuChoose (main menu) does nothing for them.
+- EnsureCover logs "cover: <book>" only when it makes one (every showing
+  of the library logged a line per book).
+
+## Zips 394/395 on the Shield (owner 21:01: "That worked better than I thought it would") - goes with the next zip
+Log 20:58 (build 395): the owner dropped a load of books, duplicates
+among them, into BookManager's Transcribed folder while all ran.
+- 20:59:00 the 20 s ask: 14 -> 44 books listed; 18 new ones read (12
+  had a file name already in the library - skipped, the copy there
+  stays), each 455 - 777 ms IN ITS THREAD (zip 394), covers 5 - 30 ms to
+  decode; the batch of 18 came in at once at 20:59:15 (14 s).
+- The remote answered meanwhile: a book opened at 20:59:09 in the middle
+  of the scan, from its index in 1.6 s, the scan going on beside it.
+- One held OK (20:58:10): "pad: Menu" once, then 8 repeats "ignored -
+  held down" (zip 394's TvKeyIgnored, 48 - 54 ms apart, the first 399 ms
+  after) - held keys are one press.
+- The preparation list follows the library's selection as it moves
+  (20:59:17 - 31); Dragon Wing prepared in 15.8 s.
+- A book without a cover picture (The Hitchhicker's Guide) got a made
+  cover.
+
+## Zip 395 (on top of zip 394): on a TV Back never leaves the app - the menu's Exit does
+Owner 20:52 (log of build 394): "Holding the back button down causes the
+app to quit. It would be better if you had to do this by menu option".
+The log: Back on the page -> library (20:50:38.581), Android's repeat of
+the held key 0.5 s later -> zip 385's rule (Back in the library leaves
+the app, Android TV's guideline) -> "closing" 20:50:39.102.
+NOT COMPILED. NO PACKAGE REBUILD (lib/ untouched); no .dproj. Files:
+demos/EpubReader/src/uMain.pas, demos/EpubReader/README.md,
+demos/common/uVersion.pas (395), CLAUDE.md.
+- FormKeyDown's Back, a TV: in the library (no menu) Key := 0 - nothing
+  (still never back to the book: no toggling); the start menu ("No
+  books yet") and the last "system's" branch consume it too. The way
+  out: the main menu's Exit (was there), and the start menu has an
+  Exit row on a TV (START_EXIT = 2, closes like MENU_EXIT). The zip 385
+  rule (Back reaches the home screen) is the owner's to break.
+- TvKeyIgnored takes vkHardwareBack too (held = one Back); its "again
+  within 300 ms of coming up" rule is now Play / Pause only (Back or OK
+  pressed twice quickly are two presses).
+- 394 on the Shield (same log): one Play / Pause = one toggle (no
+  "ignored" line needed that time); streamed books opened from their
+  index in 1.3 - 2.7 s; the prep stopped for an open and resumed from
+  the index it had just written ("read in 1217 ms ... from its index").
+  The scan in a thread NOT exercised (no new books).
+
+## Zip 394 (on top of zip 393): the TV's Play / Pause one press; new books read in a thread
+Owner 20:43 "ok" to the two fixes proposed after the 393 logs (below).
+NOT COMPILED. NO PACKAGE REBUILD (lib/ untouched); no .dproj. Files:
+demos/EpubReader/src/uMain.pas, demos/EpubReader/README.md,
+demos/common/uVersion.pas (394), CLAUDE.md.
+- TvKeyIgnored (FormKeyDown, a TV, before TvKey): OK, Play / Pause and
+  Menu only (the D-pad's repeats scroll): ignored when the same key is
+  held (FTvHeld, came down again within TV_KEY_HELD_MS = 2 s of its last
+  coming down - a lost key up frees it after that) or came down again
+  within TV_KEY_AGAIN_MS = 300 ms of coming up (FTvLetGo/At, set in
+  FormKeyUp). Each ignored one logged ("tv: remote key 179 ignored -
+  held down (1247 ms ...)" / "down again 98 ms after it came up") - the
+  next log says whether that was it.
+- The scan of new books (touch builds: tmScan) reads each book in a
+  thread: ScanRead (BookOpenPath, TEpubBook.CreateHeader, SetBookMeta,
+  the cover's bytes when the cover is not made yet, BookRelease) ->
+  Queue -> ScanReadDone (SaveCoverFrom - new standalone beside
+  EnsureCover: FMX bitmaps in the window's thread; the entry into
+  FScanDone; the next book, or ScanBatchDone = the old tmScanTimer tail).
+  FScanReading / FScanCurrent: one at a time; ScanTranscribed does not
+  queue the book being read; the empty-library label, the start menu
+  and the note wait for it. AddScanned stays for the desktop's path.
+- TO SEE in the next log: "library: read in its thread in N ms" per book,
+  the remote answering while they come in; one Play / Pause = one toggle
+  (and the "ignored" lines).
+
+## Zip 392/393 on the Shield (owner 20:36 "OK"; log 20:33, build 393) - goes with the next zip
+- Heard BookManager on MONSTER 1.4 s after start (192.168.1.91:47821 -
+  EpubBuilder not running, so 47821), paired already (the token of the
+  20:18 pairing): 14 books listed in 0.14 s.
+- The 14 new books read (header + cover) by tmScan in the WINDOW'S
+  THREAD: 20:33:06.6 - 20:33:20.8, 14.2 s, 0.4 - 1.3 s each (covers of
+  37 KB - 1.6 MB over the network) - the library stays empty meanwhile
+  and the remote is not answered between books. A candidate to move to
+  a thread.
+- Background preparation over the network: Foundation read 8.1 s (index
+  1.5 MB), Foundation and Empire 9.0 s, Second Foundation 8.8 s,
+  Foundation's Edge 15.5 s, The Sword of Shannara 25.0 s (index 5.3 MB);
+  "ready" comes 3.5 - 11 s after "read" (chapters, written).
+- Opened The Sword of Shannara while it was being prepared (2 %): the
+  open waited for the job (17 s), then opened from its index in 2.6 s.
+  Scrolling fine.
+- 20:35:40 BookManager went (closed): "no longer on the network", the
+  preparation list emptied, the library shown again (faint covers).
+- Second log (owner 20:40 "Plays audio"):
+  - 20:38:21 BookManager heard again: the preparation went on (8 left,
+    Forgive worked), the library shown again.
+  - 20:39:04 Play / Pause on The Sword of Shannara: "clip 9: streaming
+    OEBPS/audio/...m4b from BookManager (753353792 bytes at 3575565)" -
+    MediaPlayer opened the 753 MB slice by URL in 0.93 s (prepare, in
+    the window's thread), played; clips followed for 40 s.
+  - ONE press of Play / Pause (179 down 04.060, up 05.312) gave THREE
+    toggles: play (04.061), "pad: Play" stop (05.307), "pad: Play" play
+    (05.410 - after the key came up). Repeats are not logged (TvKeyFirst
+    logs a key's first press only). To find: auto-repeat of a held key,
+    or a second source of the media key. Candidate fix: ignore a key's
+    repeats (KeyDown again before its KeyUp) and a Play / Pause within
+    ~0.5 s of the last.
+  - 20:39:27 "stream: BookManager on MONSTER is no longer on the
+    network" - RIGHT: the owner closed BookManager then (20:43 "closed
+    bookmanager"). The preparation finished Death's End from the blocks
+    it already held (32 x 512 KB kept) and the player from its buffer.
+    Still worth having (not asked for): a direct call before taking a
+    paired BookManager for gone, against Wi-Fi dropping broadcasts.
+- NOT TESTED yet: opening a book while BookManager is away ("Not on the
+  network").
+
+## Zip 393 (on top of zip 392): 391's compile error fixed, the owner's hints
+NOT COMPILED. NO PACKAGE REBUILD (lib/ untouched); no .dproj. Files:
+demos/common/uLink.pas, demos/EpubReader/src/uBookImport.pas, uBookPrep.pas,
+uMain.pas, demos/common/uVersion.pas (393), CLAUDE.md.
+- The owner's first build of 391 (BookManager, 20:27): uLink.pas(1637)
+  E2004 Identifier redeclared: 'Last' - zip 391's /slice declared
+  "RangeLen, First, Last: Int64" in TLinkServer.CommandGet, which already
+  had "From, I, Last: Integer" (/log). Renamed RangeFirst / RangeLast.
+  The E2250 "no overloaded version of 'Queue'" errors that followed (13,
+  in CommandGet and TLinkFinder.UdpRead, none of them touched) are taken
+  for the compiler's cascade from it: System.Math is used with
+  TThread.Queue(nil, procedure ...) in five other units. IF THEY STAY,
+  that is the thing to look at next.
+- The 391 and 392 additions were read again line by line for the same
+  kind of mistake (uLink, uManager, uStreamBook): none more found.
+- Also the owner's earlier build's hints (19:28, "for next time"):
+- uBookImport.pas H2443 TJavaBasicArray.GetArrayLength not expanded:
+  Androidapi.Jni added to the Android uses.
+- uBookPrep.pas W1036 'Outcome' might not have been initialized:
+  Outcome := bpoFailed before the job's try.
+- uMain.pas H2443 RenameFile not expanded (x2): Posix.Stdio added to the
+  POSIX uses, beside Posix.Unistd.
+- (The Shield's log of 20:17 was build 390: 391 and 392 were not yet in
+  the owner's copy; the owner is applying 391-393 now.)
+- Rule kept from now on: each zip's summary to the owner says NO PACKAGE
+  REBUILD (or that one is needed) in its first line, beside the .dproj flag.
+
+## Zip 392 (on top of zip 391): streaming, the reader's half - a TV reads BookManager's books
+Step (2) of the plan in zip 391's section (owner 15:47 "Next we need to
+stream to the tv"; the TV sees ALL of BookManager's books while it runs
+and is paired; TVs stream by default; the index ahead later). NOT
+COMPILED. Files: demos/EpubReader/src/uStreamBook.pas (NEW),
+demos/EpubReader/src/uMain.pas, uBookImport.pas, uBookPrep.pas,
+uPlayer.pas, uPlayerAndroid.pas, demos/EpubReader/EpubReader.dpr,
+.dproj IS IN THIS ZIP (one DCCReference: src\uStreamBook.pas - nothing
+else touched), AndroidManifest.template.xml, demos/EpubReader/README.md,
+demos/BookManager/README.md, demos/common/uVersion.pas (392), CLAUDE.md.
+NO PACKAGE REBUILD (lib/ untouched).
+- uStreamBook (new): a streamed book is bookmanager://ID/PATH (ID the
+  BookManager's link id, PATH its path there, URL-encoded); the
+  BookManager is a "books folder" bookmanager://ID/. A registry of the
+  BookManagers heard (id -> name, host, port, token, last list) under a
+  lock. StreamRefresh asks /books in a thread (TLinkClient.Books),
+  tells the window only when the list changed. OpenStreamBook: a TStream
+  (TStreamBookStream) reading blocks of 512 KB by /book?path&offset
+  &length with X-Link-Token (its own TIdHTTP; the newest 32 blocks
+  kept, 16 MB); size from the list, else from X-Link-Size of a 1-byte
+  ask. StreamAudioUrl: http://host:port/slice?...&type=audio/mp4&token=.
+- uBookImport: IsBookAddress is true for bookmanager:// too, so uMain
+  treats a streamed book as a books folder's book everywhere; each
+  address function has a stream branch (BookFileName, BookFolderName,
+  BookFolderBooks = StreamBooks - the last list, never a call, BookInFolder,
+  BookFolderForget nothing, BookOpenPath nothing to open, BookExists
+  True - not taken for gone while BookManager is off, OpenBookStream =
+  OpenStreamBook). EpubStreamOpener is now set on every platform (it
+  returns nil for a path off Android, as before).
+- uMain (TV only, FTV): StartStreaming in FormShow - FStreamFinder
+  (a TLinkFinder that runs all the time; the link panel uses it then
+  instead of a second one: LinkFinderChange takes either) and tmStream
+  (20 s). StreamLook: each BookManager heard WITH A PORT and a token
+  (StreamTokenFor: the reader's own linkTokens "token=name", name =
+  "BookManager on MONSTER", the last line wins) is registered; a new
+  one's tree goes into FBooksTrees and its id into FStreamSeen (saved,
+  "streamSeen" - taken off by hand it is not put back; LinkPaired
+  forgets it, so pairing again does); its list asked for when it comes
+  and every 20 s; one gone (bye, or not heard: Peers expire) is
+  StreamServerLost - its books stay, FAINT, and OpenRecent says "Not on
+  the network" instead of opening; PrepNames leaves them out and
+  TBookPrep.Forgive(tree) lets the ones that failed be tried when it is
+  back. StreamListChanged: ShowLibrary (the remote's selection kept)
+  when the library shows with no menu over it (the start menu of an
+  empty library is hidden for it), else FStreamPending until a tick
+  finds it so; the link panel's Done shows the library again on a TV.
+  ShowFolder's text for a BookManager entry.
+- The audio: TReaderPlayer.OpenUrl (new, False by default; Android:
+  Open(url) - MediaPlayer streams http and asks ranges, /slice answers).
+  OpenClipAudio: a streamed book's stored audio is opened by URL; when
+  that fails it is NOT extracted (900 MB over the network in the
+  window's thread) - the error shows instead. The manifest has
+  android:usesCleartextTraffic="true" (Android 9 on refuses plain http
+  to the media player without it).
+- NOT DONE / TO WATCH: a streamed book new to the library is read
+  (header, cover) by tmScan in the window's thread - a few 512 KB blocks
+  over the LAN each; BookManager vanishing mid-read is a 5 s connect
+  timeout there. The background preparation reads a whole streamed book
+  over the network (as from the USB drive). A book named the same as one
+  already in the library (the USB folder's copy) is not added twice: the
+  first found stays.
+- TO TEST: pair the Shield with BookManager (Get books from BookManager
+  on the TV, Pair in Send to phone) - the log "stream: BookManager on X
+  is paired", "has N book(s)", the books in the library; open one
+  (Opening book, then "from its index" once prepared); Play ("clip N:
+  streaming ... from BookManager"); close BookManager - covers faint,
+  "Not on the network"; start it - back within 20 s.
+
+## Zip 391 (on top of zip 390): streaming, BookManager's half - it serves its books
+Owner, 2026-11-27 15:41 - 15:46 (0.0.390 on the Shield, two logs): the
+background preparation works - 29 books prepared in 10 min while Night
+Watch played (avg 19.4 s, max 38.0 s, no failures - BookOpenPath from
+the worker thread works; indexes 80.6 MB for 30), prepared books open
+in ~1.5 s (Forward the Foundation, Interesting Times: "from its index",
+"chapters from last time"), Back from the library leaves the app;
+"It's all working well"; the join / stop test (2) later. A key 137 "up"
+after Back each time: Back's let-go, harmless. Then 15:47: "Next we
+need to stream to the tv". Asked (15:5x) and answered: the TV sees ALL
+of BookManager's books (its fetch folder) while it runs and is paired;
+TVs STREAM BY DEFAULT (storing stays BookManager's Send, by hand); the
+INDEX AHEAD (BookManager builds and sends a book's index so a TV never
+parses XML) LATER, its own zip. NOT COMPILED. Files: demos/common/
+uLink.pas, demos/BookManager/src/uManager.pas, demos/BookManager/
+README.md, demos/common/uVersion.pas (391), CLAUDE.md. NO PACKAGE
+REBUILD - but uLink is in BookManager, EpubBuilder and EpubReader:
+all three are rebuilt (only BookManager behaves differently).
+- THE PLAN (told to the owner): (1) BookManager serves - THIS ZIP; (2)
+  the reader: a TStream reading a streamed book by blocks from
+  BookManager (EpubStreamOpener: the library, index, chapters, the
+  background preparation unchanged), BookManager's books in the TV's
+  library, the audio played by the player straight from /slice; (3)
+  the index ahead.
+- uLink: /book?path&offset&LENGTH - exactly those bytes (min of length,
+  LINK_RANGE_MAX = 16 MiB and the rest of the file), copied into a
+  TMemoryStream (Indy sends a stream to its end), X-Link-Size /
+  X-Link-Offset as before; without length as before. /slice?path&offset
+  &length[&type][&token] - TLinkWindowStream (a window of the file as a
+  file of its own), Accept-Ranges: bytes, a Range "bytes=A-B" / "A-" /
+  "-N" (ParseByteRange; one range) -> 206 + Content-Range (custom
+  headers, not Indy's ContentRange* properties), else 200 with the
+  whole window; 416 for a window outside the file; content type audio/
+  mp4 unless &type=. THE TOKEN MAY COME AS ?token= on every call now
+  (only when the header is empty): Android's player sets no headers.
+  MayGet as before (the server's output folders).
+- BookManager: StartServer in FormCreate (after the manager id) -
+  TLinkServer(LINK_APP_MANAGER, FClientName, FManagerId), SetFolders('',
+  '', '', [FFetchFolder]) (no upload folders: uploads refused - "this
+  ... takes books only"), SetTokens from FTokens turned round (the
+  server keeps token=name: the tokens BookManager holds for its builders
+  and phones are the ones they may call it with - NO SECOND PAIRING),
+  OnRequest -> "serve: GET /books from ..." (the /book blocks left out).
+  ServeSettings again after a pairing (SetTokenFor) and a new fetch
+  folder. Its TLinkAnnouncer says BookManager is here WITH ITS PORT; the
+  TLinkBeacon (port 0) only when the server could not start. Freed in
+  FormClose and FormDestroy. No OnPairCode: nobody pairs with
+  BookManager's server by a code (a /pair is answered, the code never
+  shown).
+- THE READERS ALREADY HEARD BookManager (uMain's LinkHeard: SetDirect
+  to its host) - its port is in the announcement now (TLinkPeer.Port),
+  for zip 392.
+- TO SEE (BookManager's log): "serve: link: BookManager and EpubReader
+  can connect (port 47822; ...)" and "serve: the books in <fetch folder>
+  to the paired readers (a TV streams them), port 47822". A quick test
+  from the PC: curl -H "X-Link-Token: <the phone's token from
+  BookManager's ini, [Paired]>" http://localhost:47822/books - the
+  list; VLC can play
+  http://localhost:47822/slice?path=<a book>&offset=<the m4b's data
+  offset>&length=<its size>&token=<token> (the offsets are in the
+  reader's log: "playing audio/... inside the book (N bytes at M)").
+  The phone's Send to phone works as before.
+
+## Zip 390 (on top of zip 389): books prepared in the background (A .dproj AND THE .dpr ARE IN THIS ZIP)
+Owner, 2026-11-27 13:53 - 13:59, after zip 389's offer (1): "is
+something I was going to suggest but one thing concerns me - what
+happens if I open a book that's being prepared in the background?" -
+answered: the open JOINS the job (never two reads of one book). "if I
+remove app and read in all 30 books again then open the first/last one
+- what?" - answered: the first joins (faster than now); the last opens
+as now but may meet a job half-way through a read (cannot be stopped
+mid-read without lib) - so a quiet time before jobs start, and jobs
+stop at stage boundaries. "I was thinking that prep happens while
+reading another book also helps" - agreed: jobs run while a book is
+read (and played; logged so stalls can be matched), the books after
+the open one first. "this sounds better now". NOT COMPILED. Files:
+demos/EpubReader/src/uBookPrep.pas (NEW), demos/EpubReader/
+EpubReader.dpr and .dproj (the unit added - ONLY a DCCReference; the
+.dproj otherwise f85aa50's), demos/EpubReader/src/uMain.pas,
+demos/EpubReader/README.md, demos/common/uVersion.pas (390),
+CLAUDE.md. NO PACKAGE REBUILD.
+- uBookPrep.TBookPrep (knows nothing of books): one worker thread
+  (anonymous, FreeOnTerminate), a list of names (SetList replaces it;
+  the current job's book and this run's failed ones left out), Current /
+  Progress (0 - 100, told by the job), Hold(ms) - no job starts before,
+  OpenStarts(name) - UNDER ONE LOCK: no new job until Resume; when name
+  is the current job's -> True (the open waits), else name leaves the
+  list and the current job is asked to stop (AStop, between its
+  stages). A stopped job goes back FIRST in the list. OnDone queued to
+  the window's thread (QueueDone: its own copies - the loop's variables
+  are not captured). Shutdown (FormClose): no more jobs, the current
+  asked to stop, NOT WAITED FOR - the object is never freed (the program
+  ends).
+- uMain, the job PrepareBook (any thread): BookPrepared -> done;
+  BookOpenPath IN THE WORKER THREAD (JNI from a Delphi thread - Delphi
+  attaches it; NOT TESTED: if it fails the log says "prep: ... FAILED"
+  and only books of a books folder are hit), OpenBookIndexed (index
+  written), [stop?], the clips' words, [stop?], MakeChapters (progress
+  58 - 95), SaveChaptersFile (kept even if a stop came: done is done),
+  BookRelease. Logs "prep: preparing X", "prep: X read in N ms - note".
+- WRITTEN WHOLE: SaveWhole / ReplaceWith / TempNameFor (<file>.<thread
+  id>.tmp, then renamed; Windows: the old file deleted first) for the
+  index (OpenBookIndexed) and the chapters (SaveChaptersFile - the
+  form's SaveChapters now builds a TChapterList and calls it). An app
+  killed half-way leaves a .tmp, never half an index.
+- BookPrepared(name): index and chapters files there, the chapters not
+  older (LoadChapters' own test; whether they fit is checked at open).
+  SameBook(a, b): addresses by text, paths by ExpandFileName.
+- THE FORM: StartPrep in FormCreate (touch builds; FPrep nil elsewhere -
+  the desktop unchanged), Hold(PREP_QUIET_MS = 15 s); PrepList (PrepNames:
+  the selected cover first when the library shows, then from the book
+  after the open one round the library's order; the open book and the
+  prepared ones left out; logged when it changes) at start, after a
+  library scan (+ Hold), after each open (ProgressFinish: Hold, Resume,
+  PrepList), when the D-pad moves the cover selection (MoveCover).
+- THE JOIN (OpenBook, touch path, first thing): FPrep.OpenStarts true ->
+  FOpening, FJoinName, the frame ("Being prepared in the background -
+  finishing that"; tmJoin 250 ms: the job's count x 0.9), Exit. PrepDone
+  for that name -> OpenBook again: prepared -> the indexed open; failed
+  -> the usual one. ProgressStart no longer restarts a frame already
+  showing (the count goes on from the join's).
+- OPEN'S THREAD (389's chapters): also made when the index is there but
+  the chapters are not (a job stopped after its read) - BookPrepared.
+- NOT DONE: stopping a read half-way (lib - PACKAGE REBUILD); a lower
+  thread priority (Android: not set); covers are still made by the
+  library's scan, not the background.
+- TO SEE on the Shield (a fresh install is the test): the "prep:" lines
+  start 15 s after the scan; books open fast once "ready"; opening the
+  book being prepared waits with the count, then opens fast; opening
+  another one mid-job - "stopped ... again later" (after its read);
+  playback while a job runs - any stall lines next to "prep:" lines.
+
+## Synced with f85aa50 "Working shield" (2026-11-27 13:46); goes out with zip 389
+Owner, 13:47: "sync + verify". Every file of zips 381 to 388 (their
+last versions: CLAUDE.md, AndroidManifest.template.xml, EpubReader.dpr,
+EpubReader.dproj, README.md, android/TvBanner_320x180.png,
+uBookImport.pas, uMain.pas, uProgressFrame.pas, uVersion.pas,
+make_icons.py) is in the commit BYTE FOR BYTE; both check scripts say 0
+problems on it. No FPC here (no lib/ change since f6b8655 anyway).
+- THE OWNER'S, to stay as they came: EpubReader.deployproj (the IDE's:
+  DeviceId 192.168.1.60:5555 - the Shield over adb - and the banner's
+  two DeployFile entries, RemoteDir EpubReader\res\drawable-xhdpi\ - so
+  the .dproj's Class File entries of zip 381 do deploy it).
+- The working copy of this session is f85aa50; zip 389 is made on it.
+
+## Zip 389 (on top of f85aa50 = zip 388 pushed): a first open's chapters made in the open's thread, counted
+Owner, 2026-11-27 13:45: the log of 0.0.388 on the Shield (no words).
+What it shows:
+- OK ARRIVES (382's mapping: "OK (Android key 23) was FMX's key 0 -
+  made key 13: True"); Android's MENU was already FMX's 18 (vkMenu) -
+  the Shield's button never sends it (Settings, 383).
+- THE USB DRIVE as portable storage: "storage 2 (another volume):
+  /storage/720D-25F6/... - 37.58 GB free"; Android's FOLDER PICKER
+  WORKS on the Shield - 720D-25F6 chosen as the books folder, 30 books
+  read in place (the content:// tree), their covers made in 10 s.
+- NIGHT WATCH, FIRST OPEN (no index), 18.7 s: 16.566 open - 16.651 the
+  staged page - 28.922 read in full + index written (12.3 s in the
+  thread: the whole book's XML through Android's document provider
+  from the USB drive) - 28.965 "chapters: building" - 35.206 built (6.2
+  s IN THE WINDOW'S THREAD: the frame froze) - 35.268 done.
+  Foundation (first open): 7.7 s read, 3.1 s chapters. Second opens
+  take the index and the kept chapters (333) - this log has none.
+- A key 137 let go once (13:42:41) - not known (a button of the remote
+  not mapped; no press logged).
+NOT COMPILED. Files: demos/EpubReader/src/uMain.pas, demos/EpubReader/
+README.md, demos/common/uVersion.pas (389), CLAUDE.md. NO PACKAGE
+REBUILD.
+- MakeChapters (a plain function of uMain's implementation; record
+  TChapterList, callback TChapterProgress): BuildChapters' work with no
+  form in it - its own document layout per mark (WordBlock's
+  FUnitLayout before; freed at the end), ClipFromWord over the clips'
+  first words it is given, a call after each audiobook mark. The same
+  rules, the same order (text moved, renamed: ChWord / ChToc / ChDoc /
+  ChTitle / TocIsCh / Source). BuildChapters = ApplyChapters(
+  MakeChapters(book, FClipFirst, nil)) - the desktop and an indexed
+  book whose kept chapters do not fit go that way as before.
+- OpenBook's thread: after the clips' words, for a book NOT from its
+  index, MakeChapters there; the frame "Finding the chapters" 55 %, then
+  55 - 72 by the marks done (QueueOpenProgress: queued, only for the
+  same ticket; a short creep after each); the note gets "; N chapters
+  made in the thread in T ms". OpenDone takes them (new parameter
+  AChapters) into FOpenChapters; OpenChapters uses them (logged "open:
+  N chapters from its thread (source)") and keeps them (SaveChapters),
+  then clears them. The read's creep now goes to 55 (was 70).
+- THE TOTAL IS NOT SHORTER - the window no longer freezes and the count
+  moves. WHAT WOULD BE SHORTER (offered): (1) index a book in the
+  background when it comes into the library (a thread, one book at a
+  time, the TV idle) - then even a first open is the indexed one (~1 s);
+  (2) a real count for the 12 s read (lib: a progress callback in
+  ReadOverlays / LoadText - PACKAGE REBUILD).
 
 ## Zip 388 (on top of zip 387): "Opening book" - a progress frame, 0 - 100 % (A .dproj AND THE .dpr ARE IN THIS ZIP)
 Owner, 2026-11-27 13:14 (with EpubUnum.groupproj and its .local - the

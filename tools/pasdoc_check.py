@@ -11,6 +11,11 @@ Checks every .pas / .inc / .dpr / .dpk under lib/, fmx/, vcl/, lcl/, packages/ a
   * sources are pure ASCII (use #$xxxx codes for other characters);
   * no '{' inside a { } comment (Pascal comments do not nest, so an example
     such as {$I Epub.inc} inside a doc comment would end it early);
+  * a comment over several lines ends at the end of its last line: text
+    after its '}' or '*)' there means it ended early - a '}' in a { }
+    comment, or '*)' in a (* *) one ("index<md5>.*)" closed EpubReader's
+    uBookStore header, zip 397 - the owner: "Embedded comments - you keep
+    doing this...");
   * each unit has a PasDoc comment before the "unit" keyword;
   * in the interface section every type, constant, variable, routine,
     field (private ones included), method and property is documented,
@@ -88,9 +93,11 @@ class Checker:
                 j = text.find("\n", i)
                 i = n if j == -1 else j
             elif text.startswith("(*", i):
+                start_line = line
                 j = text.find("*)", i + 2)
                 j = n if j == -1 else j
                 line += text.count("\n", i, j)
+                self.check_comment_end(path, text, i, j + 2, start_line, line, "*)")
                 i = j + 2
             elif c == "{":
                 start_line = line
@@ -100,9 +107,23 @@ class Checker:
                 if not body.startswith("$") and "{" in body:
                     self.report(path, start_line, "'{' inside a { } comment - comments do not nest; use (* *)")
                 line += text.count("\n", i, j)
+                self.check_comment_end(path, text, i, j + 1, start_line, line, "}")
                 i = j + 1
             else:
                 i += 1
+
+    def check_comment_end(self, path, text, start, after, start_line, end_line, closer):
+        """A comment over several lines must end its last line: anything but
+        blanks after the closer there is the rest of a comment that ended
+        early (a '}' or '*)' written inside it)."""
+        if end_line == start_line:
+            return
+        k = text.find("\n", after)
+        rest = text[after:] if k == -1 else text[after:k]
+        if rest.strip() != "":
+            self.report(path, end_line, "a comment over several lines ends before the end of this line ('%s' "
+                        "followed by %r) - a '%s' written inside the comment closed it early" %
+                        (closer, rest.strip()[:30], closer))
 
     # ---------------------------------------------------------------- pasdoc
     def check_pasdoc(self, path, text):

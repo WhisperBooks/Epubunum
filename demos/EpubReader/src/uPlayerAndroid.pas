@@ -153,6 +153,9 @@ type
     { As TReaderPlayer: MediaPlayer plays a part of a file (as it does a
       sound inside an APK), so a book's stored audio needs no copy. }
     function OpenPart(const AFileName: string; AOffset, ASize: Int64): Boolean; override;
+    { As TReaderPlayer: MediaPlayer streams http itself, asking for byte
+      ranges as it seeks (BookManager's /slice answers them). }
+    function OpenUrl(const AUrl: string): Boolean; override;
     { As TReaderPlayer. }
     procedure Play(AFrom: Double); override;
     { As TReaderPlayer. }
@@ -293,6 +296,12 @@ begin
   end;
   FDuration := FPlayer.getDuration / 1000;
   FFileName := AFileName;
+  Result := True;
+end;
+
+function TAndroidReaderPlayer.OpenUrl(const AUrl: string): Boolean;
+begin
+  Open(AUrl);
   Result := True;
 end;
 

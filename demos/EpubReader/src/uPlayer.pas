@@ -7,9 +7,7 @@
   (owner, 2026-11-18: no FFmpeg on mobile; 2026-11-25: Android first, then
   iOS, both from this program): each gets a player of its own behind this
   class - Android's android.media.MediaPlayer (uPlayerAndroid), iOS's
-  AVFoundation. Until iOS's unit exists, @link(ReaderPlayerCreate) raises
-  there and the reader runs without sound, as it does on a desktop without
-  FFmpeg.
+  AVFoundation AVPlayer (uPlayerIOS, zip 403).
 
   Every time is in seconds of the audio file. The methods are called from
   the window's thread. *)
@@ -42,6 +40,12 @@ type
         file and calls Open; the answer here)
       @raises(Exception when it can but the part cannot be opened) }
     function OpenPart(const AFileName: string; AOffset, ASize: Int64): Boolean; virtual;
+    { Makes the sound at AUrl (http://) the file that is played, streamed:
+      a book streamed from BookManager (zip 392).
+      @returns(@false when this player cannot - the caller extracts the
+        file and calls Open; the answer here)
+      @raises(Exception when it can but the address cannot be opened) }
+    function OpenUrl(const AUrl: string): Boolean; virtual;
     { Plays the open file from AFrom to its end. }
     procedure Play(AFrom: Double); virtual; abstract;
     { Plays the open file from AFrom and stops at ATo (a word, a sentence). }
@@ -87,12 +91,20 @@ implementation
 {$IF Defined(ANDROID)}
 uses
   uPlayerAndroid;
-{$ELSEIF not Defined(IOS)}
+{$ELSEIF Defined(IOS)}
+uses
+  uPlayerIOS;
+{$ELSE}
 uses
   uPlayerFFmpeg;
 {$ENDIF}
 
 function TReaderPlayer.OpenPart(const AFileName: string; AOffset, ASize: Int64): Boolean;
+begin
+  Result := False;
+end;
+
+function TReaderPlayer.OpenUrl(const AUrl: string): Boolean;
 begin
   Result := False;
 end;
@@ -108,8 +120,8 @@ end;
 
 function ReaderPlayerCreate: TReaderPlayer;
 begin
-  // uPlayerIOS: a later step of the mobile plan
-  raise Exception.Create('this build has no sound player for this platform yet');
+  // AVFoundation's AVPlayer (zip 403)
+  Result := TIOSReaderPlayer.Create;
 end;
 
 {$ELSE}

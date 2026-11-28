@@ -230,11 +230,14 @@ have it made again.
 **View > Cover of this book...** (the pad: Menu > Cover of this book)
 shows the open book's pictures as thumbnails - its own cover, the cover
 art of the audiobook inside it (read where it lies in the book, nothing
-unpacked) and every picture in Documents/EpubUnum/Covers (those named as
-the book first) - click one, or move with the pad and press Play. The
-one chosen becomes the book's picture in the library; the book file is
-not changed (other readers still show its own). "The book's own" puts it
-back.
+unpacked), a picture put in Documents/EpubUnum/Covers for this book
+(named as the book's file or its title: "Your picture for this book")
+and a plain one with its title and author - click one, or move with the
+pad and press Play. Other books' pictures and the folder's path are not
+shown (zip 398; owner: "should not show path to cover or all other
+books"). The one chosen becomes the book's picture in the library; the
+book file is not changed (other readers still show its own). "The
+book's own" puts it back.
 
 ## Chapters from the audiobook
 
@@ -412,11 +415,41 @@ The count is honest about steps, not about time inside one: the book is
 read in a thread that says nothing until it is done, so the bar creeps
 on by itself towards that step's end (further for a book read for the
 first time, which has no index yet) and jumps when the step really ends.
-The steps in the window's thread (chapters, the page's layout) are run
-one after the other from a timer, so the frame is drawn between them.
+The steps in the window's thread (the page's layout) are run one after
+the other from a timer, so the frame is drawn between them. A book read
+for the first time has its chapters made in the thread too (zip 389),
+the count going up mark by mark (55 - 72 %) - before, that froze the
+window: 6.2 s of Night Watch's first open on the Shield.
 The frame is `demos/common/uProgressFrame.pas` (built in code - any
 program of the group can use it). The desktop opens as before, without
 it.
+
+### Books prepared in the background (zip 390)
+
+On a phone or a TV the library's books are prepared one at a time in a
+background thread - read, their index written, their chapters made - so
+that opening one is the fast, indexed open even the first time. It
+starts 15 s after the program starts, after the library has read new
+books and after each open, and goes on while a book is being read (and
+played). The order: the cover selected in the library; while a book is
+open, the books after it in the library (the next of a series), then
+the rest.
+
+- **Opening a book the background is preparing right now** waits for
+  that job ("Being prepared in the background - finishing that", its
+  count) and then opens it the fast way - never slower than reading it
+  again.
+- **Opening another book** stops the job at its next stage (a book's
+  read, once started, runs to its end) and starts no other until the
+  open is over; the stopped book is done again later.
+- Index and chapter files are written to a temporary name and then
+  renamed: a file is there whole or not at all.
+- The log: "prep: books to prepare in the background: 29, first ...",
+  "prep: preparing ...", "prep: ... read in N ms - ...", "prep: ...
+  ready (N s)", "... stopped ... - again later", "... FAILED ...".
+
+The unit is `src/uBookPrep.pas` (the list, the worker, pause / resume,
+the join); what preparing a book is lives in `uMain.pas` (PrepareBook).
 
 ### Android TV (zip 381, first build for the NVIDIA Shield)
 
@@ -440,15 +473,30 @@ knows it is on a TV by the system's leanback feature and then:
   and the library; **Play / Pause** plays and pauses the book and does
   nothing over the menu or the library (zip 382); a remote with a Menu
   key that reaches apps opens the menu with it too; **Back** closes the
-  menu, goes from a book to the library, and from the library leaves
-  the app (Android TV's rule: Back never toggles, and pressed again and
-  again it reaches the home screen - zip 385; a phone goes back to the
-  open book). FMX gives no key for the remote's OK and
+  menu and goes from a book to the library, and never back to the book
+  (Back never toggles - zip 385). It does NOT leave the app: in the
+  library it does nothing, and the menu's **Exit** (the start menu of an
+  empty library has one too) is the way out - holding Back went from
+  the book to the library and out of the app (owner, zip 395). A held
+  Back is one press. FMX gives no key for the remote's OK and
   Menu by itself: the reader maps them (Android's DPAD_CENTER to Enter,
   MENU to FMX's Menu key, zip 382) and logs what it found. The menu is
   Big Picture's list (the remote's names at its foot: OK, Back).
 - **The library scrolls with the selection:** moving the frame with
   the D-pad past the covers in view brings that row in (zip 387).
+- **The library's menu:** OK on a cover opens the book when it comes up;
+  **held** 0.7 s it opens the menu instead (zip 396; Up from the top row
+  still does too). The library's title says so at its right ("Hold OK
+  for the menu").
+- **The library's title** (every phone and TV, zip 396): "Library - 12
+  books available (18 unavailable)" - unavailable are the covers marked
+  so (zip 401: a dark shade and "Unavailable" in its middle - faded alone
+  was not to be seen on the TV): gone, or their BookManager not
+  running. The log names them when the list changes.
+- **The menu fades what means nothing there** (zip 396): Back to the
+  book, Contents, Learn to read and Cover of this book with no book
+  open; Library and Contents over the library. Choosing a faded row does
+  nothing; the selection starts on the first row that means something.
 - **The page takes no keys of its own** on a TV, so the D-pad in the
   menu does not scroll the book behind it (zip 384).
 - **The log** has a line for each of the remote's keys the first time
@@ -460,6 +508,152 @@ knows it is on a TV by the system's leanback feature and then:
 - **Books folders** need Android's folder picker, which some TV boxes do
   not have: then the log says "books folder: no folder picker here" and
   BookManager's link is the way books come.
+
+### iPhone and iPad (zip 403 on: being built; first run on an iPad, zip 404)
+
+The reader is built for **iOS Device 64-bit** (the target is on in the
+.dproj from zip 403; built on the M4 Mac through PAServer, as macOS
+ARM). Its sound is AVFoundation's AVPlayer (`src/uPlayerIOS.pas`):
+
+- a book's stored audio is played where it lies in the book: AVPlayer
+  plays an address, not a part of a file, so the reader serves that part
+  to itself on 127.0.0.1 (ports 47890 - 47909), with byte ranges -
+  nothing is copied out;
+- a book streamed from BookManager: its `/slice` address, as on Android;
+- the speed: the player's rate, the pitch kept (the "TimeDomain"
+  algorithm, for speech); the audio session is playback / spoken audio,
+  so the book is heard with the switch on silent and the screen locked
+  (Info.plist: UIBackgroundModes audio).
+
+Books: the app's Documents folder shows in the **Files** app (On My iPad >
+EpubReader - UIFileSharingEnabled, LSSupportsOpeningDocumentsInPlace)
+and in Finder on a Mac (the device, Files, EpubReader): every `.epub`
+anywhere in it is in the library (from zip 404 - Finder drops books at
+its top and does not open the folders inside), looked for again whenever
+the app comes back to the front; not those in a hidden folder (`.Trash`).
+An empty library says so, with Look again. From a Mac's Terminal a book
+can also be copied straight in:
+
+    xcrun devicectl device copy to --device <UDID> --domain-type appDataContainer
+      --domain-identifier com.epubunum.reader --source Book.epub
+      --destination Documents/Book.epub
+
+AVPlayer is called through objc_msgSend directly, its objects held as raw
+ids (zip 406): through Delphi's Objective-C bridge, and then with CMTime
+records passed by value, every seek raised an access violation on the
+iPad (zips 403 - 405). Now no record crosses a call by value: a seek
+passes pointers to copies of its three CMTimes (what arm64's C calling
+convention does for records over 16 bytes), and a time is read with
+valueForKey: and NSValue's getValue:size:. On iOS
+nothing is written when the free space cannot be measured.
+
+BookManager on iOS comes next: iOS lets an app
+send or hear network broadcasts only with Apple's multicast entitlement
+(asked for once the app is in alpha), so the iPad will be given
+BookManager's address once instead (Info.plist has the local network
+reason: NSLocalNetworkUsageDescription).
+
+The Apple TV is not this program: Delphi has no tvOS target - a separate
+Swift app, in a repository of its own (owner, 2026-11-27).
+
+### One book, two places: the device's own copy first (zip 399)
+
+A book is one entry of the library, by its file name, wherever it is
+read from - its place, index, cover and counts go with the name. When
+the same book is in a books folder (the TV's USB drive, the phone's
+storage) and on BookManager, the library reads it from the copy that is
+there now, the device's own first: BookManager's books become the USB
+drive's when that folder is added (they were left faint and the
+folder's copies skipped as doubles - owner, 21:47: "zero books are
+available"), and go back to BookManager's when the drive is taken out
+and BookManager runs ("If local becomes unavailable but network makes
+it available then the transient copy is available again"). This is
+looked at each time the library is shown; opening a book whose copy has
+gone since (a drive taken out - "local storage may be swapped at any
+time") looks at the folders again first, and says when no copy is
+there. The book open at the time is left as it is.
+
+### Book storage: held to a size, never the device's last space (zip 397)
+
+What the reader keeps of each book on the device - its index, chapter
+list and page layouts (`index\<md5>.*` beside the settings) - is held to
+a size: **250 MB on a TV, 1 GB on a phone, 2 GB on a computer**, changed
+in the menu (**Book storage**: 100 MB / 250 MB / 500 MB / 1 GB / 2 GB,
+with what is used now). Covers are not counted (the library shows them;
+a few hundred KB each). When the store is over its size, books make
+way (`src/uBookStore.pas`):
+
+1. books no longer in the library;
+2. books prepared in the background but never opened, the oldest first;
+3. opened books, the one not opened for longest first.
+
+The open book, the one being prepared and the three opened last never
+make way. The background preparation stops when the store is full (it
+never pushes out an opened book for one never opened); opening a book
+always works - its index is written and the store made to fit after.
+Each book counts its openings and when it was last opened (the
+settings' "opens" and "lastOpen"; a book with a place from before counts
+as opened).
+
+**Never the device's last space** (owner: "It must NEVER be possible to
+run out of storage space"): nothing the reader writes for itself - an
+index, a chapter list, page layouts, a cover, the settings - is written
+when it would leave less than **1 GB** free on that volume: the index is
+then not kept (the book opens the slow way), no cover is made (the title
+shows), the settings stay as they were. When other apps leave the
+volume with less than 1 GB free, books make way until it has. Books
+received from BookManager (Send to phone) keep the same 1 GB free. The
+settings are written to a temporary file and renamed (a full volume or
+a kill half-way can no longer leave half a library), and the debug log
+goes to `.old` at 8 MB (at most 16 MB in all).
+
+The start of the log says what the store holds ("store: 180 MB for 32
+book(s) - indexes ..., chapters ..., page layouts ...; covers ...; 6.2 GB
+free on the volume, 1.0 GB always kept free"), and every book that makes
+way is named.
+
+On an Apple TV (a later port) the system may delete these caches at any
+time and gives an app 500 KB of persistent storage: everything here is
+made again when needed; the settings must stay small. Remote storage
+(iCloud, Google) is never required - optional only (owner).
+
+### BookManager's books, streamed to a TV (zip 392)
+
+A TV listens for BookManager all the time (not only while the link panel
+is open). Once it is paired with one (Get books from BookManager, then
+pairing from BookManager's Send to phone tab, as a phone), all of that
+BookManager's books - its Books tab's fetch folder - are in the TV's
+library while BookManager runs, read from the computer: nothing is
+copied to the TV (BookManager's Send to phone still stores books, by
+hand). The BookManager is one more entry of Books folders ("BookManager
+on MONSTER"); taken off, its books leave the library and it is not put
+back until the two are paired again.
+
+- A streamed book is named `bookmanager://ID/PATH` (ID: BookManager's id
+  on the link, PATH its path there) and goes through the reader as a
+  books folder's book does: its text is read by blocks of 512 KB
+  (`/book?path&offset&length`, the newest 32 kept) through Epub.Zip's
+  EpubStreamOpener (`src/uStreamBook.pas`), so the library, the index,
+  the chapters and the background preparation work as for any book.
+- Its audio is played by Android's player straight from BookManager
+  (`/slice`, which answers the player's byte ranges) - the manifest
+  allows plain http for that (`usesCleartextTraffic`: Android 9 on
+  refuses it otherwise).
+- BookManager not on the network (not started, closed, the computer
+  asleep): its books stay in the library, faint; choosing one says that
+  BookManager is not running, and the background preparation leaves them
+  until it is back. The TV looks for BookManagers and asks for their
+  lists every 20 s; the log's "stream:" lines say who was heard, paired,
+  how many books, who left.
+- New books (any, on a phone or a TV) are read into the library in a
+  thread since zip 394 - a streamed book's header and cover come over
+  the network - so the library and the remote answer meanwhile; the
+  cover's picture is made back in the window's thread.
+- A held OK, Play / Pause or Menu is one press (its repeats are not
+  presses), and the same key coming down again within 0.3 s of coming
+  up is not one either: the Shield's Play / Pause did both, one press
+  playing, stopping and playing (zip 394; the log says "tv: remote key
+  179 ignored - ..."). The D-pad still repeats.
 
 ### Its icon
 
