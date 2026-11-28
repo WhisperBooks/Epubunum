@@ -16,6 +16,12 @@ OSX64/
 OSXARM64/
 Linux64/
 Android64/
+# iOS build output (zip 408: the first iOS build's 72 MB app and 85 MB
+# dSYM were committed in b9fa953)
+iOSDevice64/
+iOSSimARM64/
+*.dSYM
+*.ipa
 # FFmpeg binaries and test media are never committed
 *.dll
 *.so

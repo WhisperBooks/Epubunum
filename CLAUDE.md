@@ -14,10 +14,9 @@ words and what was measured. Session 17's handover follows this one;
 its link notes and standing rules still stand.
 
 ### Where it stands (2026-11-28 01:10)
-- THE REPOSITORY: the last push known here is f85aa50 "Working shield"
-  (zips to 388). The owner's builds tonight still stamped "f85aa50", so
-  zips 389 - 407 are most likely UNCOMMITTED in the working copy - ask /
-  check git status first. Pull before touching a .dproj. Never commit or
+- THE REPOSITORY: pushed as b9fa953 "iOS Reader" (01:23: zips to 407) -
+  with the iOS build output in it by mistake; zip 408 (.gitignore) and
+  the owner's amend / force push take it out (see zip 408). Pull before touching a .dproj. Never commit or
   push, never offer to.
 - BUILT AND RUN BY THE OWNER: Android TV (NVIDIA Shield) to zip 402 -
   streaming from BookManager, storage limits, local copies first, the
@@ -96,7 +95,7 @@ its link notes and standing rules still stand.
   Library (iOS Device 64-bit; likely Android / Windows too).
 
 ### Next, in this order (owner: "Now iOS then tvOS")
-1. Zip 408: BOOKMANAGER ON THE iPAD BY A TYPED ADDRESS - the link on iOS
+1. Zip 409 (408 went to .gitignore): BOOKMANAGER ON THE iPAD BY A TYPED ADDRESS - the link on iOS
    (StartLink is Android only now), the reader's announcements sent
    unicast to the typed address (FLink.SetDirect), /info for BookManager's
    id and name, pairing, then streaming as on the TV (uStreamBook works
@@ -2384,7 +2383,7 @@ TSteamAPI do not apply (no 3D).
   (Android versionCode=1 / versionName=1.0.0, Windows FileVersion
   1.0.0.0): asked in zip 343.
 
-Last number used: 407 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
+Last number used: 408 (257 = session 13's handover at the top, CLAUDE.md only; 224 = the
 next-session notes, CLAUDE.md only).
 
 ## Review fixes (zip 08, on top of 68162a4 "A Claude push")
@@ -4972,6 +4971,23 @@ book or the file at a minimum":
 - HistoryExpect leaves out builds matched < HISTORY_POOR_MATCH (90 %).
 - uBuilder: TBuildSummary.Title; RecordHistory fills the three.
 - README (builder) updated. NOT COMPILED.
+
+## Zip 408 (on top of zip 407): iOS build output kept out of git
+Owner 01:23 "Eek....": "git add ." + commit b9fa953 "iOS Reader" + push
+took in demos/EpubReader/iOSDevice64/Debug/ - EpubReader (72.50 MB) and
+EpubReader.dSYM (84.76 MB) among them (GitHub: "larger than ... 50.00
+MB", GH001). .gitignore had every other platform's output folder but no
+iOS one. NOT COMPILED (no code). NO PACKAGE REBUILD; no .dproj. Files:
+.gitignore, CLAUDE.md, demos/common/uVersion.pas (408).
+- .gitignore: iOSDevice64/, iOSSimARM64/, *.dSYM, *.ipa.
+- KEPT in git (Delphi's iOS project templates, like
+  AndroidManifest.template.xml): demos/EpubReader/Entitlement.TemplateiOS.xml,
+  info.plist.TemplateiOS.xml, LaunchScreen.TemplateiOS/.
+- Told the owner: git rm -r --cached demos/EpubReader/iOSDevice64, then
+  amend b9fa953 and push --force-with-lease (pushed minutes before, the
+  owner alone on the repository) so the 157 MB never stays in main's
+  history; or, not rewriting, an ordinary commit (the blobs then stay in
+  history, ~34 MB packed).
 
 ## Zip 407 (on top of zip 406): session 18's handover
 Owner 01:09 (build 406 log): "Plays fine now - skipped around a bit to
