@@ -261,6 +261,17 @@ type
     { The frame gone (done, or the open failed); the background
       preparation goes on (after its quiet time). }
     procedure ProgressFinish;
+    { A progress frame in the reader's colours (dark or light).
+      @param(AFrame  the frame) }
+    procedure ProgressColours(AFrame: TProgressFrame);
+    { "Adding books" (zip 411): shown over the library while new books
+      are read in (a touch build), its count the books read of those
+      found; gone when the batch is in, or when the library is not on the
+      screen (reading on, the books simply appear later). Called at each
+      step of the scan and when the library is shown or hidden. }
+    procedure ScanFrame;
+    { "Adding books" is on the screen (keys and taps wait for it). }
+    function ScanFrameShowing: Boolean;
     { A touch build: the background preparation started (zip 390) - quiet
       for a while, then the library's books one by one. }
     procedure StartPrep;
@@ -440,6 +451,13 @@ type
     { The BookManagers paired, token=name a line (saved as
       "linkTokens"). }
     FLinkTokens: string;
+    { An iPhone / iPad: BookManager's address as the user typed it (saved
+      as "managerHost"; zip 409) - iOS hears no broadcast without Apple's
+      multicast entitlement, so the streaming finder asks this address
+      (TLinkFinder.Watch). '' = none typed yet. }
+    FManagerHost: string;
+    { The streaming finder's watch note as last logged (StreamWatchNoted). }
+    FWatchSaid: string;
     { The books the books folders held at their last listing (addresses,
       in their order), and the same for asking (ListBooksFolders). }
     FFolderBooks: TArray<string>;
@@ -559,6 +577,9 @@ type
     { "Opening book" over the window, 0 - 100 % (a touch build; zip 388;
       nil until the first book is opened). }
     FProgress: TProgressFrame;
+    { "Adding books" over the library while new books are read in (a
+      touch build; zip 411; nil until it is first needed). }
+    FScanProgress: TProgressFrame;
     { The open's next step (OpenStep), run by tmOpenStep - so the frame is
       drawn between the steps in the window's thread. }
     FOpenNext: TProc;
@@ -650,6 +671,10 @@ type
     FPlaying: Boolean;
     { The screen is kept on (it plays) - see uInhibit. }
     FAwake: Boolean;
+    { A phone, tablet or TV: the screen is kept on now (uBookImport's
+      KeepScreenOn - while a book is read aloud or the link panel is open;
+      zip 413). }
+    FScreenKept: Boolean;
     { The game pad through Steam Input (uSteamPad; reads nothing outside a
       Steam build). }
     FPad: TSteamPad;
@@ -785,10 +810,36 @@ type
     { A note in the menu's box, with OK. }
     procedure ShowNote(const ATitle, AText: string);
     { A phone: starts the link (BookManager finds this reader and sends it
-      books) and shows its panel. }
+      books) and shows its panel. An iPhone / iPad asks for BookManager's
+      address first (AskManagerHost). }
     procedure StartLink;
+    { StartLink's work: the link's server, the finder, the panel (Android,
+      iOS). }
+    procedure StartLinkServer;
+    { An iPhone / iPad: asks for BookManager's address (the last one
+      offered), keeps it (SetManagerHost), then StartLinkServer; nothing
+      when the question is left. }
+    procedure AskManagerHost;
+    { BookManager's typed address kept, and asked by the streaming finder
+      from now on (SetManagerHost('') stops that). }
+    procedure SetManagerHost(const AHost: string);
+    { The streaming finder's watch note: logged when it changes, and the
+      link panel shown again with it. }
+    procedure StreamWatchNoted;
+    { BookManager can send books here / be streamed from (Android, iOS).
+      @returns(the answer) }
+    function LinkSupported: Boolean;
+    { What this device is called in the panel's sentences: 'TV', 'iPad',
+      'iPhone' or 'phone'.
+      @returns(the word) }
+    function DeviceWord: string;
     { Ends the link (Done, the app left, closing). }
     procedure StopLink(const AWhy: string);
+    { A phone, tablet or TV: the screen kept on while a book is read aloud
+      (owner 2026-11-28: the iPad's screen went off and the text with it
+      while the audio played on) or while the link panel is open; the
+      system's own timeout otherwise. Called when either changes. }
+    procedure UpdateScreenOn;
     { Deletes the .part files a cut-off transfer left in the Books folder
       (Done or Cancel while a book came: the connection closed before the
       link could). }
@@ -1239,6 +1290,10 @@ uses
   // and RenameFile's (H2443, owner's build 2026-11-27)
   Posix.Stdio,
   {$ENDIF}
+  {$IFDEF IOS}
+  // BookManager's address asked for (zip 409; iOS has no sync dialogs)
+  FMX.DialogService.Async,
+  {$ENDIF}
   // a TV: the remote's OK and Menu given FMX keys (TvKeyMappings)
   FMX.KeyMapping,
   System.Hash, System.UIConsts, System.Skia, System.Generics.Defaults, System.IniFiles,
@@ -1247,6 +1302,11 @@ uses
 const
   { Text size step, px. }
   SIZE_STEP = 2;
+  { An iPhone / iPad broadcasts its announcement on the network only once
+    Apple has given the app its multicast entitlement (zip 409: not yet -
+    iOS refuses every broadcast without it). Until then BookManager hears
+    it by the unicast copies sent to the address typed. }
+  IOS_BROADCAST = False;
   { The background preparation waits this long (ms) after the library has
     read its books, after the program starts and after an open, before it
     starts a book (zip 390: what is opened right after never meets it). }
@@ -3424,6 +3484,19 @@ begin
   end
   else if AAppEvent in [TApplicationEvent.WillBecomeInactive, TApplicationEvent.EnteredBackground] then
   begin
+    {$IFDEF IOS}
+    // iOS makes the app inactive for its own questions too (Allow access
+    // to the local network? - 2026-11-28 10:49: the link was stopped by
+    // it, so BookManager could no longer hear the iPad): the link ends
+    // only when the app really goes to the background
+    if AAppEvent = TApplicationEvent.WillBecomeInactive then
+    begin
+      RememberBook;
+      SaveSettings;
+      DebugLog('app: not active (a system question, or on its way to the background) - place and settings saved');
+      Exit;
+    end;
+    {$ENDIF}
     // The system ends an app that is not in front without closing it
     // (FormClose never runs): the place in the book and the library are
     // kept whenever the app is left. Zip 323 - until now nothing was
@@ -3585,6 +3658,8 @@ begin
   // a phone with no books: where they come from (not while books are
   // being read or copied in, nor over a menu already showing)
   OfferBooksIfEmpty;
+  // new books being read in: "Adding books" over it (zip 411)
+  ScanFrame;
 end;
 
 procedure TfrmMain.OfferBooksIfEmpty;
@@ -3643,6 +3718,8 @@ begin
     Splitter1.Position.X := lbToc.Position.X + lbToc.Width;
   end;
   UpdateControls;
+  // no "Adding books" over a page: the books join the library unseen
+  ScanFrame;
 end;
 
 procedure TfrmMain.LayoutLibrary;
@@ -4261,6 +4338,7 @@ begin
   // until the whole batch is in (owner, 2026-11-25: "the screen changing
   // constantly ... visible order change only happens once")
   ScanRead(Name);
+  ScanFrame;
 end;
 
 procedure TfrmMain.ScanRead(const AName: string);
@@ -4343,6 +4421,7 @@ begin
     FScanDone := FScanDone + [R];
   if Length(FScanQueue) > 0 then
   begin
+    ScanFrame;
     tmScan.Enabled := True;
     Exit;
   end;
@@ -4375,6 +4454,8 @@ begin
   LibraryNote('');
   // kept now: an app on a phone is ended without being closed
   SaveSettings;
+  // "Adding books" gone (nothing left to read)
+  ScanFrame;
   // the one change on the screen (not while a book is being opened)
   if LibraryShowing and not tmLibrary.Enabled and not FOpening then
     ShowLibrary;
@@ -4721,6 +4802,7 @@ begin
       FBooksTrees := nil;
       O.TryGetValue<string>('linkId', FLinkId);
       O.TryGetValue<string>('linkTokens', FLinkTokens);
+      O.TryGetValue<string>('managerHost', FManagerHost);
       FStoreMB := 0;
       O.TryGetValue<Integer>('storeMB', FStoreMB);
       FStreamSeen := nil;
@@ -4831,6 +4913,9 @@ begin
       O.AddPair('linkId', FLinkId);
     if FLinkTokens <> '' then
       O.AddPair('linkTokens', FLinkTokens);
+    // an iPhone / iPad: BookManager's address as typed (zip 409)
+    if FManagerHost <> '' then
+      O.AddPair('managerHost', FManagerHost);
     A := TJSONArray.Create;
     O.AddPair('booksFolders', A);
     for I := 0 to High(FBooksTrees) do
@@ -5100,9 +5185,14 @@ begin
   // that a first open is the fast one too (zip 390)
   if TouchBuild then
     StartPrep;
-  // a TV: BookManager's books streamed (zip 392)
+  // a TV: BookManager's books streamed (zip 392); an iPhone / iPad too,
+  // from the address typed (zip 409)
+  {$IFDEF IOS}
+  StartStreaming;
+  {$ELSE}
   if FTV then
     StartStreaming;
+  {$ENDIF}
   StartPad;
   // Big Picture: the pad and its menu do it all - no tool bar, no
   // contents panel (owner, 2026-11-18; the menu bar is left off already)
@@ -5768,8 +5858,8 @@ begin
   // with the word alone, the highlight's type and word say nothing
   Items[MENU_HIGH_TYPE].Dim := FHighUnit = huWord;
   Items[MENU_HIGH_WORD].Dim := FHighUnit = huWord;
-  // BookManager sends books to a phone
-  Items[MENU_LINK].Dim := not BookFolderSupported;
+  // BookManager sends books to a phone (an iPhone / iPad too: zip 409)
+  Items[MENU_LINK].Dim := not LinkSupported;
   // the rows that mean nothing here: faded (zip 396)
   for I := 0 to MENU_ABOUT do
     if MenuRowOff(I) then
@@ -6069,6 +6159,9 @@ begin
     FScanTotal := Length(FScanQueue) + Length(FScanDone) + Ord(FScanReading);
     LibraryNote(Format('Reading new books: %d of %d', [Length(FScanDone) + 1, FScanTotal]));
     tmScan.Enabled := True;
+    // (ShowLibrary shows "Adding books" once the library is on the screen)
+    if LibraryShowing then
+      ScanFrame;
     Exit;
   end;
   for I := 0 to High(Found) do
@@ -6306,14 +6399,16 @@ var
 begin
   FMenuMode := MODE_START;
   {$IFDEF IOS}
-  // iOS: no folder picker, and BookManager's link is not there yet - where
-  // to put books instead, and a look for them (zip 404)
+  // iOS: no folder picker - BookManager on the computer (by its address,
+  // zip 409), or books put in with the Files app, and a look for them
+  // (zip 404)
   PadMenuColors;
-  FPadMenu.ShowText('No books yet', 'Put EPUB books into EpubReader with the Files app: On My iPad (or On ' +
-    'My iPhone) > EpubReader. From a Mac: Finder, this device, Files, then drop them on EpubReader. They ' +
-    'are found anywhere in it, and whenever EpubReader comes back to the front.', [TPadMenu.Item('Look again')],
-    0, '');
-  DebugLog('library: empty - where to put books said (iOS)');
+  FPadMenu.ShowText('No books yet', 'Books come from BookManager on your computer - its books are read from ' +
+    'it while it runs, or sent here. Or put EPUB books into EpubReader with the Files app: On My ' +
+    DeviceWord + ' > EpubReader (from a Mac: Finder, this device, Files). They are found anywhere in it, and ' +
+    'whenever EpubReader comes back to the front.', [TPadMenu.Item('Get books from BookManager'),
+    TPadMenu.Item('Look again')], START_LINK, '');
+  DebugLog('library: empty - BookManager or the Files app offered (iOS)');
   Exit;
   {$ENDIF}
   Items := [TPadMenu.Item('Get books from BookManager'), TPadMenu.Item('Choose a books folder')];
@@ -6403,13 +6498,144 @@ begin
   FPadMenu.ShowText(ATitle, AText, [TPadMenu.Item('OK')], 0, '');
 end;
 
+{ Logs what WifiAwake said - nothing where it does nothing (iOS: the
+  empty "link: " lines of 2026-11-28).
+  @param(AText  its answer) }
+procedure LogWifi(const AText: string);
+begin
+  if AText <> '' then
+    DebugLog('link: ' + AText);
+end;
+
 procedure TfrmMain.StartLink;
-{$IFDEF ANDROID}
+begin
+  {$IF Defined(IOS)}
+  // the link is already up (the panel left open behind a note): its panel
+  if FLink <> nil then
+    ShowLinkPanel
+  else
+    AskManagerHost;
+  {$ELSEIF Defined(ANDROID)}
+  StartLinkServer;
+  {$ENDIF}
+end;
+
+{$IFDEF IOS}
+{ An address as typed, made plain: no scheme, path or spaces
+  ('http://192.168.1.91/' -> '192.168.1.91'; 'MONSTER.local:47822' kept). }
+function CleanManagerHost(const AText: string): string;
+var
+  P: Integer;
+begin
+  Result := Trim(AText);
+  if SameText(Copy(Result, 1, 7), 'http://') then
+    Delete(Result, 1, 7)
+  else if SameText(Copy(Result, 1, 8), 'https://') then
+    Delete(Result, 1, 8);
+  P := Pos('/', Result);
+  if P > 0 then
+    Result := Copy(Result, 1, P - 1);
+  Result := StringReplace(Result, ' ', '', [rfReplaceAll]);
+end;
+{$ENDIF}
+
+procedure TfrmMain.AskManagerHost;
+begin
+  {$IFDEF IOS}
+  if FManagerHost = '' then
+    DebugLog('link: asking for BookManager''s address (none typed yet)')
+  else
+    DebugLog('link: asking for BookManager''s address (last: ' + FManagerHost + ')');
+  // async: the only kind iOS has. The answer comes on the window's thread;
+  // the closure uses only its own Host and the form's fields
+  TDialogServiceAsync.InputQuery('BookManager''s address',
+    ['The address BookManager shows on its Send to phone tab (such as 192.168.1.91):'], [FManagerHost],
+    procedure(const AResult: TModalResult; const AValues: array of string)
+    var
+      Host: string;
+    begin
+      if (AResult <> mrOk) or (Length(AValues) = 0) then
+      begin
+        DebugLog('link: no address given - left');
+        Exit;
+      end;
+      Host := CleanManagerHost(AValues[0]);
+      if Host = '' then
+      begin
+        DebugLog('link: an empty address - left');
+        Exit;
+      end;
+      SetManagerHost(Host);
+      StartLinkServer;
+    end);
+  {$ENDIF}
+end;
+
+procedure TfrmMain.SetManagerHost(const AHost: string);
+begin
+  if AHost <> FManagerHost then
+  begin
+    DebugLog(Format('link: BookManager''s address is now "%s" (was "%s")', [AHost, FManagerHost]));
+    FManagerHost := AHost;
+    SaveSettings;
+  end;
+  // asked again from now on (a new watcher: the old one's port forgotten)
+  if FStreamFinder <> nil then
+  begin
+    if FManagerHost = '' then
+      FStreamFinder.Watch(nil)
+    else
+      FStreamFinder.Watch([FManagerHost]);
+    FWatchSaid := '';
+  end;
+end;
+
+procedure TfrmMain.StreamWatchNoted;
+var
+  Note: string;
+begin
+  if FStreamFinder = nil then
+    Exit;
+  Note := FStreamFinder.WatchNote;
+  if Note = FWatchSaid then
+    Exit;
+  FWatchSaid := Note;
+  if Note <> '' then
+    DebugLog('stream: ' + Note);
+  if (FLink <> nil) and (FMenuMode = MODE_LINK) then
+    ShowLinkPanel;
+end;
+
+function TfrmMain.LinkSupported: Boolean;
+begin
+  {$IF Defined(ANDROID) or Defined(IOS)}
+  Result := True;
+  {$ELSE}
+  Result := False;
+  {$ENDIF}
+end;
+
+function TfrmMain.DeviceWord: string;
+begin
+  if FTV then
+    Result := 'TV'
+  else
+  begin
+    {$IFDEF IOS}
+    Result := PhoneName;
+    {$ELSE}
+    Result := 'phone';
+    {$ENDIF}
+  end;
+end;
+
+procedure TfrmMain.StartLinkServer;
+{$IF Defined(ANDROID) or Defined(IOS)}
 var
   Name, Said: string;
 {$ENDIF}
 begin
-  {$IFDEF ANDROID}
+  {$IF Defined(ANDROID) or Defined(IOS)}
   if FLink = nil then
   begin
     if FLinkId = '' then
@@ -6447,13 +6673,18 @@ begin
       FLink.OnRequest := LinkRequest;
       FLink.OnUploadProgress := LinkUploadProgress;
       FLink.OnBye := LinkBye;
+      {$IFDEF IOS}
+      // no broadcast without Apple's multicast entitlement: only the copies
+      // sent to the address typed (FLink.SetDirect) can arrive (zip 409)
+      FLink.Broadcasting := IOS_BROADCAST;
+      {$ENDIF}
       Said := FLink.Start;
       DebugLog(Format('link: started - EpubReader as "%s" - %s', [Name, Said]));
       if FLink.Port = 0 then
         FLinkStatus := Said
       else
         FLinkStatus := 'Waiting for BookManager on your computer (on the same Wi-Fi): open its Send to ' +
-          'phone tab.';
+          'phone tab and choose this ' + DeviceWord + ' there.';
       // a book cut off last time (Done mid-transfer: its .part stays)
       DropPartFiles;
       // BookManager says it is here: answered directly (a TV hears them
@@ -6468,8 +6699,12 @@ begin
       end
       else
       begin
-        DebugLog('link: the TV''s finder hears BookManager; this TV''s addresses: ' + LinkLocalAddresses +
-          '; announcing to 255.255.255.255 and ' + string.Join(' ', LinkBroadcastTargets));
+        if FLink.Broadcasting then
+          DebugLog('link: the streaming finder hears BookManager; this ' + DeviceWord + '''s addresses: ' +
+            LinkLocalAddresses + '; announcing to 255.255.255.255 and ' + string.Join(' ', LinkBroadcastTargets))
+        else
+          DebugLog('link: the streaming finder asks BookManager at "' + FManagerHost + '"; this ' + DeviceWord +
+            '''s addresses: ' + LinkLocalAddresses + '; announcing to BookManager only (no broadcast here)');
         LinkFinderChange(nil);
       end;
     except
@@ -6483,9 +6718,9 @@ begin
     end;
     // a batch of books takes a while: the screen stays on meanwhile, and
     // the Wi-Fi saves no power (its first connections were dropped)
-    KeepScreenOn(FLink <> nil);
+    UpdateScreenOn;
     if FLink <> nil then
-      DebugLog('link: ' + WifiAwake(True));
+      LogWifi(WifiAwake(True));
   end;
   ShowLinkPanel;
   {$ENDIF}
@@ -6520,9 +6755,26 @@ begin
     Exit;
   FreeAndNil(FLinkFinder);
   FreeAndNil(FLink);
-  KeepScreenOn(False);
-  DebugLog('link: ' + WifiAwake(False));
+  UpdateScreenOn;
+  LogWifi(WifiAwake(False));
   DebugLog(Format('link: stopped - %s (%d book(s) received)', [AWhy, FLinkReceived]));
+end;
+
+procedure TfrmMain.UpdateScreenOn;
+var
+  Want: Boolean;
+begin
+  Want := TouchBuild and (FPlaying or (FLink <> nil));
+  if Want = FScreenKept then
+    Exit;
+  FScreenKept := Want;
+  KeepScreenOn(Want);
+  if Want and FPlaying then
+    DebugLog('screen: kept on (reading aloud)')
+  else if Want then
+    DebugLog('screen: kept on (the link panel)')
+  else
+    DebugLog('screen: the system''s own timeout again');
 end;
 
 procedure TfrmMain.LinkCancel;
@@ -6555,9 +6807,15 @@ begin
   Text := FLinkStatus;
   if FLinkCode <> '' then
     // the code in two halves, easier to read across a room
-    Text := Format('%s asks to send books to this phone.' + sLineBreak + sLineBreak +
+    Text := Format('%s asks to send books to this %s.' + sLineBreak + sLineBreak +
       'Type this code there:  %s %s' + sLineBreak + sLineBreak + 'It works for 5 minutes. Not you? Refuse.',
-      [FLinkCodeFor, Copy(FLinkCode, 1, 3), Copy(FLinkCode, 4, MaxInt)]);
+      [FLinkCodeFor, DeviceWord, Copy(FLinkCode, 1, 3), Copy(FLinkCode, 4, MaxInt)]);
+  {$IFDEF IOS}
+  // what the address typed gives (zip 409): BookManager answering, or not
+  if (FStreamFinder <> nil) and (FLinkCode = '') then
+    Text := Text + sLineBreak + sLineBreak + 'BookManager''s address: ' + FManagerHost + sLineBreak +
+      UpperCase(Copy(FStreamFinder.WatchNote, 1, 1)) + Copy(FStreamFinder.WatchNote, 2, MaxInt) + '.';
+  {$ENDIF}
   if FLinkProgress <> '' then
     Text := Text + sLineBreak + sLineBreak + FLinkProgress;
   if FLinkReceived > 0 then
@@ -6662,7 +6920,7 @@ begin
           if SameText(FStreamSeen[I], P.Id) then
             Delete(FStreamSeen, I, 1);
     FLinkStatus := 'Paired with ' + AClient + ': its books are in the library while it runs, read from the ' +
-      'computer - nothing is copied to this TV. Done goes back to them.';
+      'computer - nothing is copied to this ' + DeviceWord + '. Done goes back to them.';
     StreamLook(True);
   end;
   ShowLinkPanel;
@@ -6748,6 +7006,17 @@ begin
   tmStream.Enabled := True;
   DebugLog('stream: listening for BookManager - ' + FStreamFinder.State + '; a paired one''s books are read ' +
     'from it');
+  {$IFDEF IOS}
+  // no broadcast reaches an iPhone / iPad (no multicast entitlement yet):
+  // BookManager is asked at the address typed (zip 409)
+  if FManagerHost = '' then
+    DebugLog('stream: no BookManager address typed yet (Get books from BookManager asks for it)')
+  else
+  begin
+    DebugLog('stream: asking BookManager at "' + FManagerHost + '" every 2 s');
+    FStreamFinder.Watch([FManagerHost]);
+  end;
+  {$ENDIF}
 end;
 
 function TfrmMain.StreamTokenFor(const AName: string): string;
@@ -6853,6 +7122,8 @@ end;
 
 procedure TfrmMain.StreamFinderChange(Sender: TObject);
 begin
+  // an iPhone / iPad: what the typed address gave, if it changed
+  StreamWatchNoted;
   StreamLook(False);
   // the link panel's (a TV's link hears through this finder)
   LinkFinderChange(Sender);
@@ -6878,7 +7149,7 @@ begin
   FStreamPending := True;
   // the books come in with the library's next showing: now when it shows
   // with nothing over it (the start menu of an empty library goes)
-  if not LibraryShowing or ((FProgress <> nil) and FProgress.Active) then
+  if not LibraryShowing or ((FProgress <> nil) and FProgress.Active) or ScanFrameShowing then
     Exit;
   if (FPadMenu <> nil) and FPadMenu.Showing then
   begin
@@ -7101,9 +7372,15 @@ begin
   if FMenuMode = MODE_START then
   begin
     {$IFDEF IOS}
-    // its one choice: Look again (ShowStartMenu)
-    FPadMenu.Hide;
-    ShowLibrary;
+    // its rows: Get books from BookManager (START_LINK), Look again
+    // (ShowStartMenu; zip 409)
+    if AIndex = START_LINK then
+      StartLink
+    else
+    begin
+      FPadMenu.Hide;
+      ShowLibrary;
+    end;
     Exit;
     {$ENDIF}
     case AIndex of
@@ -7231,7 +7508,7 @@ begin
       else
         ShowBooksMenu;
     MENU_LINK:
-      if BookFolderSupported then
+      if LinkSupported then
         StartLink
       else
         ShowNote('Get books from BookManager', 'BookManager sends books to EpubReader on a phone or a ' +
@@ -7498,7 +7775,7 @@ procedure TfrmMain.FormKeyDown(Sender: TObject; var Key: Word; var KeyChar: Wide
 begin
   // a book opening ("Opening book" over the window): no key does anything
   // until it is open (a second open, the menu, Back half-way through)
-  if (FProgress <> nil) and FProgress.Active then
+  if ((FProgress <> nil) and FProgress.Active) or ScanFrameShowing then
   begin
     Key := 0;
     KeyChar := #0;
@@ -8291,10 +8568,7 @@ begin
   // goes on from there
   if FProgress.Active then
     Exit;
-  if FDark then
-    FProgress.SetColours($FF23262E, View1.TextColor, $FF34405A, $FF62A0EA)
-  else
-    FProgress.SetColours($FFFBFAF7, View1.TextColor, $FFD9E5F6, View1.LinkColor);
+  ProgressColours(FProgress);
   K := RecentIndex(AFileName);
   Title := '';
   if K >= 0 then
@@ -8302,6 +8576,67 @@ begin
   if Title = '' then
     Title := ChangeFileExt(BookFileName(AFileName), '');
   FProgress.Start('Opening book', Title);
+end;
+
+procedure TfrmMain.ProgressColours(AFrame: TProgressFrame);
+begin
+  if FDark then
+    AFrame.SetColours($FF23262E, View1.TextColor, $FF34405A, $FF62A0EA)
+  else
+    AFrame.SetColours($FFFBFAF7, View1.TextColor, $FFD9E5F6, View1.LinkColor);
+end;
+
+function TfrmMain.ScanFrameShowing: Boolean;
+begin
+  Result := (FScanProgress <> nil) and FScanProgress.Active;
+end;
+
+procedure TfrmMain.ScanFrame;
+var
+  Busy, Want: Boolean;
+  Total, Done: Integer;
+  Name, Stage: string;
+begin
+  Busy := FScanReading or (Length(FScanQueue) > 0);
+  // over the library only (owner 2026-11-28: "only required on Library
+  // screen as if updated while reading the user won't even be aware");
+  // not over a menu the user has open, nor over "Opening book"
+  Want := TouchBuild and Busy and LibraryShowing and not FOpening and
+    not ((FProgress <> nil) and FProgress.Active) and not ((FPadMenu <> nil) and FPadMenu.Showing);
+  if not Want then
+  begin
+    if ScanFrameShowing then
+    begin
+      FScanProgress.Finish;
+      DebugLog('library: "Adding books" gone');
+    end;
+    Exit;
+  end;
+  if FScanProgress = nil then
+  begin
+    FScanProgress := TProgressFrame.Create(Self);
+    FScanProgress.Parent := Self;
+  end;
+  if not FScanProgress.Active then
+  begin
+    ProgressColours(FScanProgress);
+    FScanProgress.Start('Adding books', 'New books found - they join the library when all are read');
+    DebugLog(Format('library: "Adding books" shown (%d to read)', [Max(FScanTotal, 1)]));
+  end;
+  // read of those found (those already in the library count as read)
+  Total := Max(FScanTotal, 1);
+  Done := EnsureRange(FScanTotal - Length(FScanQueue) - Ord(FScanReading), 0, Total);
+  if FScanReading then
+  begin
+    Name := ChangeFileExt(BookFileName(FScanCurrent), '');
+    Stage := Format('Reading "%s" - book %d of %d', [Name, Min(Done + 1, Total), Total]);
+  end
+  else
+    Stage := Format('%d of %d read', [Done, Total]);
+  FScanProgress.Step(Done * 100 / Total, Stage);
+  // on towards the next book meanwhile
+  if FScanReading then
+    FScanProgress.Creep((Done + 1) * 100 / Total, 1.5);
 end;
 
 procedure TfrmMain.QueueOpenProgress(ATicket: Integer; APercent: Single; const AStage: string);
@@ -9829,6 +10164,8 @@ begin
       InhibitStop(ikDisplay);
     DebugLog('screen: ' + InhibitText);
   end;
+  // a phone, tablet or TV: uInhibit does nothing there
+  UpdateScreenOn;
   B := EpubUnum1.Book;
   btnPrev.Enabled := (B <> nil) and (Length(FChapterWord) > 0) and not LibraryShowing;
   btnNext.Enabled := (B <> nil) and (ChapterOfWord(CurrentWord) < High(FChapterWord)) and not LibraryShowing;

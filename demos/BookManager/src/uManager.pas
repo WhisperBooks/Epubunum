@@ -278,6 +278,8 @@ type
     rcPhoneDrop: TRectangle;
     { The phone's room. }
     lblPhoneSpace: TLabel;
+    { This computer's address, for an iPhone or iPad to type (zip 409). }
+    lblServeAddress: TLabel;
     { The transfer running, in words (as lblTransfer). }
     lblPhoneTransfer: TLabel;
     { The transfer running (as pbTransfer). }
@@ -397,6 +399,9 @@ type
     { The server told the books folder and the tokens again (a pairing, a
       new fetch folder). }
     procedure ServeSettings;
+    { The Send to phone tab says this computer's address (an iPhone or
+      iPad finds BookManager by it: iOS hears no broadcast - zip 409). }
+    procedure ShowServeAddress;
     { A call to the server, for the log (a streamed book's blocks left out:
       too many).
       @param(AText  'GET /books from 192.168.1.60') }
@@ -1142,6 +1147,14 @@ begin
   B.Margins.Left := GAP;
   AddButton(layPhonePair, 'Cancel', btnPhonePairCancelClick, 90);
   layPhonePair.Visible := False;
+  // the address an iPhone / iPad types (zip 409)
+  Row := AddRow(tabPhone);
+  lblServeAddress := TLabel.Create(Self);
+  lblServeAddress.Parent := Row;
+  lblServeAddress.Align := TAlignLayout.Client;
+  lblServeAddress.WordWrap := False;
+  lblServeAddress.Trimming := TTextTrimming.Character;
+  lblServeAddress.Text := 'This computer''s address: not known yet';
   rcPhoneDrop := TRectangle.Create(Self);
   rcPhoneDrop.Parent := tabPhone;
   rcPhoneDrop.Align := TAlignLayout.Top;
@@ -1684,6 +1697,32 @@ begin
   end;
   DebugLog(Format('serve: the books in %s to the paired readers (a TV streams them), port %d',
     [FFetchFolder, FServer.Port]));
+  ShowServeAddress;
+end;
+
+procedure TfrmManager.ShowServeAddress;
+var
+  IP, Text: string;
+begin
+  if lblServeAddress = nil then
+    Exit;
+  IP := LinkPrimaryAddress;
+  if (FServer = nil) or (FServer.Port = 0) then
+    Text := 'An iPhone or iPad cannot reach BookManager: its server did not start (the log says why).'
+  else if IP = '' then
+    Text := 'This computer''s address: not known (no network?)'
+  else
+  begin
+    // the reader tries 47821 - 47830 itself; the port only when outside
+    if (FServer.Port < LINK_HTTP_PORT) or (FServer.Port > LINK_HTTP_PORT + 9) then
+      IP := Format('%s:%d', [IP, FServer.Port]);
+    Text := 'On an iPhone or iPad, type this computer''s address in EpubReader''s Get books from BookManager: ' +
+      IP;
+  end;
+  lblServeAddress.Text := Text;
+  lblServeAddress.Hint := 'All this computer''s addresses: ' + LinkLocalAddresses;
+  lblServeAddress.ShowHint := True;
+  DebugLog('serve: ' + Text + ' (all addresses: ' + LinkLocalAddresses + ')');
 end;
 
 procedure TfrmManager.ServeSettings;
@@ -3940,6 +3979,8 @@ end;
 
 procedure TfrmManager.btnPhoneRefreshClick(Sender: TObject);
 begin
+  // the network may have changed (Wi-Fi, a cable)
+  ShowServeAddress;
   FillPhoneBooks;
   if (FPhoneId <> '') and (TokenOf(FPhoneId) <> '') then
   begin

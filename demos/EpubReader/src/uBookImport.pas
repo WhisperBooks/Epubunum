@@ -40,7 +40,7 @@ type
 function BookFolderSupported: Boolean;
 
 { The phone's name as BookManager lists it: its maker and model ('Google
-  Pixel 9'); '' when not a phone.
+  Pixel 9'); on iOS 'iPad' or 'iPhone'; '' elsewhere.
   @returns(the name) }
 function PhoneName: string;
 
@@ -61,7 +61,8 @@ function StorageFolders: TArray<string>;
 
 { Keeps the screen on while AOn (Android: the window's
   FLAG_KEEP_SCREEN_ON - while BookManager sends books, a batch is not cut
-  short by the screen going off; zip 357). Nothing elsewhere.
+  short by the screen going off; zip 357; iOS: UIApplication's
+  idleTimerDisabled, zip 410). Nothing elsewhere.
   @param(AOn  on or off) }
 procedure KeepScreenOn(AOn: Boolean);
 
@@ -169,6 +170,13 @@ uses
   // TJavaBasicArray.Length's inline body (GetArrayLength) expands only
   // with it (H2443, owner's build 2026-11-27)
   Androidapi.Jni
+  {$ENDIF}
+  {$IFDEF IOS},
+  // PhoneName: an iPad or an iPhone (FMX's device service - no
+  // Objective-C bridge, zip 406's lesson)
+  FMX.Platform, System.Devices,
+  // KeepScreenOn: UIApplication's idleTimerDisabled by objc_msgSend
+  Posix.Dlfcn
   {$ENDIF};
 
 const
@@ -825,8 +833,21 @@ begin
 end;
 
 function PhoneName: string;
+{$IFDEF IOS}
+var
+  Svc: IFMXDeviceService;
+{$ENDIF}
 begin
+  {$IFDEF IOS}
+  // the name BookManager lists and pairs under (zip 409); iOS 16 on gives
+  // apps the device's own name only with an entitlement - its kind will do
+  Result := 'iPhone';
+  if TPlatformServices.Current.SupportsPlatformService(IFMXDeviceService, Svc) and
+    (Svc.GetDeviceClass = TDeviceInfo.TDeviceClass.Tablet) then
+    Result := 'iPad';
+  {$ELSE}
   Result := '';
+  {$ENDIF}
 end;
 
 function IsTelevision: Boolean;
@@ -845,10 +866,47 @@ begin
   {$ENDIF}
 end;
 
+{$IFDEF IOS}
+type
+  { objc_getClass / sel_registerName. }
+  TObjcLookup = function(AName: MarshaledAString): Pointer; cdecl;
+  { objc_msgSend for a method with no argument and an object back. }
+  TObjcMsgObject = function(ASelf, ASel: Pointer): Pointer; cdecl;
+  { objc_msgSend for a method with one BOOL and nothing back. }
+  TObjcMsgBool = procedure(ASelf, ASel: Pointer; AValue: Byte); cdecl;
+
+procedure KeepScreenOn(AOn: Boolean);
+var
+  Lib, Send, App: Pointer;
+  GetClass, GetSel: TObjcLookup;
+begin
+  // [[UIApplication sharedApplication] setIdleTimerDisabled:] - by raw
+  // ids, not the Objective-C bridge (zip 406's lesson); the screen goes
+  // off by itself otherwise and iOS then puts the app in the background,
+  // which ends the link mid-batch (zip 410). The window's thread only.
+  try
+    Lib := dlopen(MarshaledAString(UTF8String('/usr/lib/libobjc.A.dylib')), RTLD_LAZY);
+    if Lib = nil then
+      Exit;
+    @GetClass := dlsym(Lib, MarshaledAString(UTF8String('objc_getClass')));
+    @GetSel := dlsym(Lib, MarshaledAString(UTF8String('sel_registerName')));
+    Send := dlsym(Lib, MarshaledAString(UTF8String('objc_msgSend')));
+    if not Assigned(GetClass) or not Assigned(GetSel) or (Send = nil) then
+      Exit;
+    App := TObjcMsgObject(Send)(GetClass(MarshaledAString(UTF8String('UIApplication'))),
+      GetSel(MarshaledAString(UTF8String('sharedApplication'))));
+    if App <> nil then
+      TObjcMsgBool(Send)(App, GetSel(MarshaledAString(UTF8String('setIdleTimerDisabled:'))), Ord(AOn));
+  except
+    // the screen may then go off by itself, as before
+  end;
+end;
+{$ELSE}
 procedure KeepScreenOn(AOn: Boolean);
 begin
   // the desktop keeps itself awake (uInhibit)
 end;
+{$ENDIF}
 
 function WifiAwake(AOn: Boolean): string;
 begin

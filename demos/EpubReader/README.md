@@ -94,7 +94,9 @@ performance GPU. Windows uses it from the reader's next start.
 While the audio plays, EpubReader asks the system to keep the screen on
 and not sleep (Windows: SetThreadExecutionState; macOS: an IOKit power
 assertion; Linux: systemd-logind's inhibitor plus
-org.freedesktop.ScreenSaver over D-Bus). SteamOS in Game Mode otherwise
+org.freedesktop.ScreenSaver over D-Bus; Android: the window's
+FLAG_KEEP_SCREEN_ON; iOS: UIApplication's idleTimerDisabled - the
+auto-lock waits until it is paused). SteamOS in Game Mode otherwise
 dims, then sleeps, with nobody touching the controller. Pause lets it
 idle again. The debug log has a "screen:" line saying how it was asked.
 
@@ -371,8 +373,12 @@ Android 17). What differs from a desktop:
   open leaves the app.
 - **The library** fills the window's width and scrolls with a finger;
   held sideways the covers are smaller and more go across. Books copied in
-  since last time are read one at a time while the library shows ("Reading
-  new books: 3 of 7"), each cover appearing as it is done. A tapped book
+  since last time (or come from BookManager) are read one at a time while
+  the library shows, under an **Adding books** frame like the one of
+  "Opening book" (the book being read, "book 3 of 7", a bar and its
+  count; taps and keys wait for it), and join the library together when
+  the last is read. While a book is being read the frame does not show:
+  the new books are simply there on going back to the library. A tapped book
   says "Opening ..." while it is read. The book read last is first and
   large; the others are in the order read, or by **Library order** (the
   menu; on a desktop File > Library order): title (without a leading The /
@@ -547,11 +553,29 @@ convention does for records over 16 bytes), and a time is read with
 valueForKey: and NSValue's getValue:size:. On iOS
 nothing is written when the free space cannot be measured.
 
-BookManager on iOS comes next: iOS lets an app
-send or hear network broadcasts only with Apple's multicast entitlement
-(asked for once the app is in alpha), so the iPad will be given
-BookManager's address once instead (Info.plist has the local network
-reason: NSLocalNetworkUsageDescription).
+**BookManager on an iPhone or iPad (zip 409): by its address.** iOS lets
+an app send or hear network broadcasts only with Apple's multicast
+entitlement (com.apple.developer.networking.multicast - asked for on
+Apple's form, not granted to every app), so the reader cannot hear
+BookManager announce itself. **Get books from BookManager** (Menu, or
+"No books yet") asks for BookManager's address - the one its Send to
+phone tab shows ("On an iPhone or iPad, type this computer's address
+...": `192.168.1.91`; `name:port` when it is on another port; a computer's
+name may work too) - and keeps it. From then on the reader asks that
+address for `/info` every two seconds (ports 47821 - 47830; the one that
+answered is asked first), all the time the app is in front: a
+BookManager that answers is "heard" as a broadcast would make it, and
+everything after is as on a TV - BookManager lists the iPad on its Send
+to phone tab (the reader's announcement goes to the address typed, not to
+the network), pairs with the 6-digit code, then its books are in the
+library, streamed (read by blocks, the audio played from `/slice`), and
+books can be sent to it. The panel shows what the address gives:
+"BookManager "..." answers at ...", or "no BookManager answers at ...",
+or "... does not answer (...)". To change the address: Cancel, then Get
+books from BookManager again (the last one is offered). iOS asks once
+whether EpubReader may use the local network (Info.plist's
+NSLocalNetworkUsageDescription): without a yes nothing is reached.
+Finding it by itself (Bonjour) is the next step.
 
 The Apple TV is not this program: Delphi has no tvOS target - a separate
 Swift app, in a repository of its own (owner, 2026-11-27).

@@ -191,6 +191,19 @@ itself.
   more than it has). The line beside the buttons says how many books
   the phone has and its room.
 
+**An iPhone or iPad** (zip 409) cannot hear BookManager's announcement
+(iOS refuses broadcasts to apps without Apple's multicast entitlement):
+the line under the Phone row says this computer's address - "On an iPhone
+or iPad, type this computer's address in EpubReader's Get books from
+BookManager: 192.168.1.91" (its mouse hint lists every address the
+computer has; the one shown is the one its network route uses). Typed
+there, the iPad asks it every two seconds, and its own announcement comes
+to this computer directly: from then on it is a phone here like any other
+(listed, paired with its code, sent books, streamed to). **Refresh** reads
+the address again (another Wi-Fi, a cable). Windows' firewall must let
+BookManager take connections on the private network (it asks the first
+time BookManager runs).
+
 The transfers are in Send to EpubBuilder's list too ("To phone"), one at
 a time with the others; the bar under the buttons shows the one running.
 Each row shows its speed - while it runs ("45 % 14.8 MB/s", after two

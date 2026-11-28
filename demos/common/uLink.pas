@@ -12,7 +12,9 @@
   @unorderedList(
     @item(@bold(Found by itself): a builder says where it is every two
       seconds (UDP broadcast, port LINK_DISCOVERY_PORT, a line of JSON);
-      @link(TLinkFinder) lists the builders heard.)
+      @link(TLinkFinder) lists the builders heard. iOS hears no broadcast
+      without Apple's multicast entitlement: there an address is typed and
+      asked for /info instead (@link(TLinkFinder.Watch), zip 409).)
     @item(@bold(HTTP) (Indy - works on Linux and in Steam's runtime): the
       builder's @link(TLinkServer) on LINK_HTTP_PORT or the next free
       port; @link(TLinkClient) calls it.)
@@ -218,6 +220,8 @@ type
     { Addresses the announcement also goes to directly (SetDirect; under
       FLock). }
     FDirect: TArray<string>;
+    { Backing field of Broadcasting. }
+    FBroadcasting: Boolean;
     { TakesTickets' getter. }
     function GetTakesTickets: Boolean;
     { TakesTickets' setter. }
@@ -304,6 +308,12 @@ type
       then (the announcement fails with Socket Error # 1), and the phone
       shows as not heard. Read by the announcer's thread. }
     property Announcing: Boolean read FAnnouncing write FAnnouncing;
+    { The announcement is broadcast as well as sent to the SetDirect
+      addresses (True at first). An iPhone / iPad sets it False before
+      Start (zip 409): without Apple's multicast entitlement iOS refuses
+      every broadcast, and only the unicast copies to a typed BookManager
+      can arrive. }
+    property Broadcasting: Boolean read FBroadcasting write FBroadcasting;
     { An upload's progress, at most twice a second and at its end (on the
       main thread; set before Start). }
     property OnUploadProgress: TLinkUploadProgressEvent read FOnUploadProgress write FOnUploadProgress;
@@ -349,8 +359,17 @@ type
     FOnFirstHeard: TLinkRequestEvent;
     { Backing field of OnBye. }
     FOnBye: TLinkRequestEvent;
+    { Asks the watched addresses (Watch) for /info; nil = none. }
+    FWatcher: TThread;
+    { What the watcher found last (under FLock; WatchNote). }
+    FWatchNote: string;
     { An announcement came. }
     procedure UdpRead(AThread: TIdUDPListenerThread; const AData: TIdBytes; ABinding: TIdSocketHandle);
+    { A program is here (an announcement, or a watched address answering):
+      into the list, its events queued (any thread). }
+    procedure Heard(const APeer: TLinkPeer);
+    { The watcher's finding (any thread): kept, OnChange when it is new. }
+    procedure SetWatchNote(const ANote: string);
   public
     { Listens at once. }
     constructor Create;
@@ -358,6 +377,19 @@ type
     destructor Destroy; override;
     { The builders heard in the last LINK_GONE_SECONDS. }
     function Peers: TLinkPeerArray;
+    { Asks these addresses for /info every two seconds and takes a
+      BookManager that answers as heard (zip 409: an iPhone / iPad hears no
+      broadcast without Apple's multicast entitlement, so the user types
+      BookManager's address). An address is 'host' (ports LINK_HTTP_PORT
+      to LINK_HTTP_PORT + 9 tried, the one found first next time) or
+      'host:port'. An empty list stops asking. One that stops answering
+      goes from Peers after LINK_GONE_SECONDS, as a silent one does. Call
+      on the main thread (it may wait a few seconds for the call running). }
+    procedure Watch(const AHosts: TArray<string>);
+    { What the watcher found last, for the panel and the log ('' = not
+      watching): 'BookManager "BookManager on PC" answers at 192.168.1.91:
+      47822', '192.168.1.91 does not answer (...)'. Any thread. }
+    function WatchNote: string;
     { A builder came, went or moved (called on the main thread; also call
       Peers now and then: one that stops saying goes quietly). }
     property OnChange: TNotifyEvent read FOnChange write FOnChange;
@@ -507,6 +539,12 @@ function LinkFreeSpace(const AFolder: string): Int64;
   harmless. Found by "connecting" a UDP socket (nothing is sent). }
 function LinkNetworkBroadcast: string;
 
+{ This machine's IPv4 address on the network it reaches others through
+  ('192.168.1.91'; '' when not known) - the one an iPhone or iPad types to
+  find BookManager (zip 409). Found as LinkNetworkBroadcast finds it: a
+  computer with virtual adapters has others too (LinkLocalAddresses). }
+function LinkPrimaryAddress: string;
+
 { Says goodbye on the network: an announcement with "bye" (AApp, AName,
   AId, port 0) to 255.255.255.255, LinkBroadcastTargets and AHosts directly
   - a program that hears it drops this one at once (TLinkFinder.OnBye).
@@ -543,7 +581,9 @@ uses
   // the machine's addresses (LinkLocalAddresses)
   IdStack,
   // the transfers' buffers
-  IdIOHandler, IdIOHandlerStack, IdTCPConnection;
+  IdIOHandler, IdIOHandlerStack, IdTCPConnection,
+  // Id_WSAECONNREFUSED: a watched address's port with nobody on it
+  IdStackConsts;
 
 const
   { Book files. }
@@ -554,6 +594,13 @@ const
   COVER_EXTS: array[0..4] of string = ('.jpg', '.jpeg', '.png', '.webp', '.gif');
   { Log lines kept for /log. }
   LOG_KEEP = 5000;
+  { A watched address (TLinkFinder.Watch) is asked this often (ms). }
+  WATCH_EVERY_MS = 2000;
+  { How long its connection may take (ms): on the home network an answer
+    or a refusal comes at once; longer means it is not there. }
+  WATCH_CONNECT_MS = 1500;
+  { How long its /info may take (ms). }
+  WATCH_READ_MS = 3000;
 
 type
   { An upload's .part file: where it goes when whole, and how big. }
@@ -639,6 +686,39 @@ type
   public
     { For AServer. }
     constructor Create(AServer: TLinkServer);
+  end;
+
+  { TLinkFinder.Watch's thread: asks each address for /info, every two
+    seconds, and hands a BookManager that answers to the finder. }
+  TLinkWatcher = class(TThread)
+  private
+    { Whose. }
+    FFinder: TLinkFinder;
+    { The addresses, as given. }
+    FHosts: TArray<string>;
+    { The port each answered on last (0 = not yet). }
+    FPorts: TArray<Integer>;
+    { Guards FHttp (TerminatedSet comes from another thread). }
+    FLock: TCriticalSection;
+    { The call running (nil = none): disconnected when terminated, so
+      Watch and the finder's end do not wait for its time-out. }
+    FHttp: TIdHTTP;
+    { Asks address AIndex (its ports, the last one first).
+      @returns(what was found, for the note) }
+    function Ask(AIndex: Integer): string;
+    { GET http://AHost:APort/info - the answer's JSON (the caller frees it;
+      nil when it is not JSON). Raises what Indy raises. }
+    function GetInfo(const AHost: string; APort: Integer): TJSONObject;
+  protected
+    { Asks until terminated. }
+    procedure Execute; override;
+    { The call running is cut. }
+    procedure TerminatedSet; override;
+  public
+    { Starts at once. }
+    constructor Create(AFinder: TLinkFinder; const AHosts: TArray<string>);
+    { Frees. }
+    destructor Destroy; override;
   end;
 
 function TLinkRefusedStream.Write(const Buffer; Count: Longint): Longint;
@@ -832,11 +912,10 @@ end;
 {$ENDIF}
 {$ENDIF}
 
-function LinkNetworkBroadcast: string;
+function LinkPrimaryAddress: string;
 var
   Udp: TIdUDPClient;
   IP: string;
-  Parts: TArray<string>;
 begin
   Result := '';
   Udp := TIdUDPClient.Create(nil);
@@ -849,15 +928,24 @@ begin
       Udp.IPVersion := Id_IPv4;
       Udp.Connect;
       IP := Udp.Binding.IP;
-      Parts := IP.Split(['.']);
-      if (Length(Parts) = 4) and (IP <> '0.0.0.0') and not IP.StartsWith('127.') then
-        Result := Format('%s.%s.%s.255', [Parts[0], Parts[1], Parts[2]]);
+      if (Length(IP.Split(['.'])) = 4) and (IP <> '0.0.0.0') and not IP.StartsWith('127.') then
+        Result := IP;
     except
       // no network now
     end;
   finally
     Udp.Free;
   end;
+end;
+
+function LinkNetworkBroadcast: string;
+var
+  Parts: TArray<string>;
+begin
+  Result := '';
+  Parts := LinkPrimaryAddress.Split(['.']);
+  if Length(Parts) = 4 then
+    Result := Format('%s.%s.%s.255', [Parts[0], Parts[1], Parts[2]]);
 end;
 
 function LinkLocalAddresses: string;
@@ -1154,31 +1242,37 @@ var
   I, Round_: Integer;
   Host, Net: string;
   Nets: TArray<string>;
+  Broadcasting: Boolean;
 begin
+  // read once: set before Start (an iPhone / iPad sends unicast only)
+  Broadcasting := FServer.Broadcasting;
   Udp := TIdUDPClient.Create(nil);
   try
-    Udp.BroadcastEnabled := True;
+    Udp.BroadcastEnabled := Broadcasting;
     Round_ := 0;
     Nets := nil;
     while not Terminated do
     begin
       // the networks' own broadcast addresses, looked at every 30 s
       // (Wi-Fi changed)
-      if Round_ mod 15 = 0 then
+      if Broadcasting and (Round_ mod 15 = 0) then
         Nets := LinkBroadcastTargets;
       Inc(Round_);
       if FServer.Announcing then
       begin
-        try
-          Udp.Broadcast(FServer.Announcement, LINK_DISCOVERY_PORT, '255.255.255.255', IndyTextEncoding_UTF8);
-        except
-          // no network now (asleep, cable out): next time
-        end;
-        for Net in Nets do
-        try
-          Udp.Broadcast(FServer.Announcement, LINK_DISCOVERY_PORT, Net, IndyTextEncoding_UTF8);
-        except
-          // next time
+        if Broadcasting then
+        begin
+          try
+            Udp.Broadcast(FServer.Announcement, LINK_DISCOVERY_PORT, '255.255.255.255', IndyTextEncoding_UTF8);
+          except
+            // no network now (asleep, cable out): next time
+          end;
+          for Net in Nets do
+          try
+            Udp.Broadcast(FServer.Announcement, LINK_DISCOVERY_PORT, Net, IndyTextEncoding_UTF8);
+          except
+            // next time
+          end;
         end;
         // and straight to each BookManager heard (SetDirect)
         for Host in FServer.Direct do
@@ -1207,6 +1301,7 @@ begin
   FId := AId;
   FReserve := LINK_RESERVE;
   FAnnouncing := True;
+  FBroadcasting := True;
   FLock := TCriticalSection.Create;
   FLog := TStringList.Create;
   FTokens := TStringList.Create;
@@ -2163,6 +2258,8 @@ end;
 
 destructor TLinkFinder.Destroy;
 begin
+  // the watcher calls Heard: gone before the list and its lock
+  Watch(nil);
   try
     FUdp.Active := False;
   except
@@ -2178,11 +2275,10 @@ var
   V: TJSONValue;
   P: TLinkPeer;
   ChangeEvent: TNotifyEvent;
-  HeardEvent: TLinkRequestEvent;
   ByeEvent: TLinkRequestEvent;
   Said: string;
   I: Integer;
-  Changed, Bye: Boolean;
+  Bye: Boolean;
 begin
   V := TJSONObject.ParseJSONValue(BytesToString(AData, IndyTextEncoding_UTF8));
   try
@@ -2235,6 +2331,19 @@ begin
         end);
     Exit;
   end;
+  Heard(P);
+end;
+
+procedure TLinkFinder.Heard(const APeer: TLinkPeer);
+var
+  ChangeEvent: TNotifyEvent;
+  HeardEvent: TLinkRequestEvent;
+  Said: string;
+  I: Integer;
+  Changed: Boolean;
+  P: TLinkPeer;
+begin
+  P := APeer;
   Changed := True;
   FLock.Enter;
   try
@@ -2293,6 +2402,271 @@ begin
   finally
     FLock.Leave;
   end;
+end;
+
+procedure TLinkFinder.Watch(const AHosts: TArray<string>);
+var
+  W: TThread;
+begin
+  W := FWatcher;
+  FWatcher := nil;
+  if W <> nil then
+  begin
+    // its call is cut (TerminatedSet); it queues, never waits on this
+    // thread, so waiting for it here cannot lock
+    W.Terminate;
+    W.WaitFor;
+    W.Free;
+  end;
+  FLock.Enter;
+  try
+    if Length(AHosts) = 0 then
+      FWatchNote := ''
+    else
+      FWatchNote := 'asking ' + string.Join(', ', AHosts);
+  finally
+    FLock.Leave;
+  end;
+  if Length(AHosts) > 0 then
+    FWatcher := TLinkWatcher.Create(Self, AHosts);
+end;
+
+function TLinkFinder.WatchNote: string;
+begin
+  FLock.Enter;
+  try
+    Result := FWatchNote;
+  finally
+    FLock.Leave;
+  end;
+end;
+
+procedure TLinkFinder.SetWatchNote(const ANote: string);
+var
+  Changed: Boolean;
+  ChangeEvent: TNotifyEvent;
+begin
+  FLock.Enter;
+  try
+    Changed := FWatchNote <> ANote;
+    FWatchNote := ANote;
+  finally
+    FLock.Leave;
+  end;
+  // the panel shows it: told as a change (copied - zip 360)
+  ChangeEvent := FOnChange;
+  if Changed and Assigned(ChangeEvent) then
+    TThread.Queue(nil,
+      procedure
+      begin
+        ChangeEvent(nil);
+      end);
+end;
+
+{ TLinkWatcher }
+
+constructor TLinkWatcher.Create(AFinder: TLinkFinder; const AHosts: TArray<string>);
+begin
+  FFinder := AFinder;
+  FHosts := Copy(AHosts);
+  SetLength(FPorts, Length(FHosts));
+  FLock := TCriticalSection.Create;
+  FreeOnTerminate := False;
+  inherited Create(False);
+end;
+
+destructor TLinkWatcher.Destroy;
+begin
+  // stops and waits first (TerminatedSet uses the lock)
+  inherited;
+  FLock.Free;
+end;
+
+procedure TLinkWatcher.TerminatedSet;
+begin
+  inherited;
+  FLock.Enter;
+  try
+    if FHttp <> nil then
+    try
+      FHttp.Disconnect;
+    except
+      // ending anyway
+    end;
+  finally
+    FLock.Leave;
+  end;
+end;
+
+procedure TLinkWatcher.Execute;
+var
+  I, K: Integer;
+  Notes: TArray<string>;
+  Note: string;
+begin
+  while not Terminated do
+  begin
+    Notes := nil;
+    for I := 0 to High(FHosts) do
+    begin
+      if Terminated then
+        Break;
+      Note := Ask(I);
+      Notes := Notes + [Note];
+    end;
+    if Terminated then
+      Break;
+    FFinder.SetWatchNote(string.Join('; ', Notes));
+    for K := 1 to WATCH_EVERY_MS div 100 do
+      if not Terminated then
+        Sleep(100);
+  end;
+end;
+
+function TLinkWatcher.GetInfo(const AHost: string; APort: Integer): TJSONObject;
+var
+  Http: TIdHTTP;
+  Answer: TStringStream;
+  S: string;
+  V: TJSONValue;
+begin
+  Result := nil;
+  S := '';
+  Http := TIdHTTP.Create(nil);
+  Answer := TStringStream.Create('', TEncoding.UTF8);
+  try
+    Http.ConnectTimeout := WATCH_CONNECT_MS;
+    Http.ReadTimeout := WATCH_READ_MS;
+    Http.HandleRedirects := False;
+    FLock.Enter;
+    try
+      FHttp := Http;
+    finally
+      FLock.Leave;
+    end;
+    try
+      if Terminated then
+        Exit;
+      // into a stream: UTF-8 whatever the answer's header says (as
+      // TLinkClient.GetJson)
+      Http.Get(Format('http://%s:%d/info', [AHost, APort]), Answer);
+      S := Answer.DataString;
+    finally
+      FLock.Enter;
+      try
+        FHttp := nil;
+      finally
+        FLock.Leave;
+      end;
+    end;
+  finally
+    Answer.Free;
+    Http.Free;
+  end;
+  V := TJSONObject.ParseJSONValue(S);
+  if V is TJSONObject then
+    Result := TJSONObject(V)
+  else
+    V.Free;
+end;
+
+function TLinkWatcher.Ask(AIndex: Integer): string;
+var
+  Host, App, Others, Why: string;
+  Fixed, K, P: Integer;
+  Ports: TArray<Integer>;
+  O: TJSONObject;
+  Peer: TLinkPeer;
+  Found: Boolean;
+begin
+  Host := Trim(FHosts[AIndex]);
+  // 'host:port' (one colon: no IPv6 here)
+  Fixed := 0;
+  K := Host.LastIndexOf(':');
+  if (K > 0) and (Host.IndexOf(':') = K) then
+  begin
+    Fixed := StrToIntDef(Copy(Host, K + 2, MaxInt), 0);
+    if (Fixed > 0) and (Fixed < 65536) then
+      Host := Copy(Host, 1, K)
+    else
+      Fixed := 0;
+  end;
+  if Fixed > 0 then
+    Ports := [Fixed]
+  else
+  begin
+    // the port it answered on last, first; then the rest of the ten
+    Ports := nil;
+    if FPorts[AIndex] > 0 then
+      Ports := [FPorts[AIndex]];
+    for P := LINK_HTTP_PORT to LINK_HTTP_PORT + 9 do
+      if P <> FPorts[AIndex] then
+        Ports := Ports + [P];
+  end;
+  Others := '';
+  for P in Ports do
+  begin
+    if Terminated then
+      Exit('');
+    try
+      O := GetInfo(Host, P);
+    except
+      on E: Exception do
+      begin
+        // nobody on that port (the host is there): the next one. Another
+        // program's HTTP answering 404: the next one too
+        if (E is EIdSocketError) and (EIdSocketError(E).LastError = Id_WSAECONNREFUSED) then
+          Continue;
+        if E is EIdHTTPProtocolException then
+          Continue;
+        // not reached at all (asleep, another network, the name not
+        // known): no use trying the other ports this round
+        // (Indy's text has a line break in it: one line here)
+        Why := Trim(StringReplace(StringReplace(E.Message, #13, ' ', [rfReplaceAll]), #10, ' ',
+          [rfReplaceAll]));
+        Why := StringReplace(Why, '  ', ' ', [rfReplaceAll]);
+        // iOS refuses a local address until its "local network" question
+        // is answered Allow (2026-11-28 10:48: "No route to host", then a
+        // timeout, then the answer 47 s later)
+        if Pos('No route to host', Why) > 0 then
+          Why := Why + ' - on an iPhone or iPad: has EpubReader been allowed the local network? ' +
+            '(Settings > Privacy & Security > Local Network)';
+        Exit(Format('%s does not answer (%s)', [Host, Why]));
+      end;
+    end;
+    if O = nil then
+      Continue;
+    Found := False;
+    Peer := Default(TLinkPeer);
+    try
+      App := '';
+      O.TryGetValue<string>('app', App);
+      O.TryGetValue<string>('id', Peer.Id);
+      O.TryGetValue<string>('name', Peer.Name);
+      if (App = LINK_APP_MANAGER) and (Peer.Id <> '') then
+        Found := True
+      else
+        // EpubBuilder on the same computer, say: not this
+        Others := Trim(Others + Format(' %s on port %d', [App, P]));
+    finally
+      O.Free;
+    end;
+    if not Found then
+      Continue;
+    Peer.App := App;
+    Peer.Host := Host;
+    Peer.Port := P;
+    Peer.Seen := Now;
+    FPorts[AIndex] := P;
+    FFinder.Heard(Peer);
+    Exit(Format('BookManager "%s" answers at %s:%d', [Peer.Name, Host, P]));
+  end;
+  if Fixed > 0 then
+    Result := Format('no BookManager answers at %s:%d', [Host, Fixed])
+  else
+    Result := Format('no BookManager answers at %s (ports %d - %d)', [Host, LINK_HTTP_PORT, LINK_HTTP_PORT + 9]);
+  if Others <> '' then
+    Result := Result + ' - there: ' + Others;
 end;
 
 { TLinkClient }
